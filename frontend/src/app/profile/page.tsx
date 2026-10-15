@@ -2,54 +2,49 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Container,
-  Heading,
-  Text,
-  Spinner,
-  useToast,
-  Box,
-  Flex,
-} from "@chakra-ui/react";
+import { Container, Heading, Spinner, Flex } from "@chakra-ui/react";
 import { authService } from "@/services/authService";
 import { ProfileCard } from "@/components/profile/ProfileCard";
 import { User } from "@/types/auth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { toaster } from "@/lib/toaster";
 
 export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const toast = useToast();
   const router = useRouter();
 
   useEffect(() => {
+    let cancelled = false;
+
     async function fetchProfile() {
       try {
         const response = await authService.getUser();
-        const userInfo: User = {
+        if (cancelled) return;
+        setUser({
           id: response.user_id,
           email: response.email,
           role: response.role,
           googleId: response.google_id,
-        };
-        setUser(userInfo);
-      } catch (error: any) {
-        console.error("Failed to fetch profile:", error);
-        toast({
+        });
+      } catch {
+        if (cancelled) return;
+        toaster.create({
           title: "Error",
           description: "Could not load profile information.",
-          status: "error",
-          duration: 3000,
-          isClosable: true,
+          type: "error",
         });
         router.push("/login");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
     fetchProfile();
-  }, [router, toast]);
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   if (loading || !user) {
     return (
@@ -63,7 +58,7 @@ export default function ProfilePage() {
     <ProtectedRoute>
       <Container py={10} maxW="container.sm">
         <Flex direction="column" align="center" gap={6}>
-          <Heading size="2xl">My Profile</Heading>
+          <Heading fontSize="3xl">My Profile</Heading>
           <ProfileCard user={user} />
         </Flex>
       </Container>
