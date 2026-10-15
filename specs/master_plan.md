@@ -1,4 +1,4 @@
-# Plan maestro — Dulces Herramientas (reimplementación)
+# Plan maestro — Toscana Pastry (reimplementación)
 
 > Fase: planificación. Este documento define arquitectura, fases iterativas y checklist técnico.
 > Stack: **Next.js (frontend) + FastAPI (backend)**. Cada pantalla P1–P10 es un módulo independiente.
@@ -10,7 +10,7 @@
 
 ### 1.1 Monorepo
 ```
-dulcesherramientas/
+toscana-pastry/
 ├── web/                  # Next.js 15 (App Router) + Chakra UI v3
 │   ├── app/              # rutas, layout, metadata, not-found, og-image, robots, sitemap
 │   ├── modules/          # UN MÓDULO POR PANTALLA (independiente)

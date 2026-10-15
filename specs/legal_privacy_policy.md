@@ -1,4 +1,4 @@
-# Política de privacidad — Dulces Herramientas
+# Política de privacidad — Toscana Pastry
 
 > Nota de proceso: el comando `/humanizer` no existe en este entorno. Se aplicaron sus principios (lenguaje plano, frases cortas, sin jurispalabras, lo que el documento dice es lo que pasa) y el texto quedó listo para revisar. Última actualización: [FECHA].
 

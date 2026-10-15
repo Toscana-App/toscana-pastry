@@ -1,10 +1,10 @@
-# Términos y condiciones — Dulces Herramientas
+# Términos y condiciones — Toscana Pastry
 
 > Nota de proceso: redactado con principios de humanizer (lenguaje plano, lo que el documento dice es lo que pasa). Requiere revisión legal local antes de publicar (jurisdicción AR). Última actualización: [FECHA].
 
-## 1. Qué es Dulces Herramientas
+## 1. Qué es Toscana Pastry
 
-Dulces Herramientas es una aplicación web que te ayuda a calcular los costos de tus productos (tortas, postres, repostería) y a armar y enviar presupuestos. La app no fabrica, no vende ingredientes y no hace pedidos de compra por vos.
+Toscana Pastry es una aplicación web que te ayuda a calcular los costos de tus productos (tortas, postres, repostería) y a armar y enviar presupuestos. La app no fabrica, no vende ingredientes y no hace pedidos de compra por vos.
 
 ## 2. Cómo funciona el acceso
 
@@ -58,7 +58,7 @@ Después de 7 días no aplicamos devoluciones. Si la app deja de funcionar por u
 
 ## 8. Propiedad intelectual
 
-La app, su código y su diseño son de Dulces Herramientas. Vos sos dueño de lo que cargás: tus recetas, tus precios, tus presupuestos y tus datos de clientes. Al usar la app nos das el derecho mínimo de procesar esos datos para que la app funcione.
+La app, su código y su diseño son de Toscana Pastry. Vos sos dueño de lo que cargás: tus recetas, tus precios, tus presupuestos y tus datos de clientes. Al usar la app nos das el derecho mínimo de procesar esos datos para que la app funcione.
 
 ## 9. Cierre de cuenta
 

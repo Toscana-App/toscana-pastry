@@ -1,6 +1,6 @@
-# Dulces Herramientas — Spec de reimplementación (P1–P10)
+# Toscana Pastry — Spec de reimplementación (P1–P10)
 
-> Generado a partir de la exploración (`REPORTE_dulcesherramientas.md`) + `~/.hermes/DESIGN.md` + docs Chakra UI v3 + guía de Chat SDK de Vercel.
+> Generado a partir de la exploración (`REPORTE_toscana-pastry.md`) + `~/.hermes/DESIGN.md` + docs Chakra UI v3 + guía de Chat SDK de Vercel.
 > Stack: **Next.js 15 (App Router) + FastAPI + Postgres + Chakra UI v3**. Capas: `data` / `domain` / `presentation`. Cada pantalla = módulo independiente.
 
 ## Índice
