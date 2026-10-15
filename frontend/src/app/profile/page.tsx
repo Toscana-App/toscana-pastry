@@ -29,6 +29,7 @@ export default function ProfilePage() {
         const userInfo: User = {
           id: response.user_id,
           email: response.email,
+          role: response.role,
           googleId: response.google_id,
         };
         setUser(userInfo);

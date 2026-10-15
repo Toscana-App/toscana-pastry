@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/api";
-import { AuthResponse, LoginRequest } from "@/types/auth";
+import { AuthResponse, LoginRequest, UserInfo } from "@/types/auth";
 import { removeCookie } from "@/lib/cookies";
 
 export const authService = {
@@ -17,8 +17,8 @@ export const authService = {
     });
   },
 
-  async getUser() {
-    return apiFetch<AuthResponse>("/auth/me");
+  async getUser(): Promise<UserInfo> {
+    return apiFetch<UserInfo>("/auth/me");
   },
 
   logout() {
