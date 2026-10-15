@@ -1,5 +1,6 @@
 import { apiFetch } from "@/lib/api";
 import { AuthResponse, LoginRequest } from "@/types/auth";
+import { removeCookie } from "@/lib/cookies";
 
 export const authService = {
   async loginWithMagicLink(email: string): Promise<AuthResponse> {
@@ -15,4 +16,13 @@ export const authService = {
       body: JSON.stringify({ google_id: googleId }),
     });
   },
+
+  async getUser() {
+    return apiFetch<AuthResponse>("/auth/me");
+  },
+
+  logout() {
+    removeCookie("auth_token");
+    window.location.href = "/login";
+  }
 };

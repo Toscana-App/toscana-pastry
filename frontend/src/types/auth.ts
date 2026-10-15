@@ -5,8 +5,10 @@ export interface User {
 }
 
 export interface AuthResponse {
-  user: User;
+  user_id: string;
+  email: string;
   token: string;
+  google_id?: string;
 }
 
 export interface LoginRequest {
