@@ -14,18 +14,22 @@ import {
   Divider,
 } from "@chakra-ui/react";
 import { authService } from "@/services/authService";
-import { GoogleIcon } from "@/components/ui/google-icon"; // We'll need this
+import { GoogleIcon } from "@/components/ui/google-icon";
+import { setCookie } from "@/lib/cookies";
+import { useRouter } from "next/navigation";
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const toast = useToast();
+  const router = useRouter();
 
   const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await authService.loginWithMagicLink(email);
+      const data = await authService.loginWithMagicLink(email);
+      setCookie("auth_token", data.token, 7);
       toast({
         title: "Magic link sent!",
         description: "Check your email to log in.",
@@ -33,6 +37,7 @@ export default function LoginForm() {
         duration: 5000,
         isClosable: true,
       });
+      router.push("/");
     } catch (error: any) {
       toast({
         title: "Login failed",
@@ -49,15 +54,15 @@ export default function LoginForm() {
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
-      // In a real app, this would be the result of the Google OAuth flow
-      // For now, we simulate a google_id
-      await authService.loginWithGoogle("google_test_id");
+      const data = await authService.loginWithGoogle("google_test_id");
+      setCookie("auth_token", data.token, 7);
       toast({
         title: "Logged in!",
         status: "success",
         duration: 3000,
         isClosable: true,
       });
+      router.push("/");
     } catch (error: any) {
       toast({
         title: "Google login failed",
@@ -67,7 +72,7 @@ export default function LoginForm() {
         isClosable: true,
       });
     } finally {
-      setLoading(false);
+      setLoading(false}
     }
   };
 
