@@ -1,4 +1,3 @@
-
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 
@@ -9,4 +8,5 @@ class AuthRequest(BaseModel):
 class AuthResponse(BaseModel):
     user_id: str
     email: str
+    token: str
     google_id: Optional[str]
