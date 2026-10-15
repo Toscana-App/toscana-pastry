@@ -6,7 +6,9 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from data.models import Base
 from data.repositories.sql_user_repository import SQLUserRepository
-from datetime import datetime, timedelta
+from data.db import get_db
+import datetime
+import asyncio
 from fastapi import Depends
 
 @pytest_asyncio.fixture
@@ -26,28 +28,45 @@ async def test_health():
         assert response.json() == {"status": "healthy"}
 
 @pytest.mark.asyncio
-async def test_login_invalid_payload():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        response = await ac.post("/api/v1/auth/login", json={})
-        assert response.status_code == 400
+async def test_login_invalid_payload(db_session):
+    async def override_get_db():
+        async with db_session as session:
+            yield session
+    app.dependency_overrides[get_db] = override_get_db
+    
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            response = await ac.post("/api/v1/auth/login", json={})
+            assert response.status_code == 400
+    finally:
+        app.dependency_overrides = {}
 
 @pytest.mark.asyncio
-async def test_me_unauthorized():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        response = await ac.get("/api/v1/auth/me")
-        assert response.status_code == 401
+async def test_me_unauthorized(db_session):
+    async def override_get_db():
+        async with db_session as session:
+            yield session
+    app.dependency_overrides[get_db] = override_get_db
+
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            response = await ac.get("/api/v1/auth/me")
+            assert response.status_code == 401
+    finally:
+        app.dependency_overrides = {}
 
 @pytest.mark.asyncio
 async def test_me_authenticated(db_session):
-    # Use a generator for the override
+    async def override_get_db():
+        async with db_session as session:
+            yield session
+    
     async def get_user_repo_for_test():
         async with db_session as session:
             yield SQLUserRepository(session)
 
-    # We need to find the actual function to override
+    app.dependency_overrides[get_db] = override_get_db
     from api.v1.auth.router import get_user_repository
-    
-    # Apply override
     app.dependency_overrides[get_user_repository] = get_user_repo_for_test
 
     try:
