@@ -1,4 +1,4 @@
-
+import uuid
 from domain.models import User
 from domain.repositories import UserRepository
 
@@ -14,7 +14,7 @@ class AuthenticateUser:
             user = await self.user_repository.get_by_google_id(google_id)
             if not user:
                 # Create new user if it's a new Google login
-                user = User(email=email, google_id=google_id)
+                user = User(id=str(uuid.uuid4()), email=email, google_id=google_id)
                 await self.user_repository.save(user)
             return user
 
@@ -22,7 +22,7 @@ class AuthenticateUser:
             user = await self.user_repository.get_by_email(email)
             if not user:
                 # For magic link, we'd create/update the user here
-                user = User(email=email)
+                user = User(id=str(uuid.uuid4()), email=email)
                 await self.user_repository.save(user)
             return user
         
