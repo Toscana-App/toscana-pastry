@@ -1,4 +1,3 @@
-
 from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +22,18 @@ class SQLUserRepository:
 
     async def get_by_google_id(self, google_id: str) -> Optional[User]:
         result = await self.session.execute(select(UserORM).where(UserORM.google_id == google_id))
+        orm_user = result.scalars().first()
+        if not orm_user:
+            return None
+        return User(
+            id=orm_user.id,
+            email=orm_user.email,
+            google_id=orm_user.google_id,
+            created_at=orm_user.created_at
+        )
+
+    async def get_by_id(self, user_id: str) -> Optional[User]:
+        result = await self.session.execute(select(UserORM).where(UserORM.id == user_id))
         orm_user = result.scalars().first()
         if not orm_user:
             return None
