@@ -18,3 +18,7 @@ class UserRepository(ABC):
     @abstractmethod
     async def get_all_by_role(self, role: UserRole) -> List[User]:
         pass
+
+    @abstractmethod
+    async def get_all(self) -> List[User]:
+        pass
