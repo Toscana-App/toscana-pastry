@@ -4,6 +4,7 @@ import "./globals.css";
 import { Provider } from "@/providers/ChakraProvider"
 import { AuthProvider } from "@/contexts/AuthContext"
 import { Navbar } from "@/components/layout/Navbar"
+import { Toaster } from "@/lib/toaster"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,7 +23,6 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-  // @ts-ignore
 }: {
   children: React.ReactNode;
 }) {
@@ -33,6 +33,7 @@ export default function RootLayout({
           <AuthProvider>
             <Navbar />
             <main>{children}</main>
+            <Toaster />
           </AuthProvider>
         </Provider>
       </body>
