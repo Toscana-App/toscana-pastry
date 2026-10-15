@@ -1,17 +1,19 @@
+const isBrowser = typeof document !== "undefined";
+
 export function setCookie(name: string, value: string, days: number) {
+  if (!isBrowser) return;
   const date = new Date();
   date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000);
   const expires = "expires=" + date.toUTCString();
-  document.cookie = `${name}=${value}; ${expires}; path=/`;
+  document.cookie = `${name}=${value}; ${expires}; path=/; SameSite=Lax`;
 }
 
-export function getCookie(name: string) {
+export function getCookie(name: string): string | undefined {
+  if (!isBrowser) return undefined;
   const namePrefix = name + "=";
-  const decodedCookie = decodecookie.decode(document.cookie);
-  // wait, I'll use a simpler implementation
-  const ca = document.cookie.split(';');
+  const ca = document.cookie.split(";");
   for (let i = 0; i < ca.length; i++) {
-    let c = ca[i].trim();
+    const c = ca[i].trim();
     if (c.indexOf(namePrefix) === 0) {
       return c.substring(namePrefix.length, c.length);
     }
@@ -20,5 +22,6 @@ export function getCookie(name: string) {
 }
 
 export function removeCookie(name: string) {
-  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/`;
+  if (!isBrowser) return;
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax`;
 }
