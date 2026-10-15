@@ -1,8 +1,41 @@
+from contextlib import asynccontextmanager
+import os
+
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 from api.v1.auth.router import router as auth_router
 from api.v1.admin.router import router as admin_router
+from data.db import engine
+from data.models import Base
 
-app = FastAPI(title="Toscana Pastry API")
+# El frontend llama a la API desde otro origen (puerto distinto), así que el
+# navegador exige CORS. Orígenes explícitos: con allow_credentials=True no se
+# admite "*". Configurable por env para staging/producción.
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+    if origin.strip()
+]
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # create_all es idempotente: crea el esquema si falta y no toca lo existente.
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+
+
+app = FastAPI(title="Toscana Pastry API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
