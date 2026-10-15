@@ -1,5 +1,7 @@
-
 from datetime import datetime, timedelta
+from typing import Optional
+import jwt
+from core.config import settings
 
 class MagicLinkToken:
     def __init__(self, user_email: str):
@@ -30,3 +32,22 @@ def validate_google_id_token(payload: dict) -> dict:
         "google_id": payload["sub"],
         "email": payload["email"]
     }
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire.timestamp()})
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return encoded_jwt
+
+def decode_access_token(token: str) -> dict:
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise ValueError("Token has expired")
+    except jwt.InvalidTokenError:
+        raise ValueError("Invalid token")
