@@ -73,7 +73,8 @@ async def test_me_authenticated(db_session):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             login_resp = await ac.post("/api/v1/auth/login", json={"email": "test@example.com"})
             assert login_resp.status_code == 200
-            token = login_resp.json()["token"]
+            token = login_resp.json()["access_token"]
+            refresh_token = login_resp.json()["refresh_token"]
             
             response = await ac.get(
                 "/api/v1/auth/me", 
@@ -81,5 +82,15 @@ async def test_me_authenticated(db_session):
             )
             assert response.status_code == 200
             assert response.json()["email"] == "test@example.com"
+
+            # Test Refresh
+            refresh_resp = await ac.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
+            assert refresh_resp.status_code == 200
+            assert "access_token" in refresh_resp.json()
+            
+            # Test Invalid Refresh
+            bad_refresh_resp = await ac.post("/api/v1/auth/refresh", json={"refresh_token": "invalid_token"})
+            assert bad_refresh_resp.status_code == 401
+            
     finally:
         app.dependency_overrides = {}

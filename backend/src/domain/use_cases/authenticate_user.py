@@ -1,4 +1,5 @@
 import uuid
+from typing import Optional
 from domain.models import User
 from domain.repositories import UserRepository
 
@@ -6,7 +7,7 @@ class AuthenticateUser:
     def __init__(self, user_repository: UserRepository):
         self.user_repository = user_repository
 
-    async def execute(self, email: str = None, google_id: str = None) -> User:
+    async def execute(self, email: Optional[str] = None, google_id: Optional[str] = None) -> User:
         if not email and not google_id:
             raise ValueError("At least one authentication method must be provided (email or google_id).")
 
