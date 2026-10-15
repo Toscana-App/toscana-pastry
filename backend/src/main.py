@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.v1.auth.router import router as auth_router
 from api.v1.admin.router import router as admin_router
+from api.v1.settings.router import router as settings_router
+from api.v1.pricing.router import router as pricing_router
 from data.db import engine
 from data.models import Base
 
@@ -39,6 +41,8 @@ app.add_middleware(
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
+app.include_router(settings_router, prefix="/api/v1")
+app.include_router(pricing_router, prefix="/api/v1")
 
 
 @app.get("/health")
