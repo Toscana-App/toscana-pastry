@@ -58,7 +58,6 @@ export async function apiFetch<T>(
       return apiFetch<T>(endpoint, options, false);
     }
     clearSession();
-    if (typeof window !== "undefined") window.location.href = "/login";
   }
 
   if (!response.ok) {

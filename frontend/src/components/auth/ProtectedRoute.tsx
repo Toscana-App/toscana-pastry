@@ -1,30 +1,38 @@
-"use client"
+"use client";
 
-import { useAuth } from "@/contexts/AuthContext";
-import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Skeleton, Center } from "@chakra-ui/react";
+import { useRouter } from "next/navigation";
+import { Center, Spinner } from "@chakra-ui/react";
+import { useAuth } from "@/contexts/AuthContext";
+import type { UserRole } from "@/types/auth";
 
-export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth();
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  requiredRole?: UserRole;
+}
+
+export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
+  const { user, isAuthenticated, loading } = useAuth();
   const router = useRouter();
 
-  useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      router.push("/login");
-    }
-  }, [isAuthenticated, loading, router]);
+  const lacksRole = Boolean(requiredRole) && user?.role !== requiredRole;
 
-  if (loading) {
+  useEffect(() => {
+    if (loading) return;
+
+    if (!isAuthenticated) {
+      router.replace("/login");
+    } else if (lacksRole) {
+      router.replace("/unauthorized");
+    }
+  }, [isAuthenticated, loading, lacksRole, router]);
+
+  if (loading || !isAuthenticated || lacksRole) {
     return (
       <Center minH="100dvh">
-        <Skeleton width="200px" height="20px" />
+        <Spinner size="xl" />
       </Center>
     );
-  }
-
-  if (!isAuthenticated) {
-    return null;
   }
 
   return <>{children}</>;

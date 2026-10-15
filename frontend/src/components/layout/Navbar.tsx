@@ -5,7 +5,7 @@ import NextLink from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 
 export function Navbar() {
-  const { isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
 
   return (
     <Box
@@ -35,6 +35,11 @@ export function Navbar() {
 
             {isAuthenticated ? (
               <>
+                {user?.role === "admin" && (
+                  <Button variant="ghost" asChild>
+                    <NextLink href="/admin">Admin</NextLink>
+                  </Button>
+                )}
                 <Button variant="ghost" asChild>
                   <NextLink href="/profile">Profile</NextLink>
                 </Button>
