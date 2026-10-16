@@ -4,23 +4,21 @@ import { useState } from "react";
 import {
   Box,
   Button,
-  FormControl,
-  FormLabel,
+  Field,
   Input,
   Stack,
   Heading,
   Text,
-  useToast,
-  Divider,
+  Separator,
 } from "@chakra-ui/react";
 import { authService } from "@/services/authService";
 import { GoogleIcon } from "@/components/ui/google-icon";
+import { toaster } from "@/lib/toaster";
 import { useRouter } from "next/navigation";
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const toast = useToast();
   const router = useRouter();
 
   const handleMagicLink = async (e: React.FormEvent) => {
@@ -29,21 +27,17 @@ export default function LoginForm() {
     try {
       // authService persiste access_token y refresh_token en cookies.
       await authService.loginWithMagicLink(email);
-      toast({
+      toaster.create({
         title: "Magic link sent!",
         description: "Check your email to log in.",
-        status: "success",
-        duration: 5000,
-        isClosable: true,
+        type: "success",
       });
       router.push("/profile");
     } catch (error) {
-      toast({
+      toaster.create({
         title: "Login failed",
         description: error instanceof Error ? error.message : "Please try again",
-        status: "error",
-        duration: 5000,
-        isClosable: true,
+        type: "error",
       });
     } finally {
       setLoading(false);
@@ -54,20 +48,16 @@ export default function LoginForm() {
     setLoading(true);
     try {
       await authService.loginWithGoogle("google_test_id");
-      toast({
+      toaster.create({
         title: "Logged in!",
-        status: "success",
-        duration: 3000,
-        isClosable: true,
+        type: "success",
       });
       router.push("/profile");
     } catch (error) {
-      toast({
+      toaster.create({
         title: "Google login failed",
         description: error instanceof Error ? error.message : "Please try again",
-        status: "error",
-        duration: 5000,
-        isClosable: true,
+        type: "error",
       });
     } finally {
       setLoading(false);
@@ -81,33 +71,36 @@ export default function LoginForm() {
       p={8}
       borderRadius="lg"
       borderWidth="1px"
+      borderColor="gray.200"
       boxShadow="lg"
       bg="white"
     >
-      <Stack spacing={6} align="center">
-        <Heading size="lg" color="brand.600">
+      <Stack gap={6} align="center">
+        <Heading fontSize="2xl" color="brand.600">
           Sign In
         </Heading>
         <Text color="gray.500" textAlign="center">
           Choose a method to continue
         </Text>
-        <Divider />
+        <Separator />
 
         <form onSubmit={handleMagicLink} style={{ width: "100%" }}>
-          <Stack spacing={4}>
-            <FormControl isRequired>
-              <FormLabel>Email Address</FormLabel>
+          <Stack gap={4}>
+            <Field.Root required>
+              <Field.Label>
+                Email Address
+                <Field.RequiredIndicator />
+              </Field.Label>
               <Input
                 type="email"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
               />
-            </FormControl>
+            </Field.Root>
             <Button
               type="submit"
-              colorScheme="brand"
+              colorPalette="brand"
               loading={loading}
               width="full"
             >
@@ -123,8 +116,8 @@ export default function LoginForm() {
           loading={loading}
           variant="outline"
           width="full"
-          leftIcon={<GoogleIcon />}
         >
+          <GoogleIcon />
           Continue with Google
         </Button>
       </Stack>
