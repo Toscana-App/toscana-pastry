@@ -5,6 +5,12 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/a
 export const ACCESS_TOKEN_COOKIE = "auth_token";
 export const REFRESH_TOKEN_COOKIE = "refresh_token";
 
+// Evento que emite lib/api al cerrar una sesión (logout o refresh fallido):
+// AuthContext lo escucha para limpiar el usuario en memoria y que
+// ProtectedRoute redirija. Sin él, la navegación dependía de que algo
+// recargara la página.
+export const AUTH_SESSION_CLEARED_EVENT = "auth:session-cleared";
+
 // Una sola promesa de refresh compartida: evita N llamadas a /auth/refresh
 // cuando varias requests fallan con 401 al mismo tiempo.
 let refreshInFlight: Promise<string | null> | null = null;
@@ -76,4 +82,10 @@ export function persistSession(accessToken: string, refreshToken: string) {
 export function clearSession() {
   removeCookie(ACCESS_TOKEN_COOKIE);
   removeCookie(REFRESH_TOKEN_COOKIE);
+  // Avisa a la capa de auth: borrar los cookies no cambia el estado en memoria,
+  // y AuthContext sólo evalúa la sesión al montar. Sin este aviso el usuario
+  // queda viendo una UI "autenticada" sin tokens y toda request siguiente falla.
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(AUTH_SESSION_CLEARED_EVENT));
+  }
 }
