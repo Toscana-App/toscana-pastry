@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { authService } from "@/services/authService";
+import { AUTH_SESSION_CLEARED_EVENT } from "@/lib/api";
 import { User } from "@/types/auth";
 
 interface AuthContextType {
@@ -42,6 +43,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // La sesión puede cerrarse desde afuera del contexto (refresh fallido en
+  // lib/api): el evento limpia el usuario y ProtectedRoute redirige a /login.
+  useEffect(() => {
+    const onSessionCleared = () => setUser(null);
+    window.addEventListener(AUTH_SESSION_CLEARED_EVENT, onSessionCleared);
+    return () =>
+      window.removeEventListener(AUTH_SESSION_CLEARED_EVENT, onSessionCleared);
   }, []);
 
   const logout = () => {

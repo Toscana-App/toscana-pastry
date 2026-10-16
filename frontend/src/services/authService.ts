@@ -26,6 +26,5 @@ export const authService = {
 
   logout() {
     clearSession();
-    if (typeof window !== "undefined") window.location.href = "/login";
   },
 };
