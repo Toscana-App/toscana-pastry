@@ -39,8 +39,10 @@ class User:
 class BusinessSettings:
     """Parametros de precio de la casa. Un solo registro: la app es monotenante.
 
-    Los rangos validados son los de la spec (api_endpoints.md §5.2):
-    valor hora 0.01-100000, margen 10-200, paso 0.01-1000, gas/merma 0-100.
+    Los rangos validados son los de la spec p05 (RF-P5-01): valor hora
+    0.01-100000, margen 0-100, paso 0.01-1000, gas/merma/urgencia 0-100.
+    Cada % exige su toggle encendido (RF-P5-06): un componente desactivado
+    no puede quedar con un porcentaje cargado.
     """
 
     hourly_rate: Decimal
@@ -51,6 +53,7 @@ class BusinessSettings:
     gas_pct: Decimal = Decimal("0")
     include_waste: bool = False
     waste_pct: Decimal = Decimal("0")
+    urgent_surcharge_pct: Decimal = Decimal("0")
     default_prep_minutes: int = 30
     default_servings: int = 6
     default_difficulty: str = "simple"
@@ -60,14 +63,22 @@ class BusinessSettings:
             raise ValueError(
                 f"hourly_rate fuera de rango 0.01-100000: {self.hourly_rate}"
             )
-        if not Decimal("10") <= self.margin_pct <= Decimal("200"):
-            raise ValueError(f"margin_pct fuera de rango 10-200: {self.margin_pct}")
+        if not Decimal("0") <= self.margin_pct <= Decimal("100"):
+            raise ValueError(f"margin_pct fuera de rango 0-100: {self.margin_pct}")
         if not Decimal("0.01") <= self.round_step <= Decimal("1000"):
             raise ValueError(f"round_step fuera de rango 0.01-1000: {self.round_step}")
         if not Decimal("0") <= self.gas_pct <= Decimal("100"):
             raise ValueError(f"gas_pct fuera de rango 0-100: {self.gas_pct}")
         if not Decimal("0") <= self.waste_pct <= Decimal("100"):
             raise ValueError(f"waste_pct fuera de rango 0-100: {self.waste_pct}")
+        if not Decimal("0") <= self.urgent_surcharge_pct <= Decimal("100"):
+            raise ValueError(
+                f"urgent_surcharge_pct fuera de rango 0-100: {self.urgent_surcharge_pct}"
+            )
+        if not self.include_gas and self.gas_pct != Decimal("0"):
+            raise ValueError("gas_pct debe ser 0 si include_gas esta desactivado")
+        if not self.include_waste and self.waste_pct != Decimal("0"):
+            raise ValueError("waste_pct debe ser 0 si include_waste esta desactivado")
         if not 0 <= self.default_prep_minutes <= 1440:
             raise ValueError(
                 f"default_prep_minutes fuera de rango 0-1440: {self.default_prep_minutes}"
@@ -92,9 +103,17 @@ class BusinessSettings:
 
 
 DEFAULT_BUSINESS_SETTINGS = BusinessSettings(
-    hourly_rate=Decimal("150"),
-    margin_pct=Decimal("100"),
-    round_step=Decimal("5"),
+    # RF-P5-04 (valores por defecto del sistema): hora $3.000, margen 30%,
+    # redondeo 100, toggles ON, gas 3%, merma 3%, urgencia 20%.
+    hourly_rate=Decimal("3000"),
+    margin_pct=Decimal("30"),
+    round_step=Decimal("100"),
+    include_labor=True,
+    include_gas=True,
+    gas_pct=Decimal("3"),
+    include_waste=True,
+    waste_pct=Decimal("3"),
+    urgent_surcharge_pct=Decimal("20"),
 )
 
 

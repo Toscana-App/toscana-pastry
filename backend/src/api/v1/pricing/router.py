@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from api.v1.dependencies import get_current_user
+from api.v1.dependencies import require_admin
 from api.v1.settings.dependencies import get_settings_repository
 from api.v1.pricing.schemas import PreviewRequest, PreviewResponse
 from domain.models import User
@@ -15,7 +15,8 @@ router = APIRouter(prefix="/pricing", tags=["pricing"])
 async def preview(
     payload: PreviewRequest,
     settings_repo: SettingsRepository = Depends(get_settings_repository),
-    current_user: User = Depends(get_current_user),
+    # El preview expone el desglose de costos: herramienta de administracion.
+    _admin: User = Depends(require_admin),
 ):
     """Carga el producto sin guardarlo (spec p04 §4): el usuario edita en vivo
     y el motor aplica los settings persistidos."""

@@ -12,6 +12,7 @@ from data.repositories.sql_settings_repository import SQLSettingsRepository
 from data.db import get_db
 from api.v1.auth.dependencies import get_user_repository
 from api.v1.settings.dependencies import get_settings_repository
+from domain.models import User, UserRole
 
 
 @pytest_asyncio.fixture
@@ -38,6 +39,11 @@ async def client(db_session):
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_user_repository] = override_get_user_repository
     app.dependency_overrides[get_settings_repository] = override_get_settings_repository
+    # El login crea usuarios con rol CUSTOMER; el preview y el guardado de
+    # settings son de administración (RBAC), así que se siembra el ADMIN.
+    await SQLUserRepository(db_session).save(
+        User(email="admin@example.com", role=UserRole.ADMIN)
+    )
     try:
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -57,16 +63,17 @@ async def _admin_token(client: AsyncClient) -> str:
 
 async def _set_settings(client: AsyncClient, headers) -> None:
     response = await client.put(
-        "/api/v1/settings",
+        "/api/v1/tenant/settings",
         json={
             "hourly_rate": "150",
-            "margin_pct": "150",
+            "margin_pct": "100",
             "round_step": "5",
             "include_labor": True,
             "include_gas": False,
             "gas_pct": "0",
             "include_waste": False,
             "waste_pct": "0",
+            "urgent_surcharge_pct": "20",
             "default_prep_minutes": 30,
             "default_servings": 6,
             "default_difficulty": "simple",
@@ -109,8 +116,24 @@ async def test_preview_uses_persisted_settings(client):
     assert Decimal(body["materials"]) == Decimal("2860.00")
     assert Decimal(body["labor"]) == Decimal("75.00")
     assert Decimal(body["base"]) == Decimal("2935.00")
-    assert Decimal(body["final"]) == Decimal("7337.50")
-    assert Decimal(body["rounded"]) == Decimal("7340.00")
+    assert Decimal(body["final"]) == Decimal("5870.00")
+    assert Decimal(body["rounded"]) == Decimal("5870.00")
+
+
+@pytest.mark.asyncio
+async def test_preview_forbidden_for_customer(client):
+    # El preview expone el desglose de costos: sólo administración.
+    login = await client.post(
+        "/api/v1/auth/login", json={"email": "customer@example.com"}
+    )
+    token = login.json()["access_token"]
+    response = await client.post(
+        "/api/v1/pricing/preview",
+        json={"line_items": TORTA_ITEMS, "prep_minutes": 30},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Admin privileges required"
 
 
 @pytest.mark.asyncio

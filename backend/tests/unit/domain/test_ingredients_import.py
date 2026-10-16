@@ -35,6 +35,34 @@ def test_thousands_dot_with_decimal_comma():
     assert parsed.unit == "L"
 
 
+def test_thousands_dot_without_comma():
+    # Convención es-AR: "2.800" son dos mil ochocientos. Antes se leía como
+    # 2,8 (error x1000 silencioso en el precio).
+    parsed = parse_import_line("harina 0000, 5, 2.800")
+    assert parsed.price_per_unit == Decimal("2800")
+
+
+def test_thousands_dot_price_three_thousand():
+    parsed = parse_import_line("harina 0000, 5, 3.000")
+    assert parsed.price_per_unit == Decimal("3000")
+
+
+def test_thousands_dot_multiple_groups():
+    parsed = parse_import_line("levadura, 2, 1.234.567")
+    assert parsed.price_per_unit == Decimal("1234567")
+
+
+def test_leading_zero_dot_stays_decimal():
+    # "0.500" no puede ser 500: el punto es decimal.
+    parsed = parse_import_line("esencia, 1, 0.500")
+    assert parsed.price_per_unit == Decimal("0.500")
+
+
+def test_simple_dot_decimal_stays_decimal():
+    parsed = parse_import_line("esencia, 1, 12.75")
+    assert parsed.price_per_unit == Decimal("12.75")
+
+
 def test_four_fields_with_explicit_unit():
     parsed = parse_import_line("levadura, 2, g, 500")
     assert parsed.name == "levadura"

@@ -15,6 +15,9 @@ def _to_domain(orm: BusinessSettingsORM) -> BusinessSettings:
         gas_pct=Decimal(orm.gas_pct if orm.gas_pct is not None else "0"),
         include_waste=orm.include_waste,
         waste_pct=Decimal(orm.waste_pct if orm.waste_pct is not None else "0"),
+        urgent_surcharge_pct=Decimal(
+            orm.urgent_surcharge_pct if orm.urgent_surcharge_pct is not None else "0"
+        ),
         default_prep_minutes=orm.default_prep_minutes,
         default_servings=orm.default_servings,
         default_difficulty=orm.default_difficulty,
@@ -38,6 +41,7 @@ class SQLSettingsRepository:
             round_step=str(settings.round_step),
             gas_pct=str(settings.gas_pct),
             waste_pct=str(settings.waste_pct),
+            urgent_surcharge_pct=str(settings.urgent_surcharge_pct),
             include_labor=settings.include_labor,
             include_gas=settings.include_gas,
             include_waste=settings.include_waste,
