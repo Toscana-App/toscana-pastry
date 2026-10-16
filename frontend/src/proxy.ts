@@ -21,5 +21,16 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/profile/:path*'],
+  // Next exige que el matcher sea estático (no se puede derivar de
+  // PROTECTED_PREFIXES en runtime), así que las dos listas tienen que
+  // mantenerse sincronizadas A MANO: acá faltaba '/admin', y con eso el
+  // proxy nunca corría para esa ruta (el guard de /admin era código muerto).
+  matcher: [
+    '/dashboard',
+    '/dashboard/:path*',
+    '/profile',
+    '/profile/:path*',
+    '/admin',
+    '/admin/:path*',
+  ],
 }
