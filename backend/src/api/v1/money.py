@@ -30,3 +30,12 @@ Money = Annotated[
     # solo la serializacion JSON lo emite como str.
     PlainSerializer(lambda v: str(v), return_type=str, when_used="json"),
 ]
+
+
+# Cantidad (kg, g, L, ml, unidades): mismo tratamiento que el dinero —
+# JSON no garantiza precision decimal y el float quebraria conversiones.
+Qty = Annotated[
+    Decimal,
+    BeforeValidator(_coerce_money),
+    PlainSerializer(lambda v: str(v), return_type=str, when_used="json"),
+]

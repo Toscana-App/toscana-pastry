@@ -1,3 +1,4 @@
+import datetime
 import uuid
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -12,7 +13,15 @@ class UserRole(str, Enum):
     CUSTOMER = "customer"
 
 
+class StockStatus(str, Enum):
+    OK = "OK"
+    LOW = "LOW"
+    EMPTY = "EMPTY"
+
+
 DIFFICULTIES = ("simple", "intermedio", "complejo")
+STOCK_UNITS = ("kg", "g", "L", "ml", "unidad")
+STOCK_REASONS = ("compra", "merma", "ajuste")
 
 
 @dataclass(frozen=True)
@@ -87,3 +96,50 @@ DEFAULT_BUSINESS_SETTINGS = BusinessSettings(
     margin_pct=Decimal("100"),
     round_step=Decimal("5"),
 )
+
+
+@dataclass(frozen=True)
+class Ingredient:
+    """Insumo con unidad, precio de compra y stock. La identidad la genera
+    el dominio, igual que User. `deleted_at` no vacio = soft delete (borrado
+    con undo, UC-05): queda en la tabla pero es invisible a list/get."""
+
+    name: str
+    unit: str
+    price_per_unit: Decimal
+    stock_qty: Decimal = Decimal("0")
+    low_stock_threshold: Decimal = Decimal("0")
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    deleted_at: Optional[datetime.datetime] = None
+
+    def __post_init__(self):
+        name = self.name.strip()
+        if not name:
+            raise ValueError("nombre requerido")
+        if len(name) > 120:
+            raise ValueError("nombre demasiado largo (max 120)")
+        if self.unit not in STOCK_UNITS:
+            raise ValueError(
+                f"unidad invalida: {self.unit!r} (esperado: {'/'.join(STOCK_UNITS)})"
+            )
+        if self.price_per_unit < 0:
+            raise ValueError("price_per_unit no puede ser negativo")
+        if self.stock_qty < 0:
+            raise ValueError("stock_qty no puede ser negativo")
+        if self.low_stock_threshold < 0:
+            raise ValueError("low_stock_threshold no puede ser negativo")
+
+
+@dataclass(frozen=True)
+class StockMovement:
+    """Un ajuste de stock. El historial es inmutable (RF-P2-04): se agrega,
+    nunca se edita. `qty_delta` firmado: entrada positiva, salida negativa."""
+
+    qty_delta: Decimal
+    reason: str
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    ingredient_id: Optional[str] = None
+    ref: Optional[str] = None
+    created_at: datetime.datetime = field(
+        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc)
+    )
