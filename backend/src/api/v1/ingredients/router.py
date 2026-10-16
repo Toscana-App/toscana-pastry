@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse
 
-from api.v1.dependencies import get_current_user
+from api.v1.dependencies import get_current_user, require_admin
 from api.v1.ingredients.dependencies import get_ingredient_repository
 from api.v1.ingredients.schemas import (
     ImportRequest,
@@ -75,7 +75,8 @@ async def list_ingredients(
 async def create_ingredient(
     payload: IngredientCreate,
     repo: IngredientRepository = Depends(get_ingredient_repository),
-    current_user: User = Depends(get_current_user),
+    # Alta de insumos: funcion de administracion (RBAC de Fase 3).
+    _admin: User = Depends(require_admin),
 ):
     try:
         ingredient = Ingredient(**payload.model_dump())
@@ -98,7 +99,7 @@ async def create_ingredient(
 async def import_ingredients(
     payload: ImportRequest,
     repo: IngredientRepository = Depends(get_ingredient_repository),
-    current_user: User = Depends(get_current_user),
+    _admin: User = Depends(require_admin),
 ):
     """Carga inicial por lista (RF-P2-07): parsing tolerante por línea;
     las líneas en error se reportan, no abortan el lote."""
@@ -156,7 +157,7 @@ async def update_ingredient(
     ingredient_id: str,
     payload: IngredientUpdate,
     repo: IngredientRepository = Depends(get_ingredient_repository),
-    current_user: User = Depends(get_current_user),
+    _admin: User = Depends(require_admin),
 ):
     existing = await repo.get(ingredient_id)
     if existing is None:
@@ -188,7 +189,7 @@ async def update_ingredient(
 async def delete_ingredient(
     ingredient_id: str,
     repo: IngredientRepository = Depends(get_ingredient_repository),
-    current_user: User = Depends(get_current_user),
+    _admin: User = Depends(require_admin),
 ):
     """UC-05: si participa en recetas activas → 409 con el impacto.
     Si no → borrado suave (el frontend ofrece undo re-creando)."""
@@ -209,7 +210,7 @@ async def adjust_stock(
     ingredient_id: str,
     payload: StockAdjustment,
     repo: IngredientRepository = Depends(get_ingredient_repository),
-    current_user: User = Depends(get_current_user),
+    _admin: User = Depends(require_admin),
 ):
     ingredient = await repo.get(ingredient_id)
     if ingredient is None:

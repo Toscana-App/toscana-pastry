@@ -6,8 +6,9 @@ Formatos aceptados por línea:
 - "nombre, cantidad UNIDAD, precio"   ("1 L", "1,5 kg")
 - "nombre, cantidad, unidad, precio"
 
-Decimales con coma (convención argentina) o punto; el "." actúa como
-separador de miles cuando la coma también está presente ("1.000,5").
+Decimales con coma (convención argentina) o punto. El "." actúa como separador
+de miles cuando la coma también está presente ("1.000,5") y también cuando
+agrupa de a tres dígitos sin coma ("2.800" = 2800, no 2,8).
 """
 import re
 from dataclasses import dataclass
@@ -23,6 +24,12 @@ _QTY_WITH_UNIT = re.compile(
     re.IGNORECASE,
 )
 _UNIT_CANONICAL = {unit.lower(): unit for unit in STOCK_UNITS}
+
+# Punto como separador de miles sin coma decimal ("2.800", "1.234.567").
+# El lookahead descarta "0.500" y "0.5", donde el punto solo puede ser
+# decimal. Sin esta rama "3.000" se leía como 3 (error x1000 silencioso
+# en dinero y cantidad).
+_THOUSANDS_DOT_ONLY = re.compile(r"^(?!0\.)\d{1,3}(?:\.\d{3})+$")
 
 
 class ImportLineError(ValueError):
@@ -45,6 +52,9 @@ def _to_decimal(raw: str, label: str) -> Decimal:
         text = text.replace(".", "").replace(",", ".")
     elif "," in text:
         text = text.replace(",", ".")
+    elif _THOUSANDS_DOT_ONLY.match(text):
+        # Convención es-AR: "2.800" son dos mil ochocientos.
+        text = text.replace(".", "")
     try:
         value = Decimal(text)
     except InvalidOperation as exc:

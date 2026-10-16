@@ -16,7 +16,7 @@ from data.db import get_db
 from api.v1.auth.dependencies import get_user_repository
 from api.v1.settings.dependencies import get_settings_repository
 from api.v1.ingredients.dependencies import get_ingredient_repository
-from domain.models import User
+from domain.models import User, UserRole
 
 
 @pytest_asyncio.fixture
@@ -56,6 +56,11 @@ async def client(db_session):
     app.dependency_overrides[get_user_repository] = override_get_user_repository
     app.dependency_overrides[get_settings_repository] = override_get_settings_repository
     app.dependency_overrides[get_ingredient_repository] = override_get_ingredient_repository
+    # El login crea usuarios con rol CUSTOMER; las mutaciones de ingredientes
+    # son de administración (RBAC), así que se siembra el ADMIN.
+    await SQLUserRepository(db_session).save(
+        User(email="admin@example.com", role=UserRole.ADMIN)
+    )
     try:
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
