@@ -1,42 +1,62 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from domain.use_cases.authenticate_user import AuthenticateUser
-from data.repositories.sql_user_repository import SQLUserRepository
-from api.v1.auth.schemas import AuthRequest, AuthResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from domain.models import User
+from domain.repositories import UserRepository
+from domain.use_cases import AuthenticateUser
+from api.v1.dependencies import get_current_user
+from api.v1.auth.dependencies import get_user_repository
+from api.v1.auth.schemas import AuthRequest, AuthResponse, UserInfo
+from core.config import settings
+from domain.auth.logic import create_access_token, create_refresh_token, decode_refresh_token
+from pydantic import BaseModel
 
-router = APIRouter(prefix="/auth", tags=["authentication"])
+router = APIRouter(prefix="/auth", tags=["auth"])
 
-# Mocked session generator for testing purposes
-async def get_session():
-    # In a real app, this would be the actual session provider
-    pass
-
-async def get_user_repository(session: AsyncSession = Depends(get_session)) -> SQLUserRepository:
-    return SQLUserRepository(session)
+class RefreshRequest(BaseModel):
+    refresh_token: str
 
 @router.post("/login", response_model=AuthResponse)
-async def login(
-    request: AuthRequest, 
-    user_repo: SQLUserRepository = Depends(get_user_repository)
-) -> AuthResponse:
+async def login(request: AuthRequest, user_repo: UserRepository = Depends(get_user_repository)):
+    user_use_case = AuthenticateUser(user_repo)
     try:
-        user_use_case = AuthenticateUser(user_repo)
         user = await user_use_case.execute(email=request.email, google_id=request.google_id)
-        # Returning a dummy token for now
-        return AuthResponse(
-            user_id=str(user.id),
-            email=user.email,
-            token="dummy-jwt-token-for-testing",
-            google_id=user.google_id
-        )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal error")
+    
+    access_token = create_access_token({"sub": str(user.id)})
+    refresh_token = create_refresh_token({"sub": str(user.id)})
+    
+    return AuthResponse(
+        user_id=str(user.id),
+        email=user.email,
+        access_token=access_token,
+        refresh_token=refresh_token,
+        role=user.role,
+        google_id=user.google_id
+    )
 
-@router.get("/me", response_model=AuthResponse)
-async def get_me(
-    user_repo: SQLUserRepository = Depends(get_user_repository)
-) -> AuthResponse:
-    # This is a mock. In a real app, we would extract the user_id from the token.
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+@router.get("/me", response_model=UserInfo)
+async def get_me(current_user: User = Depends(get_current_user)):
+    return UserInfo(
+        user_id=str(current_user.id),
+        email=current_user.email,
+        role=current_user.role,
+        google_id=current_user.google_id,
+    )
+
+@router.post("/refresh")
+async def refresh_token(request: RefreshRequest):
+    try:
+        payload = decode_refresh_token(request.refresh_token)
+        user_id = payload["sub"]
+        
+        # Generate new access token
+        # Note: In a production app, we would check if the refresh token is revoked
+        new_access_token = create_access_token({"sub": user_id})
+        
+        return {"access_token": new_access_token}
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token"
+        )

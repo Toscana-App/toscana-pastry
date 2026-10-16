@@ -1,12 +1,26 @@
+export type UserRole = "admin" | "customer";
+
 export interface User {
   id: string;
   email: string;
+  role: UserRole;
   googleId?: string;
 }
 
 export interface AuthResponse {
-  user: User;
-  token: string;
+  user_id: string;
+  email: string;
+  access_token: string;
+  refresh_token: string;
+  role: UserRole;
+  google_id?: string;
+}
+
+export interface UserInfo {
+  user_id: string;
+  email: string;
+  role: UserRole;
+  google_id?: string;
 }
 
 export interface LoginRequest {

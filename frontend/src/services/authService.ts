@@ -1,18 +1,31 @@
-import { apiFetch } from "@/lib/api";
-import { AuthResponse, LoginRequest } from "@/types/auth";
+import { apiFetch, persistSession, clearSession } from "@/lib/api";
+import { AuthResponse, UserInfo } from "@/types/auth";
 
 export const authService = {
   async loginWithMagicLink(email: string): Promise<AuthResponse> {
-    return apiFetch<AuthResponse>("/auth/login", {
+    const data = await apiFetch<AuthResponse>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email }),
     });
+    persistSession(data.access_token, data.refresh_token);
+    return data;
   },
 
   async loginWithGoogle(googleId: string): Promise<AuthResponse> {
-    return apiFetch<AuthResponse>("/auth/login", {
+    const data = await apiFetch<AuthResponse>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ google_id: googleId }),
     });
+    persistSession(data.access_token, data.refresh_token);
+    return data;
+  },
+
+  async getUser(): Promise<UserInfo> {
+    return apiFetch<UserInfo>("/auth/me");
+  },
+
+  logout() {
+    clearSession();
+    if (typeof window !== "undefined") window.location.href = "/login";
   },
 };

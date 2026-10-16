@@ -1,7 +1,6 @@
-
 from abc import ABC, abstractmethod
-from typing import Optional
-from domain.models import User
+from typing import Optional, List
+from domain.models import User, UserRole
 
 class UserRepository(ABC):
     @abstractmethod
@@ -14,4 +13,8 @@ class UserRepository(ABC):
 
     @abstractmethod
     async def save(self, user: User) -> User:
+        pass
+
+    @abstractmethod
+    async def get_all_by_role(self, role: UserRole) -> List[User]:
         pass

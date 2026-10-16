@@ -1,31 +1,56 @@
 "use client"
 
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { authService } from "@/services/authService";
 import { User } from "@/types/auth";
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (user: User) => void;
+  loading: boolean;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const isAuthenticated = !!user;
 
-  const login = (newUser: User) => {
-    setUser(newUser);
-  };
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkAuth() {
+      try {
+        const response = await authService.getUser();
+        if (cancelled) return;
+        setUser({
+          id: response.user_id,
+          email: response.email,
+          role: response.role,
+          googleId: response.google_id,
+        });
+      } catch {
+        if (!cancelled) setUser(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    checkAuth();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const logout = () => {
     setUser(null);
+    authService.logout();
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, loading, logout }}>
       {children}
     </AuthContext.Provider>
   );
