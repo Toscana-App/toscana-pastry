@@ -6,7 +6,7 @@ from sqlalchemy import REAL, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from data.accent import accent_fold
-from data.models import IngredientORM, StockMovementORM
+from data.models import IngredientORM, ProductORM, RecipeItemORM, StockMovementORM
 from domain.models import Ingredient, StockMovement, StockStatus
 
 
@@ -148,10 +148,18 @@ class SQLIngredientRepository:
         return _to_domain(orm)
 
     async def count_active_recipes(self, ingredient_id: str) -> int:
-        # Fase 1 (productos): sin tabla de recetas todavia, ningun
-        # ingrediente puede estar referenciado. Cuando exista products
-        # con recipe_items, este metodo cuenta las recetas activas.
-        return 0
+        # Fase 5 (productos): cuenta los productos NO borrados cuya receta
+        # referencia a este insumo. Alimenta el 409 de borrado (UC-05).
+        result = await self.session.execute(
+            select(func.count())
+            .select_from(RecipeItemORM)
+            .join(ProductORM, RecipeItemORM.product_id == ProductORM.id)
+            .where(
+                RecipeItemORM.ingredient_id == ingredient_id,
+                ProductORM.deleted_at.is_(None),
+            )
+        )
+        return result.scalar_one()
 
     def _movement_orm(self, ingredient_id: str, movement: StockMovement):
         return StockMovementORM(
