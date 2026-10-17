@@ -7,7 +7,7 @@ referencia: `p03_products_list.md` y `p4_product_detail.md`.
 
 | Método | Ruta | Auth | Descripción |
 | --- | --- | --- | --- |
-| GET | `/api/v1/products` | auth (customer + admin) | Listado paginado: `q` (insensible a acentos y mayúsculas), `category`, `page` (1..), `page_size` (5..50, def 20). Responde `items[]`, `total`, `page`, `page_size`, `categories[]` (distinct, derivadas de los productos activos — chips del P3). Cada item trae `price_final` / `price_per_serving` como string (Money) o `null` si el producto está incompleto, y `complete` (badge del P3). |
+| GET | `/api/v1/products` | auth (customer + admin) | Listado paginado: `q` (insensible a acentos y mayúsculas), `category`, `page` (1..), `page_size` (1..100, def 20). Responde `items[]`, `total`, `page`, `page_size`, `categories[]` (distinct, derivadas de los productos activos — chips del P3). Cada item trae `price_final` / `price_per_serving` como string (Money) o `null` si el producto está incompleto, y `complete` (badge del P3). |
 | POST | `/api/v1/products` | admin | Crea producto con su receta. Valida dominio (nombre 2..120, receta ≥1 y ≤30 líneas, insumos existentes y no duplicados, unidades compatibles con la unidad de compra → 400 como `/pricing/preview`, qty > 0). Responde 201 con el detalle completo. |
 | GET | `/api/v1/products/{id}` | auth | Detalle (P4) con las 4 pestañas: información, receta (con nombre del insumo, costo de línea, `missing`), preparación (labor_hours = prep_time_min/60) y costos (desglose completo + `price_per_serving`). 200 también para producto incompleto: `complete=false`, `price=null`, `missing_ingredients[]`. |
 | PATCH | `/api/v1/products/{id}` | admin | Update parcial (solo campos enviados). Mismas validaciones que POST. |
