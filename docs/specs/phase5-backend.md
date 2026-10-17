@@ -11,7 +11,7 @@ referencia: `p03_products_list.md` y `p4_product_detail.md`.
 | POST | `/api/v1/products` | admin | Crea producto con su receta. Valida dominio (nombre 2..120, receta ≥1 y ≤30 líneas, insumos existentes y no duplicados, unidades compatibles con la unidad de compra → 400 como `/pricing/preview`, qty > 0). Responde 201 con el detalle completo. |
 | GET | `/api/v1/products/{id}` | auth | Detalle (P4) con las 4 pestañas: información, receta (con nombre del insumo, costo de línea, `missing`), preparación (labor_hours = prep_time_min/60) y costos (desglose completo + `price_per_serving`). 200 también para producto incompleto: `complete=false`, `price=null`, `missing_ingredients[]`. |
 | PATCH | `/api/v1/products/{id}` | admin | Update parcial (solo campos enviados). Mismas validaciones que POST. |
-| DELETE | `/api/v1/products/{id}` | admin | Soft delete (`deleted_at`). 204. 409 no aplica: los pedidos no existen hasta la Fase 6 (`count_orders` queda en el ABC). |
+| DELETE | `/api/v1/products/{id}` | admin | Soft delete (`deleted_at`) SIEMPRE (RF-P4-08): el producto sale del catálogo y los pedidos históricos quedan intactos. Sin pedidos: 204. Con pedidos históricos (Fase 6): 200 con `{impacted_orders}`. Nunca 409 — a diferencia de un insumo en recetas activas, un producto discontinuado debe poder retirarse. |
 
 Contratos de error como Fase 4: 400 con mensaje de dominio, 404 inexistente,
 403 rol insuficiente, 422 validación de schema. Money/Qty salen como string en
@@ -77,4 +77,4 @@ delete-orphan. Sin migración: `Base.metadata.create_all` (SQLite, pre-producci�
 
 - Precio de compra 0 = "sin precio" → producto incompleto.
 - `labor_hours` derivado de `prep_time_min` (sin override por producto).
-- DELETE sin 409 de pedidos (Fase 6).
+- DELETE nunca bloquea: soft delete + `impacted_orders` informativo (200) cuando haya pedidos históricos (Fase 6); 204 si no.

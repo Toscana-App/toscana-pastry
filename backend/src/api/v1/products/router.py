@@ -8,8 +8,10 @@ Contrato:
   complete=false, price null y missing_ingredients (no es error).
 - Validaciones de receta (insumo inexistente, unidades incompatibles,
   duplicados) → 400, como POST /pricing/preview.
-- Borrado: UC-07. 409 con impacto si hay pedidos (Fase 6); si no, soft
-  delete (el frontend puede deshacer).
+- Borrado: UC-07 / RF-P4-08. Soft delete SIEMPRE: el producto sale del
+  catálogo pero los pedidos históricos quedan intactos. Con pedidos, la
+  response informa `impacted_orders` (200); sin pedidos, 204. A diferencia
+  de los insumos en recetas activas, no se bloquea con 409.
 """
 from typing import Dict, List, Optional, Tuple
 
@@ -366,17 +368,20 @@ async def delete_product(
     repo: ProductRepository = Depends(get_product_repository),
     _admin: User = Depends(require_admin),
 ):
-    """UC-07: 409 con impacto si tiene pedidos historicos (Fase 6);
-    si no, soft delete (el frontend puede deshacer)."""
-    impacted = await repo.count_orders(product_id)
-    if impacted > 0:
-        return JSONResponse(
-            status_code=status.HTTP_409_CONFLICT,
-            content={"impacted_orders": impacted},
-        )
-    deleted = await repo.soft_delete(product_id)
-    if deleted is None:
+    """UC-07 / RF-P4-08: soft delete SIEMPRE (el producto sale del catálogo,
+    los pedidos históricos no se tocan). Si tiene pedidos históricos, la
+    response es 200 con `impacted_orders`; si no, 204. El bloqueo con 409
+    NO aplica a productos (a diferencia de insumos en recetas activas)."""
+    existing = await repo.get(product_id)
+    if existing is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado"
+        )
+    impacted = await repo.count_orders(product_id)
+    await repo.soft_delete(product_id)
+    if impacted > 0:
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"impacted_orders": impacted},
         )
     return Response(status_code=status.HTTP_204_NO_CONTENT)

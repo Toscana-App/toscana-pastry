@@ -666,6 +666,50 @@ async def test_delete_404_unknown(client):
     assert response.status_code == 404
 
 
+@pytest.mark.asyncio
+async def test_delete_with_historical_orders_soft_deletes_and_reports(
+    client, db_session
+):
+    """RF-P4-08: con pedidos históricos NO se bloquea. Soft delete siempre;
+    la response informa el impacto (200 + impacted_orders) y el producto
+    desaparece del catálogo."""
+    from api.v1.products.dependencies import get_product_repository
+    from data.repositories.sql_product_repository import SQLProductRepository
+
+    class _OrdersStubRepository(SQLProductRepository):
+        async def count_orders(self, product_id: str) -> int:
+            return 3
+
+    async def override_repo():
+        yield _OrdersStubRepository(db_session)
+
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    await _set_settings(client, headers)
+    flour = await _create_ingredient(client, headers, "Harina")
+    product = await _create_product(
+        client,
+        headers,
+        recipe=[{"ingredient_id": flour["id"], "qty": 250, "unit": "g"}],
+    )
+
+    app.dependency_overrides[get_product_repository] = override_repo
+    try:
+        response = await client.delete(
+            f"/api/v1/products/{product['id']}",
+            headers=headers,
+        )
+    finally:
+        app.dependency_overrides.pop(get_product_repository, None)
+
+    assert response.status_code == 200
+    assert response.json()["impacted_orders"] == 3
+    detail = await client.get(
+        f"/api/v1/products/{product['id']}",
+        headers=headers,
+    )
+    assert detail.status_code == 404
+
+
 # --- Derivacion en lectura (RF-P3-04) ---------------------------------------
 
 
