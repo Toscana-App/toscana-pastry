@@ -183,3 +183,74 @@ class OrderEventORM(Base):
     type = Column(String, nullable=False)
     payload = Column(Text, nullable=False, default="")
     created_at = Column(DateTime(timezone=True), nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Fase 7 (P7/P8): presupuestos
+# ---------------------------------------------------------------------------
+
+
+class TenantSequenceORM(Base):
+    """Secuencia por tenant (monotenante: una sola fila por key).
+    `current` crece en la misma transaccion que el presupuesto: sin reuso
+    tras borrado (RNF-P8-04)."""
+
+    __tablename__ = "tenant_sequences"
+    key = Column(String, primary_key=True)
+    current = Column(Integer, nullable=False, default=0)
+
+
+class BudgetORM(Base):
+    """Presupuesto. Money como TEXT (RNF-P4-02). `margin_pct` nulo =
+    tenant (el override ya se aplico al derivar unit_selling de cada
+    item: los totales se derivan en lectura, nunca se persisten)."""
+
+    __tablename__ = "budgets"
+    id = Column(String, primary_key=True)
+    seq = Column(String, nullable=False, index=True)
+    customer_id = Column(
+        String, ForeignKey("customers.id"), nullable=False, index=True
+    )
+    customer_name = Column(String, nullable=False, index=True)  # snapshot
+    customer_phone = Column(String, nullable=False)  # snapshot
+    status = Column(String, nullable=False, default="borrador", index=True)
+    calculation_mode = Column(String, nullable=False, default="cost_plus")
+    margin_pct = Column(String, nullable=True)  # override; nulo = tenant
+    version = Column(Integer, nullable=False, default=0)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False)
+    updated_at = Column(DateTime(timezone=True), nullable=False)
+    items = relationship(
+        "BudgetItemORM",
+        cascade="all, delete-orphan",
+        order_by="BudgetItemORM.position",
+        lazy="selectin",
+    )
+
+
+class BudgetItemORM(Base):
+    """Linea de presupuesto con costo/precio derivados y congelados al
+    momento de la escritura (la lectura no vuelve al catalogo)."""
+
+    __tablename__ = "budget_items"
+    id = Column(String, primary_key=True)
+    budget_id = Column(String, ForeignKey("budgets.id"), nullable=False, index=True)
+    product_id = Column(String, nullable=False, index=True)
+    product_name = Column(String, nullable=False)  # snapshot
+    qty = Column(Integer, nullable=False)
+    unit_cost = Column(String, nullable=False)
+    unit_selling = Column(String, nullable=False)
+    price_overridden = Column(Boolean, nullable=False, default=False)
+    position = Column(Integer, nullable=False, default=0)
+
+
+class BudgetVersionORM(Base):
+    """Snapshot inmutable de una version enviada (RF-P8-05). Solo INSERT:
+    historial de reenvios."""
+
+    __tablename__ = "budget_versions"
+    id = Column(String, primary_key=True)
+    budget_id = Column(String, ForeignKey("budgets.id"), nullable=False, index=True)
+    version = Column(Integer, nullable=False)
+    snapshot = Column(Text, nullable=False)  # JSON (customer, items, totals)
+    created_at = Column(DateTime(timezone=True), nullable=False)
