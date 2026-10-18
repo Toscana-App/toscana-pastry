@@ -1,0 +1,436 @@
+"""SQL de pedidos (Fase 6).
+
+La confirmacion y la cancelacion son UNA sola transaccion: lock de filas
+de insumos (RNF-P6-02), chequeo de stock, movimientos y cambio de estado
+juntos. Si no alcanza stock, se rollbackea TODO (RNF-P6-04): ningun
+movimiento ni cambio queda aplicado.
+"""
+import dataclasses
+import json
+import uuid
+from datetime import datetime, timezone, date
+from decimal import Decimal
+from typing import Dict, List, Optional, Tuple
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from data.models import (
+    IngredientORM,
+    OrderEventORM,
+    OrderItemORM,
+    OrderORM,
+    StockMovementORM,
+)
+from domain.models import StockMovement
+from domain.order_pricing import plan_order_deductions
+from domain.orders import (
+    InsufficientOrderStockError,
+    Order,
+    OrderItem,
+    OrderItemSnapshot,
+    OrderItemSnapshotLine,
+)
+from domain.stock import apply_movement
+
+
+# ---------------------------------------------------------------------------
+# (De)serializacion del snapshot (JSON en TEXT: money como texto, RNF-P4-02)
+# ---------------------------------------------------------------------------
+
+
+def _snapshot_to_json(snapshot: OrderItemSnapshot) -> str:
+    return json.dumps(
+        {
+            "lines": [
+                {
+                    "ingredient_id": line.ingredient_id,
+                    "ingredient_name": line.ingredient_name,
+                    "qty": str(line.qty),
+                    "unit": line.unit,
+                    "cost": str(line.cost),
+                    "is_missing": line.is_missing,
+                }
+                for line in snapshot.lines
+            ],
+            "materials": str(snapshot.materials),
+            "waste": str(snapshot.waste),
+            "materials_con_merma": str(snapshot.materials_con_merma),
+            "labor": str(snapshot.labor),
+            "gas": str(snapshot.gas),
+            "base": str(snapshot.base),
+            "margin_pct": str(snapshot.margin_pct),
+            "final": str(snapshot.final),
+            "rounded": str(snapshot.rounded),
+            "missing": list(snapshot.missing),
+        }
+    )
+
+
+def _json_to_snapshot(raw: str) -> OrderItemSnapshot:
+    data = json.loads(raw)
+    return OrderItemSnapshot(
+        lines=tuple(
+            OrderItemSnapshotLine(
+                ingredient_id=line["ingredient_id"],
+                ingredient_name=line["ingredient_name"],
+                qty=Decimal(line["qty"]),
+                unit=line["unit"],
+                cost=Decimal(line["cost"]),
+                is_missing=line.get("is_missing", False),
+            )
+            for line in data.get("lines", [])
+        ),
+        materials=Decimal(data["materials"]),
+        waste=Decimal(data["waste"]),
+        materials_con_merma=Decimal(data["materials_con_merma"]),
+        labor=Decimal(data["labor"]),
+        gas=Decimal(data["gas"]),
+        base=Decimal(data["base"]),
+        margin_pct=Decimal(data["margin_pct"]),
+        final=Decimal(data["final"]),
+        rounded=Decimal(data["rounded"]),
+        missing=tuple(data.get("missing", [])),
+    )
+
+
+# ---------------------------------------------------------------------------
+
+
+def _order_to_domain(orm: OrderORM) -> Order:
+    items = tuple(
+        OrderItem(
+            product_id=item.product_id,
+            qty=item.qty,
+            portions=item.portions,
+            note=item.note,
+            product_name=item.product_name,
+            id=item.id,
+            position=item.position,
+        )
+        for item in orm.items
+    )
+    snapshots = {
+        item.id: _json_to_snapshot(item.snapshot) for item in orm.items
+    }
+    return Order(
+        customer_id=orm.customer_id,
+        customer_name=orm.customer_name,
+        customer_phone=orm.customer_phone,
+        date=orm.date,
+        status=orm.status,
+        margin_pct=Decimal(orm.margin_pct) if orm.margin_pct is not None else None,
+        created_at=orm.created_at,
+        updated_at=orm.updated_at,
+        whatsapp_sent_at=orm.whatsapp_sent_at,
+        id=orm.id,
+        items=items,
+        snapshots=snapshots,
+    )
+
+
+class SQLOrderRepository:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    # ------------------------------------------------------------------ get
+
+    async def get(self, order_id: str) -> Optional[Order]:
+        result = await self.session.execute(
+            select(OrderORM)
+            .where(OrderORM.id == order_id)
+            .options(selectinload(OrderORM.items))
+        )
+        orm = result.scalars().first()
+        return _order_to_domain(orm) if orm else None
+
+    async def list(
+        self,
+        status: Optional[str],
+        customer_id: Optional[str],
+        q: Optional[str],
+        date_from: Optional[date],
+        date_to: Optional[date],
+        page: int,
+        page_size: int,
+    ) -> Tuple[List[Order], int]:
+        filters = []
+        if status:
+            filters.append(OrderORM.status == status)
+        if customer_id:
+            filters.append(OrderORM.customer_id == customer_id)
+        if q and q.strip():
+            from data.accent import accent_fold
+
+            folded = accent_fold(q) or q
+            filters.append(
+                func.accent_fold(OrderORM.customer_name).like(f"%{folded}%")
+            )
+        if date_from is not None:
+            filters.append(OrderORM.date >= date_from)
+        if date_to is not None:
+            filters.append(OrderORM.date <= date_to)
+        total = (
+            await self.session.execute(
+                select(func.count()).select_from(OrderORM).where(*filters)
+            )
+        ).scalar_one()
+        rows = (
+            await self.session.execute(
+                select(OrderORM)
+                .where(*filters)
+                .options(selectinload(OrderORM.items))
+                .order_by(OrderORM.created_at.desc(), OrderORM.id.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        ).scalars().all()
+        return [_order_to_domain(orm) for orm in rows], total
+
+    # -------------------------------------------------------------- mutables
+
+    async def create(self, order: Order) -> Order:
+        now = datetime.now(timezone.utc)
+        orm = OrderORM(
+            id=order.id,
+            customer_id=order.customer_id,
+            customer_name=order.customer_name,
+            customer_phone=order.customer_phone,
+            date=order.date,
+            status=order.status,
+            margin_pct=str(order.margin_pct) if order.margin_pct is not None else None,
+            created_at=now,
+            updated_at=now,
+        )
+        self.session.add(orm)
+        for index, item in enumerate(order.items):
+            self.session.add(
+                OrderItemORM(
+                    id=item.id,
+                    order_id=order.id,
+                    product_id=item.product_id,
+                    product_name=item.product_name,
+                    qty=item.qty,
+                    portions=item.portions,
+                    note=item.note,
+                    position=index,
+                    snapshot=_snapshot_to_json(order.snapshots[item.id]),
+                )
+            )
+        await self.session.commit()
+        return dataclasses.replace(order, created_at=now, updated_at=now)
+
+    async def update(self, order: Order) -> Optional[Order]:
+        """Reemplazo de lineas + snapshots (solo estado `nuevo`; el router
+        valida antes). Los snapshots antiguos se borran: un pedido nuevo no
+        tiene historico de precio que conservar."""
+        result = await self.session.execute(
+            select(OrderORM)
+            .where(OrderORM.id == order.id)
+            .options(selectinload(OrderORM.items))
+        )
+        orm = result.scalars().first()
+        if orm is None:
+            return None
+        orm.customer_id = order.customer_id
+        orm.customer_name = order.customer_name
+        orm.customer_phone = order.customer_phone
+        orm.date = order.date
+        orm.margin_pct = (
+            str(order.margin_pct) if order.margin_pct is not None else None
+        )
+        orm.updated_at = datetime.now(timezone.utc)
+        for old in list(orm.items):
+            await self.session.delete(old)
+        for index, item in enumerate(order.items):
+            self.session.add(
+                OrderItemORM(
+                    id=item.id,
+                    order_id=order.id,
+                    product_id=item.product_id,
+                    product_name=item.product_name,
+                    qty=item.qty,
+                    portions=item.portions,
+                    note=item.note,
+                    position=index,
+                    snapshot=_snapshot_to_json(order.snapshots[item.id]),
+                )
+            )
+        await self.session.commit()
+        return order
+
+    # ------------------------------------------------- stock + estado atomico
+
+    async def confirm(self, order: Order) -> Order:
+        """nuevo -> confirmado. Descuento de stock ATOMICO (RNF-P6-02/04):
+        lock de filas, chequeo, movimientos y estado en un solo commit.
+        Si falta stock, rollback total + InsufficientOrderStockError."""
+        deductions = plan_order_deductions(order.snapshots)
+        try:
+            ingredient_rows: Dict[str, IngredientORM] = {}
+            if deductions:
+                rows = (
+                    await self.session.execute(
+                        select(IngredientORM)
+                        .where(
+                            IngredientORM.id.in_(list(deductions.keys())),
+                            IngredientORM.deleted_at.is_(None),
+                        )
+                        .with_for_update()
+                    )
+                ).scalars().all()
+                ingredient_rows = {row.id: row for row in rows}
+
+            shortage: Dict[str, Decimal] = {}
+            for ingredient_id, needed in deductions.items():
+                row = ingredient_rows.get(ingredient_id)
+                available = (
+                    Decimal(row.stock_qty) if row is not None else Decimal("0")
+                )
+                if available < needed:
+                    shortage[ingredient_id] = needed - available
+            if shortage:
+                await self.session.rollback()
+                raise InsufficientOrderStockError(shortage)
+
+            for ingredient_id, needed in deductions.items():
+                row = ingredient_rows[ingredient_id]
+                ingredient = _ingredient_to_domain(row)
+                updated, movement = apply_movement(
+                    ingredient,
+                    -needed,
+                    reason="pedido",
+                    ref=order.id,
+                )
+                row.stock_qty = str(updated.stock_qty)
+                self.session.add(
+                    StockMovementORM(
+                        id=movement.id,
+                        ingredient_id=ingredient_id,
+                        qty_delta=str(movement.qty_delta),
+                        reason=movement.reason,
+                        ref=movement.ref,
+                        created_at=movement.created_at,
+                    )
+                )
+
+            orm = await self._load_orm(order.id)
+            orm.status = "confirmado"
+            orm.updated_at = datetime.now(timezone.utc)
+            order = dataclasses.replace(order, status="confirmado")
+            await self.session.commit()
+            return order
+        except InsufficientOrderStockError:
+            raise
+        except Exception:
+            await self.session.rollback()
+            raise
+
+    async def cancel(self, order: Order) -> Order:
+        """confirmado -> cancelado con reposicion de stock (RNF-P6-01)."""
+        deductions = plan_order_deductions(order.snapshots)
+        try:
+            ingredient_rows: Dict[str, IngredientORM] = {}
+            if deductions:
+                rows = (
+                    await self.session.execute(
+                        select(IngredientORM)
+                        .where(
+                            IngredientORM.id.in_(list(deductions.keys())),
+                            IngredientORM.deleted_at.is_(None),
+                        )
+                        .with_for_update()
+                    )
+                ).scalars().all()
+                ingredient_rows = {row.id: row for row in rows}
+
+            for ingredient_id, needed in deductions.items():
+                row = ingredient_rows.get(ingredient_id)
+                if row is None:
+                    # Insumo borrado despues de confirmar: no hay saldo que
+                    # reponer (la decision de negocio lo permite).
+                    continue
+                ingredient = _ingredient_to_domain(row)
+                updated, movement = apply_movement(
+                    ingredient,
+                    needed,
+                    reason="anulacion",
+                    ref=order.id,
+                )
+                row.stock_qty = str(updated.stock_qty)
+                self.session.add(
+                    StockMovementORM(
+                        id=movement.id,
+                        ingredient_id=ingredient_id,
+                        qty_delta=str(movement.qty_delta),
+                        reason=movement.reason,
+                        ref=movement.ref,
+                        created_at=movement.created_at,
+                    )
+                )
+
+            orm = await self._load_orm(order.id)
+            orm.status = "cancelado"
+            orm.updated_at = datetime.now(timezone.utc)
+            order = dataclasses.replace(order, status="cancelado")
+            await self.session.commit()
+            return order
+        except Exception:
+            await self.session.rollback()
+            raise
+
+    async def mark_delivered(self, order: Order) -> Order:
+        """confirmado -> entregado (RNF-P6-01): sin efecto sobre stock."""
+        try:
+            orm = await self._load_orm(order.id)
+            orm.status = "entregado"
+            orm.updated_at = datetime.now(timezone.utc)
+            order = dataclasses.replace(order, status="entregado")
+            await self.session.commit()
+            return order
+        except Exception:
+            await self.session.rollback()
+            raise
+
+    # ------------------------------------------------------------- whatsapp
+
+    async def mark_whatsapp_sent(
+        self, order: Order, sent_at: datetime
+    ) -> None:
+        orm = await self._load_orm(order.id)
+        if orm is None:
+            return
+        orm.whatsapp_sent_at = sent_at
+        self.session.add(
+            OrderEventORM(
+                id=str(uuid.uuid4()),
+                order_id=order.id,
+                type="whatsapp_link",
+                payload="",
+                created_at=sent_at,
+            )
+        )
+        await self.session.commit()
+
+    # ---------------------------------------------------------------- utils
+
+    async def _load_orm(self, order_id: str) -> Optional[OrderORM]:
+        result = await self.session.execute(
+            select(OrderORM).where(OrderORM.id == order_id)
+        )
+        return result.scalars().first()
+
+
+def _ingredient_to_domain(orm: IngredientORM):
+    from domain.models import Ingredient
+
+    return Ingredient(
+        name=orm.name,
+        unit=orm.unit,
+        price_per_unit=Decimal(orm.price_per_unit),
+        stock_qty=Decimal(orm.stock_qty),
+        low_stock_threshold=Decimal(orm.low_stock_threshold),
+        id=orm.id,
+        deleted_at=orm.deleted_at,
+    )

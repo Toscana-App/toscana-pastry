@@ -21,7 +21,9 @@ class StockStatus(str, Enum):
 
 DIFFICULTIES = ("simple", "intermedio", "complejo")
 STOCK_UNITS = ("kg", "g", "L", "ml", "unidad")
-STOCK_REASONS = ("compra", "merma", "ajuste")
+# "pedido" = descuento al confirmar un pedido (RNF-P6-02); "anulacion" =
+# reposicion al cancelar un pedido confirmado (RNF-P6-01).
+STOCK_REASONS = ("compra", "merma", "ajuste", "pedido", "anulacion")
 
 
 @dataclass(frozen=True)

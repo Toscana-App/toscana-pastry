@@ -10,6 +10,8 @@ from api.v1.settings.router import router as settings_router
 from api.v1.pricing.router import router as pricing_router
 from api.v1.ingredients.router import router as ingredients_router
 from api.v1.products.router import router as products_router
+from api.v1.customers.router import router as customers_router
+from api.v1.orders.router import router as orders_router
 from data.db import engine
 from data.models import Base
 
@@ -47,6 +49,8 @@ app.include_router(settings_router, prefix="/api/v1")
 app.include_router(pricing_router, prefix="/api/v1")
 app.include_router(ingredients_router, prefix="/api/v1")
 app.include_router(products_router, prefix="/api/v1")
+app.include_router(customers_router, prefix="/api/v1")
+app.include_router(orders_router, prefix="/api/v1")
 
 
 @app.get("/health")
