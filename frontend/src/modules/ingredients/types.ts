@@ -3,7 +3,8 @@
  *
  * Espejo 1:1 de `backend/src/api/v1/ingredients/schemas.py`. Reglas del
  * contrato (RF-04/RF-05):
- * - Money y Qty viajan SIEMPRE como string (Money/Qty serializan como str).
+ * - Money (`price_per_unit`) viaja como long de centavos (int).
+ * - Qty (`stock_qty`, `low_stock_threshold`, `delta`) viaja como string decimal.
  * - `status` es computado por el servidor: el frontend NUNCA lo calcula ni lo
  *   manda en payloads (solo se re-computa localmente para optimistic UI).
  * - Sin `created_at` en la response de ingrediente.
@@ -24,7 +25,8 @@ export interface Ingredient {
   id: string;
   name: string;
   unit: IngredientUnit;
-  price_per_unit: string;
+  /** Precio por unidad de compra, en centavos (Money long). */
+  price_per_unit: number;
   stock_qty: string;
   low_stock_threshold: string;
   status: IngredientStatus;
@@ -67,7 +69,7 @@ export interface IngredientDetailResponse {
   movements: StockMovement[] | null;
 }
 
-/** POST /ingredients (RF-P2-02). */
+/** POST /ingredients (RF-P2-02). `price_per_unit` en centavos (Money long). */
 export interface IngredientCreateInput {
   name: string;
   unit: IngredientUnit;

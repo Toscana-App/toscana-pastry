@@ -15,7 +15,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import NextLink from "next/link";
-import { formatMoney, formatQty } from "@/lib/format";
+import { formatCents, formatQty } from "@/lib/format";
 import { SearchIcon } from "@/components/ui/search-icon";
 import { EmptyState } from "@/modules/shared/EmptyState";
 import { useIngredients } from "../hooks/useIngredients";
@@ -115,7 +115,7 @@ export function IngredientsPage() {
                           </Text>
                         </NextLink>
                       </Table.Cell>
-                      <Table.Cell>{formatMoney(ing.price_per_unit)}</Table.Cell>
+                      <Table.Cell>{formatCents(ing.price_per_unit)}</Table.Cell>
                       <Table.Cell>{formatQty(ing.stock_qty, ing.unit)}</Table.Cell>
                       <Table.Cell>
                         <StockBadge
@@ -153,7 +153,7 @@ export function IngredientsPage() {
                     />
                   </Flex>
                   <Flex justify="space-between" color="fg.muted" fontSize="sm">
-                    <Text>Unit price: {formatMoney(ing.price_per_unit)}</Text>
+                    <Text>Unit price: {formatCents(ing.price_per_unit)}</Text>
                     <Text>Stock: {formatQty(ing.stock_qty, ing.unit)}</Text>
                   </Flex>
                 </Flex>
