@@ -41,6 +41,9 @@ export function Navbar() {
                 <Button variant="ghost" asChild>
                   <NextLink href="/pedidos">Pedidos</NextLink>
                 </Button>
+                <Button variant="ghost" asChild>
+                  <NextLink href="/presupuestos">Presupuestos</NextLink>
+                </Button>
                 {user?.role === "admin" && (
                   <Button variant="ghost" asChild>
                     <NextLink href="/admin">Admin</NextLink>
