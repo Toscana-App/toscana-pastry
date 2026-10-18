@@ -112,9 +112,9 @@ async def _set_settings(client: AsyncClient, token: str) -> None:
     response = await client.put(
         "/api/v1/tenant/settings",
         json={
-            "hourly_rate": "150",
+            "hourly_rate": 15000,
             "margin_pct": "100",
-            "round_step": "5",
+            "round_step": 500,
             "include_labor": True,
             "include_gas": False,
             "gas_pct": "0",
@@ -142,7 +142,7 @@ async def _make_customer(
     return response.json()["id"]
 
 
-async def _make_flour(client: AsyncClient, token: str, price: float = 2800) -> str:
+async def _make_flour(client: AsyncClient, token: str, price: int = 280000) -> str:
     response = await client.post(
         "/api/v1/ingredients",
         json={
@@ -328,7 +328,7 @@ class TestOrderCreate:
         assert order["customer"]["phone"] == "3575551234"
         assert order["date"] == "2026-10-20"
         assert order["margin_pct"] is None
-        assert order["total"] == "3100"
+        assert order["total"] == 310000
         assert order["whatsapp_sent_at"] is None
 
         item = order["items"][0]
@@ -337,19 +337,19 @@ class TestOrderCreate:
         assert item["portions"] == 6
         assert item["complete"] is True
         assert item["missing_ingredients"] == []
-        assert item["price"]["materials"] == "1400.00"
-        assert item["price"]["labor"] == "150.00"
-        assert item["price"]["base"] == "1550.00"
+        assert item["price"]["materials"] == 140000
+        assert item["price"]["labor"] == 15000
+        assert item["price"]["base"] == 155000
         assert item["price"]["margin_pct"] == "100"
-        assert item["price"]["final"] == "3100.00"
-        assert item["price"]["rounded"] == "3100"
-        assert item["rounded"] == "3100"
+        assert item["price"]["final"] == 310000
+        assert item["price"]["rounded"] == 310000
+        assert item["rounded"] == 310000
 
         line = item["lines"][0]
         assert line["ingredient_name"] == "Harina"
         assert line["qty"] == "500"  # 250g * 2 unidades
         assert line["unit"] == "g"
-        assert line["cost"] == "1400.00"
+        assert line["cost"] == 140000
         assert line["is_missing"] is False
 
     async def test_porciones_12_doblan_el_precio(self, client: AsyncClient):
@@ -359,10 +359,10 @@ class TestOrderCreate:
         )
         item = order["items"][0]
         assert item["portions"] == 12
-        assert item["price"]["materials"] == "1400.00"
-        assert item["price"]["labor"] == "150.00"
-        assert item["rounded"] == "3100"
-        assert order["total"] == "3100"
+        assert item["price"]["materials"] == 140000
+        assert item["price"]["labor"] == 15000
+        assert item["rounded"] == 310000
+        assert order["total"] == 310000
         assert item["lines"][0]["qty"] == "500"
 
     async def test_margin_override_reemplaza_al_tenant(self, client: AsyncClient):
@@ -373,9 +373,9 @@ class TestOrderCreate:
         assert order["margin_pct"] == "200"
         item = order["items"][0]
         assert item["price"]["margin_pct"] == "200"
-        assert item["price"]["base"] == "775.00"
-        assert item["rounded"] == "2325"
-        assert order["total"] == "2325"
+        assert item["price"]["base"] == 77500
+        assert item["rounded"] == 232500
+        assert order["total"] == 232500
 
     async def test_productos_incompletos_entran_con_desglose_parcial(
         self, client: AsyncClient
@@ -384,7 +384,7 @@ class TestOrderCreate:
         # harina sin precio (0 = sin precio): la torta queda incompleta
         response = await client.patch(
             f"/api/v1/ingredients/{flour_id}",
-            json={"price_per_unit": "0"},
+            json={"price_per_unit": 0},
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 200
@@ -394,11 +394,11 @@ class TestOrderCreate:
         assert item["complete"] is False
         assert "Harina" in item["missing_ingredients"]
         assert item["lines"][0]["is_missing"] is True
-        assert item["lines"][0]["cost"] == "0"
-        assert item["price"]["materials"] == "0.00"
+        assert item["lines"][0]["cost"] == 0
+        assert item["price"]["materials"] == 0
         # solo mano de obra: 75 base, margen 100% -> 150
-        assert item["rounded"] == "150"
-        assert order["total"] == "150"
+        assert item["rounded"] == 15000
+        assert order["total"] == 15000
 
     async def test_cliente_desconocido_da_404(self, client: AsyncClient):
         token, _, torta_id, _ = await _setup(client)
@@ -437,8 +437,8 @@ class TestOrderCreate:
         body = response.json()
         assert body["margin_pct"] == "100"
         assert body["tenant_margin_pct"] == "100"
-        assert body["total"] == "3100"
-        assert body["items"][0]["rounded"] == "3100"
+        assert body["total"] == 310000
+        assert body["items"][0]["rounded"] == 310000
 
         listing = await client.get(
             "/api/v1/orders",
@@ -460,7 +460,7 @@ class TestOrderCreate:
         body = response.json()
         assert body["margin_pct"] == "200"
         assert body["tenant_margin_pct"] == "100"
-        assert body["total"] == "2325"
+        assert body["total"] == 232500
 
     async def test_crear_requiere_admin(self, client: AsyncClient):
         _, _, torta_id, _ = await _setup(client)
@@ -487,7 +487,7 @@ class TestOrderCreate:
         # el catalogo cambia: sube el precio de la harina y la receta
         await client.patch(
             f"/api/v1/ingredients/{flour_id}",
-            json={"price_per_unit": "9999"},
+            json={"price_per_unit": 999900},
             headers={"Authorization": f"Bearer {token}"},
         )
         await client.patch(
@@ -502,9 +502,9 @@ class TestOrderCreate:
         )
         assert response.status_code == 200
         body = response.json()
-        assert body["total"] == "1550"
+        assert body["total"] == 155000
         assert body["items"][0]["lines"][0]["qty"] == "250"
-        assert body["items"][0]["lines"][0]["cost"] == "700.00"
+        assert body["items"][0]["lines"][0]["cost"] == 70000
 
 
 # ---------------------------------------------------------------------------
@@ -596,7 +596,7 @@ class TestOrderStatus:
         token, flour_id, torta_id, customer_id = await _setup(client)
         await client.patch(
             f"/api/v1/ingredients/{flour_id}",
-            json={"price_per_unit": "0"},
+            json={"price_per_unit": 0},
             headers={"Authorization": f"Bearer {token}"},
         )
         order = await _create_order(client, token, customer_id, torta_id, qty=1)
@@ -670,7 +670,7 @@ class TestOrderStatus:
         token, _, torta_id, customer_id = await _setup(client)
         order = await _create_order(client, token, customer_id, torta_id, qty=1)
         order_id = order["id"]
-        assert order["total"] == "1550"
+        assert order["total"] == 155000
 
         response = await client.patch(
             f"/api/v1/orders/{order_id}",
@@ -679,7 +679,7 @@ class TestOrderStatus:
         )
         assert response.status_code == 200
         body = response.json()
-        assert body["total"] == "3100"
+        assert body["total"] == 310000
         assert body["items"][0]["qty"] == 2
         assert body["items"][0]["lines"][0]["qty"] == "500"
 
@@ -699,7 +699,7 @@ class TestOrderStatus:
         body = response.json()
         assert body["margin_pct"] == "200"
         assert body["items"][0]["price"]["margin_pct"] == "200"
-        assert body["total"] == "2325"
+        assert body["total"] == 232500
 
     async def test_cambiar_cliente_en_edicion(self, client: AsyncClient):
         token, _, torta_id, customer_id = await _setup(client)

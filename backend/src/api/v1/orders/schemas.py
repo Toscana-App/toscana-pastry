@@ -1,8 +1,11 @@
 """Schemas Pydantic de la API de pedidos (Fase 6, P6).
 
 Reglas del contrato:
-- Money viaja como str (RNF-P4-02). `margin_pct` es el override por
-  pedido (0-200, mismo rango que el motor): null = margen del tenant.
+- Money viaja como long de centavos (int) en el wire (RF-P5-01/04); el
+  dominio trabaja en Decimal y la conversion vive en el borde (money.py).
+- `margin_pct` es Pct (0-100, string decimal): override por pedido
+  (mismo rango que el motor), null = margen del tenant.
+- `qty`/`available`/`required` son Qty (cantidades, no dinero).
 - El desglose de cada item es el SNAPSHOT congelado al crear el pedido
   (RNF-P6-03): las responses nunca recalculan contra el catalogo.
 - `date` es la fecha del pedido (entrega/produccion), elegible libremente.
@@ -12,7 +15,7 @@ from typing import List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from api.v1.money import Money
+from api.v1.money import Money, Pct, Qty
 
 OrderStatus = Literal["nuevo", "confirmado", "entregado", "cancelado"]
 
@@ -34,7 +37,7 @@ class OrderCreate(BaseModel):
 
     customer_id: str = Field(min_length=1, max_length=36)
     date: datetime.date
-    margin_pct: Optional[Money] = None
+    margin_pct: Optional[Pct] = None
     items: List[OrderItemInput] = Field(min_length=1)
 
 
@@ -45,7 +48,7 @@ class OrderUpdate(BaseModel):
 
     customer_id: Optional[str] = Field(default=None, min_length=1, max_length=36)
     date: Optional[datetime.date] = None
-    margin_pct: Optional[Money] = None
+    margin_pct: Optional[Pct] = None
     items: Optional[List[OrderItemInput]] = Field(default=None, min_length=1)
 
 
@@ -61,14 +64,14 @@ class OrderPreviewRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    margin_pct: Optional[Money] = None
+    margin_pct: Optional[Pct] = None
     items: List[OrderItemInput] = Field(min_length=1)
 
 
 class SnapshotLineResponse(BaseModel):
     ingredient_id: str
     ingredient_name: str
-    qty: Money
+    qty: Qty
     unit: str
     cost: Money
     is_missing: bool = False
@@ -83,7 +86,7 @@ class OrderItemBreakdown(BaseModel):
     labor: Money
     gas: Money
     base: Money
-    margin_pct: Money
+    margin_pct: Pct
     final: Money
     rounded: Money
 
@@ -130,7 +133,7 @@ class OrderDetailResponse(BaseModel):
     customer: OrderCustomerResponse
     date: datetime.date
     status: OrderStatus
-    margin_pct: Optional[Money] = None
+    margin_pct: Optional[Pct] = None
     items: List[OrderItemResponse]
     total: Money
     whatsapp_sent_at: Optional[str] = None
@@ -151,8 +154,8 @@ class OrderPreviewItemResponse(BaseModel):
 
 
 class OrderPreviewResponse(BaseModel):
-    margin_pct: Money  # aplicado (override o tenant)
-    tenant_margin_pct: Money
+    margin_pct: Pct  # aplicado (override o tenant)
+    tenant_margin_pct: Pct
     items: List[OrderPreviewItemResponse]
     total: Money
 
@@ -160,8 +163,8 @@ class OrderPreviewResponse(BaseModel):
 class InsufficientStockItem(BaseModel):
     ingredient_id: str
     ingredient_name: str
-    available: Money
-    required: Money
+    available: Qty
+    required: Qty
 
 
 class InsufficientStockResponse(BaseModel):
