@@ -16,6 +16,7 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { EnumSelect } from "@/components/ui/enum-select";
+import { centsToPesos, pesosToCents } from "@/lib/format";
 import { toaster } from "@/lib/toaster";
 import { ingredientCreateSchema, type IngredientCreateValues } from "../schema";
 import { ingredientsService } from "../service";
@@ -87,7 +88,7 @@ export function IngredientFormPage({ mode, ingredientId }: IngredientFormPagePro
         reset({
           name: ingredient.name,
           unit: ingredient.unit,
-          price_per_unit: Number(ingredient.price_per_unit),
+          price_per_unit: centsToPesos(ingredient.price_per_unit),
           stock_qty: 0,
           low_stock_threshold: Number(ingredient.low_stock_threshold),
         });
@@ -124,7 +125,7 @@ export function IngredientFormPage({ mode, ingredientId }: IngredientFormPagePro
         await ingredientsService.update(ingredientId, {
           name: values.name,
           unit: values.unit,
-          price_per_unit: values.price_per_unit,
+          price_per_unit: pesosToCents(values.price_per_unit),
           low_stock_threshold: values.low_stock_threshold,
         });
         toaster.create({ title: "Changes saved", type: "success" });
@@ -133,7 +134,7 @@ export function IngredientFormPage({ mode, ingredientId }: IngredientFormPagePro
         await ingredientsService.create({
           name: values.name,
           unit: values.unit,
-          price_per_unit: values.price_per_unit,
+          price_per_unit: pesosToCents(values.price_per_unit),
           stock_qty: values.stock_qty,
           low_stock_threshold: values.low_stock_threshold,
         });
