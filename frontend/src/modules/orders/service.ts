@@ -1,5 +1,4 @@
 import { apiFetch, ApiError } from "@/lib/api";
-import { moneyToCents } from "@/lib/format";
 import type {
   Customer,
   CustomerCreateInput,
@@ -36,29 +35,35 @@ const CUSTOMERS = "/customers";
  */
 
 function breakdownOf(raw: Record<string, unknown>): OrderItemBreakdown {
-  const b = raw as unknown as Record<string, string>;
   return {
-    materials: moneyToCents(b.materials),
-    waste: moneyToCents(b.waste),
-    materials_con_merma: moneyToCents(b.materials_con_merma),
-    labor: moneyToCents(b.labor),
-    gas: moneyToCents(b.gas),
-    base: moneyToCents(b.base),
-    margin_pct: Number(b.margin_pct),
-    final: moneyToCents(b.final),
-    rounded: moneyToCents(b.rounded),
+    materials: raw.materials as number,
+    waste: raw.waste as number,
+    materials_con_merma: raw.materials_con_merma as number,
+    labor: raw.labor as number,
+    gas: raw.gas as number,
+    base: raw.base as number,
+    margin_pct: Number(raw.margin_pct),
+    final: raw.final as number,
+    rounded: raw.rounded as number,
   };
 }
 
 function linesOf(raws: unknown[]): SnapshotLine[] {
   return raws.map((raw) => {
-    const l = raw as Record<string, unknown> & { ingredient_id: string; ingredient_name: string; qty: string; unit: string; is_missing?: boolean };
+    const l = raw as {
+      ingredient_id: string;
+      ingredient_name: string;
+      qty: string;
+      unit: string;
+      cost: number;
+      is_missing?: boolean;
+    };
     return {
       ingredient_id: l.ingredient_id,
       ingredient_name: l.ingredient_name,
       qty: l.qty,
       unit: l.unit,
-      cost: moneyToCents(l.cost as string),
+      cost: l.cost,
       is_missing: l.is_missing ?? false,
     };
   });
@@ -75,7 +80,7 @@ function orderItemOf(raw: Record<string, unknown>): OrderItem {
     missing_ingredients: raw.missing_ingredients as string[],
     price: breakdownOf(raw.price as Record<string, unknown>),
     lines: linesOf(raw.lines as unknown[]),
-    rounded: moneyToCents(raw.rounded as string),
+    rounded: raw.rounded as number,
   };
 }
 
@@ -89,7 +94,7 @@ function previewItemOf(raw: Record<string, unknown>): OrderPreviewItem {
     missing_ingredients: raw.missing_ingredients as string[],
     price: breakdownOf(raw.price as Record<string, unknown>),
     lines: linesOf(raw.lines as unknown[]),
-    rounded: moneyToCents(raw.rounded as string),
+    rounded: raw.rounded as number,
   };
 }
 
@@ -106,7 +111,7 @@ function detailOf(raw: Record<string, unknown>): OrderDetail {
     status: raw.status as OrderStatus,
     margin_pct: raw.margin_pct == null ? null : Number(raw.margin_pct as string),
     items: (raw.items as unknown[]).map((i) => orderItemOf(i as Record<string, unknown>)),
-    total: moneyToCents(raw.total as string),
+    total: raw.total as number,
     whatsapp_sent_at: raw.whatsapp_sent_at as string | null,
     created_at: raw.created_at as string,
     updated_at: raw.updated_at as string,
@@ -128,10 +133,7 @@ export const ordersService = {
     if (params.page) query.set("page", String(params.page));
     if (params.page_size) query.set("page_size", String(params.page_size));
     const qs = query.toString();
-    return apiFetch<OrderListResponse>(`${BASE}${qs ? `?${qs}` : ""}`).then((res) => ({
-      ...res,
-      items: res.items.map((i) => ({ ...i, total: moneyToCents(i.total) })),
-    }));
+    return apiFetch<OrderListResponse>(`${BASE}${qs ? `?${qs}` : ""}`);
   },
 
   /** GET /orders/{id} — detalle con snapshot congelado (RNF-P6-03). */
@@ -212,7 +214,7 @@ export const ordersService = {
       margin_pct: Number(raw.margin_pct as string),
       tenant_margin_pct: Number(raw.tenant_margin_pct as string),
       items: (raw.items as unknown[]).map((i) => previewItemOf(i as Record<string, unknown>)),
-      total: moneyToCents(raw.total as string),
+      total: raw.total as number,
     }));
   },
 
@@ -266,8 +268,8 @@ export function insufficientStockOf(error: unknown): InsufficientStockResponse |
         insufficient_stock: payload.insufficient_stock.map((i) => ({
           ingredient_id: i.ingredient_id,
           ingredient_name: i.ingredient_name,
-          available: moneyToCents(i.available),
-          required: moneyToCents(i.required),
+          available: Number(i.available),
+          required: Number(i.required),
         })),
       };
     }

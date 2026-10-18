@@ -230,13 +230,15 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
   );
 
   useEffect(() => {
+    // React Compiler: nada de setState síncrono en el cuerpo del efecto.
+    // El reset y el "loading" entran por un timer (borde async).
     if (!isAdmin || previewItems.length === 0) {
-      setPreview({ status: "idle" });
-      return;
+      const reset = setTimeout(() => setPreview({ status: "idle" }), 0);
+      return () => clearTimeout(reset);
     }
     const seq = ++previewSeq.current;
-    setPreview((p) => ({ ...p, status: "loading" }));
     const timer = setTimeout(() => {
+      setPreview((p) => ({ ...p, status: "loading" }));
       const marginPct = margin === "" ? null : margin;
       ordersService
         .preview(previewItems, marginPct)

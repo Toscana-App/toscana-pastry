@@ -2,10 +2,9 @@
  * Tipos del módulo de pedidos (Fase 6, P6) — espejo del contrato
  * `backend/src/api/v1/orders/schemas.py` (docs/specs/p06_orders.md).
  *
- * Regla de montos: la app representa TODO monto como `long` (entero de
- * centavos; los últimos 2 dígitos son los centavos). El service convierte el
- * string de la API con `moneyToCents` al recibir; los componentes solo ven
- * centavos y formatean con `formatCents`.
+ * Regla de montos: la API emite TODO monto como `long` de centavos (int); los
+ * componentes solo ven centavos y formatean con `formatCents`.
+ * `available`/`required` del 409 son Qty (cantidades), no dinero.
  *
  * Excepción: `margin_pct` es un PORCENTAJE (0-200, mismo rango que el motor),
  * no un monto: viaja como string numérico y el service lo convierte a

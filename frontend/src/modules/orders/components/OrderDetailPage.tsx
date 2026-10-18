@@ -199,7 +199,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
                   {formatCents(item.price.base)}
                 </td>
                 <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
-                  {formatCents(item.price.margin_pct)}
+                  {formatPct(item.price.margin_pct)}
                 </td>
                 <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
                   {formatCents(item.price.final)}

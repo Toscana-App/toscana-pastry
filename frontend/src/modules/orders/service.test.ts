@@ -7,11 +7,11 @@ import {
 
 /**
  * Tests del service de pedidos (Fase 6): verifican el contrato HTTP
- * (path, método, body) y la conversión Money string → long de centavos.
+ * (path, método, body) y el contrato Money long de centavos.
  * Se mockea fetch — nada de red.
  *
- * Money: la API emite string ("3100.00"); el service lo convierte a long
- * (310000). Margen: porcentaje plano ("100" = 100%), no money.
+ * Money: la API emite long de centavos (310000); el service lo pasa tal cual.
+ * Margen: porcentaje plano ("100" = 100%), no money.
  */
 const API_BASE = "http://localhost:8000/api/v1";
 
@@ -63,7 +63,7 @@ describe("ordersService — GET /orders", () => {
     expect(lastCall(fetchMock).url).toBe(`${API_BASE}/orders`);
   });
 
-  it("list convierte total de string a long de centavos", async () => {
+  it("list respeta el total en centavos que emite la API", async () => {
     const fetchMock = mockFetch(200, {
       items: [
         {
@@ -74,7 +74,7 @@ describe("ordersService — GET /orders", () => {
           date: "2026-10-01",
           status: "nuevo",
           item_count: 2,
-          total: "3100.00",
+          total: 310000,
           created_at: "2026-10-01T12:00:00Z",
         },
       ],
@@ -90,7 +90,7 @@ describe("ordersService — GET /orders", () => {
 });
 
 describe("ordersService — GET /orders/{id}", () => {
-  it("getDetail convierte montos, margen y líneas del snapshot", async () => {
+  it("getDetail arma montos, margen y líneas del snapshot", async () => {
     const fetchMock = mockFetch(200, {
       id: "o1",
       customer: { id: "c1", name: "María", phone: "11-2233-4455" },
@@ -107,15 +107,15 @@ describe("ordersService — GET /orders/{id}", () => {
           complete: true,
           missing_ingredients: [],
           price: {
-            materials: "700.00",
-            waste: "50.00",
-            materials_con_merma: "750.00",
-            labor: "55.00",
-            gas: "0.00",
-            base: "775.00",
+            materials: 70000,
+            waste: 5000,
+            materials_con_merma: 75000,
+            labor: 5500,
+            gas: 0,
+            base: 77500,
             margin_pct: "100",
-            final: "1550.00",
-            rounded: "1550",
+            final: 155000,
+            rounded: 155000,
           },
           lines: [
             {
@@ -123,13 +123,13 @@ describe("ordersService — GET /orders/{id}", () => {
               ingredient_name: "Harina 000",
               qty: "0.25",
               unit: "kg",
-              cost: "280.00",
+              cost: 28000,
             },
           ],
-          rounded: "3100",
+          rounded: 310000,
         },
       ],
-      total: "3100.00",
+      total: 310000,
       whatsapp_sent_at: null,
       created_at: "2026-10-01T12:00:00Z",
       updated_at: "2026-10-01T12:05:00Z",
@@ -155,7 +155,7 @@ describe("ordersService — GET /orders/{id}", () => {
       status: "nuevo",
       margin_pct: null,
       items: [],
-      total: "0.00",
+      total: 0,
       whatsapp_sent_at: null,
       created_at: "2026-10-01T12:00:00Z",
       updated_at: "2026-10-01T12:00:00Z",
@@ -167,7 +167,7 @@ describe("ordersService — GET /orders/{id}", () => {
 });
 
 describe("ordersService — POST /orders", () => {
-  it("create manda el payload con margin_pct string y convierte la respuesta", async () => {
+  it("create manda el payload con margin_pct string y respeta los centavos", async () => {
     const fetchMock = mockFetch(201, {
       id: "o9",
       customer: { id: "c1", name: "María", phone: "11" },
@@ -175,7 +175,7 @@ describe("ordersService — POST /orders", () => {
       status: "nuevo",
       margin_pct: null,
       items: [],
-      total: "1550.00",
+      total: 155000,
       whatsapp_sent_at: null,
       created_at: "2026-10-02T09:00:00Z",
       updated_at: "2026-10-02T09:00:00Z",
@@ -214,7 +214,7 @@ describe("ordersService — POST /orders", () => {
       status: "nuevo",
       margin_pct: "175",
       items: [],
-      total: "1750.00",
+      total: 175000,
       whatsapp_sent_at: null,
       created_at: "2026-10-02T09:00:00Z",
       updated_at: "2026-10-02T09:00:00Z",
@@ -239,7 +239,7 @@ describe("ordersService — PATCH", () => {
       status: "nuevo",
       margin_pct: null,
       items: [],
-      total: "0.00",
+      total: 0,
       whatsapp_sent_at: null,
       created_at: "2026-10-01T12:00:00Z",
       updated_at: "2026-10-03T09:00:00Z",
@@ -267,7 +267,7 @@ describe("ordersService — PATCH", () => {
       status: "confirmado",
       margin_pct: null,
       items: [],
-      total: "0.00",
+      total: 0,
       whatsapp_sent_at: null,
       created_at: "2026-10-01T12:00:00Z",
       updated_at: "2026-10-01T12:30:00Z",
@@ -282,7 +282,7 @@ describe("ordersService — PATCH", () => {
 });
 
 describe("ordersService — preview y whatsapp", () => {
-  it("preview manda items y margen, convierte centavos", async () => {
+  it("preview manda items y margen, respeta los centavos", async () => {
     const fetchMock = mockFetch(200, {
       margin_pct: "100",
       tenant_margin_pct: "100",
@@ -295,21 +295,21 @@ describe("ordersService — preview y whatsapp", () => {
           complete: true,
           missing_ingredients: [],
           price: {
-            materials: "700.00",
-            waste: "50.00",
-            materials_con_merma: "750.00",
-            labor: "55.00",
-            gas: "0.00",
-            base: "775.00",
+            materials: 70000,
+            waste: 5000,
+            materials_con_merma: 75000,
+            labor: 5500,
+            gas: 0,
+            base: 77500,
             margin_pct: "100",
-            final: "1550.00",
-            rounded: "1550",
+            final: 155000,
+            rounded: 155000,
           },
           lines: [],
-          rounded: "3100",
+          rounded: 310000,
         },
       ],
-      total: "3100.00",
+      total: 310000,
     });
 
     const res = await ordersService.preview(
@@ -395,7 +395,7 @@ describe("customersService", () => {
 });
 
 describe("insufficientStockOf", () => {
-  it("extrae el 409 de stock insuficiente y convierte a centavos", async () => {
+  it("extrae el 409 de stock insuficiente como cantidad (Qty)", async () => {
     const fetchMock = mockFetch(409, {
       insufficient_stock: [
         {
@@ -419,8 +419,8 @@ describe("insufficientStockOf", () => {
     expect(stock?.insufficient_stock[0]).toEqual({
       ingredient_id: "i1",
       ingredient_name: "Harina 000",
-      available: 150,
-      required: 225,
+      available: 1.5,
+      required: 2.25,
     });
   });
 
