@@ -107,7 +107,7 @@ export function RecipeEditor({
                     <option value="">Elegí un insumo…</option>
                     {ingredients.map((ing) => (
                       <option key={ing.id} value={ing.id}>
-                        {ing.price_per_unit === "0"
+                        {ing.price_per_unit === 0
                           ? `${ing.name} (sin precio)`
                           : `${ing.name} · ${ing.unit}`}
                       </option>

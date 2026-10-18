@@ -20,7 +20,7 @@ import {
 import { useForm, useWatch, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { EnumSelect } from "@/components/ui/enum-select";
-import { formatMoney, formatMoneyDecimals } from "@/lib/format";
+import { formatCents } from "@/lib/format";
 import { toaster } from "@/lib/toaster";
 import { ingredientsService } from "@/modules/ingredients/service";
 import type { Ingredient } from "@/modules/ingredients/types";
@@ -242,7 +242,7 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
     const names = new Set<string>();
     for (const row of recipeValues ?? []) {
       const ingredient = ingredientById.get(row.ingredient_id);
-      if (ingredient && ingredient.price_per_unit === "0") {
+      if (ingredient && ingredient.price_per_unit === 0) {
         names.add(ingredient.name);
       }
     }
@@ -258,7 +258,7 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
       lines.push({
         qty: row.qty,
         unit: row.unit,
-        price_per_purchase_unit: Number(ingredient.price_per_unit),
+        price_per_purchase_unit: ingredient.price_per_unit,
         purchase_unit: ingredient.unit,
       });
     }
@@ -611,15 +611,15 @@ function CostsPreview({
   }
 
   const rows: Array<{ label: string; value: string }> = [
-    { label: "Materiales", value: formatMoney(breakdown.materials) },
-    { label: "Merma", value: formatMoney(breakdown.waste) },
+    { label: "Materiales", value: formatCents(breakdown.materials) },
+    { label: "Merma", value: formatCents(breakdown.waste) },
     {
       label: "Materiales con merma",
-      value: formatMoney(breakdown.materials_con_merma),
+      value: formatCents(breakdown.materials_con_merma),
     },
-    { label: "Mano de obra", value: formatMoney(breakdown.labor) },
-    { label: "Gas / energía", value: formatMoney(breakdown.gas) },
-    { label: "Subtotal", value: formatMoney(breakdown.base) },
+    { label: "Mano de obra", value: formatCents(breakdown.labor) },
+    { label: "Gas / energía", value: formatCents(breakdown.gas) },
+    { label: "Subtotal", value: formatCents(breakdown.base) },
     { label: "Margen", value: `${Number(breakdown.margin_pct)}%` },
   ];
 
@@ -665,7 +665,7 @@ function CostsPreview({
               fontWeight="600"
               fontVariantNumeric="tabular-nums"
             >
-              {formatMoney(breakdown.rounded)}
+              {formatCents(breakdown.rounded)}
             </Table.Cell>
           </Table.Row>
         </Table.Body>
@@ -675,15 +675,15 @@ function CostsPreview({
         <Flex justify="space-between" color="fg.muted">
           <Text>Precio por porción (aprox.)</Text>
           <Text fontVariantNumeric="tabular-nums">
-            {formatMoneyDecimals(Number(breakdown.rounded) / servings)}
+            {formatCents(breakdown.rounded / servings)}
           </Text>
         </Flex>
       ) : null}
 
       {Number(breakdown.final) !== Number(breakdown.rounded) ? (
         <Text fontSize="sm" color="fg.muted">
-          Redondeo aplicado: de {formatMoneyDecimals(breakdown.final)} a{" "}
-          {formatMoney(breakdown.rounded)}.
+          Redondeo aplicado: de {formatCents(breakdown.final)} a{" "}
+          {formatCents(breakdown.rounded)}.
         </Text>
       ) : null}
     </Flex>

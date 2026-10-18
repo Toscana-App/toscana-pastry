@@ -2,7 +2,8 @@
  * Tipos del módulo de productos (Fase 5, P3/P4).
  *
  * Espejo 1:1 de `backend/src/api/v1/products/schemas.py`. Reglas del contrato:
- * - Money y Qty viajan SIEMPRE como string en responses y number en requests.
+ * - Money viaja como long de centavos (int); Qty como string decimal.
+ * - `margin_pct` es Pct: string decimal (porcentaje, sin centavos).
  * - El precio NUNCA se persiste: el backend lo deriva en cada lectura con los
  *   insumos y settings actuales (RF-P3-04).
  * - `complete=false` → `price` null + `missing_ingredients` poblado: el
@@ -23,9 +24,10 @@ export interface ProductListItem {
   id: string;
   name: string;
   category: string;
-  /** Precio comercial redondeado por el motor; null si el producto es incompleto. */
-  price_final: string | null;
-  price_per_serving: string | null;
+  /** Precio comercial redondeado por el motor, en centavos; null si es incompleto. */
+  price_final: number | null;
+  /** Precio por porción, en centavos. */
+  price_per_serving: number | null;
   /** false → la receta tiene insumos sin precio (badge "sin precio", RF-P3-05). */
   complete: boolean;
 }
@@ -47,17 +49,18 @@ export interface ProductListParams {
   page_size?: number;
 }
 
-/** Desglose completo del motor de precios (tab Costos del P4). */
+/** Desglose completo del motor de precios (tab Costos del P4). Money en centavos. */
 export interface PriceBreakdown {
-  materials: string;
-  waste: string;
-  materials_con_merma: string;
-  labor: string;
-  gas: string;
-  base: string;
+  materials: number;
+  waste: number;
+  materials_con_merma: number;
+  labor: number;
+  gas: number;
+  base: number;
+  /** Porcentaje aplicado (Pct): string decimal, sin centavos. */
   margin_pct: string;
-  final: string;
-  rounded: string;
+  final: number;
+  rounded: number;
 }
 
 /** Línea de receta en el detalle, con los datos del insumo corrientes. */
@@ -68,9 +71,10 @@ export interface RecipeItemDetail {
   unit: string;
   /** Unidad de compra del insumo (kg, L, …); null si el insumo ya no existe. */
   purchase_unit: string | null;
-  price_per_unit: string | null;
-  /** Costo de la línea; null cuando missing=true. */
-  line_cost: string | null;
+  /** Precio por unidad de compra del insumo, en centavos. */
+  price_per_unit: number | null;
+  /** Costo de la línea, en centavos; null cuando missing=true. */
+  line_cost: number | null;
   missing: boolean;
 }
 
@@ -86,7 +90,8 @@ export interface ProductDetail {
   complete: boolean;
   missing_ingredients: string[];
   price: PriceBreakdown | null;
-  price_per_serving: string | null;
+  /** Precio por porción, en centavos. */
+  price_per_serving: number | null;
   recipe: RecipeItemDetail[];
 }
 

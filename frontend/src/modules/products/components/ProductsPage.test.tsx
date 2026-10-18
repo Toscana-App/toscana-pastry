@@ -20,8 +20,8 @@ const mocks = vi.hoisted(() => ({
       id: string;
       name: string;
       category: string;
-      price_final: string | null;
-      price_per_serving: string | null;
+      price_final: number | null;
+      price_per_serving: number | null;
       complete: boolean;
     }>,
     total: 0,
@@ -138,8 +138,8 @@ describe("ProductsPage", () => {
         id: "1",
         name: "Torta de chocolate",
         category: "Tortas",
-        price_final: "1550.00",
-        price_per_serving: "193.75",
+        price_final: 155000,
+        price_per_serving: 19375,
         complete: true,
       },
       {

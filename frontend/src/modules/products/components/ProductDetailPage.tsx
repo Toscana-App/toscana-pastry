@@ -15,7 +15,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import NextLink from "next/link";
-import { formatMoney, formatMoneyDecimals, formatQty } from "@/lib/format";
+import { formatCents, formatQty } from "@/lib/format";
 import { toaster } from "@/lib/toaster";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProductDetail } from "../hooks/useProductDetail";
@@ -229,7 +229,7 @@ function RecipeTab({ product }: { product: ProductDetail }) {
                   fontVariantNumeric="tabular-nums"
                   color={item.missing ? "fg.muted" : undefined}
                 >
-                  {item.line_cost !== null ? formatMoney(item.line_cost) : "—"}
+                  {item.line_cost !== null ? formatCents(item.line_cost) : "—"}
                 </Table.Cell>
               </Table.Row>
             ))}
@@ -279,15 +279,15 @@ function CostsTab({ product }: { product: ProductDetail }) {
 
   const price = product.price;
   const rows: Array<{ label: string; value: string }> = [
-    { label: "Materiales", value: formatMoney(price.materials) },
-    { label: "Merma", value: formatMoney(price.waste) },
+    { label: "Materiales", value: formatCents(price.materials) },
+    { label: "Merma", value: formatCents(price.waste) },
     {
       label: "Materiales con merma",
-      value: formatMoney(price.materials_con_merma),
+      value: formatCents(price.materials_con_merma),
     },
-    { label: "Mano de obra", value: formatMoney(price.labor) },
-    { label: "Gas / energía", value: formatMoney(price.gas) },
-    { label: "Subtotal", value: formatMoney(price.base) },
+    { label: "Mano de obra", value: formatCents(price.labor) },
+    { label: "Gas / energía", value: formatCents(price.gas) },
+    { label: "Subtotal", value: formatCents(price.base) },
     { label: "Margen", value: `${Number(price.margin_pct)}%` },
   ];
 
@@ -315,7 +315,7 @@ function CostsTab({ product }: { product: ProductDetail }) {
               fontWeight="600"
               fontVariantNumeric="tabular-nums"
             >
-              {formatMoney(price.rounded)}
+              {formatCents(price.rounded)}
             </Table.Cell>
           </Table.Row>
         </Table.Body>
@@ -325,15 +325,15 @@ function CostsTab({ product }: { product: ProductDetail }) {
         <Flex justify="space-between" color="fg.muted">
           <Text>Precio por porción</Text>
           <Text fontVariantNumeric="tabular-nums">
-            {formatMoneyDecimals(product.price_per_serving)}
+            {formatCents(product.price_per_serving)}
           </Text>
         </Flex>
       ) : null}
 
       {Number(price.final) !== Number(price.rounded) ? (
         <Text fontSize="sm" color="fg.muted">
-          Redondeo aplicado: de {formatMoneyDecimals(price.final)} a{" "}
-          {formatMoney(price.rounded)}.
+          Redondeo aplicado: de {formatCents(price.final)} a{" "}
+          {formatCents(price.rounded)}.
         </Text>
       ) : null}
     </Flex>
