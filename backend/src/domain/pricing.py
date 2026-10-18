@@ -134,7 +134,7 @@ def round_to_step(value: Decimal, step: Decimal) -> Decimal:
 
 def calculate_price(
     line_items: Sequence[tuple[Decimal, str, Decimal, str]],
-    prep_minutes: int,
+    prep_minutes: int | Decimal,
     settings: PricingSettings,
 ) -> CostBreakdown:
     """Aplica la formula del plan (master_plan.md §1.3).
