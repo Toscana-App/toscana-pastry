@@ -71,9 +71,9 @@ async def _customer_token(client: AsyncClient) -> str:
 
 def _valid_payload(**overrides) -> dict:
     payload = {
-        "hourly_rate": "3000",
+        "hourly_rate": 300000,
         "margin_pct": "50",
-        "round_step": "100",
+        "round_step": 10000,
         "include_labor": True,
         "include_gas": True,
         "gas_pct": "3",
@@ -104,9 +104,9 @@ async def test_get_settings_returns_system_defaults_when_unset(client):
     )
     assert response.status_code == 200
     body = response.json()
-    assert Decimal(body["hourly_rate"]) == Decimal("3000")
+    assert body["hourly_rate"] == 300000
     assert Decimal(body["margin_pct"]) == Decimal("30")
-    assert Decimal(body["round_step"]) == Decimal("100")
+    assert body["round_step"] == 10000
     assert body["include_labor"] is True
     assert body["include_gas"] is True
     assert Decimal(body["gas_pct"]) == Decimal("3")

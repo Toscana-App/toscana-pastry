@@ -1,6 +1,5 @@
 import pytest
 import pytest_asyncio
-from decimal import Decimal
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -94,9 +93,9 @@ async def _set_settings(client: AsyncClient, headers) -> None:
     response = await client.put(
         "/api/v1/tenant/settings",
         json={
-            "hourly_rate": "150",
+            "hourly_rate": 15000,
             "margin_pct": "100",
-            "round_step": "5",
+            "round_step": 500,
             "include_labor": True,
             "include_gas": False,
             "gas_pct": "0",
@@ -113,14 +112,14 @@ async def _set_settings(client: AsyncClient, headers) -> None:
 
 
 async def _create_ingredient(
-    client: AsyncClient, headers, name, unit="kg", price="2800"
+    client: AsyncClient, headers, name, unit="kg", price=280000
 ):
     response = await client.post(
         "/api/v1/ingredients",
         json={
             "name": name,
             "unit": unit,
-            "price_per_unit": float(price),
+            "price_per_unit": price,
             "stock_qty": 0,
             "low_stock_threshold": 0,
         },
@@ -224,16 +223,16 @@ async def test_create_product_201_with_derived_price(client):
     assert product["complete"] is True
     assert product["missing_ingredients"] == []
     # 250 g @ 2800/kg = 700 + mano 75 = 775; margen 100% → 1550; paso 5 → 1550
-    assert Decimal(product["price"]["final"]) == Decimal("1550.00")
-    assert Decimal(product["price"]["rounded"]) == Decimal("1550.00")
-    assert Decimal(product["price_per_serving"]) == Decimal("258.33")
+    assert product["price"]["final"] == 155000
+    assert product["price"]["rounded"] == 155000
+    assert product["price_per_serving"] == 25833
     line = product["recipe"][0]
     assert line["ingredient_name"] == "Harina"
     assert line["purchase_unit"] == "kg"
     assert line["missing"] is False
-    assert Decimal(line["line_cost"]) == Decimal("700.00")
-    # Money/Qty como str en la response (RNF-P4-02)
-    assert isinstance(product["price"]["materials"], str)
+    assert line["line_cost"] == 70000
+    # Money como int de centavos / Qty como str en la response
+    assert isinstance(product["price"]["materials"], int)
 
 
 @pytest.mark.asyncio
@@ -280,7 +279,7 @@ async def test_create_400_incompatible_units(client):
     # El insumo se compra en unidades; la receta pide gramos → 400,
     # como /pricing/preview.
     huevos = await _create_ingredient(
-        client, headers, "Huevos", unit="unidad", price="90"
+        client, headers, "Huevos", unit="unidad", price=9000
     )
     response = await client.post(
         "/api/v1/products",
@@ -320,7 +319,7 @@ async def test_create_incomplete_product_when_price_zero(client):
     await _set_settings(client, headers)
     # Precio 0 = "sin precio" (decision de negocio Fase 5).
     harina = await _create_ingredient(
-        client, headers, "Harina Sin Precio", price="0"
+        client, headers, "Harina Sin Precio", price=0
     )
     product = await _create_product(
         client,
@@ -381,7 +380,7 @@ async def test_list_category_filter_and_distinct_categories(client):
         recipe=[{"ingredient_id": flour["id"], "qty": 250, "unit": "g"}],
     )
     limonada = await _create_ingredient(
-        client, headers, "Limon", unit="unidad", price="100"
+        client, headers, "Limon", unit="unidad", price=10000
     )
     await _create_product(
         client,
@@ -445,7 +444,7 @@ async def test_list_price_null_for_incomplete_product(client):
     headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
     await _set_settings(client, headers)
     sin_precio = await _create_ingredient(
-        client, headers, "Insumo Sin Precio", price="0"
+        client, headers, "Insumo Sin Precio", price=0
     )
     await _create_product(
         client,
@@ -474,7 +473,7 @@ async def test_detail_200_full_breakdown(client):
     await _set_settings(client, headers)
     flour = await _create_ingredient(client, headers, "Harina")
     huevos = await _create_ingredient(
-        client, headers, "Huevos", unit="unidad", price="90"
+        client, headers, "Huevos", unit="unidad", price=9000
     )
     product = await _create_product(
         client,
@@ -491,15 +490,15 @@ async def test_detail_200_full_breakdown(client):
     assert response.status_code == 200
     detail = response.json()
     # 700 + 360 = 1060 + mano 75 = 1135; margen 100% → 2270 (paso 5 exacto)
-    assert Decimal(detail["price"]["materials"]) == Decimal("1060.00")
-    assert Decimal(detail["price"]["waste"]) == Decimal("0.00")
-    assert Decimal(detail["price"]["materials_con_merma"]) == Decimal("1060.00")
-    assert Decimal(detail["price"]["labor"]) == Decimal("75.00")
-    assert Decimal(detail["price"]["gas"]) == Decimal("0.00")
-    assert Decimal(detail["price"]["base"]) == Decimal("1135.00")
-    assert Decimal(detail["price"]["final"]) == Decimal("2270.00")
-    assert Decimal(detail["price"]["rounded"]) == Decimal("2270.00")
-    assert Decimal(detail["price_per_serving"]) == Decimal("378.33")
+    assert detail["price"]["materials"] == 106000
+    assert detail["price"]["waste"] == 0
+    assert detail["price"]["materials_con_merma"] == 106000
+    assert detail["price"]["labor"] == 7500
+    assert detail["price"]["gas"] == 0
+    assert detail["price"]["base"] == 113500
+    assert detail["price"]["final"] == 227000
+    assert detail["price"]["rounded"] == 227000
+    assert detail["price_per_serving"] == 37833
 
 
 @pytest.mark.asyncio
@@ -518,7 +517,7 @@ async def test_detail_recipe_shows_missing_ingredients(client):
     await _set_settings(client, headers)
     flour = await _create_ingredient(client, headers, "Harina")
     sin_precio = await _create_ingredient(
-        client, headers, "Azucar Sin Precio", price="0"
+        client, headers, "Azucar Sin Precio", price=0
     )
     product = await _create_product(
         client,
@@ -538,7 +537,7 @@ async def test_detail_recipe_shows_missing_ingredients(client):
     assert detail["missing_ingredients"] == ["Azucar Sin Precio"]
     by_id = {line["ingredient_id"]: line for line in detail["recipe"]}
     assert by_id[flour["id"]]["missing"] is False
-    assert Decimal(by_id[flour["id"]]["line_cost"]) == Decimal("700.00")
+    assert by_id[flour["id"]]["line_cost"] == 70000
     assert by_id[sin_precio["id"]]["missing"] is True
     assert by_id[sin_precio["id"]]["line_cost"] is None
 
@@ -565,8 +564,8 @@ async def test_update_200_rename_and_replace_recipe(client):
     detail = response.json()
     assert detail["name"] == "Torta Grande"
     assert detail["servings"] == 12
-    # 1550 / 12 = 129.1666 → 129.17
-    assert Decimal(detail["price_per_serving"]) == Decimal("129.17")
+    # 1550 / 12 = 129.1666 → 12917
+    assert detail["price_per_serving"] == 12917
 
 
 @pytest.mark.asyncio
@@ -608,7 +607,7 @@ async def test_update_400_incompatible_units(client):
     headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
     await _set_settings(client, headers)
     huevos = await _create_ingredient(
-        client, headers, "Huevos", unit="unidad", price="90"
+        client, headers, "Huevos", unit="unidad", price=9000
     )
     flour = await _create_ingredient(client, headers, "Harina")
     product = await _create_product(
@@ -724,11 +723,11 @@ async def test_price_follows_ingredient_price_changes(client):
         recipe=[{"ingredient_id": flour["id"], "qty": 250, "unit": "g"}],
     )
     # 700 + 75 = 775 → 1550
-    assert Decimal(product["price"]["rounded"]) == Decimal("1550.00")
+    assert product["price"]["rounded"] == 155000
     # El precio del insumo sube a 4000/kg → 1000 + 75 = 1075 → 2150.
     patch = await client.patch(
         f"/api/v1/ingredients/{flour['id']}",
-        json={"price_per_unit": 4000},
+        json={"price_per_unit": 400000},
         headers=headers,
     )
     assert patch.status_code == 200
@@ -738,8 +737,8 @@ async def test_price_follows_ingredient_price_changes(client):
             headers=headers,
         )
     ).json()
-    assert Decimal(detail["price"]["materials"]) == Decimal("1000.00")
-    assert Decimal(detail["price"]["rounded"]) == Decimal("2150.00")
+    assert detail["price"]["materials"] == 100000
+    assert detail["price"]["rounded"] == 215000
 
 
 # --- Efecto colateral: count_active_recipes ahora es real -------------------

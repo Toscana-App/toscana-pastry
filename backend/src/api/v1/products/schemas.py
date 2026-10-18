@@ -1,8 +1,8 @@
 """Schemas Pydantic de la API de productos (Fase 5, P3/P4).
 
 Reglas del contrato (mismas que ingredientes):
-- Money y Qty viajan SIEMPRE como str en responses y number en requests
-  (money.py: Decimal por coercion explicita, nunca float).
+- Money viaja en centavos (long, int); Qty viaja como str en responses y
+  number en requests (money.py: coercion explicita, nunca float).
 - El precio NUNCA se persiste: las responses llevan la derivacion con los
   insumos y settings actuales (RF-P3-04). `complete=false` = la receta
   tiene insumos sin precio (0, borrado o inexistente) → price null y
@@ -12,7 +12,7 @@ from typing import List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from api.v1.money import Money, Qty
+from api.v1.money import Money, Qty, Pct
 
 ProductDifficulty = Literal["simple", "intermedio", "complejo"]
 RecipeUnit = Literal["kg", "g", "L", "ml", "unidad"]
@@ -86,7 +86,7 @@ class PriceBreakdownResponse(BaseModel):
     labor: Money
     gas: Money
     base: Money
-    margin_pct: Money
+    margin_pct: Pct
     final: Money
     rounded: Money
 

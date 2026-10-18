@@ -81,7 +81,7 @@ async def _create_ingredient(
     token: str,
     name: str = "Harina 0000",
     unit: str = "kg",
-    price: str = "2800",
+    price: int = 280000,
     stock: str = "0",
     threshold: str = "0",
     **extra,
@@ -121,7 +121,7 @@ async def test_create_ingredient(client):
     body = await _create_ingredient(client, token)
     assert body["name"] == "Harina 0000"
     assert body["unit"] == "kg"
-    assert body["price_per_unit"] == "2800"  # Decimal viaja como str
+    assert body["price_per_unit"] == 280000
     assert body["stock_qty"] == "0"
     assert body["status"] == "EMPTY"
 
@@ -297,12 +297,12 @@ async def test_patch_partial_update(client):
     created = await _create_ingredient(client, token)
     response = await client.patch(
         f"/api/v1/ingredients/{created['id']}",
-        json={"price_per_unit": "3000", "name": "Harina 0000 premium"},
+        json={"price_per_unit": 300000, "name": "Harina 0000 premium"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["price_per_unit"] == "3000"
+    assert body["price_per_unit"] == 300000
     assert body["name"] == "Harina 0000 premium"
     assert body["stock_qty"] == "0"  # el stock no se toca por PATCH
 
