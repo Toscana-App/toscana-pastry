@@ -52,11 +52,11 @@ describe("settingsSchema (RF-P5-01/06)", () => {
 });
 
 describe("toFormValues", () => {
-  it("convierte los Money string de la API a number", () => {
+  it("convierte Money en centavos a pesos y Pct a number", () => {
     const form = toFormValues({
-      hourly_rate: "3000.00",
+      hourly_rate: 300000,
       margin_pct: "30",
-      round_step: "100.00",
+      round_step: 10000,
       include_labor: true,
       include_gas: true,
       gas_pct: "3",

@@ -12,7 +12,7 @@ import {
   Tabs,
   Text,
 } from "@chakra-ui/react";
-import { formatMoneyDecimals, formatQty } from "@/lib/format";
+import { formatCents, formatQty } from "@/lib/format";
 import { toaster } from "@/lib/toaster";
 import { useIngredientDetail } from "../hooks/useIngredientDetail";
 import type { DeleteImpact } from "../types";
@@ -154,7 +154,7 @@ export function IngredientDetailPage({ id }: IngredientDetailPageProps) {
               <DataRow label="Unidad" value={ingredient.unit} />
               <DataRow
                 label="Precio por unidad"
-                value={`ARS ${formatMoneyDecimals(ingredient.price_per_unit)}`}
+                value={formatCents(ingredient.price_per_unit)}
               />
               <DataRow
                 label="Stock actual"

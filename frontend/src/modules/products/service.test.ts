@@ -116,14 +116,14 @@ describe("productsService — DELETE (RF-P4-08)", () => {
 
 describe("productsService — preview de costos (RF-P4-04)", () => {
   it("preview usa el contrato de /pricing/preview", async () => {
-    const fetchMock = mockFetch(200, { rounded: "1550.00" });
+    const fetchMock = mockFetch(200, { rounded: 155000 });
 
     await productsService.preview(
       [
         {
           qty: 250,
           unit: "g",
-          price_per_purchase_unit: 2800,
+          price_per_purchase_unit: 280000,
           purchase_unit: "kg",
         },
       ],
@@ -137,7 +137,7 @@ describe("productsService — preview de costos (RF-P4-04)", () => {
         {
           qty: 250,
           unit: "g",
-          price_per_purchase_unit: 2800,
+          price_per_purchase_unit: 280000,
           purchase_unit: "kg",
         },
       ],

@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { formatDateTime, formatMoney, formatQty, formatSignedQty } from "./format";
+import {
+  centsToPesos,
+  formatCents,
+  formatDateTime,
+  formatMoney,
+  formatPct,
+  formatQty,
+  formatSignedQty,
+  pesosToCents,
+} from "./format";
 
 describe("formatMoney (RF-07: ARS, moneda mayúscula, prefijo, sin round propio)", () => {
   it("prefijo ARS + separador de miles con punto y moneda mayúscula", () => {
@@ -66,5 +75,47 @@ describe("formatDateTime (ISO 8601 → dd/mm/yyyy hh:mm)", () => {
 
   it("input inválido da guion, no crash", () => {
     expect(formatDateTime("no es una fecha")).toBe("—");
+  });
+});
+
+describe("formatCents (Money long: centavos → ARS)", () => {
+  it("formatea centavos exactos", () => {
+    expect(formatCents(310000)).toBe("ARS 3.100");
+    expect(formatCents(310050)).toBe("ARS 3.100,5");
+    expect(formatCents(100)).toBe("ARS 1");
+  });
+
+  it("input inválido da ARS 0, nunca NaN", () => {
+    expect(formatCents(Number.NaN)).toBe("ARS 0");
+  });
+});
+
+describe("pesosToCents / centsToPesos (borde de los formularios)", () => {
+  it("pesos → centavos con aritmética exacta", () => {
+    expect(pesosToCents(3000)).toBe(300000);
+    expect(pesosToCents(3000.5)).toBe(300050);
+    expect(pesosToCents("1200.25")).toBe(120025);
+    expect(pesosToCents(0)).toBe(0);
+  });
+
+  it("centavos → pesos para precargar inputs", () => {
+    expect(centsToPesos(300000)).toBe(3000);
+    expect(centsToPesos(300050)).toBe(3000.5);
+  });
+
+  it("ida y vuelta sin pérdida", () => {
+    expect(pesosToCents(centsToPesos(123456))).toBe(123456);
+  });
+});
+
+describe("formatPct (porcentaje: no es Money, no lleva centavos)", () => {
+  it("muestra el porcentaje directo", () => {
+    expect(formatPct(100)).toBe("100%");
+    expect(formatPct(1.5)).toBe("1,5%");
+    expect(formatPct(0)).toBe("0%");
+  });
+
+  it("null/NaN dan 0%", () => {
+    expect(formatPct(null)).toBe("0%");
   });
 });

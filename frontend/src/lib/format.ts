@@ -101,3 +101,41 @@ export function formatDateTime(iso: string): string {
     hour12: false,
   }).format(date);
 }
+
+/**
+ * Montos en centavos (long): el backend emite Money como entero de centavos
+ * (310050 = $3.100,50). `formatCents` es el único camino centavos → texto.
+ * En los formularios el usuario tipea pesos: la conversión ocurre en el borde
+ * (`pesosToCents` al enviar, `centsToPesos` al precargar).
+ */
+
+/** 310050 → "ARS 3.100,50" · 310000 → "ARS 3.100" · NaN → "ARS 0". */
+export function formatCents(cents: number): string {
+  const value = Number.isFinite(cents) ? cents / 100 : 0;
+  return `ARS ${value.toLocaleString("es-AR", TWO_DECIMALS)}`;
+}
+
+/** 3000.5 → 300050 · 1200 → 120000 (aritmética exacta por partes, sin float). */
+export function pesosToCents(pesos: string | number): number {
+  const s = String(pesos).trim().replace(",", ".");
+  if (!s) return 0;
+  const negative = s.startsWith("-");
+  const body = negative ? s.slice(1) : s;
+  if (!/^\d*(\.\d*)?$/.test(body) || body === "" || body === ".") return 0;
+  const [intPart = "0", decPart = ""] = body.split(".");
+  const cents =
+    (intPart === "" ? 0 : Number(intPart)) * 100 +
+    Number((decPart + "00").slice(0, 2));
+  return negative ? -cents : cents;
+}
+
+/** 300050 → 3000.5 (precarga de inputs que se tipean en pesos). */
+export function centsToPesos(cents: number): number {
+  return Number.isFinite(cents) ? cents / 100 : 0;
+}
+
+/** 100 → "100%" · 1.5 → "1,5%" (porcentajes: no son dinero). */
+export function formatPct(pct: number | null): string {
+  const value = Number.isFinite(pct ?? NaN) ? (pct as number) : 0;
+  return `${value.toLocaleString("es-AR", { maximumFractionDigits: 2 })}%`;
+}

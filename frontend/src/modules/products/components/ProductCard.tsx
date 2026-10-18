@@ -2,7 +2,7 @@
 
 import { Badge, Flex, Text } from "@chakra-ui/react";
 import NextLink from "next/link";
-import { formatMoney } from "@/lib/format";
+import { formatCents } from "@/lib/format";
 import type { ProductListItem } from "../types";
 
 interface ProductCardProps {
@@ -51,7 +51,7 @@ export function ProductCard({ product }: ProductCardProps) {
               fontVariantNumeric="tabular-nums"
               whiteSpace="nowrap"
             >
-              {formatMoney(product.price_final)}
+              {formatCents(product.price_final)}
             </Text>
           ) : (
             <Badge colorPalette="orange" size="sm" flexShrink={0}>
