@@ -17,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from data.models import (
+    BudgetDocumentORM,
+    BudgetEventORM,
     BudgetItemORM,
     BudgetORM,
     BudgetVersionORM,
@@ -290,6 +292,25 @@ class SQLBudgetRepository:
             ).scalars().all()
             for version in versions:
                 await self.session.delete(version)
+            # Fase 8: PDF generado y eventos de WhatsApp (P9/P10).
+            documents = (
+                await self.session.execute(
+                    select(BudgetDocumentORM).where(
+                        BudgetDocumentORM.budget_id == budget_id
+                    )
+                )
+            ).scalars().all()
+            for document in documents:
+                await self.session.delete(document)
+            events = (
+                await self.session.execute(
+                    select(BudgetEventORM).where(
+                        BudgetEventORM.budget_id == budget_id
+                    )
+                )
+            ).scalars().all()
+            for event in events:
+                await self.session.delete(event)
             await self.session.commit()
             return True
         except Exception:
@@ -333,3 +354,37 @@ class SQLBudgetRepository:
         except Exception:
             await self.session.rollback()
             raise
+
+    # ------------------------------------------------------------- WhatsApp
+
+    async def record_whatsapp_sent(self, budget_id: str, masked_phone: str) -> datetime:
+        """Evento de auditoría (RF-P10-02): teléfono enmascarado
+        (RNF-P10-05). Solo INSERT."""
+        try:
+            now = datetime.now(timezone.utc)
+            self.session.add(
+                BudgetEventORM(
+                    id=str(uuid.uuid4()),
+                    budget_id=budget_id,
+                    type="whatsapp_sent",
+                    payload=masked_phone,
+                    created_at=now,
+                )
+            )
+            await self.session.commit()
+            return now
+        except Exception:
+            await self.session.rollback()
+            raise
+
+    async def count_whatsapp_sent_since(self, since: datetime) -> int:
+        """Envíos en la ventana (RF-P10-06): 30 links/día."""
+        result = await self.session.execute(
+            select(func.count())
+            .select_from(BudgetEventORM)
+            .where(
+                BudgetEventORM.type == "whatsapp_sent",
+                BudgetEventORM.created_at >= since,
+            )
+        )
+        return int(result.scalar_one())

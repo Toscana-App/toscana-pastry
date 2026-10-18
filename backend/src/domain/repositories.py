@@ -258,3 +258,32 @@ class BudgetRepository(ABC):
         """enviado (version nueva) con snapshot congelado (RF-P8-05).
         `budget` ya pasa por transition_to_sent."""
         pass
+
+    # -------------------------------------------------------------- WhatsApp
+
+    @abstractmethod
+    async def record_whatsapp_sent(self, budget_id: str, masked_phone: str) -> datetime:
+        """Evento de auditoría (RF-P10-02, P10): el teléfono se
+        almacena ENMASCARADO (RNF-P10-05). Retorna el momento del envío."""
+        pass
+
+    @abstractmethod
+    async def count_whatsapp_sent_since(self, since: datetime) -> int:
+        """Límite de envío (RF-P10-06): 30 links/día (ventana de 24 h)."""
+        pass
+
+
+class DocumentRepository(ABC):
+    """P9 (Fase 8): PDFs de presupuesto generados.
+
+    Clave: (budget_id, content_hash). Presupuesto editado → hash nuevo →
+    el documento se regenera (invalidación de cache por edición, P9).
+    """
+
+    @abstractmethod
+    async def get(self, budget_id: str, content_hash: str) -> Optional[bytes]:
+        pass
+
+    @abstractmethod
+    async def save(self, budget_id: str, content_hash: str, pdf: bytes) -> None:
+        pass
