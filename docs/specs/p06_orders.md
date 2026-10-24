@@ -13,6 +13,9 @@ Gestión de pedidos de clientes. Screenshot verificado: "Pedido Sofía Molina" c
 - [ ] "Le paso $X" abre WhatsApp con el mensaje armado (ítems + total).
 - [ ] Al confirmar el pedido, el stock se descuenta y queda registrado.
 - [ ] Veo historial con estados (nuevo / confirmado / entregado) y busco por cliente.
+- [ ] Marco un pedido como pagado sin tocar su estado de entrega; veo el contador de "sin pagar".
+- [ ] Veo el resumen de la semana (pedidos, totales, pagado/pendiente) y exporto a CSV.
+- [ ] Con los pedidos cerrados, veo el banner con el mensaje del negocio y no puedo crear.
 
 ## Casos de uso
 | UC | Actor | Flujo principal |
@@ -23,6 +26,9 @@ Gestión de pedidos de clientes. Screenshot verificado: "Pedido Sofía Molina" c
 | UC-04 Enviar precio por WhatsApp | Repostera | CTA "Le paso $X" → wa.me prellenado → marca enviado |
 | UC-05 Confirmar pedido | Repostera | Estado → confirmado → stock descuenta (movimiento) |
 | UC-06 Ver desglose | Repostera | Detalle: cada insumo, su cantidad y costo |
+| UC-07 Marcar pago | Repostera | Toggle "Pagado" en el pedido (independiente de entrega) |
+| UC-08 Resumen semanal | Repostera | Vista de la semana: pedidos, totales, pagado → export CSV |
+| UC-09 Pedidos cerrados | Repostera | Banner del tenant visible; la creación queda bloqueada |
 
 ## Requerimientos funcionales
 - **RF-P6-01**: CRUD de pedidos: `customer*`, `date`, `items[]` (producto, cantidad, nota de porción/tamaño), `status`. (UC-02)
@@ -33,6 +39,9 @@ Gestión de pedidos de clientes. Screenshot verificado: "Pedido Sofía Molina" c
 - **RF-P6-06**: CTA WhatsApp: genera link `wa.me/?text=` con template (saludo, ítems con precios, total) y registra el evento. (UC-04)
 - **RF-P6-07**: Búsqueda/filtro: por cliente, estado, rango de fechas. (UC-01)
 - **RF-P6-08**: Reutilizar cliente: clientes se crean/reusan de una lista (sin duplicados exactos por nombre+teléfono). (UC-02)
+- **RF-P6-09**: Corte de pedidos: si `order_window_open=false` (P5) → banner en lista y creación con `order_window_message`; `POST /orders` → 409 `{detail: order_window_closed, message}`. (UC-09)
+- **RF-P6-10**: Estado de pago: `paid` (bool, server-managed, default false), **independiente** de la máquina de estados de entrega; `PATCH /orders/{id}/paid`; filtro `paid=false` ("Sin pagar") en la lista + contador en el header. (UC-07)
+- **RF-P6-11**: Resumen semanal: semana natural (Lun–Dom) con pedidos `confirmado`/`entregado` (cliente, ítems, total, pago), totales (`amount`, `paid`, `unpaid`) + export CSV `GET /orders/export` (y `GET /budgets/export` en F3). (UC-08)
 
 ## Requerimientos no funcionales
 - **RNF-P6-01**: Crear pedido con 10 ítems < 1 s (desglose calculado en la misma transacción).
@@ -40,23 +49,28 @@ Gestión de pedidos de clientes. Screenshot verificado: "Pedido Sofía Molina" c
 - **RNF-P6-03**: Historial inmutable: el desglose guardado en el pedido no cambia si después edito la receta (snapshot de precios).
 - **RNF-P6-04**: A11y: tabla de desglose con `scope` en headers; estados con texto (no solo color).
 - **RNF-P6-05**: Mobile: wizard de creación en pasos (Cliente → Productos → Resumen) para no tener scroll infinito.
+- **RNF-P6-06**: Export CSV de hasta 500 pedidos < 5 s (streaming; sin cargar el conjunto completo en memoria).
 
 ## Tareas
-- [ ] API: CRUD `/orders` (list con filtros; create; update; `PATCH /orders/{id}/status`)
+- [ ] API: CRUD `/orders` (list con filtros `status,paid`; create; update; `PATCH /orders/{id}/status`)
+- [ ] API: `PATCH /orders/{id}/paid` · `GET /orders/weekly` · `GET /orders/export` (CSV, filtros from/to/status/paid)
 - [ ] API: `POST /orders/{id}/whatsapp-link` (genera + registra)
-- [ ] Domain: `order`, `order_item`, snapshot de precios, máquina de estados, reglas de descuento atómico
+- [ ] Domain: `order`, `order_item`, snapshot de precios, máquina de estados, reglas de descuento atómico, flag `paid` (independiente), resumen semanal (agregación)
 - [ ] Data: transacción con `SELECT … FOR UPDATE` en stock; tabla de snapshot de desglose
-- [ ] Web: lista de pedidos (estado, cliente, total, fecha) con búsqueda
+- [ ] Web: lista de pedidos (estado, **pago**, cliente, total, fecha) con búsqueda + filtro "Sin pagar" + contador
+- [ ] Web: banner de corte (`Alert.Root` warning) cuando `order_window_open=false` (lecto de `/tenant/order-window` en el shell)
+- [ ] Web: vista resumen semanal (tabla + totales) + CTA "Exportar CSV"
 - [ ] Web: wizard de creación (3 pasos, reutiliza wizard de presupuesto en componentes)
 - [ ] Web: detalle de pedido con desglose (tabla insumos + bloques de cálculo)
 - [ ] Web: control de margen override (input % con "usar default" para resetear)
 - [ ] Web: CTA "Le paso $X" (wa.me) + toast "Enviado"
 - [ ] Web: botones de transición de estado (confirmar/entregar/cancelar)
 - [ ] Tests: pytest de descuento atómico (caso: stock insuficiente → 409 + sin cambios), snapshot inmutable, máquina de estados; Vitest del wizard
-- [ ] GA4: `order_created`, `order_confirmed`, `whatsapp_price_sent`
+- [ ] GA4: `order_created`, `order_confirmed`, `order_paid`, `weekly_export`, `whatsapp_price_sent`
 
 ## UI (Chakra v3 + DESIGN.md)
 - Componentes: `Tabs` (wizard pasos), `Card` (item de pedido con stepper de cantidad), `Table` (desglose), `Badge` (estados), `Button` (CTA primary "Le paso $X"), `Field.Root`.
 - Detalle: bloques de cálculo como filas de tabla destacadas: Total gastos / Trabajo / Ganancia (X%) / **Precio final**.
 - CTA único por estado: nuevo → "Le paso $X"; confirmado → "Marcar entregado"; entregado → (sin CTA).
-- Tokens: estado nuevo = neutral, confirmado = success, entregado = muted, cancelado = danger.
+- Tokens: estado nuevo = neutral, confirmado = success, entregado = muted, cancelado = danger. Pago: badge `Pagado` success / `Sin pagar` warning (texto, no solo color).
+- Banner de corte: `Alert.Root` warning con el mensaje del tenant + fecha de reapertura; CTA de creación deshabilitado.

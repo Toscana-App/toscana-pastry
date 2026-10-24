@@ -9,6 +9,7 @@ La pantalla más densa del producto: datos del producto + receta (insumos con ca
 
 **Criterios de aceptación**
 - [ ] Registro: nombre, descripción, categoría, tipo, conservación, tiempo de preparación (con porciones), dificultad (1–5).
+- [ ] Marco tags de restricción (sin gluten, sin lácteos, …); los chips aparecen luego en el listado (P3), en el presupuesto (P8), en el PDF (P9) y en el mensaje de WhatsApp (P10).
 - [ ] Armo la receta agregando insumos con cantidad y unidad; el sistema convierte unidades (kg→g, L→ml).
 - [ ] Al cambiar cualquier insumo o parámetro, el desglose de costos se recalcula solo, sin guardar.
 - [ ] En "Costos" veo: materiales, mano de obra, gas/energía, merma, margen y precio final (redondeado).
@@ -23,7 +24,7 @@ La pantalla más densa del producto: datos del producto + receta (insumos con ca
 | UC-04 Eliminar producto | Repostera | Advertencia (afecta pedidos históricos? no: solo lo futuro) |
 
 ## Requerimientos funcionales
-- **RF-P4-01**: Campos de producto: `name*`, `description`, `category*`, `type`, `storage`, `prep_time_min*` + `servings`, `difficulty` (1–5), `labor_hours*`. (UC-01)
+- **RF-P4-01**: Registro completo: `name*`, `description?`, `category*`, `type?`, `storage?`, `prep_time_min*` (con `servings?` para porción), `difficulty` (1–5), `labor_hours*`, `tags[]` (0–10; allow-list sugerida de restricciones: sin gluten, sin lácteos, sin azúcar, sin lactosa, frutos secos, vegano, + texto libre ≤ 30 chars). (UC-01)
 - **RF-P4-02**: Editor de receta: lista de `recipe_item` (ingrediente, cantidad, unidad). Agregar desde autocompletado de insumos. (UC-02)
 - **RF-P4-03**: Conversión de unidades (kg, g, L, ml, unidades) con exactitud decimal (sin errores de float: `Decimal` en domain). (UC-02)
 - **RF-P4-04**: Recálculo en vivo del costo (endpoint `POST /products/{id}/recalculate` o cálculo local vía función espejo; latencia < 50 ms). (UC-03)
@@ -42,9 +43,9 @@ La pantalla más densa del producto: datos del producto + receta (insumos con ca
 ## Tareas
 - [ ] API: CRUD `/products` + `GET/PUT /products/{id}` + `POST /products/{id}/recalculate`
 - [ ] Domain: `product`, `recipe_item`, motor de precio (integrado a P5), validaciones
-- [ ] Data: relaciones product↔recipe_item↔ingredient (cascade en soft delete)
+- [ ] Data: relaciones product↔recipe_item↔ingredient (cascade en soft delete) + `product.tags` (ARRAY/JSONB con índice GIN)
 - [ ] Web: layout de tabs (Sublime/Pills según breakpoint)
-- [ ] Web: tab Información (form zod)
+- [ ] Web: tab Información (form zod) — incluye `tags[]` (multi-select con sugerencias)
 - [ ] Web: tab Ingredientes (autocompletado de insumos, cantidad+unidad, quitar fila)
 - [ ] Web: tab Preparación (tiempo, porciones, dificultad 1–5 visual, conservación, horas de mano de obra)
 - [ ] Web: tab Costos (desglose read-only con recálculo en vivo, badge "incompleto")
@@ -53,6 +54,6 @@ La pantalla más densa del producto: datos del producto + receta (insumos con ca
 - [ ] GA4: `product_saved`, `recipe_updated`
 
 ## UI (Chakra v3 + DESIGN.md)
-- Componentes: `Tabs.Root` (underline en desktop, pills en mobile), `Field.Root`, `InputNumber`/stepper, `Select.Root` (unidad), `Combobox` (autocompletado de insumos), `Table` (desglose en Costos), `Badge`, `Button`.
+- Componentes: `Tabs.Root` (underline en desktop, pills en mobile), `Field.Root`, `InputNumber`/stepper, `Select.Root` (unidad), `Combobox` (autocompletado de insumos + multi-select de tags), `Table` (desglose en Costos), `Badge`, `Button`.
 - Tab Costos: tabla con filas materiales / mano de obra / gas / merma / **precio final destacado** (text-xl, tabular-nums).
 - CTA único: **Guardar producto** (sticky abajo en mobile, con safe-area).

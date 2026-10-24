@@ -10,6 +10,7 @@ Vitrina de los productos del negocio (tortas, cupcakes, postres) con precios cal
 **Criterios de aceptación**
 - [ ] Veo cards con: nombre, categoría y precio final (derivado del motor, no editable a mano aquí).
 - [ ] Filto por categoría (chips: Todas, Tortas, Cupcakes, Postres, …) y busco por nombre.
+- [ ] Filto por tag de restricción (Sin gluten, Sin azúcar, …) combinado con categoría; los tags se ven como chips en la card.
 - [ ] Tocar una card me lleva al detalle (P4).
 - [ ] Con 0 productos: estado vacío con CTA "Crear tu primer producto".
 - [ ] El precio se recalcula solo cuando cambio receta o costos (Fase 1).
@@ -28,6 +29,8 @@ Vitrina de los productos del negocio (tortas, cupcakes, postres) con precios cal
 - **RF-P3-03**: Búsqueda por nombre (debounce 250 ms), combinable con el filtro de categoría. (UC-02)
 - **RF-P3-04**: Precio mostrado = salida del motor de precio (con redondeo aplicado según config del tenant). (UC-05)
 - **RF-P3-05**: Indicador visual de precio "desactualizado" (badge) si la receta tiene insumos sin precio. (UC-05)
+- **RF-P3-07**: Filtro por tag (chips secundarios, combinables entre sí y con categoría): allow-list sugerida (`sin_gluten`, `sin_lacteos`, `sin_azucar`, `sin_lactosa`, `frutos_secos`, `vegano`, `sugar_free`, `bajo_calorias`) + tags libres; tags derivados de los productos existentes. (UC-01)
+- **RF-P3-08**: La card muestra máx. 2 tags + "+n"; el tag completo se ve en el detalle (P4). (UC-03)
 - **RF-P3-06**: Estado vacío: ilustración simple + CTA único "Crear tu primer producto". (UC-04)
 
 ## Requerimientos no funcionales
@@ -37,10 +40,11 @@ Vitrina de los productos del negocio (tortas, cupcakes, postres) con precios cal
 - **RNF-P3-04**: A11y: chip de categoría como `role=tablist` o botones con `aria-pressed`; lista semántica.
 
 ## Tareas
-- [ ] API: `GET /products` (q, category, sort, page) → `{items, total}`
-- [ ] Domain: proyección de producto para listado (nombre, categoría, precio_final, stale_flag)
+- [ ] API: `GET /products` (q, category, tags, sort, page) → `{items, total}`
+- [ ] API: `GET /products/tags` (chips de tags con conteo)
+- [ ] Domain: proyección de producto para listado (nombre, categoría, tags, precio_final, stale_flag)
 - [ ] Web: grid de cards (nombre, categoría, precio), skeleton de carga
-- [ ] Web: chips de categoría + búsqueda combinada
+- [ ] Web: chips de categoría + chips de tags + búsqueda combinada
 - [ ] Web: estado vacío + CTA
 - [ ] Web: link a detalle y a creación
 - [ ] Tests: pytest de filtros/orden (casos: sin resultados, categoría vacía); Vitest de chips+búsqueda
@@ -49,5 +53,5 @@ Vitrina de los productos del negocio (tortas, cupcakes, postres) con precios cal
 ## UI (Chakra v3 + DESIGN.md)
 - Componentes: `Input` búsqueda, `Chip`/`Badge` (categorías, `aria-pressed`), `Card` interactiva, `Stack`, `Skeleton`.
 - Layout: header "Productos" + botón "+"; fila de chips (scroll horizontal en mobile, sin hover states activos en touch); grid de cards.
-- Card: nombre (text-lg medium), categoría (text-xs muted), precio (text-lg, tabular-nums). Outline 1px → hover 12% fg. Sin shadow.
+- Card: nombre (text-lg medium), categoría (text-xs muted), tags (chips text-xs, máx. 2 + "+n"), precio (text-lg, tabular-nums). Outline 1px → hover 12% fg. Sin shadow.
 - CTA único: **"+ Nuevo producto"** (header) — el resto son navegación.

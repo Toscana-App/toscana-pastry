@@ -96,7 +96,7 @@ Cada módulo web es autónomo: propios componentes, hooks y tests; comparte solo
 - Instalar skill de Chakra en el proyecto: `npx skills add https://github.com/chakra-ui/chakra-ui/tree/main/skills` (usar `chakra-ui-builder`).
 - Auth: magic link por email (P1 base), sesión JWT httpOnly, multi-tenancy (`tenant_id` en todo).
 - Shell de navegación (tab bar: Inicio · Pedidos · Productos · Más), landing mínima, página 404.
-- Checklist base: favicon, meta descriptions, robots.txt, sitemap, OG/preview, banner de cookies, GA4 (tras consentimiento), HTTPS/HSTS forzado.
+- Checklist base: favicon, meta descriptions, robots.txt, sitemap, **manifest PWA** (`theme_color`, iconos 192/512, `apple-touch-icon`, `display: standalone`), OG/preview, banner de cookies, GA4 (tras consentimiento), HTTPS/HSTS forzado.
 - Seguridad base (`security.md`): Caddy con TLS + security headers (#18/#19), `slowapi` + hCaptcha en auth (#11/#12), gitleaks + secret-scan de build en CI (#1/#2), `pip-audit`/`pnpm audit` (#20), migraciones con RLS activada (#4), cookies de sesión con flags estrictos (#9).
 - Login Google (GIS ID token, skill `google-signin`): `auth/google/nonce` + `auth/google/signin`, identidad por `sub` (`google_id`), enlace solo tras re-auth por magic link; GCP: OAuth client web con origins autorizados, sin client secret (paso humano).
 - **Criterio de salida**: usuario se crea cuenta con magic link, entra, ve el shell. Despliegue en staging reproducible.
@@ -106,7 +106,7 @@ Cada módulo web es autónomo: propios componentes, hooks y tests; comparte solo
 - P2 Ingredientes: CRUD, stock, unidades, umbral bajo (badges "disponibles/restantes/EMPTY").
 - P4 Producto con receta (tabs Información/Ingredientes/Preparación/Costos), conversiones de unidades.
 - `domain/pricing.py` + tests exhaustivos (tabla de casos).
-- P3 Listado con búsqueda y chips de categoría; precios derivados del motor.
+- P3 Listado con búsqueda, chips de categoría y **chips de tags** (restricciones: sin gluten, sin lácteos, sin azúcar, frutos secos, …); precios derivados del motor.
 - **Criterio de salida**: cargar 20 insumos + 5 productos → cada producto muestra costo y precio final correctos (verificados contra la fórmula).
 
 ### Fase 2 — Pedidos y stock (Semanas 4–5) · **Entrega: operación diaria de pedidos**
@@ -114,10 +114,13 @@ Cada módulo web es autónomo: propios componentes, hooks y tests; comparte solo
 - CTA único "Le paso $X" (wa.me prellenado) — sin Chat SDK todavía (fase 3).
 - Descuento de stock **atómico** al confirmar pedido (transacción) + `stock_movement` por cada movimiento.
 - Estados de pedido (nuevo → confirmado → entregado), historial y filtros.
-- **Criterio de salida**: pedido → stock descuenta, precio cuadra con la fórmula, no se permite stock negativo.
+- **Corte de pedidos**: toggle del tenant con fecha de reapertura + mensaje; banner visible en P6 que bloquea la creación (RF-P5-07, RF-P6-09).
+- **Estado de pago**: flag `paid` por pedido, independiente del estado de entrega; filtro "sin pagar" (RF-P6-10).
+- **Resumen semanal**: tabla de pedidos de la semana (cliente, ítems, total, pago) + export CSV de pedidos y presupuestos (RF-P6-11).
+- **Criterio de salida**: pedido → stock descuenta, precio cuadra con la fórmula, no se permite stock negativo; con corte activo, la creación queda bloqueada con el mensaje del tenant.
 
 ### Fase 3 — Presupuestos + PDF + WhatsApp (Semanas 6–7) · **Entrega: ciclo completo presupuesto→cliente**
-- P7 Wizard paso 1 (cliente: nombre, teléfono, email, fecha de entrega, notas) + alta/reafe de clientes.
+- P7 Wizard paso 1 (cliente: nombre, teléfono, email, fecha de entrega, **dirección de entrega**, notas) + alta/reafe de clientes.
 - P8 Wizard paso 2 (resumen: secuencia `#000NN`, tabla ítems con **cantidad explícita**, subtotal, costos, ganancia, total venta) — corrigiendo el bug de cantidades de la app original.
 - P9 PDF server-side (ReportLab/WeasyPrint): branding del tenant, datos, ítems, totales, footer; cache invalidado al editar.
 - P10 WhatsApp outbound: link `wa.me/?text=` prellenado (template con ítems + total), registro de envío.
@@ -129,6 +132,7 @@ Cada módulo web es autónomo: propios componentes, hooks y tests; comparte solo
 - Auditoría de contraste (WCAG AA 4.5:1) — **hallazgo previo: `--fg-muted #909090` sobre `--paper-50` da 3.1:1 (fallo)**. Corregir a `#6F6F6F` (≈4.9:1) y revalidar todos los tokens.
 - Responsive audit: Lighthouse mobile ≥ 90, touch targets ≥ 44px, safe-areas, test en dispositivos reales (iOS/Android).
 - Imágenes: pipeline webp (next/image + sharp), fuentes self-hosted.
+- **PWA**: service worker con precache del shell + snackbar de actualización no intrusivo (patrón `app-update`); test de instalación (Chromium mobile y desktop).
 - Crawler de enlaces rotos en CI (lychee) + fix.
 - Formularios: react-hook-form + zod (web) / Pydantic (API), errores inline con `aria-describedby`.
 - Anti-spam: hCaptcha en signup/contacto, rate limiting (slowapi) en endpoints de auth y formularios, honeypot.
@@ -167,6 +171,14 @@ Cada módulo web es autónomo: propios componentes, hooks y tests; comparte solo
 | 22 | Chat SDK WhatsApp | `chat` + `@chat-adapter/whatsapp` (Cloud API) + Redis state; webhook verificado | 3 |
 | 23 | **Seguridad: 20 ítems obligatorios** | `security.md` (control + implementación + verificación por ítem) + `api_endpoints.md` §0 (convenciones y límites de rate limiting) + §1.4 de este plan (premisas) | 0/4 |
 | 24 | **Login Google (GIS)** | skill `google-signin`: `sub`=google_id, nonce un solo uso, `email_verified`, link tras re-auth, `GOOGLE_CLIENT_ID` público (sin client secret), CSP origins | 0 |
+| 25 | **PWA instalable** (manifest F0 + SW + snackbar update F4) | master_plan §3 (F0/F4) | 0/4 |
+| 26 | **Tags de alergias/restricciones por producto** (listado, detalle, PDF, WhatsApp) | p03, p04, p08, p09, p10 | 1/3 |
+| 27 | **Corte de pedidos** (toggle + fecha + mensaje + banner) | p05 (P5-07), p06 (P6-09), `tenant/order-window` | 1/2 |
+| 28 | **Resumen semanal + export CSV** (pedidos y presupuestos) | p06 (P6-11), `orders/export`, `budgets/export` | 2/3 |
+| 29 | **Estado de pago por pedido** (independiente de entrega) | p06 (P6-10), `orders/{id}/paid` | 2 |
+| 30 | **Dirección de entrega por cliente** (wizard, PDF, WhatsApp) | p07, p08, p09, p10 | 3 |
+| 31 | **Legal: Google Sign-In en política de privacidad** | legal_privacy_policy.md | 0/4 |
+| 32 | **Anti-patterns de referencia documentados** (auth localStorage / JWT sin exp) | security.md §21 | 0 |
 
 ---
 
@@ -178,3 +190,4 @@ Cada módulo web es autónomo: propios componentes, hooks y tests; comparte solo
 4. **Stock descuenta al confirmar**, no al crear (evita roturas con presupuestos que no se transforman en pedidos).
 5. **Margen por pedido** con override explícito en el pedido (corrige la ambigüedad de la app original: el override debe ser visible en UI).
 6. **Multi-tenancy estricta**: `tenant_id` en toda consulta (middleware + a nivel de repositorio).
+7. **Sin portal self-service ni sockets en v1** (decisión de recon 2026-10-23, `elclubdelosaludable.ar`): single-usuario por tenant; si aparece el caso de seguimiento en vivo, el canal es SSE sobre los listados, no Socket.IO. El portal de clientes se revisa solo si 3+ tenants lo piden.
