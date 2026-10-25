@@ -55,3 +55,25 @@ Vitrina de los productos del negocio (tortas, cupcakes, postres) con precios cal
 - Layout: header "Productos" + botón "+"; fila de chips (scroll horizontal en mobile, sin hover states activos en touch); grid de cards.
 - Card: nombre (text-lg medium), categoría (text-xs muted), tags (chips text-xs, máx. 2 + "+n"), precio (text-lg, tabular-nums). Outline 1px → hover 12% fg. Sin shadow.
 - CTA único: **"+ Nuevo producto"** (header) — el resto son navegación.
+
+---
+
+# P3-CC — Biblioteca de productos y lista de precios de la calculadora (rol administrador)
+
+> Módulo de la calculadora refactorizada desde `E:/toscana/calculadora-costos-toscana`. **Alcance exclusivo del rol administrador.** Los productos de la calculadora (`calc_product`) conviven con los productos legacy de P3/P4 (distinto modelo de precio).
+
+## Contexto
+En la app de origen el administrador gestiona dos vistas: **Product Library** (listado completo con búsqueda, filtros, orden, duplicar, archivar, eliminar, recalcular todo y export CSV) y **Price List** (vista de solo productos `active`, optimizada para impresión y export CSV). Además, el **Dashboard** resume: materiales y productos activos, borradores, promedio de costo/precio, materiales incompletos, top 5 por precio y bottom 5 por margen.
+
+## Requerimientos funcionales
+- **RF-P3CC-01**: Listado de `calc_product` con búsqueda `?q`, filtro `?category_id`, `?status` (`draft | active | archived`), orden `?sort=name|cost|price|margin` (`?dir=asc|desc`) y paginación. Item: `id, name, sku?, category_name?, status, product_total_cost, final_sale_price, margin_percent, last_recalculated_at`.
+- **RF-P3CC-02**: Acciones por producto: **duplicar** (nuevo `draft` con líneas copiadas), **archivar** (status → `archived`), **eliminar** (soft delete; 409 si tiene versiones históricas con pedidos asociados — v1: siempre soft delete con confirmación).
+- **RF-P3CC-03**: `POST /api/v1/calc/products/recalculate-all` recalcula todos los productos activos y devuelve `{recalculated: N}`.
+- **RF-P3CC-04**: **Price list**: `GET /api/v1/calc/products/price-list` → solo productos `active`, búsqueda y filtro por categoría; `GET /api/v1/calc/products/price-list/export` → CSV (id, nombre, categoría, costo, margen, precio final).
+- **RF-P3CC-05**: **Dashboard**: `GET /api/v1/calc/dashboard` → `{active_materials, active_products, draft_products, incomplete_materials, avg_product_cost, avg_final_price, top_by_price[5], bottom_by_margin[5]}`.
+
+## API — ver `api_endpoints.md` §FASE CC
+- `GET /api/v1/calc/products`, `POST /api/v1/calc/products/recalculate-all`, `GET /api/v1/calc/products/price-list`, `GET /api/v1/calc/products/price-list/export`, `GET /api/v1/calc/dashboard`
+
+## Tareas
+- [ ] Ver `odd/tasks/cost-calculator.md` (tareas atómicas B10–B11, F4–F5).
