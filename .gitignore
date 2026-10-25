@@ -17,3 +17,6 @@ build/
 out/
 .vscode/
 .idea/
+
+# Local agent overrides (never committed)
+CLAUDE.local.md
