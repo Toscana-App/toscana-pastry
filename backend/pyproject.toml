@@ -5,6 +5,7 @@ authors = ["Gaspar"]
 
 [tool.poetry.dependencies]
 python = "^3.12"
+weasyprint = "^70.0"
 
 [build-system]
 requires = ["poetry-core"]

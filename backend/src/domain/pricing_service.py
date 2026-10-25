@@ -14,6 +14,28 @@ if TYPE_CHECKING:
 _CENT = Decimal("0.01")
 
 
+def derive_audience_price(
+    base_price: Decimal,
+    consumer_markup_pct: Decimal,
+    audience: str,
+) -> Decimal:
+    """Deriva el precio para la audiencia dada a partir del precio base.
+
+    - ``revendedores``: devuelve ``base_price`` sin modificaciones.
+    - ``consumidor_final``: ``base_price × (1 + markup/100)``,
+      cuantizado a ``0.01`` con ``ROUND_HALF_UP``.
+
+    Esta es la única fuente de verdad para la fórmula de markup.
+    ``compute_dual_pricing`` y el router de pricelist delegan aquí.
+    """
+    if audience == "consumidor_final":
+        markup = consumer_markup_pct / Decimal("100")
+        return (base_price * (Decimal("1") + markup)).quantize(
+            _CENT, rounding=ROUND_HALF_UP
+        )
+    return base_price
+
+
 @dataclass(frozen=True)
 class PricingBreakdown:
     """Desglose de precios por audiencia."""
@@ -86,10 +108,11 @@ def compute_dual_pricing(
     )
 
     if audience == "consumidor_final":
-        markup = settings.consumer_markup_pct / Decimal("100")
-        final_price = (
-            base_breakdown.rounded * (Decimal("1") + markup)
-        ).quantize(_CENT, rounding=ROUND_HALF_UP)
+        final_price = derive_audience_price(
+            base_breakdown.rounded,
+            settings.consumer_markup_pct,
+            audience,
+        )
         return PricingBreakdown(
             materials=base_breakdown.materials,
             waste=base_breakdown.waste,
