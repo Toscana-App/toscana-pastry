@@ -3,6 +3,7 @@
 Endpoints:
   GET /products/pricelist/csv?audience=revendedores|consumidor_final
   GET /products/pricelist/pdf?audience=revendedores|consumidor_final
+  GET /products?audience=revendedores|consumidor_final
 
 Gate por rol:
   - admin: ambas audiencias
@@ -13,6 +14,7 @@ Reutiliza ``compute_dual_pricing`` / ``_resolve_audience`` de
 ``domain.pricing_service`` para la resolución de audiencia y el cálculo
 del precio derivado — la regla de negocio tiene un único hogar.
 """
+from decimal import Decimal
 from html import escape
 from io import StringIO
 
@@ -146,6 +148,83 @@ async def pricelist_csv(
             "Content-Disposition": f'attachment; filename="pricelist_{resolved}.csv"'
         },
     )
+
+
+def _stock_status(stock_qty: Decimal, low_stock_threshold: Decimal) -> str:
+    """Deriva el status de stock desde los campos del ingrediente.
+
+    - ``EMPTY``: stock_qty == 0
+    - ``LOW``: 0 < stock_qty <= low_stock_threshold
+    - ``OK``: stock_qty > low_stock_threshold
+    """
+    if stock_qty == 0:
+        return "EMPTY"
+    if stock_qty <= low_stock_threshold:
+        return "LOW"
+    return "OK"
+
+
+@router.get("")
+async def list_products(
+    audience: Audience = Query(..., description="Audiencia de precios"),
+    current_user: User = Depends(
+        require_role(UserRole.ADMIN, UserRole.NEGOCIO, UserRole.CUSTOMER)
+    ),
+    ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
+    settings_repo: SettingsRepository = Depends(get_settings_repository),
+):
+    """Lista productos con el precio derivado para la audiencia del rol.
+
+    - admin: ambas audiencias.
+    - negocio: solo revendedores.
+    - cliente: solo consumidor_final.
+
+    Response::
+        {
+            "audience": "revendedores" | "consumidor_final",
+            "products": [
+                {"id": str, "name": str, "unit": str,
+                 "price_per_unit": str, "status": str}
+            ],
+            "total": int
+        }
+    """
+    # Resolve audience via domain service
+    try:
+        resolved = _resolve_audience(current_user.role, audience)
+    except AudienceForbiddenError as e:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e),
+        ) from e
+
+    settings = await GetSettings(settings_repo).execute()
+
+    # Get all products (ingredients) with page-size cap
+    products, _ = await ingredient_repo.list(q=None, status=None, page=1, page_size=1000)
+
+    # Build response rows using domain price computation
+    product_rows = []
+    for product in products:
+        price = derive_audience_price(
+            product.price_per_unit,
+            settings.consumer_markup_pct,
+            resolved,
+        )
+        product_rows.append({
+            "id": product.id,
+            "name": product.name,
+            "unit": product.unit,
+            "price_per_unit": str(price),
+            "status": _stock_status(product.stock_qty, product.low_stock_threshold),
+        })
+
+    return {
+        "audience": resolved,
+        "products": product_rows,
+        "total": len(product_rows),
+    }
 
 
 @router.get("/pricelist/pdf")
