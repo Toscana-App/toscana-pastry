@@ -69,9 +69,10 @@ class SQLCalcSupplierRepository:
         return _to_domain(orm) if orm else None
 
     async def get_by_name(self, name: str) -> Optional[CalcSupplier]:
+        folded = accent_fold(name) or name
         result = await self.session.execute(
             select(CalcSupplierORM).where(
-                func.lower(CalcSupplierORM.name) == name.lower()
+                func.accent_fold(CalcSupplierORM.name) == folded
             )
         )
         orm = result.scalars().first()
@@ -110,5 +111,10 @@ class SQLCalcSupplierRepository:
         return _to_domain(orm)
 
     async def count_in_use(self, supplier_id: str) -> int:
-        """Stub: materiales que referencian este proveedor. B8 lo completa."""
+        """Materiales que referencian este proveedor.
+
+        TODO(B8): completar con consulta real de FK en
+        calc_materials.supplier_id cuando B8 agregue la tabla calc_materials.
+        Por ahora siempre 0.
+        """
         return 0

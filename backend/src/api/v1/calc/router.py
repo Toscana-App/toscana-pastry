@@ -231,7 +231,6 @@ async def update_material_category(
             name=updates.get("name", existing.name),
             description=updates.get("description", existing.description),
             created_at=existing.created_at,
-            updated_at=existing.updated_at,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
@@ -357,7 +356,6 @@ async def update_product_category(
             name=updates.get("name", existing.name),
             description=updates.get("description", existing.description),
             created_at=existing.created_at,
-            updated_at=existing.updated_at,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
@@ -485,7 +483,6 @@ async def update_supplier(
             email=updates.get("email", existing.email),
             notes=updates.get("notes", existing.notes),
             created_at=existing.created_at,
-            updated_at=existing.updated_at,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
@@ -618,7 +615,6 @@ async def update_default_cost(
             ),
             status=updates.get("status", existing.status),
             created_at=existing.created_at,
-            updated_at=existing.updated_at,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))

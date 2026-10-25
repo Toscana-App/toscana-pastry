@@ -63,9 +63,10 @@ class SQLCalcMaterialCategoryRepository:
         return _to_domain(orm) if orm else None
 
     async def get_by_name(self, name: str) -> Optional[CalcMaterialCategory]:
+        folded = accent_fold(name) or name
         result = await self.session.execute(
             select(CalcMaterialCategoryORM).where(
-                func.lower(CalcMaterialCategoryORM.name) == name.lower()
+                func.accent_fold(CalcMaterialCategoryORM.name) == folded
             )
         )
         orm = result.scalars().first()
@@ -101,6 +102,10 @@ class SQLCalcMaterialCategoryRepository:
         return _to_domain(orm)
 
     async def count_in_use(self, category_id: str) -> int:
-        """Stub: materiales que referencian esta categoria. B8 lo completa.
-        Por ahora siempre 0 (RF-P5CC-03: delete 409 when referenced)."""
+        """Materiales que referencian esta categoria.
+
+        TODO(B8): completar con consulta real de FK en
+        calc_materials.material_category_id cuando B8 agregue la tabla
+        calc_materials. Por ahora siempre 0.
+        """
         return 0

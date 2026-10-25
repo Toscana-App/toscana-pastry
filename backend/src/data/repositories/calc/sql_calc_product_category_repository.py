@@ -66,9 +66,10 @@ class SQLCalcProductCategoryRepository:
         return _to_domain(orm) if orm else None
 
     async def get_by_name(self, name: str) -> Optional[CalcProductCategory]:
+        folded = accent_fold(name) or name
         result = await self.session.execute(
             select(CalcProductCategoryORM).where(
-                func.lower(CalcProductCategoryORM.name) == name.lower()
+                func.accent_fold(CalcProductCategoryORM.name) == folded
             )
         )
         orm = result.scalars().first()
@@ -104,5 +105,10 @@ class SQLCalcProductCategoryRepository:
         return _to_domain(orm)
 
     async def count_in_use(self, category_id: str) -> int:
-        """Stub: productos que referencian esta categoria. B9 lo completa."""
+        """Productos que referencian esta categoria.
+
+        TODO(B9): completar con consulta real de FK en
+        calc_products.product_category_id cuando B9 agregue la tabla
+        calc_products. Por ahora siempre 0.
+        """
         return 0

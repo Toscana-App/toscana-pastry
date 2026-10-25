@@ -736,3 +736,147 @@ class TestDefaultCosts:
         )
         assert page.json()["total"] == 5
         assert len(page.json()["items"]) == 2
+
+
+# ─── Regression tests for PR #20 comment fixes ─────────────────────────
+
+
+class TestAccentInsensitiveDuplicates:
+    """Fix #2: get_by_name usa accent_fold para evitar duplicados con acentos.
+
+    Regresion: "Harinas" y "Harin\u00e1s" no deben coexistir.
+    """
+
+    _PATH = "/api/v1/calc/material-categories"
+
+    @pytest.mark.asyncio
+    async def test_material_category_accent_duplicate_rejected(self, client):
+        """POST "Harinas" + "Harin\u00e1s" → 409 en segundo."""
+        token = await _admin_token(client)
+        headers = {"Authorization": f"Bearer {token}"}
+        await client.post(self._PATH, json={"name": "Harinas"}, headers=headers)
+        dup = await client.post(
+            self._PATH, json={"name": "Harin\u00e1s"}, headers=headers
+        )
+        assert dup.status_code == 409
+
+    @pytest.mark.asyncio
+    async def test_product_category_accent_duplicate_rejected(self, client):
+        """POST "Levaduras" + "Levad\u00faras" → 409 en segundo."""
+        token = await _admin_token(client)
+        headers = {"Authorization": f"Bearer {token}"}
+        path = "/api/v1/calc/product-categories"
+        await client.post(path, json={"name": "Levaduras"}, headers=headers)
+        dup = await client.post(
+            path, json={"name": "Levad\u00faras"}, headers=headers
+        )
+        assert dup.status_code == 409
+
+class TestUpdatedAtRefreshOnPatch:
+    """Fix #3: PATCH actualiza updated_at con nuevo timestamp.
+
+    Regresion: el segundo PATCH debe tener updated_at > el del primero.
+    """
+
+    @pytest.mark.asyncio
+    async def test_material_category_updated_at_refreshes(self, client):
+        """PATCH actualiza updated_at a timestamp nuevo."""
+        token = await _admin_token(client)
+        headers = {"Authorization": f"Bearer {token}"}
+        path = "/api/v1/calc/material-categories"
+        create = await client.post(path, json={"name": "TestUpdate"}, headers=headers)
+        cat_id = create.json()["id"]
+        first_updated = create.json()["updated_at"]
+
+        import asyncio
+
+        await asyncio.sleep(0.1)
+
+        update = await client.patch(
+            f"{path}/{cat_id}",
+            json={"description": "updated"},
+            headers=headers,
+        )
+        assert update.status_code == 200
+        second_updated = update.json()["updated_at"]
+        assert second_updated > first_updated
+
+    @pytest.mark.asyncio
+    async def test_product_category_updated_at_refreshes(self, client):
+        """PATCH product-category actualiza updated_at."""
+        token = await _admin_token(client)
+        headers = {"Authorization": f"Bearer {token}"}
+        path = "/api/v1/calc/product-categories"
+        create = await client.post(path, json={"name": "TestUpdate"}, headers=headers)
+        cat_id = create.json()["id"]
+        first_updated = create.json()["updated_at"]
+
+        import asyncio
+
+        await asyncio.sleep(0.1)
+
+        update = await client.patch(
+            f"{path}/{cat_id}",
+            json={"description": "updated"},
+            headers=headers,
+        )
+        assert update.status_code == 200
+        second_updated = update.json()["updated_at"]
+        assert second_updated > first_updated
+
+    @pytest.mark.asyncio
+    async def test_supplier_updated_at_refreshes(self, client):
+        """PATCH supplier actualiza updated_at."""
+        token = await _admin_token(client)
+        headers = {"Authorization": f"Bearer {token}"}
+        path = "/api/v1/calc/suppliers"
+        create = await client.post(
+            path, json={"name": "TestUpdate"}, headers=headers
+        )
+        sup_id = create.json()["id"]
+        first_updated = create.json()["updated_at"]
+
+        import asyncio
+
+        await asyncio.sleep(0.1)
+
+        update = await client.patch(
+            f"{path}/{sup_id}",
+            json={"notes": "updated"},
+            headers=headers,
+        )
+        assert update.status_code == 200
+        second_updated = update.json()["updated_at"]
+        assert second_updated > first_updated
+
+    @pytest.mark.asyncio
+    async def test_default_cost_updated_at_refreshes(self, client):
+        """PATCH default-cost actualiza updated_at."""
+        token = await _admin_token(client)
+        headers = {"Authorization": f"Bearer {token}"}
+        path = "/api/v1/calc/default-costs"
+        create = await client.post(
+            path,
+            json={
+                "name": "TestUpdate",
+                "type": "labor",
+                "default_unit_cost_or_rate": "1000",
+                "default_quantity_or_minutes": "0",
+            },
+            headers=headers,
+        )
+        cost_id = create.json()["id"]
+        first_updated = create.json()["updated_at"]
+
+        import asyncio
+
+        await asyncio.sleep(0.1)
+
+        update = await client.patch(
+            f"{path}/{cost_id}",
+            json={"status": "inactive"},
+            headers=headers,
+        )
+        assert update.status_code == 200
+        second_updated = update.json()["updated_at"]
+        assert second_updated > first_updated
