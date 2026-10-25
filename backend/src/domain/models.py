@@ -11,6 +11,7 @@ from domain.pricing import PricingSettings
 class UserRole(str, Enum):
     ADMIN = "admin"
     CUSTOMER = "customer"
+    NEGOCIO = "negocio"
 
 
 class StockStatus(str, Enum):
