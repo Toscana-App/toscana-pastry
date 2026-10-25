@@ -28,6 +28,9 @@ class SettingsUpdate(BaseModel):
     urgent_surcharge_pct: Money = Field(
         default=Decimal("20"), ge=Decimal("0"), le=Decimal("100")
     )
+    consumer_markup_pct: Money = Field(
+        default=Decimal("40"), ge=Decimal("0"), le=Decimal("100")
+    )
     default_prep_minutes: int = Field(default=30, ge=0, le=1440)
     default_servings: int = Field(default=6, ge=1, le=999)
     default_difficulty: Literal["simple", "intermedio", "complejo"] = "simple"
@@ -54,6 +57,7 @@ class SettingsResponse(BaseModel):
     include_waste: bool
     waste_pct: Money
     urgent_surcharge_pct: Money
+    consumer_markup_pct: Money
     default_prep_minutes: int
     default_servings: int
     default_difficulty: str

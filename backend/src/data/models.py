@@ -58,6 +58,7 @@ class BusinessSettingsORM(Base):
     gas_pct = Column(String, default="0", nullable=False)
     waste_pct = Column(String, default="0", nullable=False)
     urgent_surcharge_pct = Column(String, default="20", nullable=False)
+    consumer_markup_pct = Column(String, default="40", nullable=False)
     include_labor = Column(Boolean, default=True, nullable=False)
     include_gas = Column(Boolean, default=False, nullable=False)
     include_waste = Column(Boolean, default=False, nullable=False)

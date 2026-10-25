@@ -55,6 +55,7 @@ class BusinessSettings:
     include_waste: bool = False
     waste_pct: Decimal = Decimal("0")
     urgent_surcharge_pct: Decimal = Decimal("0")
+    consumer_markup_pct: Decimal = Decimal("40")
     default_prep_minutes: int = 30
     default_servings: int = 6
     default_difficulty: str = "simple"
@@ -75,6 +76,10 @@ class BusinessSettings:
         if not Decimal("0") <= self.urgent_surcharge_pct <= Decimal("100"):
             raise ValueError(
                 f"urgent_surcharge_pct fuera de rango 0-100: {self.urgent_surcharge_pct}"
+            )
+        if not Decimal("0") <= self.consumer_markup_pct <= Decimal("100"):
+            raise ValueError(
+                f"consumer_markup_pct fuera de rango 0-100: {self.consumer_markup_pct}"
             )
         if not self.include_gas and self.gas_pct != Decimal("0"):
             raise ValueError("gas_pct debe ser 0 si include_gas esta desactivado")
@@ -115,6 +120,7 @@ DEFAULT_BUSINESS_SETTINGS = BusinessSettings(
     include_waste=True,
     waste_pct=Decimal("3"),
     urgent_surcharge_pct=Decimal("20"),
+    consumer_markup_pct=Decimal("40"),
 )
 
 
