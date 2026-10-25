@@ -57,3 +57,34 @@ La pantalla más densa del producto: datos del producto + receta (insumos con ca
 - Componentes: `Tabs.Root` (underline en desktop, pills en mobile), `Field.Root`, `InputNumber`/stepper, `Select.Root` (unidad), `Combobox` (autocompletado de insumos + multi-select de tags), `Table` (desglose en Costos), `Badge`, `Button`.
 - Tab Costos: tabla con filas materiales / mano de obra / gas / merma / **precio final destacado** (text-xl, tabular-nums).
 - CTA único: **Guardar producto** (sticky abajo en mobile, con safe-area).
+
+---
+
+# P4-CC — Editor de producto y motor de precio de la calculadora (rol administrador)
+
+> Módulo de la calculadora refactorizada desde `E:/toscana/calculadora-costos-toscana` (`src/lib/pricing.js`, `ProductEditor`, `ProductDetail`). **Alcance exclusivo del rol administrador.** El motor es DIFERENTE al legacy: margen sobre precio final + descuento + impuesto + redondeo comercial.
+
+## User story
+> Como **administrador**, quiero **armar cada producto con sus materiales, mano de obra y costos extra, y ver su precio final con mi margen, descuento e impuesto**, para **publicar una lista de precios real**.
+
+## Requerimientos funcionales
+- **RF-P4CC-01**: `calc_product`: `name*` (1–120), `sku?` (≤40, único), `category_id?`, `description?` (≤500), `notes?` (≤500), `margin_percent` (0–100, default de settings), `discount_percent` (0–100), `tax_percent` (0–100), `status` (`draft | active | archived`, default `draft`).
+- **RF-P4CC-02**: Líneas del producto (guardadas con **snapshot** de precio del material en el momento): `calc_product_material {material_id, material_name, quantity_used, unit_of_measure_snapshot, unit_cost_snapshot, line_total_cost, sort_order}`; `calc_product_labor {activity_name, hourly_rate, minutes_required, line_total_cost, sort_order}`; `calc_product_extra_cost {concept_name, unit_cost, quantity, line_total_cost, sort_order}`. El guardado reemplaza el set completo de líneas (transacción única).
+- **RF-P4CC-03** (motor, paridad con `pricing.js` de la app de origen — fórmula exacta que debe mantenerse):
+  - `line_material = quantity_used × unit_cost` · `line_labor = hourly_rate × (minutes_required / 60)` · `line_extra = unit_cost × quantity`
+  - `cost_total = materials + labor + extra`
+  - `price_before_discount = cost_total / (1 − margin)` con margin ∈ [0, 100); si margin ≥ 100% → `price_before_discount = cost_total` (evita división por cero)
+  - `profit = price_before_discount − cost_total` · `discount_amount = −(cost_total + profit) × discount`
+  - `adjusted_profit = profit + discount_amount` · `tax_amount = (cost_total + adjusted_profit) × tax`
+  - `final_sale_price = cost_total + adjusted_profit + tax_amount`, luego redondeado según `rounding_mode` del producto/settings.
+- **RF-P4CC-04**: Modos de redondeo: `none` (sin redondear), `integer` (redondeo entero), `multiple_10` (múltiplo de 10), `commercial_99` (p. ej. 4999, 3499: `ceil(value/100)×100 − 1`).
+- **RF-P4CC-05**: Precios derivados (`product_total_cost, profit_amount, discount_amount, adjusted_profit_amount, tax_amount, final_sale_price, last_recalculated_at`) son **solo-escritura del servidor** (security #8). Todo con `Decimal` + `ROUND_HALF_UP` (RNF-P4-03 aplica también aquí).
+- **RF-P4CC-06**: `POST /api/v1/calc/products/{id}/recalculate` recalcula y devuelve el desglose completo `{product_total_cost, profit_amount, discount_amount, adjusted_profit_amount, tax_amount, final_sale_price}`.
+- **RF-P4CC-07**: **Historial de versiones**: cada recálculo con cambio de `final_sale_price` guarda `{version_number, product_total_cost, profit_amount, discount_amount, adjusted_profit_amount, tax_amount, final_sale_price, changed_at}`; `GET /api/v1/calc/products/{id}/versions` paginado.
+- **RF-P4CC-08**: Detalle: `GET /api/v1/calc/products/{id}` → producto + 3 listas de líneas + desglose + versiones (opcional `?include_versions`).
+
+## API — ver `api_endpoints.md` §FASE CC
+- `POST /api/v1/calc/products`, `GET|PATCH|DELETE /api/v1/calc/products/{id}`, `POST /api/v1/calc/products/{id}/recalculate`, `GET /api/v1/calc/products/{id}/versions`
+
+## Tareas
+- [ ] Ver `odd/tasks/cost-calculator.md` (tareas atómicas B12–B13, F6–F7).

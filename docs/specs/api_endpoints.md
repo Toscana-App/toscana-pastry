@@ -141,6 +141,60 @@ api/presentation/routers/
 
 ---
 
+## FASE CC — Calculadora de costos (rol administrador)
+> Refactor de `E:/toscana/calculadora-costos-toscana` manteniendo funcionalidad. **Todos los endpoints requieren auth Y rol administrador** (`403` para no-admin; `401` sin sesión). Conviven con F1: otro namespace, otra fórmula de precio, sin tocar los módulos legacy. Specs: P2-CC, P3-CC, P4-CC, P5-CC.
+
+### CC Settings / configuración (P5-CC)
+| Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
+|---|---|---|---|---|---|
+| GET | `/api/v1/calc/settings` | Config general de la calculadora. | — → `{business_name, main_currency_name, main_currency_symbol, default_margin_percent, default_discount_percent, default_tax_percent, rounding_mode}` | 200 | Devuelve defaults del sistema si no hay fila persistida (nunca 404). |
+| PUT | `/api/v1/calc/settings` | Reemplazo completo atómico. | `{...config}` → `{config}` | 200 / 422 | `extra="forbid"`; rangos: percents 0–100, `rounding_mode ∈ {none, integer, multiple_10, commercial_99}`. Upsert singleton. |
+| GET | `/api/v1/calc/material-categories` | Lista categorías de materiales. | `?q,page,page_size` → `{items,total,page,page_size}` | 200 | Item: `id,name,description?`. |
+| POST | `/api/v1/calc/material-categories` | Crea categoría. | `{name*,description?}` → `{category}` | 201 / 409 | Nombre único (case-insensitive) → 409. |
+| PATCH | `/api/v1/calc/material-categories/{id}` | Edita. | `{name?,description?}` → `{category}` | 200 / 404 / 409 | Requiere ≥1 campo. |
+| DELETE | `/api/v1/calc/material-categories/{id}` | Elimina. | — → `204` | 204 / 404 / 409 | Con materiales que la referencian → 409 + `{in_use_by:N}`. |
+| GET | `/api/v1/calc/product-categories` | Lista categorías de productos. | `?q,page,page_size` → `{items,total,page,page_size}` | 200 | Mismas reglas que material-categories. |
+| POST | `/api/v1/calc/product-categories` | Crea. | `{name*,description?}` → `{category}` | 201 / 409 | |
+| PATCH | `/api/v1/calc/product-categories/{id}` | Edita. | `{name?,description?}` → `{category}` | 200 / 404 / 409 | |
+| DELETE | `/api/v1/calc/product-categories/{id}` | Elimina. | — → `204` | 204 / 404 / 409 | |
+| GET | `/api/v1/calc/suppliers` | Lista proveedores. | `?q,page,page_size` → `{items,total,page,page_size}` | 200 | Item: `id,name,contact_name?,phone?,email?,notes?`. |
+| POST | `/api/v1/calc/suppliers` | Crea. | `{name*,contact_name?,phone?,email?,notes?}` → `{supplier}` | 201 / 422 | `email` validado; longitudes máximas por P5-CC RF. |
+| PATCH | `/api/v1/calc/suppliers/{id}` | Edita. | `{...}` → `{supplier}` | 200 / 404 / 422 | Requiere ≥1 campo. |
+| DELETE | `/api/v1/calc/suppliers/{id}` | Elimina. | — → `204` | 204 / 404 / 409 | Con materiales que lo referencian → 409. |
+| GET | `/api/v1/calc/default-costs` | Lista costos por defecto. | `?q,type?,page,page_size` → `{items,total,page,page_size}` | 200 | Item: `id,name,type,default_unit_cost_or_rate,default_quantity_or_minutes,status`. |
+| POST | `/api/v1/calc/default-costs` | Crea. | `{name*,type,default_unit_cost_or_rate*,default_quantity_or_minutes*,status?}` → `{default_cost}` | 201 / 422 | `type ∈ {labor, extra_cost}`; money Qty/Money. |
+| PATCH | `/api/v1/calc/default-costs/{id}` | Edita. | `{...}` → `{default_cost}` | 200 / 404 / 422 | |
+| DELETE | `/api/v1/calc/default-costs/{id}` | Elimina. | — → `204` | 204 / 404 | |
+
+### CC Materiales (P2-CC)
+| Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
+|---|---|---|---|---|---|
+| GET | `/api/v1/calc/materials` | Listado. | `?q,category_id?,supplier_id?,status?,page,page_size` → `{items,total,page,page_size}` | 200 | Item incluye `unit_cost` (derivado, string) y `status` (derivado: `incomplete` si falta precio o cantidad). |
+| POST | `/api/v1/calc/materials` | Crea. | `{name*,internal_code?,category_id?,supplier_id?,unit_of_measure?,purchase_total_price?,package_quantity?,notes?}` → `{material}` | 201 / 422 | FK inválidas → 404. `package_quantity` > 0 si se envía. |
+| GET | `/api/v1/calc/materials/{id}` | Detalle. | — → `{material}` | 200 / 404 | |
+| PATCH | `/api/v1/calc/materials/{id}` | Edita. | `{...}` → `{material}` | 200 / 404 / 422 | Cambio de precio que altere `unit_cost` → registra `material_cost_history`. |
+| DELETE | `/api/v1/calc/materials/{id}` | Elimina. | — → `204` | 204 / 404 / 409 | Usado en productos → 409 + `{impacted_products:N}`. |
+| GET | `/api/v1/calc/materials/{id}/cost-history` | Historial de costos. | `?page,page_size` → `{items,total,page,page_size}` | 200 | `{previous_unit_cost, new_unit_cost, changed_at}`. |
+
+### CC Productos (P4-CC + P3-CC)
+| Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
+|---|---|---|---|---|---|
+| GET | `/api/v1/calc/products` | Listado. | `?q,category_id?,status?,sort?,dir?,page,page_size` → `{items,total,page,page_size}` | 200 | `sort ∈ {name, cost, price, margin}`. |
+| POST | `/api/v1/calc/products` | Crea producto + líneas. | `{name*,sku?,category_id?,description?,notes?,margin_percent?,discount_percent?,tax_percent?,status?,materials:[{material_id*,quantity_used}],labor:[{activity_name*,hourly_rate*,minutes_required*}],extra_costs:[{concept_name*,unit_cost*,quantity*}]}` → `{product, costs}` | 201 / 404 / 422 | Snapshots de `unit_cost` al guardar. `costs` = desglose (P4-CC RF-03). |
+| GET | `/api/v1/calc/products/{id}` | Detalle. | `?include_versions?` → `{product, materials, labor, extra_costs, costs, versions?}` | 200 / 404 | |
+| PATCH | `/api/v1/calc/products/{id}` | Edita cualquier parte. | `{...campos, materials?,labor?,extra_costs?}` → `{product, costs}` | 200 / 404 / 422 | Líneas enviadas = reemplazo completo del set (transacción única). |
+| DELETE | `/api/v1/calc/products/{id}` | Elimina (soft delete). | — → `204` | 204 / 404 | `deleted_at` set; versiones históricas preservadas. |
+| POST | `/api/v1/calc/products/{id}/recalculate` | Recalcula desglose. | — → `{product, costs}` | 200 / 404 | Si `final_sale_price` cambió → nueva versión en histórico. |
+| GET | `/api/v1/calc/products/{id}/versions` | Historial de versiones. | `?page,page_size` → `{items,total,page,page_size}` | 200 | `{version_number, product_total_cost, profit_amount, discount_amount, adjusted_profit_amount, tax_amount, final_sale_price, changed_at}`. |
+| POST | `/api/v1/calc/products/recalculate-all` | Recálculo global. | — → `{recalculated:N}` | 200 | Solo productos `active`. |
+| GET | `/api/v1/calc/products/price-list` | Lista de precios (activos). | `?q,category_id?,page,page_size` → `{items,total,page,page_size}` | 200 | Solo `status=active`; incluye categoría y precio final redondeado. |
+| GET | `/api/v1/calc/products/price-list/export` | Export CSV. | `?q,category_id?` → `text/csv` | 200 | Columnas: id, name, category, cost, margin_pct, final_price. |
+| GET | `/api/v1/calc/dashboard` | Stats del admin. | — → `{active_materials, active_products, draft_products, incomplete_materials, avg_product_cost, avg_final_price, top_by_price, bottom_by_margin}` | 200 | `top_by_price[5]`, `bottom_by_margin[5]`.
+
+**Criterio de salida FASE CC**: con settings persistidas, un material con paquete y un producto con 2 materiales + 1 labor + 1 extra → `final_sale_price` coincide con la fórmula de `src/lib/pricing.js` de la app de origen (paridad verificada en tests).
+
+---
+
 ## FASE 2 — Pedidos y stock
 > Objetivo: operación diaria de pedidos. ~13 endpoints.
 
