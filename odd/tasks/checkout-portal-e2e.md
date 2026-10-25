@@ -33,3 +33,5 @@ L1 — User request (verbatim, 2026-10-25): "incorpora todos los pasos.Respecto 
 - modificar las specs para implementar el checkout end to end en la app."
 
 L2 — Skill `mercadopago-integration` instalada (safe mode): contratos `CheckoutProvider` agnósticos, mock adapter, polling de estados, validación/idempotencia sin proveedor real; referencias en `C:\Users\Usuario\AppData\Local\Temp\gpurJAEB\skills-use-zeIMNx\mercadopago-integration\references\`; `SECURITY.md` (W009) exige Security Handoff para rollout live. El trabajo de specs respeta el safe mode: define contratos, estados y esquemas; no prescribe SDK live ni credenciales.
+
+L3 — Estrategia de slices de entrega: la rama se creó desde `feat/calc-cb` (2 commits de calculadora sobre `origin/main`), así que el conteo "since origin/main" (~3.1k líneas) incluye trabajo preexistente. Esta feature de specs se entrega en 5 commits autocontenidos de ~30–120 líneas cada uno (doc de feature → p11 → p06 → p10 → api_endpoints+master_plan), cada uno revisable solo.
