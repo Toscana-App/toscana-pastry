@@ -280,6 +280,43 @@ class CalcDefaultCostORM(Base):
     )
 
 
+# ─── Cart models (RF-P11-03/14, C4) ─────────────────────────────────
+
+
+class CartORM(Base):
+    """Carrito server-side por usuario (RF-P11-03). Un registro por user;
+    `coupon_code` es el cupon aplicado (max 1 por carrito). El precio NO
+    se persiste: solo product_id + qty (RNF-P11-03)."""
+
+    __tablename__ = "cart"
+    user_id: Mapped[str] = mapped_column(
+        String, ForeignKey("users.id"), primary_key=True
+    )
+    coupon_code: Mapped[str | None] = mapped_column(String, nullable=True)
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        onupdate=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+
+
+class CartItemORM(Base):
+    """Linea del carrito: (user_id, product_id) unico."""
+
+    __tablename__ = "cart_items"
+    user_id: Mapped[str] = mapped_column(
+        String, ForeignKey("users.id"), primary_key=True
+    )
+    product_id: Mapped[str] = mapped_column(String, primary_key=True)
+    qty: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+
+
 # ─── Order models (RF-P6-12, C1) ─────────────────────────────────────
 
 
