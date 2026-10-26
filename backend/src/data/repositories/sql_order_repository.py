@@ -6,6 +6,7 @@ Mapeo ORM↔dominio y operaciones de pago + order_window singleton.
 from __future__ import annotations
 
 import datetime
+from collections.abc import Sequence
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -16,7 +17,7 @@ from domain.order import Order, OrderItem, OrderStatus, PaymentMethod, PaymentSt
 from domain.order_window import OrderWindow
 
 
-def _to_domain(orm: OrderORM, item_orms: list[OrderItemORM] | None = None) -> Order:
+def _to_domain(orm: OrderORM, item_orms: Sequence[OrderItemORM] | None = None) -> Order:
     """Convert OrderORM to domain Order."""
     if item_orms is None:
         item_orms = []  # type: ignore[assignment]

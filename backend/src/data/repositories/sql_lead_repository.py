@@ -13,16 +13,16 @@ from domain.lead import Lead
 
 
 def _to_domain(orm: LeadORM) -> Lead:
-    return Lead(
-        id=orm.id,
-        name=orm.name,
-        email=orm.email,
+    return Lead(  # type: ignore[arg-type]
+        id=orm.id,  # type: ignore[arg-type]
+        name=orm.name,  # type: ignore[arg-type]
+        email=orm.email,  # type: ignore[arg-type]
         customer_type=orm.customer_type,  # type: ignore[arg-type]
-        message=orm.message,
-        phone=orm.phone,
-        business_name=orm.business_name,
-        location=orm.location,
-        read=orm.read,
+        message=orm.message,  # type: ignore[arg-type]
+        phone=orm.phone,  # type: ignore[arg-type]
+        business_name=orm.business_name,  # type: ignore[arg-type]
+        location=orm.location,  # type: ignore[arg-type]
+        read=orm.read,  # type: ignore[arg-type]
     )
 
 
@@ -104,7 +104,7 @@ class SQLLeadRepository:
         orm = result.scalars().first()
         if orm is None:
             return None
-        orm.read = read
+        orm.read = read  # type: ignore[assignment]
         await self.session.commit()
         return _to_domain(orm)
 
@@ -116,6 +116,6 @@ class SQLLeadRepository:
         rows = result.scalars().all()
         count = len(rows)
         for row in rows:
-            row.read = True
+            row.read = True  # type: ignore[assignment]
         await self.session.commit()
         return count
