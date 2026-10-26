@@ -12,9 +12,9 @@ export function Navbar() {
       as="nav"
       px={4}
       py={3}
-      bg="white"
+      bg="bg"
       borderBottomWidth={1}
-      borderColor="gray.200"
+      borderColor="border"
       position="sticky"
       top={0}
       zIndex={50}

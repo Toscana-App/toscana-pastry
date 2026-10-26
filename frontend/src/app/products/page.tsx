@@ -2,10 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  Badge,
+  Box,
   Button,
   Container,
   Flex,
   Heading,
+  SegmentGroup,
   Spinner,
   Table,
   Text,
@@ -99,86 +102,71 @@ export default function ProductsPage() {
     <Container py={10} maxW="container.md">
       <Flex direction="column" gap={6}>
         <Flex justify="space-between" align="center" wrap="wrap" gap={4}>
-          <Heading fontSize="3xl">Price List</Heading>
+          <Heading size="3xl">Price List</Heading>
 
           <Flex align="center" gap={3} wrap="wrap">
             {canSwitch && (
-              <Flex gap={2}>
-                {allowedAudiences.map((aud) => (
-                  <Button
-                    key={aud}
-                    size="sm"
-                    variant={audience === aud ? "solid" : "outline"}
-                    onClick={() => setAudience(aud)}
-                  >
-                    {audienceLabel(aud)}
-                  </Button>
-                ))}
-              </Flex>
+              <SegmentGroup.Root
+                size="sm"
+                value={audience}
+                onValueChange={(details) =>
+                  setAudience(details.value as Audience)
+                }
+              >
+                <SegmentGroup.Items
+                  items={allowedAudiences.map((aud) => ({
+                    value: aud,
+                    label: audienceLabel(aud),
+                  }))}
+                />
+              </SegmentGroup.Root>
             )}
 
-            <Text fontSize="sm" color="fg.muted">
-              Showing:{" "}
-              <Text as="span" fontWeight="bold">
-                {audienceLabel(audience)}
-              </Text>
-            </Text>
+            <Badge colorPalette="brand">{audienceLabel(audience)}</Badge>
           </Flex>
         </Flex>
 
         {/* Export CTAs — only for allowed audiences */}
-        <Flex gap={3} wrap="wrap">
-          {allowedAudiences.includes("revendedores") && (
-            <>
-              <Button
-                colorPalette="brand"
-                size="sm"
-                onClick={() => downloadPricelistCSV("revendedores")}
-              >
-                Export CSV
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => downloadPricelistPDF("revendedores")}
-              >
-                Export PDF
-              </Button>
-            </>
-          )}
-          {allowedAudiences.includes("consumidor_final") && (
-            <>
-              <Button
-                colorPalette="brand"
-                size="sm"
-                onClick={() => downloadPricelistCSV("consumidor_final")}
-              >
-                Export CSV
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => downloadPricelistPDF("consumidor_final")}
-              >
-                Export PDF
-              </Button>
-            </>
-          )}
-        </Flex>
+        {allowedAudiences.map((aud) => (
+          <Flex key={aud} gap={3} wrap="wrap">
+            <Button
+              colorPalette="brand"
+              size="sm"
+              onClick={() => downloadPricelistCSV(aud)}
+            >
+              Export CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => downloadPricelistPDF(aud)}
+            >
+              Export PDF
+            </Button>
+          </Flex>
+        ))}
 
         {/* Product table */}
         {products.length === 0 ? (
-          <Text color="fg.muted" textAlign="center" py={8}>
-            No products found for this audience.
-          </Text>
+          <Box
+            border="1px"
+            borderColor="border.muted"
+            rounded="md"
+            py={10}
+            textAlign="center"
+          >
+            <Text color="fg.muted">
+              No products found for this audience.
+            </Text>
+          </Box>
         ) : (
-          <Table.ScrollArea borderWidth="1px" rounded="md">
-            <Table.Root size="sm">
+          <Table.ScrollArea rounded="md">
+            <Table.Root size="sm" variant="outline" striped>
               <Table.Header>
                 <Table.Row>
                   <Table.ColumnHeader>Product</Table.ColumnHeader>
                   <Table.ColumnHeader>Unit</Table.ColumnHeader>
-                  <Table.ColumnHeader textAlign="right">
+                  <Table.ColumnHeader textAlign="end">
                     Price
                   </Table.ColumnHeader>
                 </Table.Row>
@@ -188,7 +176,7 @@ export default function ProductsPage() {
                   <Table.Row key={product.id}>
                     <Table.Cell>{product.name}</Table.Cell>
                     <Table.Cell>{product.unit}</Table.Cell>
-                    <Table.Cell textAlign="right">
+                    <Table.Cell textAlign="end">
                       ${product.price_per_unit}
                     </Table.Cell>
                   </Table.Row>

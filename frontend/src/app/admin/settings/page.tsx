@@ -3,15 +3,16 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Box,
   Button,
+  Card,
   Container,
+  Field,
+  Flex,
   Heading,
   Input,
   Spinner,
   Text,
   VStack,
-  Flex,
 } from "@chakra-ui/react";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchSettings, updateSettings } from "@/services/pricingService";
@@ -149,15 +150,7 @@ export default function AdminSettingsPage() {
     }
   }
 
-  if (authLoading || !isAdmin) {
-    return (
-      <Flex align="center" justify="center" py={16}>
-        <Spinner size="xl" />
-      </Flex>
-    );
-  }
-
-  if (loading) {
+  if (authLoading || !isAdmin || loading) {
     return (
       <Flex align="center" justify="center" py={16}>
         <Spinner size="xl" />
@@ -168,44 +161,32 @@ export default function AdminSettingsPage() {
   return (
     <Container py={10} maxW="container.sm">
       <VStack align="start" gap={6}>
-        <Heading fontSize="3xl">Tenant Settings</Heading>
+        <Heading size="3xl">Tenant Settings</Heading>
 
-        <Box
-          width="full"
-          borderWidth="1px"
-          rounded="md"
-          p={6}
-          borderColor="gray.200"
-        >
-          <VStack align="start" gap={4}>
-            <Text fontWeight="bold" fontSize="lg">
-              Consumer Markup
-            </Text>
-            <Text color="fg.muted" fontSize="sm">
-              Markup percentage applied to revendedores prices to compute
-              consumer final prices. Range: {MARKUP_MIN}–{MARKUP_MAX}%.
-            </Text>
-
-            <Flex width="full" align="end" gap={3}>
-              <Input
-                type="number"
-                value={markupInput}
-                onChange={handleMarkupChange}
-                min={MARKUP_MIN}
-                max={MARKUP_MAX}
-                width="160px"
-                borderColor={markupError ? "red.500" : undefined}
-              />
-              <Text fontSize="lg" fontWeight="bold">
-                %
-              </Text>
-            </Flex>
-
-            {markupError && (
-              <Text color="red.500" fontSize="sm">
-                {markupError}
-              </Text>
-            )}
+        <Card.Root width="full">
+          <Card.Body width="full">
+            <VStack align="start" gap={4} width="full">
+            <Field.Root width="full" invalid={!!markupError}>
+              <Field.Label>Consumer Markup</Field.Label>
+              <Flex align="end" gap={2}>
+                <Input
+                  type="number"
+                  value={markupInput}
+                  onChange={handleMarkupChange}
+                  min={MARKUP_MIN}
+                  max={MARKUP_MAX}
+                  width="160px"
+                />
+                <Text fontSize="lg" fontWeight="bold">
+                  %
+                </Text>
+              </Flex>
+              <Field.HelperText>
+                Markup percentage applied to revendedores prices to compute
+                consumer final prices. Range: {MARKUP_MIN}–{MARKUP_MAX}%.
+              </Field.HelperText>
+              <Field.ErrorText>{markupError}</Field.ErrorText>
+            </Field.Root>
 
             <Button
               colorPalette="brand"
@@ -216,8 +197,9 @@ export default function AdminSettingsPage() {
             >
               Save
             </Button>
-          </VStack>
-        </Box>
+            </VStack>
+          </Card.Body>
+        </Card.Root>
 
         {/* Current value display */}
         {settings && (
