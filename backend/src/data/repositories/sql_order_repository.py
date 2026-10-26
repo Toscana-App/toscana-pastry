@@ -1,6 +1,6 @@
-"""Order repository (C1.2).
+"""Order repository (C1.2 / C6).
 
-Mapeo ORM↔dominio y operaciones de pago.
+Mapeo ORM↔dominio y operaciones de pago + order_window singleton.
 """
 
 from __future__ import annotations
@@ -11,8 +11,9 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from data.models import OrderItemORM, OrderORM, PaymentEventORM
+from data.models import OrderItemORM, OrderORM, OrderWindowORM, PaymentEventORM
 from domain.order import Order, OrderItem, OrderStatus, PaymentMethod, PaymentStatus
+from domain.order_window import OrderWindow
 
 
 def _to_domain(orm: OrderORM, item_orms: list[OrderItemORM] | None = None) -> Order:
@@ -33,9 +34,16 @@ def _to_domain(orm: OrderORM, item_orms: list[OrderItemORM] | None = None) -> Or
     return Order(
         id=orm.id,
         customer_id=orm.customer_id,
+        code=orm.code,
         date=orm.date,
         status=OrderStatus(orm.status),  # type: ignore[arg-type]
         payment_method=PaymentMethod(orm.payment_method),  # type: ignore[arg-type]
+        delivery_mode=orm.delivery_mode if orm.delivery_mode else "delivery",
+        delivery_address=orm.delivery_address or "",
+        coupon_code=orm.coupon_code,
+        discount_amount=(
+            Decimal(orm.discount_amount) if orm.discount_amount else None
+        ),
         payment_reference=orm.payment_reference,
         paid_at=orm.paid_at,
         payment_status=(
@@ -74,9 +82,14 @@ class SQLOrderRepository:
         orm = OrderORM(
             id=order.id,
             customer_id=order.customer_id,
+            code=order.code,
             date=order.date,
             status=order.status.value,
             payment_method=order.payment_method.value,
+            delivery_mode=order.delivery_mode.value if hasattr(order.delivery_mode, "value") else str(order.delivery_mode),
+            delivery_address=order.delivery_address or "",
+            coupon_code=order.coupon_code,
+            discount_amount=str(order.discount_amount) if order.discount_amount else None,
             payment_reference=order.payment_reference,
             paid_at=order.paid_at,
             payment_status=order.payment_status.value if order.payment_status else None,
@@ -85,6 +98,84 @@ class SQLOrderRepository:
         self.session.add(orm)
         await self.session.flush()
         return order
+
+    async def get_by_code(self, code: str) -> Order | None:
+        """Fetch order by its portal code (RF-P11-08)."""
+        result = await self.session.execute(
+            select(OrderORM).where(OrderORM.code == code)
+        )
+        orm = result.scalars().first()
+        if orm is None:
+            return None
+        items_result = await self.session.execute(
+            select(OrderItemORM).where(OrderItemORM.order_id == orm.id)
+        )
+        return _to_domain(orm, items_result.scalars().all())
+
+    async def list_by_customer(self, customer_id: str, *, page: int = 1, page_size: int = 20) -> tuple[list[Order], int]:
+        """List orders for a customer (RF-P11-08). Returns (orders, total_count)."""
+        count_query = select(OrderORM).where(OrderORM.customer_id == customer_id)
+        count_result = await self.session.execute(count_query)
+        total = len(count_result.scalars().all())
+
+        offset = (page - 1) * page_size
+        result = await self.session.execute(
+            select(OrderORM)
+            .where(OrderORM.customer_id == customer_id)
+            .order_by(OrderORM.created_at.desc())
+            .offset(offset)
+            .limit(page_size)
+        )
+        orm_list = result.scalars().all()
+        orders = []
+        for orm in orm_list:
+            items_result = await self.session.execute(
+                select(OrderItemORM).where(OrderItemORM.order_id == orm.id)
+            )
+            orders.append(_to_domain(orm, items_result.scalars().all()))
+        return orders, total
+
+    async def get_order_window(self) -> OrderWindow:
+        """Get the singleton order window configuration."""
+        result = await self.session.execute(
+            select(OrderWindowORM).where(OrderWindowORM.id == "singleton")
+        )
+        orm = result.scalars().first()
+        if orm is None:
+            # Create default (open)
+            orm = OrderWindowORM(
+                id="singleton",
+                open=True,
+                reopens_at=None,
+                message="",
+            )
+            self.session.add(orm)
+            await self.session.flush()
+        return OrderWindow(
+            open=orm.open,
+            reopens_at=orm.reopens_at,
+            message=orm.message,
+        )
+
+    async def update_order_window(self, window: OrderWindow) -> None:
+        """Update the singleton order window configuration."""
+        result = await self.session.execute(
+            select(OrderWindowORM).where(OrderWindowORM.id == "singleton")
+        )
+        orm = result.scalars().first()
+        if orm is None:
+            orm = OrderWindowORM(
+                id="singleton",
+                open=window.open,
+                reopens_at=window.reopens_at,
+                message=window.message,
+            )
+            self.session.add(orm)
+        else:
+            orm.open = window.open
+            orm.reopens_at = window.reopens_at
+            orm.message = window.message
+        await self.session.commit()
 
     async def update_payment_status(
         self,

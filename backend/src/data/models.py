@@ -357,15 +357,20 @@ class _PaymentStatusColumn(TypeDecorator):
 
 
 class OrderORM(Base):
-    """Order entity with payment tracking (RF-P6-12)."""
+    """Order entity with payment tracking and portal fields (RF-P6-12 / RF-P11-06/08)."""
 
     __tablename__ = "orders"
 
     id = Column(String, primary_key=True)
     customer_id = Column(String, nullable=False, index=True)
+    code = Column(String, nullable=False, unique=True, index=True)
     status = Column(_OrderStatusColumn(), default="nuevo", nullable=False)
     date = Column(DateTime, nullable=False)
     payment_method = Column(_PaymentMethodColumn(), default="cash", nullable=False)
+    delivery_mode = Column(String, default="delivery", nullable=False)
+    delivery_address = Column(String, default="", nullable=False)
+    coupon_code = Column(String, nullable=True)
+    discount_amount = Column(String, nullable=True)
     payment_reference = Column(String, nullable=True)
     paid_at = Column(DateTime, nullable=True)
     payment_status = Column(_PaymentStatusColumn(), nullable=True)
@@ -375,6 +380,17 @@ class OrderORM(Base):
         nullable=False,
     )
     order_items = relationship("OrderItemORM", back_populates="order", cascade="all, delete-orphan")
+
+
+class OrderWindowORM(Base):
+    """Singleton configuration for the portal order window (RF-P5-07)."""
+
+    __tablename__ = "order_window"
+
+    id = Column(String, primary_key=True, default="singleton")
+    open = Column(Boolean, default=True, nullable=False)
+    reopens_at = Column(DateTime, nullable=True)
+    message = Column(String, default="", nullable=False)
 
 
 class OrderItemORM(Base):
