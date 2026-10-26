@@ -1,4 +1,4 @@
-"""Order API schemas (C1.0/C1.4/C1.5 / C6)."""
+"""Order + Lead API schemas (C1.0/C1.4/C1.5 / C6 / RF-P11-13, C5)."""
 
 from __future__ import annotations
 
