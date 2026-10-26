@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Badge,
   Box,
@@ -15,6 +15,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { toaster } from "@/lib/toaster";
 import { Audience, Product } from "@/types/pricing";
+import { isPortalRole } from "@/lib/portalRoutes";
+import { addCartItem } from "@/services/cartService";
 import {
   canSwitchAudience,
   roleAllowedAudiences,
@@ -50,10 +52,36 @@ export function ProductsCatalog() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [audience, setAudience] = useState<Audience>("revendedores");
+  const [addingId, setAddingId] = useState<string | null>(null);
 
   const role = user?.role ?? "";
   const allowedAudiences = roleAllowedAudiences(role);
   const canSwitch = canSwitchAudience(role);
+  const showCart = isPortalRole(user?.role);
+
+  const addToCart = useCallback(
+    async (productId: string, name: string) => {
+      setAddingId(productId);
+      try {
+        await addCartItem(productId, 1);
+        toaster.create({
+          title: "Agregado al carrito",
+          description: name,
+          type: "success",
+        });
+      } catch (error) {
+        toaster.create({
+          title: "No se pudo agregar al carrito",
+          description:
+            error instanceof Error ? error.message : "Intentá de nuevo",
+          type: "error",
+        });
+      } finally {
+        setAddingId(null);
+      }
+    },
+    []
+  );
 
   // Track the last role we processed to avoid duplicate initializations.
   const processedRoleRef = useRef<string | null>(null);
@@ -166,6 +194,7 @@ export function ProductsCatalog() {
                 <Table.ColumnHeader>Product</Table.ColumnHeader>
                 <Table.ColumnHeader>Unit</Table.ColumnHeader>
                 <Table.ColumnHeader textAlign="end">Price</Table.ColumnHeader>
+                {showCart && <Table.ColumnHeader srOnly>Agregar</Table.ColumnHeader>}
               </Table.Row>
             </Table.Header>
             <Table.Body>
@@ -190,6 +219,20 @@ export function ProductsCatalog() {
                   <Table.Cell textAlign="end" fontFamily="var(--font-geist-mono)">
                     ${product.price_per_unit}
                   </Table.Cell>
+                  {showCart && (
+                    <Table.Cell textAlign="end">
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        colorPalette="brand"
+                        disabled={addingId !== null}
+                        onClick={() => void addToCart(product.id, product.name)}
+                        aria-label={`Agregar ${product.name} al carrito`}
+                      >
+                        Agregar
+                      </Button>
+                    </Table.Cell>
+                  )}
                 </Table.Row>
               ))}
             </Table.Body>

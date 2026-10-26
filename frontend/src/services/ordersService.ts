@@ -4,14 +4,34 @@ import { apiFetch } from "@/lib/api";
 import {
   AddressEnvelope,
   AddressListResponse,
-  CartResponse,
   OrderDetail,
   PortalOrderPayload,
 } from "@/types/orders";
 
-/** GET /cart — carrito server-side con precio derivado de la audiencia (C4). */
-export async function fetchCart(): Promise<CartResponse> {
-  return apiFetch<CartResponse>("/cart");
+/**
+ * POST /orders/{id}/payment: inicia el pago online (RF-P11-10).
+ * El propietario del pedido (o admin) puede invocar; idempotente por clave.
+ */
+export async function initOrderPayment(
+  orderId: string,
+  idempotencyKey: string
+): Promise<{ reference: string; checkout_url: string }> {
+  return apiFetch("/orders" + `/${orderId}/payment`, {
+    method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
+}
+
+/** GET /orders/{id}/payment: estado del pago (polling ≤ 5 s, F3). */
+export async function fetchOrderPaymentStatus(
+  orderId: string
+): Promise<{
+  status: string | null;
+  paid: boolean;
+  payment_reference: string | null;
+  updated_at: string | null;
+}> {
+  return apiFetch(`/orders/${orderId}/payment`);
 }
 
 /**

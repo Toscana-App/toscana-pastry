@@ -17,6 +17,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { useState } from "react";
+import { PaymentCard } from "@/components/checkout/PaymentCard";
 import { toaster } from "@/lib/toaster";
 import { createPortalOrder } from "@/services/ordersService";
 import {
@@ -242,6 +243,9 @@ export function CheckoutSuccess({
           ? "Recordá: pagás en efectivo en la entrega o el retiro."
           : "El pago se procesa online; podés dar seguimiento en Mis pedidos."}
       </Text>
+      <Box w="100%">
+        <PaymentCard order={order} />
+      </Box>
     </Stack>
   );
 }
