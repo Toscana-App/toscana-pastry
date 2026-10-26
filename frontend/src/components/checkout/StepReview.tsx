@@ -18,6 +18,7 @@ import {
 } from "@chakra-ui/react";
 import { useState } from "react";
 import { PaymentCard } from "@/components/checkout/PaymentCard";
+import { trackEvent } from "@/lib/analytics";
 import { toaster } from "@/lib/toaster";
 import { createPortalOrder } from "@/services/ordersService";
 import {
@@ -82,6 +83,12 @@ export function StepReview({
         coupon_code: cart.coupon?.code ?? null,
       };
       const order = await createPortalOrder(payload);
+      trackEvent("order_confirmed", {
+        order_code: order.code,
+        payment_method: order.payment_method,
+        delivery_mode: order.delivery_mode,
+        total: order.total,
+      });
       onConfirmed(order);
     } catch (error) {
       const message = error instanceof Error ? error.message : "";

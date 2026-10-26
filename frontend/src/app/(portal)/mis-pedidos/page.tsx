@@ -1,13 +1,6 @@
-"use client";
+import MyOrdersPage from "@/components/orders/MyOrdersPage";
 
-import { ComingSoon } from "@/components/portal/ComingSoon";
-
-/** Tab "Mis pedidos" (F4 completa el listado + detalle, p11 RF-P11-12). */
-export default function MisPedidosPage() {
-  return (
-    <ComingSoon
-      title="Mis pedidos"
-      message="Acá vas a ver tus pedidos y su estado de pago."
-    />
-  );
+/** Tab "Mis pedidos" (F4: listado + detalle + badges, p11 RF-P11-08). */
+export default function MisPedidosRoute() {
+  return <MyOrdersPage />;
 }

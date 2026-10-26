@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Center, Spinner } from "@chakra-ui/react";
 import { useAuth } from "@/contexts/AuthContext";
 import { isPortalRole } from "@/lib/portalRoutes";
+import { ConsentBanner } from "@/components/layout/ConsentBanner";
 import { PortalShellHeader } from "@/components/layout/PortalShellHeader";
 
 /**
@@ -41,6 +42,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
   return (
     <>
+      <ConsentBanner />
       <PortalShellHeader />
       {children}
     </>
