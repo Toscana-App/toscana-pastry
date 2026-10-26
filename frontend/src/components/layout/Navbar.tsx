@@ -35,10 +35,18 @@ export function Navbar() {
 
             {isAuthenticated ? (
               <>
+                <Button variant="ghost" asChild>
+                  <NextLink href="/products">Products</NextLink>
+                </Button>
                 {user?.role === "admin" && (
-                  <Button variant="ghost" asChild>
-                    <NextLink href="/admin">Admin</NextLink>
-                  </Button>
+                  <>
+                    <Button variant="ghost" asChild>
+                      <NextLink href="/admin">Admin</NextLink>
+                    </Button>
+                    <Button variant="ghost" asChild>
+                      <NextLink href="/admin/settings">Settings</NextLink>
+                    </Button>
+                  </>
                 )}
                 <Button variant="ghost" asChild>
                   <NextLink href="/profile">Profile</NextLink>

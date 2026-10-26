@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const PROTECTED_PREFIXES = ['/dashboard', '/profile', '/admin']
+const PROTECTED_PREFIXES = ['/dashboard', '/profile', '/admin', '/products']
 
 export function proxy(request: NextRequest) {
   const token = request.cookies.get('auth_token')?.value
@@ -32,5 +32,7 @@ export const config = {
     '/profile/:path*',
     '/admin',
     '/admin/:path*',
+    '/products',
+    '/products/:path*',
   ],
 }
