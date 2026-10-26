@@ -1,16 +1,12 @@
 "use client";
 
-import { ComingSoon } from "@/components/portal/ComingSoon";
+import { CheckoutFlow } from "@/components/checkout/CheckoutFlow";
 
 /**
- * CTA "Nuevo pedido" → checkout de 5 pasos (F2, p11 RF-P11-02…08):
+ * /checkout — 5 pasos (F2 — p11 RF-P11-02…08):
  * Contacto → Dirección → Entrega → Pago → Revisar y confirmar.
+ * El pedido se crea solo en el paso 5 (C6).
  */
 export default function CheckoutPage() {
-  return (
-    <ComingSoon
-      title="Nuevo pedido"
-      message="El checkout de 5 pasos (contacto, dirección, entrega, pago y confirmación) estará disponible próximamente."
-    />
-  );
+  return <CheckoutFlow />;
 }
