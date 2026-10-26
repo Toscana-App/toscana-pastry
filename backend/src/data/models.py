@@ -433,3 +433,29 @@ class PaymentEventORM(Base):
         default=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
+
+
+class LeadORM(Base):
+    """Lead de contacto publico (RF-P11-13, C5).
+
+    Captura formularios de contacto del portal — nombre, email, tipo de
+    cliente, mensaje y campos opcionales.  `read` controla si el admin
+    ya lo reviso.
+    """
+
+    __tablename__ = "leads"
+
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
+    email = Column(String, nullable=False, index=True)
+    customer_type = Column(String, nullable=False)
+    message = Column(String, nullable=False)
+    phone = Column(String, nullable=True)
+    business_name = Column(String, nullable=True)
+    location = Column(String, nullable=True)
+    read = Column(Boolean, default=False, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
