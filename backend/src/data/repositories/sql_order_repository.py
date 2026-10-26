@@ -39,8 +39,8 @@ def _to_domain(orm: OrderORM, item_orms: Sequence[OrderItemORM] | None = None) -
         date=orm.date,  # type: ignore[arg-type]
         status=OrderStatus(orm.status),  # type: ignore[arg-type]
         payment_method=PaymentMethod(orm.payment_method),  # type: ignore[arg-type]
-        delivery_mode=orm.delivery_mode if orm.delivery_mode else "delivery",  # type: ignore[arg-type]
-        delivery_address=orm.delivery_address or "",  # type: ignore[arg-type]
+        delivery_mode=(orm.delivery_mode if orm.delivery_mode else "delivery"),  # type: ignore[arg-type]
+        delivery_address=(orm.delivery_address or ""),  # type: ignore[arg-type]
         coupon_code=orm.coupon_code,  # type: ignore[arg-type]
         discount_amount=(  # type: ignore[arg-type]
             Decimal(orm.discount_amount) if orm.discount_amount else None
