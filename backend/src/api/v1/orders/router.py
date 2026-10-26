@@ -6,7 +6,7 @@ Namespace: /api/v1/orders.
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi import status as http_status
 
-from api.v1.dependencies import require_admin, get_current_user
+from api.v1.dependencies import get_current_user, require_admin
 from api.v1.orders.dependencies import get_order_repository
 from api.v1.orders.schemas import (
     OrderDetailSchema,
@@ -21,9 +21,27 @@ from data.models import OrderItemORM, OrderORM
 from data.repositories.sql_order_repository import SQLOrderRepository
 from domain.mock_checkout_provider import MockCheckoutProvider
 from domain.models import User
-from domain.order import DeliveryMode, OrderStatus, PaymentMethod, PaymentStatus
+from domain.order import (
+    DeliveryMode,
+    Order,
+    OrderStatus,
+    PaymentMethod,
+    PaymentStatus,
+)
 
 router = APIRouter(prefix="/orders", tags=["orders"])
+
+
+async def _get_order_for_user(
+    repo: SQLOrderRepository, order_id: str, user: User
+) -> Order:
+    """Returns the order when the user owns it (or is admin); 404 otherwise."""
+    order = await repo.get(order_id)
+    if order is None or (order.customer_id != user.id and user.role != "admin"):
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND, detail="Order not found"
+        )
+    return order
 
 
 # ─── PATCH /orders/{id}/paid (C1.0) ─────────────────────────────────
@@ -78,8 +96,8 @@ async def mark_order_paid(
         order.confirm_payment(reference="manual", status=PaymentStatus.APPROVED)
         result = await repo.update_payment_status(
             order_id=order.id,
-            reference=order.payment_reference,
-            status=order.payment_status,
+            reference=order.payment_reference or "manual",
+            status=order.payment_status or PaymentStatus.APPROVED,
             paid_at=order.paid_at,
         )
 
@@ -98,18 +116,16 @@ async def initiate_payment(
     id: str,
     idempotency_key: str = Header(..., alias="Idempotency-Key"),
     repo: SQLOrderRepository = Depends(get_order_repository),
-    _admin: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
     """POST /orders/{id}/payment: inicia pago Mercado Pago.
 
+    Accesible por el propietario del pedido (portal, RF-P11-10) o admin.
     Solo pedidos status=nuevo + payment_method=mercadopago.
     Idempotencia por Idempotency-Key.
+    Pedidos ajenos → 404 (anti-sondeo).
     """
-    order = await repo.get(id)
-    if order is None:
-        raise HTTPException(
-            status_code=http_status.HTTP_404_NOT_FOUND, detail="Order not found"
-        )
+    order = await _get_order_for_user(repo, id, current_user)
 
     # payment_method=cash → 422
     if order.payment_method == PaymentMethod.CASH:
@@ -141,14 +157,13 @@ async def initiate_payment(
 async def get_payment_status(
     id: str,
     repo: SQLOrderRepository = Depends(get_order_repository),
-    _admin: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
-    """GET /orders/{id}/payment: estado del pago (polling del portal)."""
-    order = await repo.get(id)
-    if order is None:
-        raise HTTPException(
-            status_code=http_status.HTTP_404_NOT_FOUND, detail="Order not found"
-        )
+    """GET /orders/{id}/payment: estado del pago (polling del portal, F3).
+
+    Accesible por el propietario del pedido o admin; ajenos → 404.
+    """
+    order = await _get_order_for_user(repo, id, current_user)
 
     return PaymentStatusResponse(
         status=order.payment_status.value if order.payment_status else None,
