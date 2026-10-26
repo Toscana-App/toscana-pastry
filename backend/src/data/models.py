@@ -1,12 +1,21 @@
-from sqlalchemy import Column, String, DateTime, Integer, Boolean, Enum as SQLAlchemyEnum, ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column, declarative_base
-from sqlalchemy import TypeDecorator
 import datetime
-import enum
+from enum import StrEnum
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    TypeDecorator,
+)
+from sqlalchemy.orm import Mapped, declarative_base, mapped_column, relationship
 
 Base = declarative_base()
 
-class UserRoleEnum(str, enum.Enum):
+
+class UserRoleEnum(StrEnum):
     ADMIN = "admin"
     CUSTOMER = "customer"
     NEGOCIO = "negocio"
@@ -83,7 +92,7 @@ class IngredientORM(Base):
     deleted_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
 
@@ -129,13 +138,13 @@ class CalcMaterialCategoryORM(Base):
     description = Column(String, nullable=True)
     created_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
     updated_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
-        onupdate=lambda: datetime.datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        onupdate=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
 
@@ -149,13 +158,13 @@ class CalcProductCategoryORM(Base):
     description = Column(String, nullable=True)
     created_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
     updated_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
-        onupdate=lambda: datetime.datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        onupdate=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
 
@@ -172,13 +181,13 @@ class CalcSupplierORM(Base):
     notes = Column(String, nullable=True)
     created_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
     updated_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
-        onupdate=lambda: datetime.datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        onupdate=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
 
@@ -231,5 +240,107 @@ class CalcDefaultCostORM(Base):
         DateTime(timezone=True),
         default=lambda: datetime.datetime.now(datetime.UTC),
         onupdate=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+
+
+# ─── Order models (RF-P6-12, C1) ─────────────────────────────────────
+
+
+class _OrderStatusColumn(TypeDecorator):
+    """Stores order status as a lowercase string."""
+
+    impl = String(20)
+    cache_ok = True
+
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            return str(value).lower()
+        return value
+
+
+class _PaymentMethodColumn(TypeDecorator):
+    """Stores payment_method as a lowercase string."""
+
+    impl = String(20)
+    cache_ok = True
+
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            return str(value).lower()
+        return value
+
+
+class _PaymentStatusColumn(TypeDecorator):
+    """Stores payment_status as a lowercase string."""
+
+    impl = String(20)
+    cache_ok = True
+
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            return str(value).lower()
+        return value
+
+
+class OrderORM(Base):
+    """Order entity with payment tracking (RF-P6-12)."""
+
+    __tablename__ = "orders"
+
+    id = Column(String, primary_key=True)
+    customer_id = Column(String, nullable=False, index=True)
+    status = Column(_OrderStatusColumn(), default="nuevo", nullable=False)
+    date = Column(DateTime, nullable=False)
+    payment_method = Column(_PaymentMethodColumn(), default="cash", nullable=False)
+    payment_reference = Column(String, nullable=True)
+    paid_at = Column(DateTime, nullable=True)
+    payment_status = Column(_PaymentStatusColumn(), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+    order_items = relationship("OrderItemORM", back_populates="order", cascade="all, delete-orphan")
+
+
+class OrderItemORM(Base):
+    """Order line item snapshot."""
+
+    __tablename__ = "order_items"
+
+    id = Column(String, primary_key=True)
+    order = relationship("OrderORM", back_populates="order_items")
+    order_id = Column(
+        String, ForeignKey("orders.id"), nullable=False, index=True
+    )
+    product_id = Column(String, nullable=False)
+    product_name = Column(String, nullable=False)
+    quantity = Column(Integer, nullable=False)
+    unit_price = Column(String, nullable=False)
+    portion_note = Column(String, default="", nullable=False)
+
+
+class PaymentEventORM(Base):
+    """Webhook payment event for dedupe (RF-P6-13, RNF-P6-10).
+
+    The ``provider_payment_id`` is unique — every payment ID from the
+    provider is recorded exactly once. Replay events hit this unique
+    constraint and return 200 without side effects.
+    """
+
+    __tablename__ = "payment_events"
+
+    id = Column(String, primary_key=True)
+    provider_payment_id = Column(
+        String, nullable=False, unique=True, index=True
+    )
+    order_id = Column(
+        String, ForeignKey("orders.id"), nullable=False, index=True
+    )
+    status = Column(_PaymentStatusColumn(), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
