@@ -459,3 +459,34 @@ class LeadORM(Base):
         default=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
+
+
+class WhatsAppSendORM(Base):
+    """Registro de envio de WhatsApp (RF-P10-07/08, C7).
+
+    `status` avanza por prioridad sent -> delivered -> read; `failed`
+    es terminal (el reintento lo resetea a sent con nuevo `message_id`).
+    `provider=wa_me` no tiene estados de entrega ni `message_id`.
+    """
+
+    __tablename__ = "whatsapp_sends"
+
+    id = Column(String, primary_key=True)
+    provider = Column(String, nullable=False)
+    phone = Column(String, nullable=False, index=True)
+    message = Column(String, nullable=False)
+    reference_kind = Column(String, nullable=False)
+    reference_id = Column(String, nullable=False, index=True)
+    status = Column(String, default="sent", nullable=False, index=True)
+    message_id = Column(String, nullable=True, index=True)
+    failed_reason = Column(String, nullable=True)
+    sent_at = Column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    delivered_at = Column(DateTime(timezone=True), nullable=True)
+    read_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )

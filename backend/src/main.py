@@ -17,6 +17,7 @@ from api.v1.pricing.router import router as pricing_router
 from api.v1.products.router import router as products_router
 from api.v1.settings.router import router as settings_router
 from api.v1.webhooks.router import router as webhooks_router
+from api.v1.whatsapp.router import router as whatsapp_router
 from data.db import engine
 from data.models import Base
 
@@ -61,6 +62,7 @@ app.include_router(coupons_router, prefix="/api/v1")
 app.include_router(leads_router, prefix="/api/v1")
 app.include_router(orders_router, prefix="/api/v1")
 app.include_router(webhooks_router, prefix="/api/v1")
+app.include_router(whatsapp_router, prefix="/api/v1")
 
 
 @app.get("/health")
