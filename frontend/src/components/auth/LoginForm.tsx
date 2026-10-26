@@ -14,25 +14,36 @@ import {
 import { authService } from "@/services/authService";
 import { GoogleIcon } from "@/components/ui/google-icon";
 import { toaster } from "@/lib/toaster";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { postLoginTarget, safeRedirectTarget } from "@/lib/portalRoutes";
+import { UserRole } from "@/types/auth";
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  /**
+   * Landing post-login (F1 — p11 shell del portal):
+   * - si hay `?from` válida (ruta interna relativa) → ahí
+   * - si no, por rol: admin → /admin, portal → /products
+   */
+  const resolvePostLogin = (role: UserRole): string =>
+    safeRedirectTarget(searchParams.get("from"), postLoginTarget(role));
 
   const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
       // authService persiste access_token y refresh_token en cookies.
-      await authService.loginWithMagicLink(email);
+      const data = await authService.loginWithMagicLink(email);
       toaster.create({
         title: "Magic link sent!",
         description: "Check your email to log in.",
         type: "success",
       });
-      router.push("/profile");
+      router.push(resolvePostLogin(data.role));
     } catch (error) {
       toaster.create({
         title: "Login failed",
@@ -47,12 +58,12 @@ export default function LoginForm() {
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
-      await authService.loginWithGoogle("google_test_id");
+      const data = await authService.loginWithGoogle("google_test_id");
       toaster.create({
         title: "Logged in!",
         type: "success",
       });
-      router.push("/profile");
+      router.push(resolvePostLogin(data.role));
     } catch (error) {
       toaster.create({
         title: "Google login failed",

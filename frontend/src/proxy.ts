@@ -1,7 +1,16 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const PROTECTED_PREFIXES = ['/dashboard', '/profile', '/admin', '/products']
+const PROTECTED_PREFIXES = [
+  '/',
+  '/mis-pedidos',
+  '/carrito',
+  '/checkout',
+  '/dashboard',
+  '/profile',
+  '/admin',
+  '/products',
+]
 
 export function proxy(request: NextRequest) {
   const token = request.cookies.get('auth_token')?.value
@@ -26,6 +35,13 @@ export const config = {
   // mantenerse sincronizadas A MANO: acá faltaba '/admin', y con eso el
   // proxy nunca corría para esa ruta (el guard de /admin era código muerto).
   matcher: [
+    '/',
+    '/mis-pedidos',
+    '/mis-pedidos/:path*',
+    '/carrito',
+    '/carrito/:path*',
+    '/checkout',
+    '/checkout/:path*',
     '/dashboard',
     '/dashboard/:path*',
     '/profile',

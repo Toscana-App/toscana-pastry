@@ -1,11 +1,29 @@
-"use client"
+"use client";
 
-import { Box, Container, Flex, Button, Text } from "@chakra-ui/react";
+import { Badge, Box, Button, Container, Flex, Text } from "@chakra-ui/react";
 import NextLink from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+import { isPortalRole } from "@/lib/portalRoutes";
 
+const ROLE_LABELS: Record<string, string> = {
+  admin: "Admin",
+  negocio: "Negocio",
+  customer: "Cliente",
+};
+
+/**
+ * Navbar global con el rol visible (p11 "UI — Shell del portal").
+ *
+ * - admin: Products / Admin / Settings / Profile
+ * - portal (negocio/cliente): Profile + Logout — la navegación del portal
+ *   vive en la tab bar del grupo `(portal)`; sin acceso a /admin.
+ * - sin sesión: Login.
+ */
 export function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
+
+  const role = user?.role;
+  const isAdmin = role === "admin";
 
   return (
     <Box
@@ -21,25 +39,28 @@ export function Navbar() {
       w="full"
     >
       <Container maxW="container.xl">
-        <Flex h="auto" align="center" justify="space-between">
-          <NextLink href="/">
-            <Text fontSize="xl" fontWeight="bold" color="brand.600" cursor="pointer">
-              Toscana Pastry
-            </Text>
-          </NextLink>
+        <Flex h="auto" align="center" justify="space-between" gap={3} wrap="wrap">
+          <Flex align="center" gap={3}>
+            <NextLink href="/">
+              <Text fontSize="xl" fontWeight="bold" color="brand.600" cursor="pointer">
+                Toscana Pastry
+              </Text>
+            </NextLink>
+            {isAuthenticated && (
+              <Badge colorPalette={isAdmin ? "red" : "brand"}>
+                {ROLE_LABELS[role ?? ""] ?? role}
+              </Badge>
+            )}
+          </Flex>
 
-          <Flex align="center" gap={4}>
-            <Button variant="ghost" asChild>
-              <NextLink href="/">Home</NextLink>
-            </Button>
-
+          <Flex align="center" gap={2} wrap="wrap">
             {isAuthenticated ? (
               <>
-                <Button variant="ghost" asChild>
-                  <NextLink href="/products">Products</NextLink>
-                </Button>
-                {user?.role === "admin" && (
+                {isAdmin && (
                   <>
+                    <Button variant="ghost" asChild>
+                      <NextLink href="/products">Products</NextLink>
+                    </Button>
                     <Button variant="ghost" asChild>
                       <NextLink href="/admin">Admin</NextLink>
                     </Button>
@@ -48,6 +69,7 @@ export function Navbar() {
                     </Button>
                   </>
                 )}
+                {!isPortalRole(role) && !isAdmin && null}
                 <Button variant="ghost" asChild>
                   <NextLink href="/profile">Profile</NextLink>
                 </Button>
