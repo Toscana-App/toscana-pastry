@@ -16,6 +16,7 @@ Gestión de pedidos de clientes. Screenshot verificado: "Pedido Sofía Molina" c
 - [ ] Marco un pedido como pagado sin tocar su estado de entrega; veo el contador de "sin pagar".
 - [ ] Veo el resumen de la semana (pedidos, totales, pagado/pendiente) y exporto a CSV.
 - [ ] Con los pedidos cerrados, veo el banner con el mensaje del negocio y no puedo crear.
+- [ ] Un pedido puede pagarse con Mercado Pago (el pago se confirma solo, sin que yo lo marque) o en efectivo en la entrega (lo marco yo cuando cobra).
 
 ## Casos de uso
 | UC | Actor | Flujo principal |
@@ -29,6 +30,8 @@ Gestión de pedidos de clientes. Screenshot verificado: "Pedido Sofía Molina" c
 | UC-07 Marcar pago | Repostera | Toggle "Pagado" en el pedido (independiente de entrega) |
 | UC-08 Resumen semanal | Repostera | Vista de la semana: pedidos, totales, pagado → export CSV |
 | UC-09 Pedidos cerrados | Repostera | Banner del tenant visible; la creación queda bloqueada |
+| UC-10 Pago Mercado Pago | Cliente/negocio (portal) | Crea el pedido → redirect a checkout del proveedor → webhook marca `paid` | 
+| UC-11 Pago efectivo en la entrega | Cliente/negocio (portal) + Repostera | `paid=false` → la dueña lo marca al cobrar |
 
 ## Requerimientos funcionales
 - **RF-P6-01**: CRUD de pedidos: `customer*`, `date`, `items[]` (producto, cantidad, nota de porción/tamaño), `status`. (UC-02)
@@ -40,7 +43,10 @@ Gestión de pedidos de clientes. Screenshot verificado: "Pedido Sofía Molina" c
 - **RF-P6-07**: Búsqueda/filtro: por cliente, estado, rango de fechas. (UC-01)
 - **RF-P6-08**: Reutilizar cliente: clientes se crean/reusan de una lista (sin duplicados exactos por nombre+teléfono). (UC-02)
 - **RF-P6-09**: Corte de pedidos: si `order_window_open=false` (P5) → banner en lista y creación con `order_window_message`; `POST /orders` → 409 `{detail: order_window_closed, message}`. (UC-09)
-- **RF-P6-10**: Estado de pago: `paid` (bool, server-managed, default false), **independiente** de la máquina de estados de entrega; `PATCH /orders/{id}/paid`; filtro `paid=false` ("Sin pagar") en la lista + contador en el header. (UC-07)
+- **RF-P6-10**: Estado de pago: `paid` (bool, server-managed, default false), **independiente** de la máquina de estados de entrega; `PATCH /orders/{id}/paid` (manual, por la dueña — caso efectivo); filtro `paid=false` ("Sin pagar") en la lista + contador en el header. El webhook de Mercado Pago (RF-P6-13) es la única otra vía de marcado. (UC-07/11)
+- **RF-P6-12**: Método de pago: `payment_method ∈ {mercadopago, cash}` (requerido en creación desde el portal; default `cash` en creación desde el panel admin) + `payment_reference?` (id del pago del proveedor, server-managed) + `paid_at?` (timestamp server-managed). Inmutable tras la confirmación del pedido. (UC-10/11)
+- **RF-P6-13**: Mercado Pago (contratos, safe mode de la skill `mercadopago-integration`): interfaz `CheckoutProvider` agnóstica de proveedor (`create_payment(order) → {reference, checkout_url}`, `get_payment(reference) → estado`, `verify_webhook(payload)`) con `MockCheckoutProvider` como implementación de referencia (IDs determinísticos, transiciones `pending → approved|rejected|failed`). Endpoints: `POST /orders/{id}/payment` (solo `status=nuevo` + `payment_method=mercadopago`; idempotente por `Idempotency-Key`) → `{reference, checkout_url}`; `GET /orders/{id}/payment` → `{status, paid, payment_reference?, updated_at?}` (polling del portal). Webhook `POST /webhooks/mercadopago`: verifica firma, dedupe por id de pago, estados desordenados tolerados (prevalece el final por prioridad `approved|rejected > pending`); `approved` → `paid=true` + `paid_at` + `payment_reference` en transacción. (UC-10)
+- **RF-P6-14**: Efectivo en la entrega: `payment_method=cash` → el pedido permanece `paid=false` con badge "Cobrar en la entrega" (lista y detalle, texto no solo color); la dueña lo marca con el toggle de RF-P6-10. **Security Handoff** (requisito de la skill para el rollout live, fuera de esta specs): credenciales `MP_ACCESS_TOKEN`/`MP_WEBHOOK_SECRET` solo en env del backend; firma HMAC del webhook validada antes de cualquier efecto; rate limit en el webhook; no se prescribe aquí SDK live ni creación de sesiones reales del proveedor.
 - **RF-P6-11**: Resumen semanal: semana natural (Lun–Dom) con pedidos `confirmado`/`entregado` (cliente, ítems, total, pago), totales (`amount`, `paid`, `unpaid`) + export CSV `GET /orders/export` (y `GET /budgets/export` en F3). (UC-08)
 
 ## Requerimientos no funcionales
@@ -50,11 +56,15 @@ Gestión de pedidos de clientes. Screenshot verificado: "Pedido Sofía Molina" c
 - **RNF-P6-04**: A11y: tabla de desglose con `scope` en headers; estados con texto (no solo color).
 - **RNF-P6-05**: Mobile: wizard de creación en pasos (Cliente → Productos → Resumen) para no tener scroll infinito.
 - **RNF-P6-06**: Export CSV de hasta 500 pedidos < 5 s (streaming; sin cargar el conjunto completo en memoria).
+- **RNF-P6-07**: Cero credenciales de Mercado Pago en el frontend ni en el repo (`security.md` #1–3, #6); el portal solo consume los endpoints propios de la API.
+- **RNF-P6-08**: Webhook de pago: idempotente (dedupe por id de pago), tolerante a reintentos del proveedor y a estados que llegan desordenados; el efecto sobre `paid` es mono-tónico (`false → true` nunca vuelve atrás por replay).
 
 ## Tareas
 - [ ] API: CRUD `/orders` (list con filtros `status,paid`; create; update; `PATCH /orders/{id}/status`)
 - [ ] API: `PATCH /orders/{id}/paid` · `GET /orders/weekly` · `GET /orders/export` (CSV, filtros from/to/status/paid)
 - [ ] API: `POST /orders/{id}/whatsapp-link` (genera + registra)
+- [ ] API: `POST/GET /orders/{id}/payment` + `POST /webhooks/mercadopago` (firma + idempotencia + estados) sobre `CheckoutProvider` con `MockCheckoutProvider` (RF-P6-13)
+- [ ] Domain: `payment_method`/`payment_reference`/`paid_at` en `order`; regla de marcado de `paid` (manual o webhook, nada más)
 - [ ] Domain: `order`, `order_item`, snapshot de precios, máquina de estados, reglas de descuento atómico, flag `paid` (independiente), resumen semanal (agregación)
 - [ ] Data: transacción con `SELECT … FOR UPDATE` en stock; tabla de snapshot de desglose
 - [ ] Web: lista de pedidos (estado, **pago**, cliente, total, fecha) con búsqueda + filtro "Sin pagar" + contador
@@ -66,11 +76,11 @@ Gestión de pedidos de clientes. Screenshot verificado: "Pedido Sofía Molina" c
 - [ ] Web: CTA "Le paso $X" (wa.me) + toast "Enviado"
 - [ ] Web: botones de transición de estado (confirmar/entregar/cancelar)
 - [ ] Tests: pytest de descuento atómico (caso: stock insuficiente → 409 + sin cambios), snapshot inmutable, máquina de estados; Vitest del wizard
-- [ ] GA4: `order_created`, `order_confirmed`, `order_paid`, `weekly_export`, `whatsapp_price_sent`
+- [ ] GA4: `order_created`, `order_confirmed`, `order_paid`, `weekly_export`, `whatsapp_price_sent`, `payment_started`, `payment_completed`
 
 ## UI (Chakra v3 + DESIGN.md)
 - Componentes: `Tabs` (wizard pasos), `Card` (item de pedido con stepper de cantidad), `Table` (desglose), `Badge` (estados), `Button` (CTA primary "Le paso $X"), `Field.Root`.
 - Detalle: bloques de cálculo como filas de tabla destacadas: Total gastos / Trabajo / Ganancia (X%) / **Precio final**.
 - CTA único por estado: nuevo → "Le paso $X"; confirmado → "Marcar entregado"; entregado → (sin CTA).
-- Tokens: estado nuevo = neutral, confirmado = success, entregado = muted, cancelado = danger. Pago: badge `Pagado` success / `Sin pagar` warning (texto, no solo color).
+- Tokens: estado nuevo = neutral, confirmado = success, entregado = muted, cancelado = danger. Pago: badge `Pagado` success / `Sin pagar` warning / `Cobrar en la entrega` (neutral con ícono de efectivo) — texto, no solo color.
 - Banner de corte: `Alert.Root` warning con el mensaje del tenant + fecha de reapertura; CTA de creación deshabilitado.
