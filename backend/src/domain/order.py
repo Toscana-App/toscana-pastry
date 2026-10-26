@@ -1,10 +1,15 @@
-"""Order domain entity (RF-P6-12, C1.1).
+"""Order domain entity (RF-P6-12, C1.1 / RF-P11-06/08, C6).
 
-Extends the base Order with payment fields:
-    payment_method  – {mercadopago, cash}
-    payment_reference – provider payment ID (server-managed)
-    paid_at           – server-managed timestamp
-    payment_status    – {pending, approved, rejected, failed} | None
+Fields added by Phase 5:
+    payment_method      – {mercadopago, cash}
+    payment_reference   – provider payment ID
+    paid_at             – server-managed timestamp
+    payment_status      – {pending, approved, rejected, failed} | None
+    code                – TP + 6 alphanumeric chars ("mis pedidos")
+    delivery_mode       – {delivery, pickup}
+    delivery_address    – required if delivery; normalised to None for pickup
+    coupon_code         – snapshot at confirmation
+    discount_amount     – snapshot at confirmation
 """
 
 from __future__ import annotations
@@ -19,6 +24,11 @@ from enum import StrEnum
 class PaymentMethod(StrEnum):
     MERCADOPAGO = "mercadopago"
     CASH = "cash"
+
+
+class DeliveryMode(StrEnum):
+    DELIVERY = "delivery"
+    PICKUP = "pickup"
 
 
 class PaymentStatus(StrEnum):
@@ -50,28 +60,50 @@ class OrderItem:
         return self.unit_price * self.quantity
 
 
+_CODE_PREFIX = "TP"
+_CODE_LENGTH = 6
+
+
+def _generate_code() -> str:
+    """Generate a unique order code (RF-P11-08: TP + 6 alphanumeric)."""
+    return f"{_CODE_PREFIX}{uuid.uuid4().hex[:_CODE_LENGTH].upper()}"
+
+
 @dataclass
 class Order:
-    """Order entity with payment tracking (RF-P6-12).
+    """Order entity with payment tracking and portal fields.
 
     Invariants:
         - payment_method is immutable once status != "nuevo".
         - paid (derived: paid_at is not None) is monotonic false → true.
         - For cash orders, payment_status is always None.
+        - delivery_mode=pickup normalises delivery_address to None.
+        - delivery_mode=delivery with empty address → validated at portal
+          creation endpoint (C6); domain default is "" for backward compat.
     """
 
     customer_id: str
     date: datetime.datetime
     items: list[OrderItem]
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    code: str = field(default_factory=_generate_code)
     status: OrderStatus = OrderStatus.NUEVO
     payment_method: PaymentMethod = PaymentMethod.CASH
+    delivery_mode: DeliveryMode = DeliveryMode.DELIVERY
+    delivery_address: str = ""
+    coupon_code: str | None = None
+    discount_amount: Decimal | None = None
     payment_reference: str | None = None
     paid_at: datetime.datetime | None = None
     payment_status: PaymentStatus | None = None
     created_at: datetime.datetime = field(
         default_factory=lambda: datetime.datetime.now(datetime.UTC)
     )
+
+    def __post_init__(self) -> None:
+        # Pickup normalises address to None (admin orders may omit it).
+        if self.delivery_mode == DeliveryMode.PICKUP:
+            object.__setattr__(self, "delivery_address", None)
 
     @property
     def paid(self) -> bool:
