@@ -114,3 +114,19 @@ Log de dudas que el orquestador (sesión de pi) no puede resolver solo. El usuar
 - Cada ABM: `Input` de búsqueda que manda `?q` (debounce ~300 ms; `q` vacío → lista completa) + paginación prev/next con "total N" y `page_size=50` fijo (escala admin; sin selector de page_size).
 - `EmptyState` cuando `items` está vacío; error de carga → toast danger + reintento (patrón `app/admin/page.tsx`).
 - El fetch de cada tab es **lazy al activarse por primera vez** (RNF-P5CC-03: "1 GET por pestaña"): 0 requests al montar la página.
+
+---
+
+## [ABIERTA] 2026-10-29 — F2 (cost-calculator): UI de la página de materiales — ruta, form de edición y presentación del historial
+
+**Contexto**: S7 dice "páginas de materiales, biblioteca de productos, editor de producto, price list, dashboard" pero no da la URL ni el detalle UI del page (a diferencia de §P5-CC, §P2-CC no tiene sección "UI"). La spec define solo la API (RF-P2CC-01..05). `MaterialResponse` trae `category_id`/`supplier_id` **sin nombres** (schemas.py:309), y el historial (RF-P2CC-04) solo está definido como endpoint paginado.
+
+**Pregunta**: ¿confirmar estas decisiones de UI para F2?
+
+**Decisión propuesta (lo que voy a hacer, fijado en `odd/briefs/f2-calc-materials.md`)**:
+- Ruta: `/admin/calculadora/materiales` (hermano de `/admin/calculadora/configuracion`), `ProtectedRoute requiredRole="admin"`.
+- Alta en card encima de la tabla (patrón F1 `CategoryAbm`); **edición en `Dialog`** con el mismo form (8 campos no caben en la fila de la tabla como en F1, que tenía 2 campos).
+- Filtros `?category_id`/`?supplier_id`/`?status`: las opciones se cargan una sola vez al montar vía los endpoints F1 (`GET /calc/material-categories`, `GET /calc/suppliers`, `page_size=100`) y el mismo id→name map alimenta las columnas Categoría/Proveedor de la tabla (id sin match → "—"). Estado: solo `active|incomplete` (D1 de B8 cerrada: no existe `inactive`).
+- Historial: botón "Historial" por fila → `Dialog` con tabla desc (más recientes primero, como el endpoint): columnas "Anterior" → "Nuevo" + fecha `es-AR`, paginado prev/next; vacío → "Sin cambios de costo registrados.".
+- `unit_cost`/montos se muestran tal cual el `str` del servidor (sin formateo ni aritmética client-side); `incomplete` como chip read-only (`surface-soft` `#f4f4f4`).
+- Página con `maxW="container.xl"` (la tabla tiene ~10 columnas; F1 usó `container.md` porque era forms/categorías).
