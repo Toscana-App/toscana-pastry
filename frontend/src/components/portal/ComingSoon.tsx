@@ -4,10 +4,10 @@ import { Box, Badge, Heading, Text, VStack } from "@chakra-ui/react";
 import { Container } from "@chakra-ui/react";
 
 /**
- * Estado vacío para las secciones del portal que llegan en las próximas
- * slices stacked (F2 checkout, F3 carrito/pago, F4 mis pedidos/cuentas).
- * El shell (tabs + CTA) ya está completo; el contenido se reemplaza en
- * su slice sin tocar la navegación.
+ * Empty state for portal sections that arrive in the next stacked
+ * slices (F2 checkout, F3 cart/payment, F4 my-orders/accounts).
+ * The shell (tabs + CTA) is already complete; the content is replaced
+ * in its slice without touching the navigation.
  */
 export function ComingSoon({ title, message }: { title: string; message: string }) {
   return (

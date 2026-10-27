@@ -1,9 +1,9 @@
 "use client";
 
-/** Checkout de 5 pasos (F2 — p11 RF-P11-02…08).
+/** 5-step checkout (F2 — p11 RF-P11-02…08).
 
-El pedido se crea SOLO en el paso 5 (StepReview → POST /orders, C6).
-Navegación adelante/atrás con resumen lateral (cart server-side, C4).
+The order is created ONLY on step 5 (StepReview → POST /orders, C6).
+Forward/back navigation with a side summary (server-side cart, C4).
 */
 
 import {
@@ -22,7 +22,8 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toaster } from "@/lib/toaster";
-import { fetchCart, fetchMyAddresses } from "@/services/ordersService";
+import { fetchCart } from "@/services/cartService";
+import { fetchMyAddresses } from "@/services/ordersService";
 import { Address, CartResponse, OrderDetail } from "@/types/orders";
 import { OrderSummaryPanel } from "./OrderSummaryPanel";
 import {

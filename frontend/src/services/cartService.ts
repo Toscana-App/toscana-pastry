@@ -1,6 +1,6 @@
-/** Service del carrito server-side (C4, RF-P11-03/14).
+/** Server-side cart service (C4, RF-P11-03/14).
 
-Los montos viajan como string (Money, RNF-P4-02).
+Amounts travel as strings (Money, RNF-P4-02).
 */
 
 import { apiFetch } from "@/lib/api";
@@ -12,8 +12,8 @@ export async function fetchCart(): Promise<CartResponse> {
 }
 
 /**
- * POST /cart/items: agrega o altera la cantidad de una línea (upsert).
- * 404 si el producto no existe; 422 si se superan las 50 líneas.
+ * POST /cart/items: adds or changes a line's quantity (upsert).
+ * 404 if the product does not exist; 422 when the 50-line limit is exceeded.
  */
 export async function addCartItem(
   product_id: string,
@@ -35,8 +35,8 @@ export async function removeCartItem(
 }
 
 /**
- * POST /cart/coupon: aplica un cupón.
- * 422 con detail descriptivo si el cupón no es válido para la audiencia.
+ * POST /cart/coupon: applies a coupon.
+ * 422 with a descriptive detail when the coupon is invalid for the audience.
  */
 export async function applyCoupon(code: string): Promise<CartResponse> {
   return apiFetch<CartResponse>("/cart/coupon", {

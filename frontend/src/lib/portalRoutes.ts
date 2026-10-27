@@ -26,7 +26,7 @@ export interface PortalTab {
  */
 export const PORTAL_TABS: readonly PortalTab[] = [
   { label: "Inicio", href: "/" },
-  { label: "Mis pedidos", href: "/mis-pedidos" },
+  { label: "Mis pedidos", href: "/my-orders" },
   { label: "Carrito", href: "/carrito" },
   { label: "Cuenta", href: "/profile" },
 ];

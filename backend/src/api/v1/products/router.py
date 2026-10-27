@@ -1,14 +1,14 @@
-"""Router para exportación de lista de precios por audiencia (S3 — T4).
+"""Price-list export router by audience (S3 — T4).
 
 Endpoints:
   GET /products/pricelist/csv?audience=revendedores|consumidor_final
   GET /products/pricelist/pdf?audience=revendedores|consumidor_final
   GET /products?audience=revendedores|consumidor_final
 
-Gate por rol:
-  - admin: ambas audiencias
-  - negocio: solo revendedores (consumidor_final → 403)
-  - cliente: solo consumidor_final (revendedores → 403)
+Role gate:
+  - admin: both audiences
+  - negocio: revendedores only (consumidor_final → 403)
+  - cliente: consumidor_final only (revendedores → 403)
 
 Reutiliza ``compute_dual_pricing`` / ``_resolve_audience`` de
 ``domain.pricing_service`` para la resolución de audiencia y el cálculo

@@ -1,10 +1,10 @@
 "use client";
 
-/** Libro de direcciones de la cuenta (F4 — C2).
+/** Account address book (F4 — C2).
 
-CRUD con invariantes del backend: máx. 5 direcciones (422), exactamente
-una default (PATCH is_default=true demueve la otra), DELETE 409 si es la
-única. Los errores del backend (422/409/404) se muestran inline.
+CRUD with the backend invariants: max. 5 addresses (422), exactly one
+default (PATCH is_default=true undoes the other), DELETE 409 if it is
+the only one. Backend errors (422/409/404) are shown inline.
 */
 
 import {
@@ -88,7 +88,7 @@ function AddressBook() {
         if (cancelled) return;
         setAddresses(res.items ?? []);
       } catch {
-        // si falla, se muestra el estado vacío con CTA
+        // on failure, the empty state with CTA is shown
       } finally {
         if (!cancelled) setLoading(false);
       }

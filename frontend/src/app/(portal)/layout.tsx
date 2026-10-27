@@ -9,13 +9,13 @@ import { ConsentBanner } from "@/components/layout/ConsentBanner";
 import { PortalShellHeader } from "@/components/layout/PortalShellHeader";
 
 /**
- * Layout del portal self-service (grupo de rutas `(portal)`, URLs planas:
- * "/" (Inicio), "/mis-pedidos", "/carrito", "/checkout", "/profile").
+ * Self-service portal layout (route group `(portal)`, flat URLs:
+ * "/" (home), "/my-orders", "/carrito", "/checkout", "/profile").
  *
- * Gate por rol (p11 RF-P11-01):
- * - sin sesión → /login con `from` para volver después del login
- * - admin (o rol ajeno) → /admin (el portal es solo negocio/cliente)
- * - negocio/cliente → shell (tab bar + CTA) + contenido
+ * Role gate (p11 RF-P11-01):
+ * - no session → /login with `from` to return after login
+ * - admin (or foreign role) → /admin (the portal is business/customer only)
+ * - business/customer → shell (tab bar + CTA) + content
  */
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, loading } = useAuth();

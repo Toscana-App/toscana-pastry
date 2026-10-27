@@ -12,12 +12,12 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 /**
- * Navbar global con el rol visible (p11 "UI — Shell del portal").
+ * Global navbar with the visible role (p11 "UI — portal shell").
  *
  * - admin: Products / Admin / Settings / Profile
- * - portal (negocio/cliente): Profile + Logout — la navegación del portal
- *   vive en la tab bar del grupo `(portal)`; sin acceso a /admin.
- * - sin sesión: Login.
+ * - portal (business/customer): Profile + Logout — portal navigation
+ *   lives in the tab bar of the `(portal)` route group; no access to /admin.
+ * - no session: Login.
  */
 export function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();

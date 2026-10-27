@@ -1,10 +1,10 @@
 "use client";
 
-/** Formulario de contacto público (F4 — C5, RF-P11-13).
+/** Public contact form (F4 — C5, RF-P11-13).
 
-Captura de lead sin auth (POST /leads, 202). Campos: nombre, email,
-tipo (consumer/business), mensaje, teléfono; si business: razón social
-y ubicación. Éxito → estado de confirmación.
+Lead capture without auth (POST /leads, 202). Fields: name, email,
+type (consumer/business), message, phone; if business: company name and
+location. Success → confirmation state.
 */
 
 import {
@@ -17,7 +17,6 @@ import {
   Input,
   RadioGroup,
   Stack,
-  Text,
   Textarea,
 } from "@chakra-ui/react";
 import { useState } from "react";

@@ -4,8 +4,8 @@ import { Container, Flex, Heading } from "@chakra-ui/react";
 import { ProductsCatalog } from "@/components/catalog/ProductsCatalog";
 
 /**
- * /products (admin) reutiliza el mismo componente de catálogo del portal
- * (RNF-P11-03: una sola vía de cálculo de precios — el backend).
+ * /products (admin) reuses the portal's catalog component
+ * (RNF-P11-03: a single pricing path — the backend).
  */
 export default function ProductsPage() {
   return (

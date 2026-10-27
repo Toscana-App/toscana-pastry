@@ -13,14 +13,14 @@ router = APIRouter(prefix="/pricing", tags=["pricing"])
 
 
 def _resolve_audience_for_user(user: User, requested: Audience | None) -> Audience:
-    """Resuelve la audiencia según el rol del usuario.
+    """Resolves the audience according to the user's role.
 
-    - admin: usa requested si se especifica; por defecto ``revendedores``.
-    - negocio: siempre ``revendedores``.
-    - cliente: siempre ``consumidor_final``.
+    - admin: uses ``requested`` when given; default ``revendedores``.
+    - negocio: always ``revendedores``.
+    - cliente: always ``consumidor_final``.
 
     Raises:
-        HTTPException 403: si el rol no tiene acceso a la audiencia solicitada.
+        HTTPException 403: when the role has no access to the requested audience.
     """
     role_audiences: dict[str, Audience | None] = {
         "admin": None,
@@ -30,10 +30,10 @@ def _resolve_audience_for_user(user: User, requested: Audience | None) -> Audien
 
     default = role_audiences.get(user.role)
     if default is None:
-        # admin: usa requested o default
+        # admin: use requested or the default
         return requested if requested else "revendedores"  # type: ignore[return-value]
 
-    # No-admin: la audiencia es fija
+    # Non-admin: the audience is fixed
     if requested and requested != default:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

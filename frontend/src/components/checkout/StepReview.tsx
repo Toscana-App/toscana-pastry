@@ -228,7 +228,7 @@ export function StepReview({
   );
 }
 
-/** Pantalla de confirmación post-pedido (UC-08: código de pedido). */
+/** Post-order confirmation screen (UC-08: order code). */
 export function CheckoutSuccess({
   order,
 }: {

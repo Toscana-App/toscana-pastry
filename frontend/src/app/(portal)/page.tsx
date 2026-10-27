@@ -4,9 +4,9 @@ import { Container, Heading } from "@chakra-ui/react";
 import { ProductsCatalog } from "@/components/catalog/ProductsCatalog";
 
 /**
- * Tab "Inicio" del portal: catálogo con el precio de la audiencia del
- * rol (negocio → revendedores, cliente → consumidor final) + tags de
- * restricción si existen (p11 UC-02, RNF-P11-03).
+ * Portal home tab: catalog with the role's audience price
+ * (business → resellers, customer → end consumer) + restriction
+ * tags when present (p11 UC-02, RNF-P11-03).
  */
 export default function PortalHome() {
   return (

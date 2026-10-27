@@ -1,10 +1,10 @@
 "use client";
 
-/** Paso 2 — Dirección (RF-P11-05): elegir del libro o crear una nueva.
+/** Step 2 — Address (RF-P11-05): pick from the book or create a new one.
 
-La nueva dirección se crea contra el libro (C2) al confirmar este paso.
-La dirección es opcional aquí: la obligatoriedad la decide el paso 3
-(modalidad delivery) según la spec.
+The new address is created against the book (C2) when this step is
+confirmed. The address is optional here: step 3 (delivery mode) decides
+whether it is required, per the spec.
 */
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -82,7 +82,7 @@ export function StepAddress({
         province: data.province || null,
         phone: data.phone || null,
       });
-      // Se guardó en el libro (C2): se elige en el pedido por su línea.
+      // Stored in the book (C2): the order picks it by its line.
       onNext({ addressId: address.id, line: addressToLine(address) });
     } catch (error) {
       toaster.create({
@@ -173,7 +173,7 @@ export function StepAddress({
         </Text>
       )}
 
-      {/* Formulario de nueva dirección */}
+      {/* New address form */}
       {showNewForm && (
         <Box
           borderWidth="1px"

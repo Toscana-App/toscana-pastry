@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 
 const PROTECTED_PREFIXES = [
   '/',
-  '/mis-pedidos',
+  '/my-orders',
   '/carrito',
   '/checkout',
   '/dashboard',
@@ -30,14 +30,14 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Next exige que el matcher sea estático (no se puede derivar de
-  // PROTECTED_PREFIXES en runtime), así que las dos listas tienen que
-  // mantenerse sincronizadas A MANO: acá faltaba '/admin', y con eso el
-  // proxy nunca corría para esa ruta (el guard de /admin era código muerto).
+  // Next requires the matcher to be static (it cannot be derived from
+  // PROTECTED_PREFIXES at runtime), so the two lists must stay in sync
+  // MANUALLY: '/admin' was missing here, so the proxy never ran for that
+  // route (the /admin guard was dead code).
   matcher: [
     '/',
-    '/mis-pedidos',
-    '/mis-pedidos/:path*',
+    '/my-orders',
+    '/my-orders/:path*',
     '/carrito',
     '/carrito/:path*',
     '/checkout',

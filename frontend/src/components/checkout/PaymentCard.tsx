@@ -33,11 +33,10 @@ const REJECTION_REASONS: Record<string, string> = {
   failed: "El pago falló. Intentá de nuevo o pagá en efectivo.",
 };
 
-/** Devuelve la URL de checkout solo si el host está en la allowlist.
+/** Returns the checkout URL only when the host is allowlisted.
 
-El link se renderiza como `<a href>` (sin asignación dinámica a la
-ubicación de la página) con el origen re-construido desde el host
-permitido.
+The link is rendered as `<a href>` (no dynamic assignment to the page
+location) with the origin rebuilt from the allowed host.
 */
 const ALLOWED_CHECKOUT_HOSTS = ["mercadopago.com"];
 

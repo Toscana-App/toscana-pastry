@@ -1,32 +1,32 @@
-/** Normalización de teléfono E.164 con +54 default (RF-P11-04 / C7).
+/** E.164 phone normalization with +54 default (RF-P11-04 / C7).
 
-El backend normaliza a E.164 (+54 default); el frontend valida el mismo
-contrato antes de enviar para dar errores inline.
+The backend normalizes to E.164 (+54 default); the frontend validates the
+same contract before sending to surface inline errors.
 */
 
 const MIN_DIGITS = 10;
 const MAX_DIGITS = 15;
 
 /**
- * Convierte input libre a E.164 asumiendo +54 por defecto:
+ * Converts free-form input to E.164 assuming +54 by default:
  * - "+54 9 11 5555-5555" → "+5491155555555"
- * - "011 5555-5555"      → "+541155555555" (prefijo 00/0 local se descarta)
+ * - "011 5555-5555"      → "+541155555555" (local 00/0 prefixes are dropped)
  * - "9115555555"         → "+549115555555"
- * Devuelve null si no hay suficientes dígitos para ser válido.
+ * Returns null when there are not enough digits to be valid.
  */
 export function normalizePhoneE164(raw: string): string | null {
   let digits = raw.replace(/[^\d]/g, "");
   if (digits.length === 0) return null;
 
-  // Prefijo internacional explícito 0054.
+  // Explicit international prefix 0054.
   if (digits.startsWith("0054")) digits = digits.slice(4);
 
-  // Prefijo nacional "0" argentino (011/0221/0341...) → lo descarta.
+  // Argentine national prefix "0" (011/0221/0341...) → drop it.
   if (digits.startsWith("0") && digits.length > MIN_DIGITS) {
     digits = digits.slice(1);
   }
 
-  // Si ya empieza con 54 (país AR), el usuario escribió +54/0054.
+  // If it already starts with 54 (country AR), the user typed +54/0054.
   if (!digits.startsWith("54")) digits = `54${digits}`;
 
   if (digits.length < MIN_DIGITS || digits.length > MAX_DIGITS) return null;

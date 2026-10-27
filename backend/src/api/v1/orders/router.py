@@ -367,7 +367,7 @@ async def get_my_order(
     user: User = Depends(get_current_user),
     repo: SQLOrderRepository = Depends(get_order_repository),
 ):
-    """GET /orders/mine/{code}: detalle de un pedido por su código (RF-P11-08).
+    """GET /orders/mine/{code}: order detail by its code (RF-P11-08).
 
     Anti-spoofing: 404 if the order does not belong to the user.
     """

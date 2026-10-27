@@ -1,6 +1,6 @@
-/** Services de leads (C5, RF-P11-13) y coupons (admin ABM, F4).
+/** Leads services (C5, RF-P11-13) and coupons (admin CRUD, F4).
 
-Cupones: `value` viaja como string (Money, RNF-P4-02).
+Coupons: `value` travels as a string (Money, RNF-P4-02).
 */
 
 import { apiFetch } from "@/lib/api";
@@ -16,7 +16,7 @@ import {
 
 // ─── Leads ─────────────────────────────────────────────────────────
 
-/** POST /leads — captura pública de contacto (202, sin auth). */
+/** POST /leads — public contact capture (202, no auth). */
 export async function createLead(
   payload: LeadCreatePayload
 ): Promise<{ id: string }> {
@@ -26,7 +26,7 @@ export async function createLead(
   });
 }
 
-/** GET /leads — listado admin (query: q, read, customer_type, page). */
+/** GET /leads — admin list (query: q, read, customer_type, page). */
 export async function fetchLeads(params: {
   q?: string;
   read?: boolean;
@@ -48,7 +48,7 @@ export async function fetchLeads(params: {
   return apiFetch(`/leads${qs ? `?${qs}` : ""}`);
 }
 
-/** PATCH /leads/{id}/read — marca leído/no leído. */
+/** PATCH /leads/{id}/read — marks the lead read/unread. */
 export async function setLeadRead(
   leadId: string,
   read: boolean
@@ -59,14 +59,14 @@ export async function setLeadRead(
   });
 }
 
-/** POST /leads/read-all — marca todos como leídos. */
+/** POST /leads/read-all — marks every lead as read. */
 export async function markAllLeadsRead(): Promise<{ updated: number }> {
   return apiFetch("/leads/read-all", { method: "POST" });
 }
 
 // ─── Coupons ───────────────────────────────────────────────────────
 
-/** GET /coupons — listado admin. */
+/** GET /coupons — admin list. */
 export async function fetchCoupons(
   page = 1,
   pageSize = 50
@@ -74,7 +74,7 @@ export async function fetchCoupons(
   return apiFetch(`/coupons?page=${page}&page_size=${pageSize}`);
 }
 
-/** POST /coupons — crea (409 si el código ya existe). */
+/** POST /coupons — creates one (409 if the code already exists). */
 export async function createCoupon(
   payload: CouponCreatePayload
 ): Promise<CouponOut> {
@@ -85,7 +85,7 @@ export async function createCoupon(
   return res.coupon;
 }
 
-/** PATCH /coupons/{id} — edita (incluye toggle active/paused). */
+/** PATCH /coupons/{id} — edits one (includes the active/paused toggle). */
 export async function updateCoupon(
   couponId: string,
   data: Partial<CouponCreatePayload>
@@ -100,7 +100,7 @@ export async function updateCoupon(
   return res.coupon;
 }
 
-/** PATCH /coupons/{id} — cambia solo el estado (active/paused). */
+/** PATCH /coupons/{id} — changes only the status (active/paused). */
 export async function setCouponStatus(
   couponId: string,
   status: CouponStatus
@@ -108,7 +108,7 @@ export async function setCouponStatus(
   return updateCoupon(couponId, { status });
 }
 
-/** DELETE /coupons/{id} — elimina (204). */
+/** DELETE /coupons/{id} — deletes it (204). */
 export async function deleteCoupon(couponId: string): Promise<void> {
   await apiFetch(`/coupons/${couponId}`, { method: "DELETE" });
 }

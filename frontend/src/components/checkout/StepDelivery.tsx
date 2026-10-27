@@ -1,6 +1,6 @@
 "use client";
 
-/** Paso 3 — Entrega (RF-P11-06): fecha ≥ hoy + min_lead_days, modalidad. */
+/** Step 3 — Delivery (RF-P11-06): date ≥ today + min_lead_days, mode. */
 
 import {
   Box,
@@ -15,7 +15,7 @@ import {
 import { DeliveryMode } from "@/types/orders";
 import { DeliveryData } from "./checkoutTypes";
 
-/** min_lead_days del tenant (default 2 — RF-P11-06; no expuesto en API aún). */
+/** Tenant min_lead_days (default 2 — RF-P11-06; not exposed in the API yet). */
 const MIN_LEAD_DAYS = 2;
 
 function todayPlus(days: number): string {

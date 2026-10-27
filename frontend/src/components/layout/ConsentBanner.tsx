@@ -1,19 +1,19 @@
 "use client";
 
-/** Banner de consentimiento GA4 (F4 — RF-P11-15).
+/** GA4 consent banner (F4 — RF-P11-15).
 
-Se muestra solo hasta que el usuario decide (aceptar/declinar). La
-decisión persiste en localStorage; sin decisión no se carga nada.
+Shown only until the user decides (accept/decline). The decision is
+persisted in localStorage; without a decision nothing is loaded.
 */
 
 import { Alert, Button, Flex, Text } from "@chakra-ui/react";
 import { useSyncExternalStore, useState } from "react";
 import { setConsent } from "@/lib/analytics";
 
-// useSyncExternalStore: snapshot = "¿ya hay decisión?" sin effect.
+// useSyncExternalStore: snapshot = "has a decision been made?" with no effect.
 function subscribe(onChange: () => void): () => void {
-  // localStorage no emite eventos; la decisión ocurre por los propios
-  // botones (que re-renderizan vía state local). No-op a propósito.
+  // localStorage emits no events; the decision happens through the banner's
+  // own buttons (which re-render via local state). Intentional no-op.
   void onChange;
   return () => {};
 }
@@ -23,7 +23,7 @@ function getClientSnapshot(): boolean {
 }
 
 function getServerSnapshot(): boolean {
-  return true; // SSR no muestra el banner (evita mismatch de hidratación)
+  return true; // SSR does not show the banner (avoids hydration mismatch)
 }
 
 export function ConsentBanner() {

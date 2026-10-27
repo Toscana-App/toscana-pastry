@@ -25,9 +25,9 @@ export default function LoginForm() {
   const searchParams = useSearchParams();
 
   /**
-   * Landing post-login (F1 — p11 shell del portal):
-   * - si hay `?from` válida (ruta interna relativa) → ahí
-   * - si no, por rol: admin → /admin, portal → /products
+   * Post-login landing (F1 — p11 portal shell):
+   * - valid `?from` (internal relative route) → there
+   * - otherwise by role: admin → /admin, portal → /products
    */
   const resolvePostLogin = (role: UserRole): string =>
     safeRedirectTarget(searchParams.get("from"), postLoginTarget(role));

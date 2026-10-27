@@ -35,16 +35,16 @@ function audienceLabel(audience: Audience): string {
 }
 
 /**
- * Catálogo de productos con el precio derivado de la audiencia del rol
- * (T5 — roles duales) + tags de restricción "si existen" (p11 UC-02).
+ * Product catalog with the price derived from the role's audience
+ * (T5 — dual roles) + restriction tags "when present" (p11 UC-02).
  *
- * Reutilizado por:
- * - el portal (tab "Inicio", ruta "/") para negocio/cliente
- * - la página admin "/products" (mismo componente, sin segunda vía de
- *   cálculo — RNF-P11-03).
+ * Reused by:
+ * - the portal ("Inicio" tab, route "/") for business/customer
+ * - the admin "/products" page (same component, no second pricing path
+ *   — RNF-P11-03).
  *
- * El precio siempre viene del backend (`/products?audience=`): el cliente
- * nunca recalcula ni persiste precios.
+ * The price always comes from the backend (`/products?audience=`): the
+ * client never recalculates or persists prices.
  */
 export function ProductsCatalog() {
   const { user } = useAuth();
@@ -155,7 +155,7 @@ export function ProductsCatalog() {
           </SegmentGroup.Root>
         )}
 
-        {/* Tag de restricción: esta lista es SOLO de la audiencia del rol. */}
+        {/* Restriction tag: this list is ONLY for the role's audience. */}
         <Badge colorPalette="brand">{audienceLabel(audience)}</Badge>
       </Flex>
 
@@ -203,7 +203,7 @@ export function ProductsCatalog() {
                   <Table.Cell>
                     <Flex direction="column" gap={1}>
                       <Text>{product.name}</Text>
-                      {/* Tags de restricción (gluten-free, etc.) — si existen. */}
+                      {/* Restriction tags (gluten-free, etc.) — when present. */}
                       {product.tags && product.tags.length > 0 && (
                         <Flex gap={1} wrap="wrap">
                           {product.tags.map((tag) => (

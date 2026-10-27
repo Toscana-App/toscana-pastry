@@ -51,7 +51,7 @@ export interface AddressEnvelope {
   address: Address;
 }
 
-/** Línea de pedido en la respuesta del backend (snapshot). */
+/** Order line in the backend response (snapshot). */
 export interface OrderItemOut {
   product_id: string;
   product_name: string;

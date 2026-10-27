@@ -1,10 +1,10 @@
 "use client";
 
-/** ABM de cupones para admin (F4).
+/** Coupon CRUD for admin (F4).
 
-Listado con badges de estado y contador de usos, diálogo de creación
-(code, type, value, max_uses), toggle active/paused y borrado.
-`value` como string (Money). 409 → error inline.
+List with status badges and usage counters, create dialog
+(code, type, value, max_uses), active/paused toggle and delete.
+`value` as a string (Money). 409 → inline error.
 */
 
 import {
@@ -81,7 +81,7 @@ function CouponsAdmin() {
         setCoupons(res.items ?? []);
         setTotal(res.total);
       } catch {
-        // el estado vacío se muestra sin error
+        // the empty state is shown without an error
       } finally {
         if (!cancelled) setLoading(false);
       }
