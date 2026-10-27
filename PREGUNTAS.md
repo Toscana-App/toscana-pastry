@@ -88,3 +88,29 @@ Log de dudas que el orquestador (sesión de pi) no puede resolver solo. El usuar
 - `active_materials`/`incomplete_materials`: conteo por `calc_materials.status` (derivado persistido por B8); `archived` products no aparece en la respuesta.
 - CSV: header exacto de la spec (`id,name,category,cost,margin_pct,final_price`, distinto de los headers en español del legacy), `cost` = `product_total_cost` **pre-redondeo** (el costo nunca se redondea), `category` = nombre de la categoría (vacío si no tiene), sin paginación, `filename="lista_precios.csv"` (paridad legacy), módulo stdlib `csv`.
 - recalculate-all: MISMAS reglas que el recalculate individual B9 (versión solo si el final redondeado cambió; `last_recalculated_at` siempre set) + transacción única (1 commit).
+
+---
+
+## [ABIERTA] 2026-10-28 — F1 (cost-calculator): stack de tests del frontend no existe
+
+**Contexto**: S8 exige "Vitest para la UI", pero `frontend/package.json` **no tiene ningún runner de tests** (ni vitest, ni jest, ni cypress/playwright), ni config, ni un solo test en `frontend/src`. F1 es la primera tarea frontend del feature.
+
+**Pregunta**: ¿confirmar el stack de tests para F1?
+
+**Decisión propuesta (lo que voy a hacer, fijado en `odd/briefs/f1-calc-config.md`)**:
+- devDependencies **de test, únicas nuevas**: `vitest`, `jsdom`, `@testing-library/react`, `@testing-library/jest-dom`; script `"test": "vitest run"`. Nada de UI libraries nuevas ni react-query/swr (los fetches son directos con `apiFetch`, como el resto del app).
+- `frontend/vitest.config.ts`: `environment: "jsdom"`, alias `@` → `./src` (paridad con `tsconfig.json`), setup con `@testing-library/jest-dom/vitest`.
+- Tests de componentes por tab (≥15), mockeando el **service** (`vi.mock("@/services/calcSettingsService")`), sin backend real. E2E fuera de alcance de F1.
+
+---
+
+## [ABIERTA] 2026-10-28 — F1 (cost-calculator): paginación y búsqueda en la UI de los ABM
+
+**Contexto**: el backend lista con `?q` (1–120 chars) + `?page&page_size` (default 50, max 100, RF-P5CC-07), pero la spec de UI (§P5-CC "UI") solo dice "lista de cards en cada ABM con acciones inline" y no define controles de paginación ni comportamiento del search (debounce vs botón).
+
+**Pregunta**: ¿confirmar la UI de listado para los 4 ABM?
+
+**Decisión propuesta (lo que voy a hacer, fijado en `odd/briefs/f1-calc-config.md`)**:
+- Cada ABM: `Input` de búsqueda que manda `?q` (debounce ~300 ms; `q` vacío → lista completa) + paginación prev/next con "total N" y `page_size=50` fijo (escala admin; sin selector de page_size).
+- `EmptyState` cuando `items` está vacío; error de carga → toast danger + reintento (patrón `app/admin/page.tsx`).
+- El fetch de cada tab es **lazy al activarse por primera vez** (RNF-P5CC-03: "1 GET por pestaña"): 0 requests al montar la página.
