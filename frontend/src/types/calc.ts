@@ -123,3 +123,79 @@ export interface DefaultCostUpdatePayload {
   default_quantity_or_minutes?: string;
   status?: DefaultCostStatus;
 }
+
+// ─── Materials (RF-P2CC-01..05) ──────────────────────────────────────────
+// Status 100% derivado por el servidor (decisión D1 de B8): la UI solo lo
+// muestra, nunca lo envía. unit_cost es solo-escritura del servidor (RF-P2CC-02).
+export type MaterialStatus = "active" | "incomplete";
+
+export interface Material {
+  id: string;
+  name: string;
+  internal_code: string | null;
+  category_id: string | null;
+  supplier_id: string | null;
+  unit_of_measure: string | null;
+  purchase_total_price: string | null;
+  package_quantity: string | null;
+  unit_cost: string | null;
+  notes: string | null;
+  status: MaterialStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MaterialListResponse {
+  items: Material[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+// POST /calc/materials (extra="forbid"): 8 campos; unit_cost/status NUNCA.
+export interface MaterialCreatePayload {
+  name: string;
+  internal_code?: string;
+  category_id?: string;
+  supplier_id?: string;
+  unit_of_measure?: string;
+  purchase_total_price?: number | null;
+  package_quantity?: number | null;
+  notes?: string;
+}
+
+// PATCH /calc/materials/{id} (exclude_unset): solo campos tocados.
+// null en purchase_total_price/package_quantity ELIMINA el dato
+// (unit_cost → null, status → incomplete; RF-P2CC-04).
+export interface MaterialUpdatePayload {
+  name?: string;
+  internal_code?: string | null;
+  category_id?: string | null;
+  supplier_id?: string | null;
+  unit_of_measure?: string | null;
+  purchase_total_price?: number | null;
+  package_quantity?: number | null;
+  notes?: string | null;
+}
+
+export interface CostHistoryEntry {
+  previous_unit_cost: string | null;
+  new_unit_cost: string | null;
+  changed_at: string;
+}
+
+export interface CostHistoryListResponse {
+  items: CostHistoryEntry[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface MaterialListQuery {
+  q?: string;
+  category_id?: string;
+  supplier_id?: string;
+  status?: MaterialStatus;
+  page?: number;
+  page_size?: number;
+}
