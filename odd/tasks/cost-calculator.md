@@ -13,14 +13,14 @@ S7. UI admin (Next.js 15 + Chakra UI v3) alineada a `.claude/design/DESIGN.md`: 
 S8. TDD obligatorio: pytest (unit domain >90% cobertura, integración API con SQLite in-memory + dependency overrides, patrón de fixtures de `tests/integration/api/test_settings_api.py`); Vitest para la UI. Conviertes con `.claude/rules/{api-conventions,code-style,testing}.md` y la skill `senior-backend` (API estricta Pydantic, money Decimal, seguridad, async).
 
 ## Tasks
-- B1 [backend, S1] Domain `CalcSettings` (frozen dataclass + validación de rangos + defaults) — `odd/tasks/cost-calculator.md` T-B1, commit pendiente
-- B2 [backend, S1] ORM + repository `calc_settings` (upsert singleton) + tests — T-B2
-- B3 [backend, S1, S3] API `GET/PUT /calc/settings` (admin guard, 422 rangos, defaults) + tests — T-B3
-- B4 [backend, S2] ABM material-categories: domain/ORM/repo + API CRUD + tests (409 duplicado, 409 en uso) — T-B4
-- B5 [backend, S2] ABM product-categories: domain/ORM/repo + API CRUD + tests — T-B5
-- B6 [backend, S2] ABM suppliers: domain/ORM/repo + API CRUD + tests — T-B6
-- B7 [backend, S2] ABM default-costs: domain/ORM/repo + API CRUD + tests — T-B7
-- B8 [backend, S4] `calc_material` + unit_cost derivado + status derivado + historial de costos + API CRUD + tests — T-B8
+- B1 [backend, S1] Domain `CalcSettings` (frozen dataclass + validación de rangos + defaults) — T-B1 [DONE: bbd28a2 (PR #20)]
+- B2 [backend, S1] ORM + repository `calc_settings` (upsert singleton) + tests — T-B2 [DONE: bbd28a2 (PR #20)]
+- B3 [backend, S1, S3] API `GET/PUT /calc/settings` (admin guard, 422 rangos, defaults) + tests — T-B3 [DONE: bbd28a2 (PR #20)]
+- B4 [backend, S2] ABM material-categories: domain/ORM/repo + API CRUD + tests (409 duplicado, 409 en uso; `count_in_use` quedó stub con TODO(B8)) — T-B4 [DONE: bbd28a2 (PR #20)]
+- B5 [backend, S2] ABM product-categories: domain/ORM/repo + API CRUD + tests — T-B5 [DONE: bbd28a2 (PR #20)]
+- B6 [backend, S2] ABM suppliers: domain/ORM/repo + API CRUD + tests (`count_in_use` quedó stub con TODO(B8)) — T-B6 [DONE: bbd28a2 (PR #20)]
+- B7 [backend, S2] ABM default-costs: domain/ORM/repo + API CRUD + tests — T-B7 [DONE: bbd28a2 (PR #20)]
+- B8 [backend, S4] `calc_material` + unit_cost derivado + status derivado + historial de costos + API CRUD + tests — T-B8. Aceptación: (1) CRUD `GET|POST /calc/materials` + `GET|PATCH|DELETE /calc/materials/{id}` con códigos 200/201/204/404/422/409 según `api_endpoints.md` §FASE CC (FK inválida → 404; PATCH sin campos → 422; delete en uso → 409 + `{impacted_products:N}`); (2) `unit_cost` y `status` SIEMPRE derivados por servidor (`purchase_total_price / package_quantity`, Decimal ROUND_HALF_UP a centavos; `incomplete` si falta precio o cantidad) — nunca aceptados del cliente (422 si se envían); (3) historial append-only + `GET /calc/materials/{id}/cost-history` paginado `{previous_unit_cost, new_unit_cost, changed_at}`; (4) los stubs `count_in_use` de material-categories y suppliers (TODO(B8)) pasan a consultar `calc_materials` real; (5) auth: sin sesión → 401, writes no-admin → 403 (patrón B3-B7). Gate: `python -m pytest -q` desde `backend/` verde sin regresiones. Brief: `odd/briefs/b8-calc-materials.md`.
 - B9 [backend, S5] Motor de precio (parity con `pricing.js`) + `calc_product` con líneas snapshot + API CRUD + recalculate + versions + tests — T-B9
 - B10 [backend, S5, S6] recalculate-all, price-list (+CSV), dashboard + tests — T-B10
 - F1 [frontend, S1, S2, S7] Página `/admin/calculadora/configuracion`: 5 tabs con ABM inline (Chakra v3 + DESIGN.md) + Vitest — T-F1
@@ -32,3 +32,4 @@ S8. TDD obligatorio: pytest (unit domain >90% cobertura, integración API con SQ
 - L1: "Tarea: Implementar la seccion de calculadora de costos para la pasteleria a partir de un codigo funcionando pero que deberias refactorizar. Debes mantener la funcionalidad pero aplicar un refactor para implementar buenas practicas de desarrollo, que esten alineadas a las definiciones de code-written del proyecto de toscana-pastry. Proyecto a explorar: @E:\toscana\calculadora-costos-toscana. Criterios: actualizar las specs considerando la calculadora EXCLUSIVAMENTE para el rol de administrador; definir tareas atomicas en odd/tasks (frontend y backend); implementar las tareas del backend para hacer persistentes las configuraciones mediante ABM CRUD (skill backend-senior-dev); skills de design y .claude/design/DESIGN.md para la UI."
 - L2: Decisión de usuario (2025): COEXISTENCIA — el settings/pricing legacy (`/tenant/settings`, markup, gas/merma, `POST /pricing/preview`) queda intacto; la calculadora usa su propio namespace `/api/v1/calc` y su modelo de precio.
 - L3: Instrucción de usuario: los subagentes deben usar codegraph para exploration y NUNCA grep.
+- L6 (planner, verificación): B1-B7 confirmados en main vía PR #20 (merge bbd28a2): `api/v1/calc/*`, `domain/calc_settings.py`, ORM calc en `data/models.py`, 5 repos + tests verdes. Baseline gate: 644 passed, 5 skipped. B8 es la PRÓXIMA ejecutable (depende solo de B1-B7; B9 depende de B8 por las FK de snapshots de materiales).
