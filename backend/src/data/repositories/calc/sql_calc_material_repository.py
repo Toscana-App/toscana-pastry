@@ -18,7 +18,12 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from data.accent import accent_fold
-from data.models import CalcMaterialCostHistoryORM, CalcMaterialORM
+from data.models import (
+    CalcMaterialCostHistoryORM,
+    CalcMaterialORM,
+    CalcProductMaterialORM,
+    CalcProductORM,
+)
 from domain.calc_material import (
     CalcMaterial,
     CalcMaterialCostHistory,
@@ -222,12 +227,21 @@ class SQLCalcMaterialRepository:
         return _to_domain(orm)
 
     async def count_in_use(self, material_id: str) -> int:
-        """Lineas de productos que referencian este material.
-
-        TODO(B9): completar con consulta real de FK en la tabla de lineas
-        de productos (B9) cuando exista. Por ahora siempre 0.
-        """
-        return 0
+        """Productos no eliminados con lineas que referencian este
+        material (B9): COUNT DISTINCT product_id en
+        calc_product_materials, excluyendo soft-deletes."""
+        result = await self.session.execute(
+            select(func.count(func.distinct(CalcProductMaterialORM.product_id)))
+            .join(
+                CalcProductORM,
+                CalcProductORM.id == CalcProductMaterialORM.product_id,
+            )
+            .where(
+                CalcProductMaterialORM.material_id == material_id,
+                CalcProductORM.deleted_at.is_(None),
+            )
+        )
+        return result.scalar_one()
 
     async def list_cost_history(
         self, material_id: str, page: int, page_size: int

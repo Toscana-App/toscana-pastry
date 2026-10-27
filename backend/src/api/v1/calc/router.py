@@ -3,6 +3,7 @@
 Todos los endpoints son admin-only (RF-P5CC-08).
 Namespace: /api/v1/calc.
 """
+import datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -18,6 +19,7 @@ from api.v1.calc.dependencies import (
     get_calc_supplier_repository,
     get_calc_default_cost_repository,
     get_calc_material_repository,
+    get_calc_product_repository,
 )
 from api.v1.calc.schemas import (
     CalcSettingsRequest,
@@ -40,6 +42,18 @@ from api.v1.calc.schemas import (
     MaterialResponse,
     CostHistoryResponse,
     CostHistoryListResponse,
+    ProductCreate,
+    ProductUpdate,
+    ProductResponse,
+    ProductListResponse,
+    ProductCostsResponse,
+    ProductLinesOut,
+    ProductLineMaterialOut,
+    ProductLineLaborOut,
+    ProductLineExtraCostOut,
+    ProductWithLinesResponse,
+    ProductVersionResponse,
+    ProductVersionListResponse,
 )
 from data.repositories.calc.sql_calc_settings_repository import SQLCalcSettingsRepository
 from data.repositories.calc.sql_calc_material_category_repository import (
@@ -51,12 +65,28 @@ from data.repositories.calc.sql_calc_product_category_repository import (
 from data.repositories.calc.sql_calc_supplier_repository import SQLCalcSupplierRepository
 from data.repositories.calc.sql_calc_default_cost_repository import SQLCalcDefaultCostRepository
 from data.repositories.calc.sql_calc_material_repository import SQLCalcMaterialRepository
+from data.repositories.calc.sql_calc_product_repository import SQLCalcProductRepository
 from domain.calc_settings import (
     CalcSettings,
     CalcMaterialCategory,
     CalcProductCategory,
     CalcSupplier,
     CalcDefaultCost,
+    DEFAULT_MARGIN_PERCENT,
+    DEFAULT_DISCOUNT_PERCENT,
+    DEFAULT_TAX_PERCENT,
+    DEFAULT_ROUNDING_MODE,
+)
+from domain.calc_product import (
+    CalcProduct,
+    CalcProductCosts,
+    CalcProductMaterialLine,
+    CalcProductLaborLine,
+    CalcProductExtraCostLine,
+    calc_material_line_cost,
+    calc_labor_line_cost,
+    calc_extra_line_cost,
+    compute_costs,
 )
 from domain.calc_material import CalcMaterial
 
@@ -910,6 +940,576 @@ async def list_material_cost_history(
             CostHistoryResponse(
                 previous_unit_cost=item.previous_unit_cost,
                 new_unit_cost=item.new_unit_cost,
+                changed_at=item.changed_at,
+            )
+            for item in items
+        ],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+# ─── Products (RF-P4CC-01..08) ─────────────────────────────────────────
+
+def _product_response(p: CalcProduct) -> ProductResponse:
+    return ProductResponse(
+        id=p.id,
+        name=p.name,
+        sku=p.sku,
+        category_id=p.category_id,
+        description=p.description,
+        notes=p.notes,
+        margin_percent=p.margin_percent,
+        discount_percent=p.discount_percent,
+        tax_percent=p.tax_percent,
+        status=p.status,
+        last_recalculated_at=p.last_recalculated_at,
+        created_at=p.created_at,
+        updated_at=p.updated_at,
+    )
+
+
+def _costs_response(costs: CalcProductCosts) -> ProductCostsResponse:
+    return ProductCostsResponse(
+        product_total_cost=costs.product_total_cost,
+        profit_amount=costs.profit_amount,
+        discount_amount=costs.discount_amount,
+        adjusted_profit_amount=costs.adjusted_profit_amount,
+        tax_amount=costs.tax_amount,
+        final_sale_price=costs.final_sale_price,
+    )
+
+
+def _product_lines_out(
+    material_lines, labor_lines, extra_lines
+) -> ProductLinesOut:
+    return ProductLinesOut(
+        materials=[
+            ProductLineMaterialOut(
+                material_id=line.material_id,
+                material_name=line.material_name,
+                quantity_used=line.quantity_used,
+                unit_of_measure_snapshot=line.unit_of_measure_snapshot,
+                unit_cost_snapshot=line.unit_cost_snapshot,
+                line_total_cost=line.line_total_cost,
+                sort_order=line.sort_order,
+            )
+            for line in material_lines
+        ],
+        labor=[
+            ProductLineLaborOut(
+                activity_name=line.activity_name,
+                hourly_rate=line.hourly_rate,
+                minutes_required=line.minutes_required,
+                line_total_cost=line.line_total_cost,
+                sort_order=line.sort_order,
+            )
+            for line in labor_lines
+        ],
+        extra_costs=[
+            ProductLineExtraCostOut(
+                concept_name=line.concept_name,
+                unit_cost=line.unit_cost,
+                quantity=line.quantity,
+                line_total_cost=line.line_total_cost,
+                sort_order=line.sort_order,
+            )
+            for line in extra_lines
+        ],
+    )
+
+
+def _settings_defaults(
+    settings: CalcSettings | None,
+) -> tuple[Decimal, Decimal, Decimal, str]:
+    """Defaults de percents + rounding_mode (RF-P5CC-01): sin fila de
+    settings -> 30/0/19 y `none` del dominio."""
+    if settings is None:
+        return (
+            DEFAULT_MARGIN_PERCENT,
+            DEFAULT_DISCOUNT_PERCENT,
+            DEFAULT_TAX_PERCENT,
+            DEFAULT_ROUNDING_MODE,
+        )
+    return (
+        settings.default_margin_percent,
+        settings.default_discount_percent,
+        settings.default_tax_percent,
+        settings.rounding_mode,
+    )
+
+
+async def _build_material_lines(
+    payload_lines, repo: SQLCalcProductRepository
+) -> list[CalcProductMaterialLine]:
+    """Resuelve los snapshots SIEMPRE por el servidor (RF-P4CC-02,
+    security #8): material inexistente -> 404; material incomplete
+    (unit_cost None) -> snapshot en 0.00 sin error (D4)."""
+    lines: list[CalcProductMaterialLine] = []
+    for index, line in enumerate(payload_lines):
+        material = await repo.get_material(line.material_id)
+        if material is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Material no encontrado",
+            )
+        unit_cost = (
+            Decimal(material.unit_cost)
+            if material.unit_cost is not None
+            else Decimal("0.00")
+        )
+        lines.append(
+            CalcProductMaterialLine(
+                material_id=material.id,
+                material_name=material.name,
+                quantity_used=line.quantity_used,
+                unit_of_measure_snapshot=material.unit_of_measure,
+                unit_cost_snapshot=unit_cost,
+                line_total_cost=calc_material_line_cost(
+                    line.quantity_used, unit_cost
+                ),
+                sort_order=index,
+            )
+        )
+    return lines
+
+
+def _build_labor_lines(payload_lines) -> list[CalcProductLaborLine]:
+    lines: list[CalcProductLaborLine] = []
+    for index, line in enumerate(payload_lines):
+        lines.append(
+            CalcProductLaborLine(
+                activity_name=line.activity_name,
+                hourly_rate=line.hourly_rate,
+                minutes_required=line.minutes_required,
+                line_total_cost=calc_labor_line_cost(
+                    line.hourly_rate, line.minutes_required
+                ),
+                sort_order=index,
+            )
+        )
+    return lines
+
+
+def _build_extra_lines(payload_lines) -> list[CalcProductExtraCostLine]:
+    lines: list[CalcProductExtraCostLine] = []
+    for index, line in enumerate(payload_lines):
+        lines.append(
+            CalcProductExtraCostLine(
+                concept_name=line.concept_name,
+                unit_cost=line.unit_cost,
+                quantity=line.quantity,
+                line_total_cost=calc_extra_line_cost(
+                    line.unit_cost, line.quantity
+                ),
+                sort_order=index,
+            )
+        )
+    return lines
+
+
+async def _raise_sku_conflict(
+    repo: SQLCalcProductRepository,
+    sku: str | None,
+    exclude_product_id: str | None = None,
+) -> None:
+    """SKU unica entre productos no eliminados, case/acento-insensitive
+    (regla 7). Duplicada -> 409 + {detail: 'SKU ya en uso'}."""
+    if sku is None:
+        return
+    if await repo.find_sku_owner(sku, exclude_product_id) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="SKU ya en uso"
+        )
+
+
+@router.post(
+    "/products",
+    response_model=ProductWithLinesResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_product(
+    payload: ProductCreate,
+    repo: SQLCalcProductRepository = Depends(get_calc_product_repository),
+    product_category_repo: SQLCalcProductCategoryRepository = Depends(
+        get_calc_product_category_repository
+    ),
+    settings_repo: SQLCalcSettingsRepository = Depends(
+        get_calc_settings_repository
+    ),
+    _admin: User = Depends(require_admin),
+):
+    """POST /calc/products: crea producto con lineas (RF-P4CC-01..05).
+
+    Snapshots, line_total_cost y costs son SIEMPRE derivados del
+    servidor (security #8); percents omitidos -> defaults de
+    CalcSettings; material/categoria inexistente -> 404; SKU
+    duplicada -> 409; rangos -> 422.
+    """
+    if payload.category_id is not None:
+        category = await product_category_repo.get(payload.category_id)
+        if category is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Categoria no encontrada",
+            )
+    await _raise_sku_conflict(repo, payload.sku)
+    settings = await settings_repo.get()
+    default_margin, default_discount, default_tax, rounding_mode = (
+        _settings_defaults(settings)
+    )
+    try:
+        material_lines = await _build_material_lines(payload.materials, repo)
+        labor_lines = _build_labor_lines(payload.labor)
+        extra_lines = _build_extra_lines(payload.extra_costs)
+        product = CalcProduct(
+            name=payload.name,
+            sku=payload.sku,
+            category_id=payload.category_id,
+            description=payload.description,
+            notes=payload.notes,
+            margin_percent=(
+                payload.margin_percent
+                if payload.margin_percent is not None
+                else default_margin
+            ),
+            discount_percent=(
+                payload.discount_percent
+                if payload.discount_percent is not None
+                else default_discount
+            ),
+            tax_percent=(
+                payload.tax_percent
+                if payload.tax_percent is not None
+                else default_tax
+            ),
+            status=payload.status,
+        )
+        costs = compute_costs(
+            material_lines,
+            labor_lines,
+            extra_lines,
+            product.margin_percent,
+            product.discount_percent,
+            product.tax_percent,
+            rounding_mode,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
+    saved = await repo.create(product, material_lines, labor_lines, extra_lines)
+    return ProductWithLinesResponse(
+        product=_product_response(saved),
+        product_lines=_product_lines_out(material_lines, labor_lines, extra_lines),
+        costs=_costs_response(costs),
+    )
+
+
+@router.get(
+    "/products",
+    response_model=ProductListResponse,
+)
+async def list_products(
+    q: Optional[str] = Query(default=None, min_length=1, max_length=120),
+    category_id: Optional[str] = Query(default=None),
+    status_filter: Optional[str] = Query(default=None, alias="status"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=PAGINATION_MAX),
+    repo: SQLCalcProductRepository = Depends(get_calc_product_repository),
+    current_user: User = Depends(get_current_user),
+):
+    """GET /calc/products: lista con busqueda por nombre Y SKU (D5),
+    filtros, paginacion y orden fijo por nombre. Solo no-eliminados."""
+    items, total = await repo.list(q, category_id, status_filter, page, page_size)
+    return ProductListResponse(
+        items=[_product_response(item) for item in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get("/products/{product_id}")
+async def get_product(
+    product_id: str,
+    include_versions: bool = Query(default=False),
+    repo: SQLCalcProductRepository = Depends(get_calc_product_repository),
+    settings_repo: SQLCalcSettingsRepository = Depends(
+        get_calc_settings_repository
+    ),
+    current_user: User = Depends(get_current_user),
+):
+    """GET /calc/products/{id}: detalle con lineas + costs
+    (RF-P4CC-05/06). `versions` solo presente con include_versions=true
+    (listado completo, version_number desc)."""
+    product = await repo.get(product_id)
+    if product is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Producto no encontrado",
+        )
+    settings = await settings_repo.get()
+    _, _, _, rounding_mode = _settings_defaults(settings)
+    material_lines, labor_lines, extra_lines = await repo.get_lines(product_id)
+    try:
+        costs = compute_costs(
+            material_lines,
+            labor_lines,
+            extra_lines,
+            product.margin_percent,
+            product.discount_percent,
+            product.tax_percent,
+            rounding_mode,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
+    body: dict = {
+        "product": _product_response(product).model_dump(mode="json"),
+        "materials": [
+            ProductLineMaterialOut(
+                material_id=line.material_id,
+                material_name=line.material_name,
+                quantity_used=line.quantity_used,
+                unit_of_measure_snapshot=line.unit_of_measure_snapshot,
+                unit_cost_snapshot=line.unit_cost_snapshot,
+                line_total_cost=line.line_total_cost,
+                sort_order=line.sort_order,
+            ).model_dump(mode="json")
+            for line in material_lines
+        ],
+        "labor": [
+            ProductLineLaborOut(
+                activity_name=line.activity_name,
+                hourly_rate=line.hourly_rate,
+                minutes_required=line.minutes_required,
+                line_total_cost=line.line_total_cost,
+                sort_order=line.sort_order,
+            ).model_dump(mode="json")
+            for line in labor_lines
+        ],
+        "extra_costs": [
+            ProductLineExtraCostOut(
+                concept_name=line.concept_name,
+                unit_cost=line.unit_cost,
+                quantity=line.quantity,
+                line_total_cost=line.line_total_cost,
+                sort_order=line.sort_order,
+            ).model_dump(mode="json")
+            for line in extra_lines
+        ],
+        "costs": _costs_response(costs).model_dump(mode="json"),
+    }
+    if include_versions:
+        versions, _ = await repo.list_versions(product_id, 1, 10_000)
+        body["versions"] = [
+            ProductVersionResponse(
+                version_number=v.version_number,
+                product_total_cost=v.product_total_cost,
+                profit_amount=v.profit_amount,
+                discount_amount=v.discount_amount,
+                adjusted_profit_amount=v.adjusted_profit_amount,
+                tax_amount=v.tax_amount,
+                final_sale_price=v.final_sale_price,
+                changed_at=v.changed_at,
+            ).model_dump(mode="json")
+            for v in versions
+        ]
+    return body
+
+
+@router.patch(
+    "/products/{product_id}",
+    response_model=ProductWithLinesResponse,
+)
+async def update_product(
+    product_id: str,
+    payload: ProductUpdate,
+    repo: SQLCalcProductRepository = Depends(get_calc_product_repository),
+    product_category_repo: SQLCalcProductCategoryRepository = Depends(
+        get_calc_product_category_repository
+    ),
+    settings_repo: SQLCalcSettingsRepository = Depends(
+        get_calc_settings_repository
+    ),
+    _admin: User = Depends(require_admin),
+):
+    """PATCH /calc/products/{id}: edita (RF-P4CC-01/02).
+
+    Semantica de lineas (regla 4): clave ausente -> no cambia;
+    clave [] -> vacia el set; lista -> reemplazo completo. Sin
+    campos -> 422.
+    """
+    existing = await repo.get(product_id)
+    if existing is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Producto no encontrado",
+        )
+    updates = payload.model_dump(exclude_unset=True)
+    if not updates:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="al menos un campo para actualizar",
+        )
+    if updates.get("category_id") is not None:
+        category = await product_category_repo.get(updates["category_id"])
+        if category is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Categoria no encontrada",
+            )
+    if "sku" in updates:
+        await _raise_sku_conflict(
+            repo, updates["sku"], exclude_product_id=product_id
+        )
+    settings = await settings_repo.get()
+    _, _, _, rounding_mode = _settings_defaults(settings)
+    material_lines = None
+    labor_lines = None
+    extra_lines = None
+    try:
+        # Lineas desde los campos tipados del payload (no del dump a
+        # dict): los builders esperan objetos Pydantic con attributes.
+        if payload.materials is not None:
+            material_lines = await _build_material_lines(payload.materials, repo)
+        if payload.labor is not None:
+            labor_lines = _build_labor_lines(payload.labor)
+        if payload.extra_costs is not None:
+            extra_lines = _build_extra_lines(payload.extra_costs)
+        updated = CalcProduct(
+            id=existing.id,
+            name=updates.get("name", existing.name),
+            sku=updates.get("sku", existing.sku),
+            category_id=updates.get("category_id", existing.category_id),
+            description=updates.get("description", existing.description),
+            notes=updates.get("notes", existing.notes),
+            margin_percent=updates.get("margin_percent", existing.margin_percent),
+            discount_percent=updates.get(
+                "discount_percent", existing.discount_percent
+            ),
+            tax_percent=updates.get("tax_percent", existing.tax_percent),
+            status=updates.get("status", existing.status),
+            last_recalculated_at=existing.last_recalculated_at,
+            created_at=existing.created_at,
+            updated_at=datetime.datetime.now(datetime.UTC),
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
+    saved = await repo.update(updated, material_lines, labor_lines, extra_lines)
+    if saved is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Producto no encontrado",
+        )
+    kept_material, kept_labor, kept_extra = await repo.get_lines(product_id)
+    costs = compute_costs(
+        kept_material,
+        kept_labor,
+        kept_extra,
+        saved.margin_percent,
+        saved.discount_percent,
+        saved.tax_percent,
+        rounding_mode,
+    )
+    return ProductWithLinesResponse(
+        product=_product_response(saved),
+        product_lines=_product_lines_out(kept_material, kept_labor, kept_extra),
+        costs=_costs_response(costs),
+    )
+
+
+@router.delete(
+    "/products/{product_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_product(
+    product_id: str,
+    repo: SQLCalcProductRepository = Depends(get_calc_product_repository),
+    _admin: User = Depends(require_admin),
+):
+    """DELETE /calc/products/{id}: soft delete (regla 8); nunca borra
+    la fila ni las versiones."""
+    deleted = await repo.soft_delete(product_id)
+    if deleted is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Producto no encontrado",
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/products/{product_id}/recalculate",
+    response_model=ProductWithLinesResponse,
+)
+async def recalculate_product(
+    product_id: str,
+    repo: SQLCalcProductRepository = Depends(get_calc_product_repository),
+    settings_repo: SQLCalcSettingsRepository = Depends(
+        get_calc_settings_repository
+    ),
+    _admin: User = Depends(require_admin),
+):
+    """POST /calc/products/{id}/recalculate: re-resolve snapshots y
+    recalcula lineas (regla 6); crea version solo si el final
+    redondeado cambio (regla 5, RF-P4CC-07)."""
+    settings = await settings_repo.get()
+    _, _, _, rounding_mode = _settings_defaults(settings)
+    try:
+        result = await repo.recalculate(product_id, rounding_mode)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Producto no encontrado",
+        )
+    product, (material_lines, labor_lines, extra_lines), costs = result
+    return ProductWithLinesResponse(
+        product=_product_response(product),
+        product_lines=_product_lines_out(material_lines, labor_lines, extra_lines),
+        costs=_costs_response(costs),
+    )
+
+
+@router.get(
+    "/products/{product_id}/versions",
+    response_model=ProductVersionListResponse,
+)
+async def list_product_versions(
+    product_id: str,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=PAGINATION_MAX),
+    repo: SQLCalcProductRepository = Depends(get_calc_product_repository),
+    current_user: User = Depends(get_current_user),
+):
+    """GET /calc/products/{id}/versions: versiones paginadas, mas
+    recientes primero (RF-P4CC-07). 404 si el producto no existe."""
+    product = await repo.get(product_id)
+    if product is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Producto no encontrado",
+        )
+    items, total = await repo.list_versions(product_id, page, page_size)
+    return ProductVersionListResponse(
+        items=[
+            ProductVersionResponse(
+                version_number=item.version_number,
+                product_total_cost=item.product_total_cost,
+                profit_amount=item.profit_amount,
+                discount_amount=item.discount_amount,
+                adjusted_profit_amount=item.adjusted_profit_amount,
+                tax_amount=item.tax_amount,
+                final_sale_price=item.final_sale_price,
                 changed_at=item.changed_at,
             )
             for item in items

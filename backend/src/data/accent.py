@@ -9,7 +9,14 @@ import unicodedata
 
 
 def accent_fold(s: str) -> str:
-    """NFD, descarta marcas de combinación y minúsculas: 'Café' -> 'cafe'."""
+    """NFD, descarta marcas de combinación y minúsculas: 'Café' -> 'cafe'.
+
+    SQLite evalua la funcion UDF sobre filas NULL (p. ej. sku nullable)
+    antes de filtrar con IS NOT NULL: None -> None (SQL NULL) para que
+    la comparacion no lance TypeError y no coincida con nada.
+    """
+    if s is None:
+        return None
     return "".join(
         char
         for char in unicodedata.normalize("NFD", s)

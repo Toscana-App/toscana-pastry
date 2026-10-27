@@ -210,6 +210,113 @@ class CalcMaterialCostHistoryORM(Base):
     changed_at = Column(DateTime(timezone=True), nullable=False)
 
 
+class CalcProductORM(Base):
+    """Producto de la calculadora de costos (RF-P4CC-01).
+
+    Montos como TEXT (no float): SQLite no tiene tipo decimal y
+    convertir por float pierde precision, que en dinero no se tolera
+    (RNF-P5CC-01). `deleted_at` no nulo = soft delete (regla 8).
+    """
+
+    __tablename__ = "calc_products"
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False, index=True)
+    sku = Column(String, nullable=True, index=True)
+    product_category_id = Column(
+        String, ForeignKey("calc_product_categories.id"), nullable=True, index=True
+    )
+    description = Column(String, nullable=True)
+    notes = Column(String, nullable=True)
+    margin_percent = Column(String, nullable=False)
+    discount_percent = Column(String, nullable=False)
+    tax_percent = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="draft")
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    last_recalculated_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        onupdate=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+
+
+class CalcProductMaterialORM(Base):
+    """Linea de material con snapshots resueltos por el servidor
+    (RF-P4CC-02, security #8). Montos/cantidades como TEXT."""
+
+    __tablename__ = "calc_product_materials"
+    id = Column(String, primary_key=True)
+    product_id = Column(
+        String, ForeignKey("calc_products.id"), nullable=False, index=True
+    )
+    material_id = Column(
+        String, ForeignKey("calc_materials.id"), nullable=False, index=True
+    )
+    material_name = Column(String, nullable=False)
+    unit_of_measure_snapshot = Column(String, nullable=True)
+    unit_cost_snapshot = Column(String, nullable=False)
+    quantity_used = Column(String, nullable=False)
+    line_total_cost = Column(String, nullable=False)
+    sort_order = Column(Integer, nullable=False)
+
+
+class CalcProductLaborORM(Base):
+    """Linea de mano de obra (RF-P4CC-02). Montos como TEXT."""
+
+    __tablename__ = "calc_product_labor"
+    id = Column(String, primary_key=True)
+    product_id = Column(
+        String, ForeignKey("calc_products.id"), nullable=False, index=True
+    )
+    activity_name = Column(String, nullable=False)
+    hourly_rate = Column(String, nullable=False)
+    minutes_required = Column(String, nullable=False)
+    line_total_cost = Column(String, nullable=False)
+    sort_order = Column(Integer, nullable=False)
+
+
+class CalcProductExtraCostORM(Base):
+    """Linea de costo extra (RF-P4CC-02). Montos/cantidades como TEXT."""
+
+    __tablename__ = "calc_product_extra_costs"
+    id = Column(String, primary_key=True)
+    product_id = Column(
+        String, ForeignKey("calc_products.id"), nullable=False, index=True
+    )
+    concept_name = Column(String, nullable=False)
+    unit_cost = Column(String, nullable=False)
+    quantity = Column(String, nullable=False)
+    line_total_cost = Column(String, nullable=False)
+    sort_order = Column(Integer, nullable=False)
+
+
+class CalcProductVersionORM(Base):
+    """Version append-only del precio del producto (RF-P4CC-07).
+
+    Solo INSERT, nunca UPDATE/DELETE. Montos como TEXT (centavos).
+    """
+
+    __tablename__ = "calc_product_versions"
+    id = Column(String, primary_key=True)
+    product_id = Column(
+        String, ForeignKey("calc_products.id"), nullable=False, index=True
+    )
+    version_number = Column(Integer, nullable=False)
+    product_total_cost = Column(String, nullable=False)
+    profit_amount = Column(String, nullable=False)
+    discount_amount = Column(String, nullable=False)
+    adjusted_profit_amount = Column(String, nullable=False)
+    tax_amount = Column(String, nullable=False)
+    final_sale_price = Column(String, nullable=False)
+    changed_at = Column(DateTime(timezone=True), nullable=False)
+
+
 class CalcDefaultCostORM(Base):
     """Costo por defecto (RF-P5CC-06)."""
 

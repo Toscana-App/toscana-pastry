@@ -13,6 +13,9 @@ from data.repositories.calc.sql_calc_material_repository import (
 from data.repositories.calc.sql_calc_product_category_repository import (
     SQLCalcProductCategoryRepository,
 )
+from data.repositories.calc.sql_calc_product_repository import (
+    SQLCalcProductRepository,
+)
 from data.repositories.calc.sql_calc_supplier_repository import SQLCalcSupplierRepository
 from data.repositories.calc.sql_calc_default_cost_repository import SQLCalcDefaultCostRepository
 
@@ -51,3 +54,9 @@ def get_calc_material_repository(
     db: AsyncSession = Depends(get_db),
 ) -> SQLCalcMaterialRepository:
     return SQLCalcMaterialRepository(db)
+
+
+def get_calc_product_repository(
+    db: AsyncSession = Depends(get_db),
+) -> SQLCalcProductRepository:
+    return SQLCalcProductRepository(db)
