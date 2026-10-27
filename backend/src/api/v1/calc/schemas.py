@@ -489,8 +489,24 @@ class ProductResponse(BaseModel):
     updated_at: datetime
 
 
+class ProductListItem(BaseModel):
+    """Item del listado `GET /calc/products` enriquecido (RF-P3CC-01,
+    D5): `category_name` + montos SIEMPRE calculados por el motor
+    (cost nunca se redondea; final con el rounding_mode de settings)."""
+
+    id: str
+    name: str
+    sku: str | None = None
+    category_name: str | None = None
+    status: str
+    product_total_cost: Money
+    final_sale_price: Money
+    margin_percent: Decimal
+    last_recalculated_at: datetime | None = None
+
+
 class ProductListResponse(BaseModel):
-    items: list[ProductResponse]
+    items: list[ProductListItem]
     total: int
     page: int
     page_size: int
@@ -559,6 +575,68 @@ class ProductVersionResponse(BaseModel):
     tax_amount: Money
     final_sale_price: Money
     changed_at: datetime
+
+
+class PriceListItem(BaseModel):
+    """Item del price list (RF-P3CC-04): solo activos; `category_name`
+    null si el producto no tiene categoria; montos del motor."""
+
+    id: str
+    name: str
+    sku: str | None = None
+    category_id: str | None = None
+    category_name: str | None = None
+    product_total_cost: Money
+    final_sale_price: Money
+    margin_percent: Decimal
+
+
+class PriceListResponse(BaseModel):
+    """GET /calc/products/price-list: paginada, orden fijo por nombre."""
+
+    items: list[PriceListItem]
+    total: int
+    page: int
+    page_size: int
+
+
+class RecalculateAllResponse(BaseModel):
+    """POST /calc/products/recalculate-all: cantidad de productos
+    activos recalculados (RF-P3CC-03)."""
+
+    recalculated: int
+
+
+class DashboardTopItem(BaseModel):
+    """Item de `top_by_price` (RF-P3CC-05): hasta 5 por precio desc."""
+
+    id: str
+    name: str
+    final_sale_price: Money
+    margin_percent: Decimal
+
+
+class DashboardBottomItem(BaseModel):
+    """Item de `bottom_by_margin` (RF-P3CC-05): hasta 5 por margen asc."""
+
+    id: str
+    name: str
+    product_total_cost: Money
+    margin_percent: Decimal
+
+
+class DashboardResponse(BaseModel):
+    """GET /calc/dashboard: los 8 campos exactos de la spec
+    (RF-P3CC-05); `archived` no va en la respuesta."""
+
+    active_materials: int
+    active_products: int
+    draft_products: int
+    incomplete_materials: int
+    avg_product_cost: Money
+    avg_final_price: Money
+    top_by_price: list[DashboardTopItem]
+    bottom_by_margin: list[DashboardBottomItem]
 
 
 class ProductVersionListResponse(BaseModel):
