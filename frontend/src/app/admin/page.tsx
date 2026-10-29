@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Badge, Container, Flex, Heading, Spinner, Table, Text } from "@chakra-ui/react";
+import CouponsAdmin from "@/components/admin/CouponsAdmin";
+import LeadAdmin from "@/components/admin/LeadAdmin";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { apiFetch } from "@/lib/api";
 import { toaster } from "@/lib/toaster";
@@ -94,6 +96,8 @@ export default function AdminPage() {
         <Flex direction="column" gap={6}>
           <Heading fontSize="3xl">Admin</Heading>
           <AdminUsers />
+          <CouponsAdmin />
+          <LeadAdmin />
         </Flex>
       </Container>
     </ProtectedRoute>

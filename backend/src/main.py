@@ -17,12 +17,13 @@ from api.v1.pricing.router import router as pricing_router
 from api.v1.products.router import router as products_router
 from api.v1.settings.router import router as settings_router
 from api.v1.webhooks.router import router as webhooks_router
+from api.v1.whatsapp.router import router as whatsapp_router
 from data.db import engine
 from data.models import Base
 
-# El frontend llama a la API desde otro origen (puerto distinto), así que el
-# navegador exige CORS. Orígenes explícitos: con allow_credentials=True no se
-# admite "*". Configurable por env para staging/producción.
+# The frontend calls the API from a different origin (different port), so
+# the browser requires CORS. Explicit origins: "*" is not allowed with
+# allow_credentials=True. Configurable via env for staging/production.
 ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
@@ -32,7 +33,7 @@ ALLOWED_ORIGINS = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # create_all es idempotente: crea el esquema si falta y no toca lo existente.
+    # create_all is idempotent: creates the schema if missing and leaves existing ones alone.
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
@@ -61,6 +62,7 @@ app.include_router(coupons_router, prefix="/api/v1")
 app.include_router(leads_router, prefix="/api/v1")
 app.include_router(orders_router, prefix="/api/v1")
 app.include_router(webhooks_router, prefix="/api/v1")
+app.include_router(whatsapp_router, prefix="/api/v1")
 
 
 @app.get("/health")

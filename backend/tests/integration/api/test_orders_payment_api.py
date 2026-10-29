@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from api.v1.auth.dependencies import get_user_repository
-from api.v1.dependencies import require_admin
+from api.v1.dependencies import get_current_user
 from data.db import get_db as get_db_orig
 from data.models import Base
 from data.repositories.sql_order_repository import SQLOrderRepository
@@ -76,7 +76,7 @@ async def client(db_session):
     app.dependency_overrides[
         SQLOrderRepository
     ] = override_get_order_repo
-    app.dependency_overrides[require_admin] = _admin_user
+    app.dependency_overrides[get_current_user] = _admin_user
 
     # Create admin user
     admin = User(email="admin@example.com", role=UserRole.ADMIN)
