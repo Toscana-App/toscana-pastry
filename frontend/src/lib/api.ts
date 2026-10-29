@@ -11,6 +11,25 @@ export const REFRESH_TOKEN_COOKIE = "refresh_token";
 // something reloading the page.
 export const AUTH_SESSION_CLEARED_EVENT = "auth:session-cleared";
 
+/**
+ * Typed API error.
+ *
+ * `status` and `payload` are needed for Phase 4 flows:
+ * - DELETE /ingredients/{id} → 409 with `{"impacted_recipes": N}` (UC-05):
+ *   the confirmation dialog shows the impact before deleting.
+ * - Backend 422: `detail` is an array of issues (FastAPI), not a string.
+ */
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+    public readonly payload: unknown = null,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 // A single shared refresh promise: avoids N calls to /auth/refresh when
 // several requests fail with 401 at the same time.
 let refreshInFlight: Promise<string | null> | null = null;
@@ -67,9 +86,19 @@ export async function apiFetch<T>(
   }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: "An error occurred" }));
-    throw new Error(error.detail || error.message || "Network error");
+    const body: unknown = await response.json().catch(() => null);
+    const candidate =
+      (body as { detail?: unknown } | null)?.detail ??
+      (body as { message?: unknown } | null)?.message ??
+      "An error occurred";
+    // FastAPI responde 422 con detail: [{loc, msg, type}] — se toma el primer
+    // msg cuando es string; si no, se serializa el cuerpo completo.
+    const message = typeof candidate === "string" ? candidate : JSON.stringify(candidate);
+    throw new ApiError(response.status, message, body);
   }
+
+  // 204 No Content (p. ej. DELETE /ingredients/{id}): no hay cuerpo que parsear.
+  if (response.status === 204) return undefined as T;
 
   return response.json() as Promise<T>;
 }
