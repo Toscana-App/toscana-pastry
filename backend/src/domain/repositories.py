@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Optional, List
+from datetime import datetime, date
 from decimal import Decimal
 from domain.models import User, UserRole, BusinessSettings, Ingredient, Product, StockMovement, StockStatus
+from domain.orders import Customer, Order
 
 class UserRepository(ABC):
     @abstractmethod
@@ -91,9 +93,8 @@ class IngredientRepository(ABC):
 
 class ProductRepository(ABC):
     """P3/P4 productos. Borrado suave: lo eliminado queda en la tabla pero
-    es invisible a list/get (UC-07). `count_orders` alimenta el 409 de
-    UC-07 cuando existan pedidos (Fase 6); hasta entonces siempre 0,
-    como `count_active_recipes` pre-Fase 5."""
+    es invisible a list/get (UC-07). `count_orders` alimenta la respuesta
+    de UC-07 cuando el producto tiene pedidos historicos (Fase 6)."""
 
     @abstractmethod
     async def list(
@@ -127,4 +128,86 @@ class ProductRepository(ABC):
 
     @abstractmethod
     async def distinct_categories(self) -> List[str]:
+        pass
+
+
+class CustomerRepository(ABC):
+    """P6 clientes. Dedup por (nombre normalizado, telefono normalizado):
+    crear un duplicado devuelve el existente (RF-P6-08). Sin borrado:
+    el historial de pedidos no se rompe."""
+
+    @abstractmethod
+    async def list(
+        self,
+        q: Optional[str],
+        page: int,
+        page_size: int,
+    ) -> tuple[List["Customer"], int]:
+        pass
+
+    @abstractmethod
+    async def get(self, customer_id: str) -> Optional["Customer"]:
+        pass
+
+    @abstractmethod
+    async def get_or_create(
+        self, customer: "Customer"
+    ) -> tuple["Customer", bool]:
+        """Devuelve (cliente, creado). Si ya existe (dedup), devuelve el
+        existente con creado=False; si no, persiste el nuevo (creado=True)."""
+        pass
+
+
+class OrderRepository(ABC):
+    """P6 pedidos. Los snapshots de items son inmutables (RNF-P6-03):
+    solo se escriben en create. `confirm`/`cancel` gestionan stock y
+    estado en una sola transaccion (RNF-P6-02/04)."""
+
+    @abstractmethod
+    async def list(
+        self,
+        status: Optional[str],
+        customer_id: Optional[str],
+        q: Optional[str],
+        date_from: Optional[date],
+        date_to: Optional[date],
+        page: int,
+        page_size: int,
+    ) -> tuple[List["Order"], int]:
+        pass
+
+    @abstractmethod
+    async def get(self, order_id: str) -> Optional["Order"]:
+        pass
+
+    @abstractmethod
+    async def create(self, order: "Order") -> "Order":
+        pass
+
+    @abstractmethod
+    async def update(self, order: "Order") -> Optional["Order"]:
+        """Reemplaza lineas/snapshot en pedidos estado `nuevo` (el router
+        valida el estado antes de llamar)."""
+        pass
+
+    @abstractmethod
+    async def confirm(self, order: "Order") -> "Order":
+        """nuevo -> confirmado con descuento de stock atómico. Levanta
+        InsufficientOrderStockError (rollback total) si no alcanza."""
+        pass
+
+    @abstractmethod
+    async def cancel(self, order: "Order") -> "Order":
+        """confirmado -> cancelado con reposicion de stock."""
+        pass
+
+    @abstractmethod
+    async def mark_delivered(self, order: "Order") -> "Order":
+        """confirmado -> entregado. Sin efecto sobre stock."""
+        pass
+
+    @abstractmethod
+    async def mark_whatsapp_sent(
+        self, order: "Order", sent_at: datetime
+    ) -> None:
         pass

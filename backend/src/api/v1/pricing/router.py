@@ -1,13 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
-<<<<<<< HEAD
 from api.v1.dependencies import require_admin, require_role
-=======
-from api.v1.dependencies import require_admin
-from api.v1.money import cents_to_decimal
->>>>>>> origin/feat/phase5-backend
-from api.v1.settings.dependencies import get_settings_repository
+from api.v1.money import cents_to_decimal, decimal_to_cents
 from api.v1.pricing.schemas import Audience, PreviewRequest, PreviewResponse
+from api.v1.settings.dependencies import get_settings_repository
 from domain.models import User, UserRole
 from domain.pricing import UnitConversionError, calculate_price
 from domain.pricing_service import AudienceForbiddenError, compute_dual_pricing
@@ -66,15 +62,15 @@ async def preview(
     except (UnitConversionError, ValueError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     return PreviewResponse(
-        materials=breakdown.materials,
-        waste=breakdown.waste,
-        materials_con_merma=breakdown.materials_con_merma,
-        labor=breakdown.labor,
-        gas=breakdown.gas,
-        base=breakdown.base,
+        materials=decimal_to_cents(breakdown.materials),
+        waste=decimal_to_cents(breakdown.waste),
+        materials_con_merma=decimal_to_cents(breakdown.materials_con_merma),
+        labor=decimal_to_cents(breakdown.labor),
+        gas=decimal_to_cents(breakdown.gas),
+        base=decimal_to_cents(breakdown.base),
         margin_pct=breakdown.margin_pct,
-        final=breakdown.rounded,
-        rounded=breakdown.rounded,
+        final=decimal_to_cents(breakdown.rounded),
+        rounded=decimal_to_cents(breakdown.rounded),
         audience="revendedores",
     )
 
@@ -93,7 +89,7 @@ async def preview_dual(
     """
     settings = await GetSettings(settings_repo).execute()
     items = [
-        (item.qty, item.unit, item.price_per_purchase_unit, item.purchase_unit)
+        (item.qty, item.unit, cents_to_decimal(item.price_per_purchase_unit), item.purchase_unit)
         for item in payload.line_items
     ]
 
@@ -116,14 +112,14 @@ async def preview_dual(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
     return PreviewResponse(
-        materials=breakdown.materials,
-        waste=breakdown.waste,
-        materials_con_merma=breakdown.materials_con_merma,
-        labor=breakdown.labor,
-        gas=breakdown.gas,
-        base=breakdown.base,
+        materials=decimal_to_cents(breakdown.materials),
+        waste=decimal_to_cents(breakdown.waste),
+        materials_con_merma=decimal_to_cents(breakdown.materials_con_merma),
+        labor=decimal_to_cents(breakdown.labor),
+        gas=decimal_to_cents(breakdown.gas),
+        base=decimal_to_cents(breakdown.base),
         margin_pct=breakdown.margin_pct,
-        final=breakdown.rounded,
-        rounded=breakdown.rounded,
+        final=decimal_to_cents(breakdown.rounded),
+        rounded=decimal_to_cents(breakdown.rounded),
         audience=audience,
     )

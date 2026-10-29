@@ -44,6 +44,15 @@ def cents_to_decimal(cents: int) -> Decimal:
     return Decimal(cents) / _HUNDRED
 
 
+def decimal_to_cents(value: Decimal | int | float | str) -> int:
+    """Decimal del dominio → long de centavos (solo en el borde).
+
+    El schema ``Money`` acepta Decimal en runtime vía BeforeValidator; este
+    helper hace la conversión explícita para que el typing sea estático.
+    """
+    return int(_to_cents(value))
+
+
 def _coerce_qty(value) -> Decimal:
     """Qty: cantidad, no dinero. Decimal(str(v)) exacto, sin centavos."""
     if isinstance(value, Decimal):
