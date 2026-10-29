@@ -1,12 +1,21 @@
-from sqlalchemy import Column, String, DateTime, Integer, Boolean, Enum as SQLAlchemyEnum, ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column, declarative_base
-from sqlalchemy import TypeDecorator
 import datetime
-import enum
+from enum import StrEnum
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    TypeDecorator,
+)
+from sqlalchemy.orm import Mapped, declarative_base, mapped_column, relationship
 
 Base = declarative_base()
 
-class UserRoleEnum(str, enum.Enum):
+
+class UserRoleEnum(StrEnum):
     ADMIN = "admin"
     CUSTOMER = "customer"
     NEGOCIO = "negocio"
@@ -83,7 +92,7 @@ class IngredientORM(Base):
     deleted_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
 
@@ -129,13 +138,13 @@ class CalcMaterialCategoryORM(Base):
     description = Column(String, nullable=True)
     created_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
     updated_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
-        onupdate=lambda: datetime.datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        onupdate=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
 
@@ -149,13 +158,13 @@ class CalcProductCategoryORM(Base):
     description = Column(String, nullable=True)
     created_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
     updated_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
-        onupdate=lambda: datetime.datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        onupdate=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
 
@@ -172,13 +181,13 @@ class CalcSupplierORM(Base):
     notes = Column(String, nullable=True)
     created_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
     updated_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
-        onupdate=lambda: datetime.datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        onupdate=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
 
@@ -267,5 +276,186 @@ class CalcDefaultCostORM(Base):
         DateTime(timezone=True),
         default=lambda: datetime.datetime.now(datetime.UTC),
         onupdate=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+
+
+# ─── Cart models (RF-P11-03/14, C4) ─────────────────────────────────
+
+
+class CartORM(Base):
+    """Carrito server-side por usuario (RF-P11-03). Un registro por user;
+    `coupon_code` es el cupon aplicado (max 1 por carrito). El precio NO
+    se persiste: solo product_id + qty (RNF-P11-03)."""
+
+    __tablename__ = "cart"
+    user_id: Mapped[str] = mapped_column(
+        String, ForeignKey("users.id"), primary_key=True
+    )
+    coupon_code: Mapped[str | None] = mapped_column(String, nullable=True)
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        onupdate=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+
+
+class CartItemORM(Base):
+    """Linea del carrito: (user_id, product_id) unico."""
+
+    __tablename__ = "cart_items"
+    user_id: Mapped[str] = mapped_column(
+        String, ForeignKey("users.id"), primary_key=True
+    )
+    product_id: Mapped[str] = mapped_column(String, primary_key=True)
+    qty: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+
+
+# ─── Order models (RF-P6-12, C1) ─────────────────────────────────────
+
+
+class _OrderStatusColumn(TypeDecorator):
+    """Stores order status as a lowercase string."""
+
+    impl = String(20)
+    cache_ok = True
+
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            return str(value).lower()
+        return value
+
+
+class _PaymentMethodColumn(TypeDecorator):
+    """Stores payment_method as a lowercase string."""
+
+    impl = String(20)
+    cache_ok = True
+
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            return str(value).lower()
+        return value
+
+
+class _PaymentStatusColumn(TypeDecorator):
+    """Stores payment_status as a lowercase string."""
+
+    impl = String(20)
+    cache_ok = True
+
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            return str(value).lower()
+        return value
+
+
+class OrderORM(Base):
+    """Order entity with payment tracking and portal fields (RF-P6-12 / RF-P11-06/08)."""
+
+    __tablename__ = "orders"
+
+    id = Column(String, primary_key=True)
+    customer_id = Column(String, nullable=False, index=True)
+    code = Column(String, nullable=False, unique=True, index=True)
+    status = Column(_OrderStatusColumn(), default="nuevo", nullable=False)
+    date = Column(DateTime, nullable=False)
+    payment_method = Column(_PaymentMethodColumn(), default="cash", nullable=False)
+    delivery_mode = Column(String, default="delivery", nullable=False)
+    delivery_address = Column(String, default="", nullable=False)
+    coupon_code = Column(String, nullable=True)
+    discount_amount = Column(String, nullable=True)
+    payment_reference = Column(String, nullable=True)
+    paid_at = Column(DateTime, nullable=True)
+    payment_status = Column(_PaymentStatusColumn(), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+    order_items = relationship("OrderItemORM", back_populates="order", cascade="all, delete-orphan")
+
+
+class OrderWindowORM(Base):
+    """Singleton configuration for the portal order window (RF-P5-07)."""
+
+    __tablename__ = "order_window"
+
+    id = Column(String, primary_key=True, default="singleton")
+    open = Column(Boolean, default=True, nullable=False)
+    reopens_at = Column(DateTime, nullable=True)
+    message = Column(String, default="", nullable=False)
+
+
+class OrderItemORM(Base):
+    """Order line item snapshot."""
+
+    __tablename__ = "order_items"
+
+    id = Column(String, primary_key=True)
+    order = relationship("OrderORM", back_populates="order_items")
+    order_id = Column(
+        String, ForeignKey("orders.id"), nullable=False, index=True
+    )
+    product_id = Column(String, nullable=False)
+    product_name = Column(String, nullable=False)
+    quantity = Column(Integer, nullable=False)
+    unit_price = Column(String, nullable=False)
+    portion_note = Column(String, default="", nullable=False)
+
+
+class PaymentEventORM(Base):
+    """Webhook payment event for dedupe (RF-P6-13, RNF-P6-10).
+
+    The ``provider_payment_id`` is unique — every payment ID from the
+    provider is recorded exactly once. Replay events hit this unique
+    constraint and return 200 without side effects.
+    """
+
+    __tablename__ = "payment_events"
+
+    id = Column(String, primary_key=True)
+    provider_payment_id = Column(
+        String, nullable=False, unique=True, index=True
+    )
+    order_id = Column(
+        String, ForeignKey("orders.id"), nullable=False, index=True
+    )
+    status = Column(_PaymentStatusColumn(), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+
+
+class LeadORM(Base):
+    """Lead de contacto publico (RF-P11-13, C5).
+
+    Captura formularios de contacto del portal — nombre, email, tipo de
+    cliente, mensaje y campos opcionales.  `read` controla si el admin
+    ya lo reviso.
+    """
+
+    __tablename__ = "leads"
+
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
+    email = Column(String, nullable=False, index=True)
+    customer_type = Column(String, nullable=False)
+    message = Column(String, nullable=False)
+    phone = Column(String, nullable=True)
+    business_name = Column(String, nullable=True)
+    location = Column(String, nullable=True)
+    read = Column(Boolean, default=False, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )

@@ -142,6 +142,12 @@
       "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
       "computedHash": "f74b0bf1be26220dd615523fc1c0562567f9c463d9e9b255d4031345ffb37cd3"
     },
+    "mercadopago-integration": {
+      "source": "martinacostadev/mercadopago-integration",
+      "sourceType": "github",
+      "skillPath": "mercadopago-integration/SKILL.md",
+      "computedHash": "f3f578ce2c5046a826aa3e0f6557bc3d85e6ef2732e16c864b9c5690deb41b25"
+    },
     "migrate-to-shoehorn": {
       "source": "mattpocock/skills",
       "sourceType": "github",
