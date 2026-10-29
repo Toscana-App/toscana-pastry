@@ -1,14 +1,45 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from api.v1.dependencies import require_admin
+from api.v1.dependencies import require_admin, require_role
 from api.v1.settings.dependencies import get_settings_repository
-from api.v1.pricing.schemas import PreviewRequest, PreviewResponse
-from domain.models import User
+from api.v1.pricing.schemas import Audience, PreviewRequest, PreviewResponse
+from domain.models import User, UserRole
 from domain.pricing import UnitConversionError, calculate_price
+from domain.pricing_service import AudienceForbiddenError, compute_dual_pricing
 from domain.repositories import SettingsRepository
 from domain.use_cases import GetSettings
 
 router = APIRouter(prefix="/pricing", tags=["pricing"])
+
+
+def _resolve_audience_for_user(user: User, requested: Audience | None) -> Audience:
+    """Resuelve la audiencia según el rol del usuario.
+
+    - admin: usa requested si se especifica; por defecto ``revendedores``.
+    - negocio: siempre ``revendedores``.
+    - cliente: siempre ``consumidor_final``.
+
+    Raises:
+        HTTPException 403: si el rol no tiene acceso a la audiencia solicitada.
+    """
+    role_audiences: dict[str, Audience | None] = {
+        "admin": None,
+        "negocio": "revendedores",
+        "customer": "consumidor_final",
+    }
+
+    default = role_audiences.get(user.role)
+    if default is None:
+        # admin: usa requested o default
+        return requested if requested else "revendedores"  # type: ignore[return-value]
+
+    # No-admin: la audiencia es fija
+    if requested and requested != default:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Rol {user.role} no puede acceder a {requested}",
+        )
+    return default  # type: ignore[return-value]
 
 
 @router.post("/preview", response_model=PreviewResponse)
@@ -28,5 +59,66 @@ async def preview(
     try:
         breakdown = calculate_price(items, payload.prep_minutes, settings.to_pricing())
     except (UnitConversionError, ValueError) as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    return PreviewResponse(**breakdown.__dict__)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    return PreviewResponse(
+        materials=breakdown.materials,
+        waste=breakdown.waste,
+        materials_con_merma=breakdown.materials_con_merma,
+        labor=breakdown.labor,
+        gas=breakdown.gas,
+        base=breakdown.base,
+        margin_pct=breakdown.margin_pct,
+        final=breakdown.rounded,
+        rounded=breakdown.rounded,
+        audience="revendedores",
+    )
+
+
+@router.post("/preview/dual", response_model=PreviewResponse)
+async def preview_dual(
+    payload: PreviewRequest,
+    user: User = Depends(require_role(UserRole.ADMIN, UserRole.NEGOCIO, UserRole.CUSTOMER)),
+    settings_repo: SettingsRepository = Depends(get_settings_repository),
+):
+    """Preview con precios duales por audiencia.
+
+    - admin: puede solicitar ``revendedores`` o ``consumidor_final``.
+    - negocio: siempre ``revendedores``.
+    - cliente: siempre ``consumidor_final``.
+    """
+    settings = await GetSettings(settings_repo).execute()
+    items = [
+        (item.qty, item.unit, item.price_per_purchase_unit, item.purchase_unit)
+        for item in payload.line_items
+    ]
+
+    audience = _resolve_audience_for_user(user, payload.audience)
+
+    try:
+        breakdown = compute_dual_pricing(
+            items,
+            payload.prep_minutes,
+            settings,
+            user.role,
+            audience,
+        )
+    except AudienceForbiddenError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e),
+        ) from e
+    except (UnitConversionError, ValueError) as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+    return PreviewResponse(
+        materials=breakdown.materials,
+        waste=breakdown.waste,
+        materials_con_merma=breakdown.materials_con_merma,
+        labor=breakdown.labor,
+        gas=breakdown.gas,
+        base=breakdown.base,
+        margin_pct=breakdown.margin_pct,
+        final=breakdown.rounded,
+        rounded=breakdown.rounded,
+        audience=audience,
+    )

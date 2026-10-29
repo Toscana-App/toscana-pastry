@@ -12,9 +12,9 @@ export function Navbar() {
       as="nav"
       px={4}
       py={3}
-      bg="white"
+      bg="bg"
       borderBottomWidth={1}
-      borderColor="gray.200"
+      borderColor="border"
       position="sticky"
       top={0}
       zIndex={50}
@@ -35,10 +35,18 @@ export function Navbar() {
 
             {isAuthenticated ? (
               <>
+                <Button variant="ghost" asChild>
+                  <NextLink href="/products">Products</NextLink>
+                </Button>
                 {user?.role === "admin" && (
-                  <Button variant="ghost" asChild>
-                    <NextLink href="/admin">Admin</NextLink>
-                  </Button>
+                  <>
+                    <Button variant="ghost" asChild>
+                      <NextLink href="/admin">Admin</NextLink>
+                    </Button>
+                    <Button variant="ghost" asChild>
+                      <NextLink href="/admin/settings">Settings</NextLink>
+                    </Button>
+                  </>
                 )}
                 <Button variant="ghost" asChild>
                   <NextLink href="/profile">Profile</NextLink>

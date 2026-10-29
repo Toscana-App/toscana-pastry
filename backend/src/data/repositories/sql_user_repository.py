@@ -5,10 +5,16 @@ from domain.models import User, UserRole
 from data.models import UserORM
 
 def _to_domain(orm_user: UserORM) -> User:
+    # Normalize legacy uppercase values (SQLAlchemyEnum persisted names before
+    # the values_callable fix) so that rows edited by hand or from old backups
+    # don't explode with LookupError → 500.
+    raw_role = orm_user.role
+    if isinstance(raw_role, str):
+        raw_role = raw_role.lower()
     return User(
         id=orm_user.id,
         email=orm_user.email,
-        role=UserRole(orm_user.role),
+        role=UserRole(raw_role),
         google_id=orm_user.google_id,
     )
 

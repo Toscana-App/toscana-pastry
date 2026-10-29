@@ -1,5 +1,6 @@
 from sqlalchemy import Column, String, DateTime, Integer, Boolean, Enum as SQLAlchemyEnum, ForeignKey
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import Mapped, mapped_column, declarative_base
+from sqlalchemy import TypeDecorator
 import datetime
 import enum
 
@@ -8,13 +9,38 @@ Base = declarative_base()
 class UserRoleEnum(str, enum.Enum):
     ADMIN = "admin"
     CUSTOMER = "customer"
+    NEGOCIO = "negocio"
+
+
+class _UserRoleColumn(TypeDecorator):
+    """Stores the user role as a lowercase string.
+
+    Replaces SQLAlchemyEnum to avoid the footgun where legacy uppercase
+    values (e.g. "ADMIN" from old backups or hand-edited rows) raise
+    LookupError during ORM loading.  The column stores plain TEXT in the
+    database and normalises every value to lowercase on read, so
+    _to_domain can safely do ``UserRole(raw_value)``.
+    """
+
+    impl = String(50)
+    cache_ok = True
+
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            return str(value).lower()
+        return value
+
 
 class UserORM(Base):
     __tablename__ = "users"
     id = Column(String, primary_key=True)
     email = Column(String, unique=True, nullable=False)
     google_id = Column(String, unique=True, nullable=True)
-    role = Column(SQLAlchemyEnum(UserRoleEnum), default=UserRoleEnum.CUSTOMER, nullable=False)
+    role = Column(
+        _UserRoleColumn(),
+        default="customer",
+        nullable=False,
+    )
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 class BusinessSettingsORM(Base):
@@ -32,6 +58,7 @@ class BusinessSettingsORM(Base):
     gas_pct = Column(String, default="0", nullable=False)
     waste_pct = Column(String, default="0", nullable=False)
     urgent_surcharge_pct = Column(String, default="20", nullable=False)
+    consumer_markup_pct = Column(String, default="40", nullable=False)
     include_labor = Column(Boolean, default=True, nullable=False)
     include_gas = Column(Boolean, default=False, nullable=False)
     include_waste = Column(Boolean, default=False, nullable=False)
@@ -156,6 +183,35 @@ class CalcSupplierORM(Base):
     )
 
 
+class CustomerAddressORM(Base):
+    """Direccion de entrega de un cliente (RF-P11-09). Exactamente una
+    is_default=True por user_id (invariant a nivel de dominio)."""
+
+    __tablename__ = "customer_addresses"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        String, ForeignKey("users.id"), nullable=False, index=True
+    )
+    street_line_1: Mapped[str] = mapped_column(String, nullable=False)
+    street_line_2: Mapped[str | None] = mapped_column(String, nullable=True)
+    city: Mapped[str | None] = mapped_column(String, nullable=True)
+    postal_code: Mapped[str | None] = mapped_column(String, nullable=True)
+    province: Mapped[str | None] = mapped_column(String, nullable=True)
+    phone: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        onupdate=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+
+
 class CalcDefaultCostORM(Base):
     """Costo por defecto (RF-P5CC-06)."""
 
@@ -168,12 +224,12 @@ class CalcDefaultCostORM(Base):
     status = Column(String, nullable=False, default="active")
     created_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
     updated_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
-        onupdate=lambda: datetime.datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        onupdate=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
