@@ -3,15 +3,15 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
-from api.v1.money import Money
+from api.v1.money import Money, Qty, Pct
 
 Audience = Literal["revendedores", "consumidor_final"]
 
 
 class PreviewLineItem(BaseModel):
-    qty: Money = Field(gt=Decimal("0"))
+    qty: Qty = Field(gt=Decimal("0"))
     unit: str
-    price_per_purchase_unit: Money = Field(ge=Decimal("0"))
+    price_per_purchase_unit: Money = Field(ge=0)
     purchase_unit: str
 
 
@@ -28,7 +28,7 @@ class PreviewResponse(BaseModel):
     labor: Money
     gas: Money
     base: Money
-    margin_pct: Money
+    margin_pct: Pct
     final: Money
     rounded: Money
     audience: Audience

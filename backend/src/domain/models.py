@@ -2,7 +2,7 @@ import datetime
 import uuid
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Optional
+from typing import List, Optional, Tuple
 from enum import Enum
 
 from domain.pricing import PricingSettings
@@ -169,3 +169,66 @@ class StockMovement:
     created_at: datetime.datetime = field(
         default_factory=lambda: datetime.datetime.now(datetime.timezone.utc)
     )
+
+
+@dataclass(frozen=True)
+class RecipeItem:
+    """Linea de receta (RF-P4-03). `qty` va en su propia unidad; el motor
+    de precios la convierte contra la unidad de compra del insumo
+    (familias: g/kg, ml/l, unidad). La compatibilidad la revalida el motor
+    al calcular."""
+
+    ingredient_id: str
+    qty: Decimal
+    unit: str
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+
+    def __post_init__(self):
+        if self.qty <= 0:
+            raise ValueError(f"qty de receta debe ser positivo: {self.qty}")
+        if self.unit not in STOCK_UNITS:
+            raise ValueError(f"unidad de receta invalida: {self.unit!r}")
+
+
+@dataclass(frozen=True)
+class Product:
+    """Producto de catalogo (P3/P4). El precio NO se persiste: se deriva en
+    lectura con insumos + settings corrientes (RF-P3-04, RF-P4-05).
+    `deleted_at` no nulo = borrado suave (UC-07)."""
+
+    name: str
+    category: str
+    recipe: Tuple[RecipeItem, ...]
+    description: str = ""
+    prep_time_min: int = 0
+    servings: int = 1
+    difficulty: str = "simple"
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    deleted_at: Optional[datetime.datetime] = None
+
+    def __post_init__(self):
+        name = self.name.strip()
+        if len(name) < 2:
+            raise ValueError("nombre de producto requiere al menos 2 caracteres")
+        if len(name) > 120:
+            raise ValueError("nombre de producto demasiado largo (max 120)")
+        category = self.category.strip()
+        if not category:
+            raise ValueError("la categoria es obligatoria")
+        if len(category) > 60:
+            raise ValueError("categoria demasiado larga (max 60)")
+        if len(self.description) > 500:
+            raise ValueError("descripcion demasiado larga (max 500)")
+        if not 0 <= self.prep_time_min <= 1440:
+            raise ValueError(f"prep_time_min fuera de rango 0-1440: {self.prep_time_min}")
+        if not 1 <= self.servings <= 999:
+            raise ValueError(f"servings fuera de rango 1-999: {self.servings}")
+        if self.difficulty not in DIFFICULTIES:
+            raise ValueError(f"dificultad invalida: {self.difficulty!r}")
+        if len(self.recipe) == 0:
+            raise ValueError("la receta requiere al menos un insumo")
+        seen = set()
+        for item in self.recipe:
+            if item.ingredient_id in seen:
+                raise ValueError(f"insumo duplicado en la receta: {item.ingredient_id}")
+            seen.add(item.ingredient_id)

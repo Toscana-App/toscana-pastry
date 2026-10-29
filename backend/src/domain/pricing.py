@@ -26,6 +26,13 @@ _UNIT_FAMILY = {
     "unidad": "unidad",
 }
 
+
+def _fold_unit(unit: str) -> str:
+    # El contrato de ingredientes usa "L" mayuscula (STOCK_UNITS) y el
+    # preview usa "l": ambas equivalen sin migrar datos existentes.
+    return unit.casefold() if isinstance(unit, str) else unit
+
+
 _CENT = Decimal("0.01")
 
 
@@ -35,7 +42,7 @@ class UnitConversionError(ValueError):
 
 def to_base_units(qty: Decimal, unit: str) -> Decimal:
     """Cantidad expresada en la unidad base de su familia."""
-    factor = _BASE_FACTORS.get(unit)
+    factor = _BASE_FACTORS.get(_fold_unit(unit))
     if factor is None:
         raise UnitConversionError(
             f"Unidad desconocida: {unit!r} (validas: {', '.join(sorted(_BASE_FACTORS))})"
@@ -44,7 +51,7 @@ def to_base_units(qty: Decimal, unit: str) -> Decimal:
 
 
 def unit_family(unit: str) -> str:
-    family = _UNIT_FAMILY.get(unit)
+    family = _UNIT_FAMILY.get(_fold_unit(unit))
     if family is None:
         raise UnitConversionError(
             f"Unidad desconocida: {unit!r} (validas: {', '.join(sorted(_UNIT_FAMILY))})"

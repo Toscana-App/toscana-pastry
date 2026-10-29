@@ -1,3 +1,8 @@
+<<<<<<< HEAD
+=======
+from sqlalchemy import Column, String, DateTime, Integer, Boolean, Enum as SQLAlchemyEnum, ForeignKey, Text
+from sqlalchemy.orm import declarative_base, relationship
+>>>>>>> origin/feat/phase5-backend
 import datetime
 from enum import StrEnum
 
@@ -111,6 +116,7 @@ class StockMovementORM(Base):
     created_at = Column(DateTime(timezone=True), nullable=False)
 
 
+<<<<<<< HEAD
 class CalcSettingsORM(Base):
     """Configuracion de la calculadora de costos (singleton, RF-P5CC-01/02).
 
@@ -490,3 +496,39 @@ class WhatsAppSendORM(Base):
         default=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
+=======
+class ProductORM(Base):
+    """Producto de catalogo (Fase 5). Money/qty como TEXT (RNF-P4-02).
+    deleted_at no nulo = borrado suave (UC-07)."""
+
+    __tablename__ = "products"
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False, index=True)
+    category = Column(String, nullable=False, index=True)
+    description = Column(Text, nullable=False, default="")
+    prep_time_min = Column(Integer, nullable=False, default=0)
+    servings = Column(Integer, nullable=False, default=1)
+    difficulty = Column(String, nullable=False, default="simple")
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    recipe_items = relationship(
+        "RecipeItemORM",
+        cascade="all, delete-orphan",
+        order_by="RecipeItemORM.position",
+        lazy="selectin",
+    )
+
+
+class RecipeItemORM(Base):
+    """Linea de receta: insumo + cantidad en su propia unidad. `position`
+    conserva el orden que el usuario eligio."""
+
+    __tablename__ = "recipe_items"
+    id = Column(String, primary_key=True)
+    product_id = Column(
+        String, ForeignKey("products.id"), nullable=False, index=True
+    )
+    ingredient_id = Column(String, nullable=False, index=True)
+    qty = Column(Text, nullable=False)
+    unit = Column(String, nullable=False)
+    position = Column(Integer, nullable=False, default=0)
+>>>>>>> origin/feat/phase5-backend

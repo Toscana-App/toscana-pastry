@@ -1,6 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
+<<<<<<< HEAD
 from api.v1.dependencies import require_admin, require_role
+=======
+from api.v1.dependencies import require_admin
+from api.v1.money import cents_to_decimal
+>>>>>>> origin/feat/phase5-backend
 from api.v1.settings.dependencies import get_settings_repository
 from api.v1.pricing.schemas import Audience, PreviewRequest, PreviewResponse
 from domain.models import User, UserRole
@@ -53,7 +58,7 @@ async def preview(
     y el motor aplica los settings persistidos."""
     settings = await GetSettings(settings_repo).execute()
     items = [
-        (item.qty, item.unit, item.price_per_purchase_unit, item.purchase_unit)
+        (item.qty, item.unit, cents_to_decimal(item.price_per_purchase_unit), item.purchase_unit)
         for item in payload.line_items
     ]
     try:
