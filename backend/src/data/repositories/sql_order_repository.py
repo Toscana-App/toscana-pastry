@@ -222,14 +222,9 @@ class SQLOrderRepository:
             await self.session.rollback()
             return False
 
-    async def get_payment_event(self, provider_payment_id: str) -> bool:
+    async def get_payment_event(self, event_id: str) -> bool:
         """Check if a payment event already exists (dedupe).
 
         Returns True if the event exists, False otherwise.
         """
-        result = await self.session.execute(
-            select(PaymentEventORM).where(
-                PaymentEventORM.provider_payment_id == provider_payment_id
-            )
-        )
-        return result.scalars().first() is not None
+        return await self.session.get(PaymentEventORM, event_id) is not None

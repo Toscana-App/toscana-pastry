@@ -12,10 +12,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi import status as http_status
 from fastapi.requests import Request
 
-from api.v1.orders.dependencies import get_order_repository
+from api.v1.orders.dependencies import get_checkout_provider, get_order_repository
 from api.v1.orders.schemas import WebhookResponse
 from data.repositories.sql_order_repository import SQLOrderRepository
-from domain.mock_checkout_provider import MockCheckoutProvider
+from domain.checkout_provider import CheckoutProvider, PaymentProviderError
 from domain.order import PaymentMethod, PaymentStatus
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
@@ -25,108 +25,75 @@ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 async def mercadopago_webhook(
     request: Request,
     repo: SQLOrderRepository = Depends(get_order_repository),
+    provider: CheckoutProvider = Depends(get_checkout_provider),
 ):
-    """POST /webhooks/mercadopago: webhook de pago (firma + idempotencia).
+    """POST /webhooks/mercadopago: notificación de pago (firma + idempotencia).
 
-    Público (solo firma, sin auth por cookie).
+    Público (solo firma, sin auth por cookie). El body solo trae el id del
+    pago; el estado y el pedido (external_reference) se leen del proveedor.
     """
-    raw = await request.body()
-    signature = request.headers.get("x-signature")
-
-    provider = MockCheckoutProvider()
-    verified = provider.verify_webhook(raw, signature)
+    verified = provider.verify_webhook(
+        await request.body(),
+        request.headers.get("x-signature"),
+        request.headers.get("x-request-id"),
+    )
     if verified is None:
         raise HTTPException(
             status_code=http_status.HTTP_401_UNAUTHORIZED,
             detail="Invalid signature",
-        ) from None
+        )
 
-    # Parse payload
+    payload = json.loads(verified)
+    if payload.get("type") != "payment":
+        return WebhookResponse()
+
+    payment_id = str(payload["data"]["id"])
     try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError as err:
+        payment = await provider.get_payment(payment_id)
+    except PaymentProviderError as err:
+        # Non-200 makes Mercado Pago retry the notification later.
         raise HTTPException(
-            status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Invalid payload",
+            status_code=http_status.HTTP_502_BAD_GATEWAY,
+            detail="payment_provider_error",
         ) from err
 
-    # Extract payment info
-    payment_id = payload.get("id", "")
-    payment_status_str = payload.get("status", "")
-    order_id = payload.get("resource", "")
+    if not payment.order_id:
+        return WebhookResponse()
+    payment_status = PaymentStatus(payment.status)
 
-    # Map status
-    status_map = {
-        "approved": PaymentStatus.APPROVED,
-        "rejected": PaymentStatus.REJECTED,
-        "failed": PaymentStatus.FAILED,
-        "pending": PaymentStatus.PENDING,
-    }
-    payment_status = status_map.get(payment_status_str)
-    if payment_status is None:
-        raise HTTPException(
-            status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Invalid status",
-        )
-
-    # Dedupe check
-    if await repo.get_payment_event(payment_id):
+    # Dedupe by (payment, status): one payment is notified once per status.
+    event_id = f"{payment_id}:{payment_status.value}"
+    if await repo.get_payment_event(event_id):
         return WebhookResponse()
 
-    # Apply status
-    order = await repo.get(order_id)
+    order = await repo.get(payment.order_id)
     if order is None:
-        raise HTTPException(
-            status_code=http_status.HTTP_404_NOT_FOUND, detail="Order not found"
-        )
-
-    # Cash orders: ignore MP webhook (payment_status stays None, paid stays false)
-    if order.payment_method == PaymentMethod.CASH:
-        # Still record the event for dedupe idempotency
-        await repo.record_payment_event(
-            event_id=f"evt_{payment_id}",
-            order_id=order_id,
-            provider_payment_id=payment_id,
-            status=payment_status,
-        )
         return WebhookResponse()
 
-    # approved → paid (monotonic guard; skip if already paid)
-    if payment_status == PaymentStatus.APPROVED and not order.paid:
-        await repo.update_payment_status(
-            order_id=order_id,
-            reference=payment_id,
-            status=payment_status,
-            paid_at=datetime.datetime.now(datetime.UTC),
-        )
-    elif payment_status in (
-        PaymentStatus.PENDING,
-        PaymentStatus.REJECTED,
-        PaymentStatus.FAILED,
-    ):
-        # pending/rejected/failed: never overwrite a terminal approved state
-        if order.payment_status == PaymentStatus.APPROVED:
-            # Already approved — skip non-terminal updates (dedupe still recorded above)
-            await repo.record_payment_event(
-                event_id=f"evt_{payment_id}",
-                order_id=order_id,
-                provider_payment_id=payment_id,
+    # Cash orders ignore MP webhooks (payment_status stays None, paid false).
+    if order.payment_method != PaymentMethod.CASH:
+        if payment_status == PaymentStatus.APPROVED:
+            # Monotonic guard: approved is applied at most once.
+            if not order.paid:
+                await repo.update_payment_status(
+                    order_id=order.id,
+                    reference=payment_id,
+                    status=payment_status,
+                    paid_at=datetime.datetime.now(datetime.UTC),
+                )
+        elif order.payment_status != PaymentStatus.APPROVED:
+            # pending/rejected/failed never overwrite a terminal approved.
+            await repo.update_payment_status(
+                order_id=order.id,
+                reference=payment_id,
                 status=payment_status,
+                paid_at=order.paid_at,
             )
-            return WebhookResponse()
-        await repo.update_payment_status(
-            order_id=order_id,
-            reference=payment_id,
-            status=payment_status,
-            paid_at=order.paid_at,
-        )
 
-    # Record event (idempotent)
     await repo.record_payment_event(
-        event_id=f"evt_{payment_id}",
-        order_id=order_id,
+        event_id=event_id,
+        order_id=order.id,
         provider_payment_id=payment_id,
         status=payment_status,
     )
-
     return WebhookResponse()

@@ -413,17 +413,16 @@ class OrderItemORM(Base):
 class PaymentEventORM(Base):
     """Webhook payment event for dedupe (RF-P6-13, RNF-P6-10).
 
-    The ``provider_payment_id`` is unique — every payment ID from the
-    provider is recorded exactly once. Replay events hit this unique
-    constraint and return 200 without side effects.
+    ``id`` is ``"{provider_payment_id}:{status}"``: Mercado Pago notifies one
+    payment several times as its status changes (pending → approved), so
+    each (payment, status) pair is recorded exactly once. Replays hit the
+    primary key and return 200 without side effects.
     """
 
     __tablename__ = "payment_events"
 
     id = Column(String, primary_key=True)
-    provider_payment_id = Column(
-        String, nullable=False, unique=True, index=True
-    )
+    provider_payment_id = Column(String, nullable=False, index=True)
     order_id = Column(
         String, ForeignKey("orders.id"), nullable=False, index=True
     )
