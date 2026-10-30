@@ -143,4 +143,5 @@ def verify_mp_signature(
         return False
     manifest = f"id:{data_id};request-id:{request_id};ts:{ts};"
     expected = hmac.new(secret.encode(), manifest.encode(), hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, v1)
+    # Compare bytes: compare_digest raises TypeError on non-ASCII str.
+    return hmac.compare_digest(expected.encode(), v1.encode("utf-8", "surrogateescape"))

@@ -58,6 +58,10 @@ def test_missing_or_malformed_header_is_rejected() -> None:
         assert verify_mp_signature(SECRET, DATA_ID, REQUEST_ID, header) is False
 
 
+def test_non_ascii_v1_is_rejected_not_raised() -> None:
+    assert verify_mp_signature(SECRET, DATA_ID, REQUEST_ID, f"ts={TS},v1=\xe9") is False
+
+
 def test_missing_request_id_or_secret_is_rejected() -> None:
     header = f"ts={TS},v1={_v1()}"
     assert verify_mp_signature(SECRET, DATA_ID, None, header) is False
