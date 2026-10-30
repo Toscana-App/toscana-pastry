@@ -10,9 +10,17 @@ from collections.abc import Sequence
 from decimal import Decimal
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from data.models import OrderItemORM, OrderORM, OrderWindowORM, PaymentEventORM
+from data.models import (
+    OrderItemORM,
+    OrderORM,
+    OrderWindowORM,
+    PaymentAttemptORM,
+    PaymentEventORM,
+)
+from domain.checkout_provider import PaymentResult
 from domain.order import Order, OrderItem, OrderStatus, PaymentMethod, PaymentStatus
 from domain.order_window import OrderWindow
 
@@ -221,6 +229,36 @@ class SQLOrderRepository:
         except Exception:
             await self.session.rollback()
             return False
+
+    async def get_payment_attempt(
+        self, order_id: str, idempotency_key: str
+    ) -> PaymentResult | None:
+        """Saved POST /orders/{id}/payment response for this key, if any."""
+        orm = await self.session.get(PaymentAttemptORM, f"{order_id}:{idempotency_key}")
+        if orm is None:
+            return None
+        return PaymentResult(reference=orm.reference, checkout_url=orm.checkout_url)  # type: ignore[arg-type]
+
+    async def save_payment_attempt(
+        self, order_id: str, idempotency_key: str, result: PaymentResult
+    ) -> PaymentResult:
+        """Store the response for this key; on a concurrent duplicate, return
+        the one that was stored first."""
+        self.session.add(
+            PaymentAttemptORM(
+                id=f"{order_id}:{idempotency_key}",
+                order_id=order_id,
+                reference=result.reference,
+                checkout_url=result.checkout_url,
+            )
+        )
+        try:
+            await self.session.commit()
+            return result
+        except IntegrityError:
+            await self.session.rollback()
+            saved = await self.get_payment_attempt(order_id, idempotency_key)
+            return saved or result
 
     async def get_payment_event(self, event_id: str) -> bool:
         """Check if a payment event already exists (dedupe).

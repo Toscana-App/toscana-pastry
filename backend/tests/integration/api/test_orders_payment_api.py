@@ -5,6 +5,9 @@ Covers:
         - 200 creates a Checkout Pro preference for the real order amount
         - 503 when Mercado Pago is not configured, 502 on provider errors
         - 422 for cash orders
+        - owner/admin allowed, other customers 404 (S6)
+        - Idempotency-Key persisted: replay, 409 payment_in_progress,
+          422 payment_finalized (S7)
         - 409 for non-nuevo orders
     GET /orders/{id}/payment:
         - 200 with correct status/paid
@@ -27,7 +30,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from api.v1.auth.dependencies import get_user_repository
-from api.v1.dependencies import require_admin
+from api.v1.dependencies import get_current_user, require_admin
 from api.v1.orders.dependencies import get_checkout_provider
 from core.config import settings
 from data.db import get_db as get_db_orig
@@ -36,7 +39,7 @@ from data.payments.mercadopago import MercadoPagoCheckoutProvider
 from data.repositories.sql_order_repository import SQLOrderRepository
 from data.repositories.sql_user_repository import SQLUserRepository
 from domain.models import User, UserRole
-from domain.order import Order, OrderItem, PaymentMethod
+from domain.order import Order, OrderItem, PaymentMethod, PaymentStatus
 from main import app
 
 # ─── Fixtures ─────────────────────────────────────────────────────────
@@ -103,9 +106,21 @@ async def _persist(db_session, order: Order) -> Order:
     return order
 
 
+ADMIN = User(email="admin@example.com", role=UserRole.ADMIN)
+OWNER = User(email="owner@example.com", role=UserRole.CUSTOMER)
+STRANGER = User(email="stranger@example.com", role=UserRole.CUSTOMER)
+
+# User returned by get_current_user; tests switch it.
+_CURRENT = {"user": ADMIN}
+
+
 async def _admin_user():
     """Return a fake admin user for dependency overrides."""
-    return User(email="admin@example.com", role=UserRole.ADMIN)
+    return ADMIN
+
+
+async def _current_user():
+    return _CURRENT["user"]
 
 
 @pytest_asyncio.fixture
@@ -125,7 +140,9 @@ async def client(db_session):
         SQLOrderRepository
     ] = override_get_order_repo
     app.dependency_overrides[require_admin] = _admin_user
+    app.dependency_overrides[get_current_user] = _current_user
     app.dependency_overrides[get_checkout_provider] = _provider
+    _CURRENT["user"] = ADMIN
     _MP_REQUESTS.clear()
 
     # Create admin user
@@ -145,7 +162,7 @@ async def client(db_session):
 async def mercadopago_order(db_session):
     """Create an order with payment_method=mercadopago, status=nuevo."""
     order = Order(
-        customer_id=str(uuid.uuid4()),
+        customer_id=OWNER.id,
         date=datetime.datetime.now(datetime.UTC),
         items=[
             OrderItem(
@@ -297,3 +314,100 @@ class TestGetOrderPayment:
             "/api/v1/orders/nonexistent-payment"
         )
         assert response.status_code == 404
+
+
+async def _pay(client, order_id: str, key: str = "key-1"):
+    return await client.post(
+        f"/api/v1/orders/{order_id}/payment", headers={"Idempotency-Key": key}
+    )
+
+
+async def _set_payment_status(db_session, order_id: str, status: PaymentStatus, paid: bool = False):
+    await SQLOrderRepository(db_session).update_payment_status(
+        order_id=order_id,
+        reference="mp-1",
+        status=status,
+        paid_at=datetime.datetime.now(datetime.UTC) if paid else None,
+    )
+
+
+class TestPaymentOwnership:
+    """S6: the order owner (or an admin) pays; other customers get 404."""
+
+    async def test_owner_can_initiate_payment(self, client, mercadopago_order):
+        _CURRENT["user"] = OWNER
+        response = await _pay(client, mercadopago_order.id)
+        assert response.status_code == 200
+        assert response.json()["reference"] == f"pref-{mercadopago_order.id}"
+
+    async def test_admin_can_initiate_payment(self, client, mercadopago_order):
+        response = await _pay(client, mercadopago_order.id)
+        assert response.status_code == 200
+
+    async def test_other_customer_gets_404_and_no_preference(self, client, mercadopago_order):
+        _CURRENT["user"] = STRANGER
+        response = await _pay(client, mercadopago_order.id)
+        assert response.status_code == 404
+        assert _MP_REQUESTS == []
+
+    async def test_owner_can_read_payment_status(self, client, mercadopago_order):
+        _CURRENT["user"] = OWNER
+        response = await client.get(f"/api/v1/orders/{mercadopago_order.id}/payment")
+        assert response.status_code == 200
+        assert response.json()["paid"] is False
+
+    async def test_other_customer_cannot_read_payment_status(self, client, mercadopago_order):
+        _CURRENT["user"] = STRANGER
+        response = await client.get(f"/api/v1/orders/{mercadopago_order.id}/payment")
+        assert response.status_code == 404
+
+
+class TestPaymentIdempotency:
+    """S7: Idempotency-Key is persisted (C1.4)."""
+
+    async def test_same_key_replays_saved_response_without_new_preference(
+        self, client, mercadopago_order
+    ):
+        first = await _pay(client, mercadopago_order.id, "key-1")
+        second = await _pay(client, mercadopago_order.id, "key-1")
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert second.json() == first.json()
+        assert len(_MP_REQUESTS) == 1
+
+    async def test_other_key_without_started_payment_creates_new_preference(
+        self, client, mercadopago_order
+    ):
+        await _pay(client, mercadopago_order.id, "key-1")
+        response = await _pay(client, mercadopago_order.id, "key-2")
+        assert response.status_code == 200
+        assert len(_MP_REQUESTS) == 2
+
+    async def test_other_key_while_pending_returns_409(self, client, db_session, mercadopago_order):
+        await _pay(client, mercadopago_order.id, "key-1")
+        await _set_payment_status(db_session, mercadopago_order.id, PaymentStatus.PENDING)
+        response = await _pay(client, mercadopago_order.id, "key-2")
+        assert response.status_code == 409
+        assert response.json()["detail"] == "payment_in_progress"
+        assert len(_MP_REQUESTS) == 1
+
+    async def test_same_key_while_pending_still_replays(self, client, db_session, mercadopago_order):
+        first = await _pay(client, mercadopago_order.id, "key-1")
+        await _set_payment_status(db_session, mercadopago_order.id, PaymentStatus.PENDING)
+        second = await _pay(client, mercadopago_order.id, "key-1")
+        assert second.status_code == 200
+        assert second.json() == first.json()
+
+    async def test_terminal_status_returns_422_payment_finalized(
+        self, client, db_session, mercadopago_order
+    ):
+        for status, paid in (
+            (PaymentStatus.REJECTED, False),
+            (PaymentStatus.FAILED, False),
+            (PaymentStatus.APPROVED, True),
+        ):
+            await _set_payment_status(db_session, mercadopago_order.id, status, paid)
+            response = await _pay(client, mercadopago_order.id, f"key-{status.value}")
+            assert response.status_code == 422, status
+            assert response.json()["detail"] == "payment_finalized"
+        assert _MP_REQUESTS == []

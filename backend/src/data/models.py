@@ -410,6 +410,28 @@ class OrderItemORM(Base):
     portion_note = Column(String, default="", nullable=False)
 
 
+class PaymentAttemptORM(Base):
+    """Saved response of POST /orders/{id}/payment per Idempotency-Key (C1.4).
+
+    ``id`` is ``"{order_id}:{idempotency_key}"``; a replay with the same key
+    returns the stored reference/checkout_url instead of a new preference.
+    """
+
+    __tablename__ = "payment_attempts"
+
+    id = Column(String, primary_key=True)
+    order_id = Column(
+        String, ForeignKey("orders.id"), nullable=False, index=True
+    )
+    reference = Column(String, nullable=False)
+    checkout_url = Column(String, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+
+
 class PaymentEventORM(Base):
     """Webhook payment event for dedupe (RF-P6-13, RNF-P6-10).
 

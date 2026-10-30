@@ -22,8 +22,8 @@ from api.v1.orders.schemas import (
 from data.models import OrderItemORM, OrderORM
 from data.repositories.sql_order_repository import SQLOrderRepository
 from domain.checkout_provider import CheckoutProvider, PaymentProviderError
-from domain.models import User
-from domain.order import DeliveryMode, OrderStatus, PaymentMethod, PaymentStatus
+from domain.models import User, UserRole
+from domain.order import DeliveryMode, Order, OrderStatus, PaymentMethod, PaymentStatus
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -96,6 +96,23 @@ async def mark_order_paid(
     return PaidResponse(paid=True)
 
 
+_FINAL_PAYMENT_STATUSES = (
+    PaymentStatus.APPROVED,
+    PaymentStatus.REJECTED,
+    PaymentStatus.FAILED,
+)
+
+
+async def _get_own_order(repo: SQLOrderRepository, order_id: str, user: User) -> Order:
+    """Order visible to ``user`` (owner or admin); 404 otherwise (anti-probing)."""
+    order = await repo.get(order_id)
+    if order is None or (user.role != UserRole.ADMIN and order.customer_id != user.id):
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND, detail="Order not found"
+        )
+    return order
+
+
 # ─── POST /orders/{id}/payment (C1.4) ───────────────────────────────
 
 @router.post("/{id}/payment", response_model=PaymentInitResponse)
@@ -103,18 +120,21 @@ async def initiate_payment(
     id: str,
     idempotency_key: str = Header(..., alias="Idempotency-Key"),
     repo: SQLOrderRepository = Depends(get_order_repository),
-    _admin: User = Depends(require_admin),
+    user: User = Depends(get_current_user),
     provider: CheckoutProvider = Depends(get_checkout_provider),
 ):
     """POST /orders/{id}/payment: inicia pago Mercado Pago (Checkout Pro).
 
-    Solo pedidos status=nuevo + payment_method=mercadopago.
-    Idempotencia por Idempotency-Key.
+    Dueño del pedido o admin. Solo pedidos status=nuevo +
+    payment_method=mercadopago. Idempotencia por Idempotency-Key.
     """
-    order = await repo.get(id)
-    if order is None:
-        raise HTTPException(
-            status_code=http_status.HTTP_404_NOT_FOUND, detail="Order not found"
+    order = await _get_own_order(repo, id, user)
+
+    # Same key → same saved response.
+    saved = await repo.get_payment_attempt(order.id, idempotency_key)
+    if saved is not None:
+        return PaymentInitResponse(
+            reference=saved.reference, checkout_url=saved.checkout_url
         )
 
     # payment_method=cash → 422
@@ -131,6 +151,17 @@ async def initiate_payment(
             detail="order_not_payable",
         )
 
+    if order.paid or order.payment_status in _FINAL_PAYMENT_STATUSES:
+        raise HTTPException(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="payment_finalized",
+        )
+    if order.payment_status == PaymentStatus.PENDING:
+        raise HTTPException(
+            status_code=http_status.HTTP_409_CONFLICT,
+            detail="payment_in_progress",
+        )
+
     amount = order.total - (order.discount_amount or Decimal("0"))
     try:
         result = await provider.create_payment(order.id, float(amount), _PAYMENT_CURRENCY)
@@ -140,6 +171,7 @@ async def initiate_payment(
             detail="payment_provider_error",
         ) from err
 
+    result = await repo.save_payment_attempt(order.id, idempotency_key, result)
     return PaymentInitResponse(
         reference=result.reference,
         checkout_url=result.checkout_url,
@@ -152,14 +184,13 @@ async def initiate_payment(
 async def get_payment_status(
     id: str,
     repo: SQLOrderRepository = Depends(get_order_repository),
-    _admin: User = Depends(require_admin),
+    user: User = Depends(get_current_user),
 ):
-    """GET /orders/{id}/payment: estado del pago (polling del portal)."""
-    order = await repo.get(id)
-    if order is None:
-        raise HTTPException(
-            status_code=http_status.HTTP_404_NOT_FOUND, detail="Order not found"
-        )
+    """GET /orders/{id}/payment: estado del pago (polling del portal).
+
+    Dueño del pedido o admin; pedidos ajenos → 404.
+    """
+    order = await _get_own_order(repo, id, user)
 
     return PaymentStatusResponse(
         status=order.payment_status.value if order.payment_status else None,
