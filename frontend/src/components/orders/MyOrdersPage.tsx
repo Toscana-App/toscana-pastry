@@ -8,6 +8,7 @@ Badge "Pagar en efectivo en la entrega" para pedidos en efectivo.
 */
 
 import {
+  Alert,
   Badge,
   Box,
   Button,
@@ -19,10 +20,41 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { useCallback, useEffect, useState } from "react";
-import { fetchMyOrderByCode, fetchMyOrders } from "@/services/ordersService";
+import { gooeyToast } from "goey-toast";
+import {
+  fetchMyOrderByCode,
+  fetchMyOrders,
+  initOrderPayment,
+} from "@/services/ordersService";
 import { OrderDetail } from "@/types/orders";
 
 const PAGE_SIZE = 10;
+
+/** Money arrives as decimal strings; render with es-AR grouping. */
+function formatMoney(value: string): string {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return value;
+  return parsed.toLocaleString("es-AR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/**
+ * RF-P11-10: the "Pagar con Mercado Pago" CTA appears while the order is
+ * unpaid and the online payment is pending/retryable (never for cash, never
+ * once approved, and never while a payment attempt is in progress).
+ */
+function canPayNow(order: OrderDetail): boolean {
+  if (order.paid) return false;
+  if (order.payment_method !== "mercadopago") return false;
+  return [
+    null,
+    "",
+    "rejected",
+    "failed",
+  ].includes(order.payment_status);
+}
 
 const STATUS_BADGES: Record<
   string,
@@ -82,10 +114,63 @@ function formatDate(iso: string): string {
   });
 }
 
-function OrderCard({ order }: { order: OrderDetail }) {
+function OrderCard({
+  order,
+  onPaidChange,
+}: {
+  order: OrderDetail;
+  onPaidChange: () => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [paying, setPaying] = useState(false);
+
+  const handlePay = useCallback(async () => {
+    setPaying(true);
+    try {
+      const { checkout_url } = await initOrderPayment(
+        order.id,
+        crypto.randomUUID()
+      );
+      // The backend (mock provider) returns either an internal path
+      // ("/checkout/mock/<ref>") or an https checkout URL. Anything else
+      // is refused (open-redirect defense): window.open only ever receives
+      // a value that passed this validation.
+      const isInternal =
+        checkout_url.startsWith("/") && !checkout_url.startsWith("//");
+      let safeTarget: string;
+      if (isInternal) {
+        safeTarget = checkout_url;
+      } else {
+        let url: URL | null = null;
+        try {
+          url = new URL(checkout_url);
+        } catch {
+          url = null;
+        }
+        if (!url || url.protocol !== "https:") {
+          gooeyToast.error("¡Ups! No se pudo iniciar el pago", {
+            description: "La URL de pago no es segura. Intenta de nuevo.",
+          });
+          return;
+        }
+        safeTarget = url.toString();
+      }
+      window.open(safeTarget, isInternal ? "_self" : "_blank", "noopener");
+      gooeyToast.success("¡Pago iniciado!", {
+        description: "Completa el pago en la ventana que se abrió.",
+      });
+      onPaidChange();
+    } catch (error) {
+      gooeyToast.error("¡Ups! No se pudo iniciar el pago", {
+        description:
+          error instanceof Error ? error.message : "Intenta de nuevo.",
+      });
+    } finally {
+      setPaying(false);
+    }
+  }, [order.id, onPaidChange]);
 
   const toggleDetail = useCallback(async () => {
     if (expanded) {
@@ -131,13 +216,23 @@ function OrderCard({ order }: { order: OrderDetail }) {
                 {statusBadge.label}
               </Badge>
               <PaymentBadge order={order} />
+              {canPayNow(order) && (
+                <Button
+                  size="sm"
+                  colorPalette="brand"
+                  loading={paying}
+                  onClick={() => void handlePay()}
+                >
+                  Pagar con Mercado Pago
+                </Button>
+              )}
             </Flex>
           </Flex>
 
           <Flex justify="space-between" align="center">
-            <Text fontWeight="bold">${order.total}</Text>
+            <Text fontWeight="bold">${formatMoney(order.total)}</Text>
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               onClick={() => void toggleDetail()}
               loading={loadingDetail}
@@ -165,7 +260,7 @@ function OrderCard({ order }: { order: OrderDetail }) {
                   Cupón: {detail.coupon_code}
                   {detail.discount_amount !== null &&
                     detail.discount_amount !== "0" &&
-                    ` (ahorrás $${detail.discount_amount})`}
+                    ` (ahorras $${formatMoney(detail.discount_amount)})`}
                 </Text>
               )}
               <Box>
@@ -178,7 +273,7 @@ function OrderCard({ order }: { order: OrderDetail }) {
                     <Text>
                       {item.product_name} × {item.quantity}
                     </Text>
-                    <Text>${item.total}</Text>
+                    <Text>${formatMoney(item.total)}</Text>
                   </Flex>
                 ))}
               </Box>
@@ -196,6 +291,9 @@ function MyOrdersPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -220,7 +318,7 @@ function MyOrdersPage() {
     return () => {
       cancelled = true;
     };
-  }, [page]);
+  }, [page, refreshKey]);
 
   if (loading) {
     return (
@@ -234,7 +332,26 @@ function MyOrdersPage() {
 
   if (error) {
     return (
-      <Text color="red.600">{error}</Text>
+      <Alert.Root status="error">
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>¡Ups! No pudimos cargar tus pedidos</Alert.Title>
+          <Alert.Description>{error}</Alert.Description>
+          <Flex justify="flex-end" mt={2}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setError(null);
+                setLoading(true);
+                refresh();
+              }}
+            >
+              Reintentar
+            </Button>
+          </Flex>
+        </Alert.Content>
+      </Alert.Root>
     );
   }
 
@@ -243,9 +360,9 @@ function MyOrdersPage() {
       <Card.Root>
         <Card.Body>
           <Stack align="center" gap={3} py={8} textAlign="center">
-            <Text fontWeight="semibold">Todavía no tenés pedidos</Text>
+            <Text fontWeight="semibold">Todavía no tienes pedidos</Text>
             <Text fontSize="sm" color="fg.muted">
-              Cuando hagas tu primer pedido vas a poder seguirlo acá.
+              Cuando hagas tu primer pedido podrás seguirlo acá.
             </Text>
           </Stack>
         </Card.Body>
@@ -258,12 +375,12 @@ function MyOrdersPage() {
   return (
     <Stack gap={3}>
       {orders.map((order) => (
-        <OrderCard key={order.id} order={order} />
+        <OrderCard key={order.id} order={order} onPaidChange={refresh} />
       ))}
       {pageCount > 1 && (
         <Flex justify="center" align="center" gap={3} mt={2}>
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             disabled={page <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -274,7 +391,7 @@ function MyOrdersPage() {
             {page} / {pageCount}
           </Text>
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             disabled={page >= pageCount}
             onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
