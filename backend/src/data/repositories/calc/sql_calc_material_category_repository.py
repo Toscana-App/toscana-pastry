@@ -4,7 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from data.accent import accent_fold
-from data.models import CalcMaterialCategoryORM
+from data.models import CalcMaterialCategoryORM, CalcMaterialORM
 from domain.calc_settings import CalcMaterialCategory
 
 
@@ -102,10 +102,9 @@ class SQLCalcMaterialCategoryRepository:
         return _to_domain(orm)
 
     async def count_in_use(self, category_id: str) -> int:
-        """Materiales que referencian esta categoria.
-
-        TODO(B8): completar con consulta real de FK en
-        calc_materials.material_category_id cuando B8 agregue la tabla
-        calc_materials. Por ahora siempre 0.
-        """
-        return 0
+        """Materiales que referencian esta categoria (FK real en
+        calc_materials.material_category_id, B8)."""
+        stmt = select(func.count()).select_from(CalcMaterialORM).where(
+            CalcMaterialORM.material_category_id == category_id
+        )
+        return (await self.session.execute(stmt)).scalar_one()

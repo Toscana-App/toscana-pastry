@@ -1,0 +1,383 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Button,
+  Flex,
+  Input,
+  Textarea,
+  Select,
+  Spinner,
+  Heading,
+  Text as UIText,
+} from "@chakra-ui/react";
+import { createListCollection } from "@ark-ui/react";
+import { calcProductsService } from "@/services/calcProductsService";
+import { calcMaterialsService } from "@/services/calcMaterialsService";
+import { calcSettingsService } from "@/services/calcSettingsService";
+import ProductLines from "./ProductLines";
+import { toaster } from "@/lib/toaster";
+import type {
+  Category,
+  Material,
+  Product,
+  ProductCreatePayload,
+  ProductUpdatePayload,
+  ProductLineMaterialIn,
+  ProductLineLaborIn,
+  ProductLineExtraCostIn,
+  ProductStatus,
+  CategoryListResponse,
+  ProductWithLines,
+} from "@/types/calc";
+
+interface ProductEditorProps {
+  initial?: Product;
+  onSave?: (product: Product) => void;
+}
+
+export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
+  const router = useRouter();
+
+  const [name, setName] = useState(initial?.name || "");
+  const [sku, setSku] = useState(initial?.sku || "");
+  const [categoryId, setCategoryId] = useState<string>(initial?.category_id || "");
+  const [description, setDescription] = useState(initial?.description || "");
+  const [notes, setNotes] = useState(initial?.notes || "");
+  const [marginPercent, setMarginPercent] = useState(initial?.margin_percent || "");
+  const [discountPercent, setDiscountPercent] = useState(initial?.discount_percent || "");
+  const [taxPercent, setTaxPercent] = useState(initial?.tax_percent || "");
+  const [status, setStatus] = useState<ProductStatus>(initial?.status || "draft");
+
+  const [saving, setSaving] = useState(false);
+  const [fetching, setFetching] = useState(false);
+
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [materialLines, setMaterialLines] = useState<ProductLineMaterialIn[]>([]);
+  const [laborLines, setLaborLines] = useState<ProductLineLaborIn[]>([]);
+  const [extraCostLines, setExtraCostLines] = useState<ProductLineExtraCostIn[]>([]);
+
+  const [showPreview, setShowPreview] = useState(false);
+
+  const categoryCollection = createListCollection({
+    items: categories.map(c => ({ value: c.id, label: c.name }))
+  });
+
+  const statusCollection = createListCollection({
+    items: [
+      { value: "draft", label: "Borrador" },
+      { value: "active", label: "Activo" },
+      { value: "archived", label: "Archivado" },
+    ],
+  });
+
+  useEffect(() => {
+    // Fetch categories
+    calcSettingsService.listCategories("product-categories")
+      .then((response: CategoryListResponse) => setCategories(response.items))
+      .catch(() => {
+        toaster.create({ title: "Error cargando categorías", type: "error" });
+      });
+
+    // Fetch materials for the lines
+    calcMaterialsService.listMaterials({ status: "active" })
+      .then(response => setMaterials(response.items))
+      .catch(() => {
+        toaster.create({ title: "Error cargando materiales", type: "error" });
+      });
+
+    // If editing, fetch product data
+    if (initial?.id) {
+      calcProductsService.getProduct(initial.id)
+        .then((productData: ProductWithLines) => {
+          setName(productData.product.name);
+          setSku(productData.product.sku || "");
+          setCategoryId(productData.product.category_id || "");
+          setDescription(productData.product.description || "");
+          setNotes(productData.product.notes || "");
+          setMarginPercent(productData.product.margin_percent);
+          setDiscountPercent(productData.product.discount_percent);
+          setTaxPercent(productData.product.tax_percent);
+          setStatus(productData.product.status as ProductStatus);
+          
+          // Load existing material lines from the product
+          if (productData.product_lines) {
+            const materialLines = productData.product_lines.materials.map(line => ({
+              material_id: line.material_id,
+              quantity_used: line.quantity_used,
+            }));
+            const laborLines = productData.product_lines.labor.map(line => ({
+              activity_name: line.activity_name,
+              hourly_rate: line.hourly_rate,
+              minutes_required: line.minutes_required,
+            }));
+            const extraCostLines = productData.product_lines.extra_costs.map(line => ({
+              concept_name: line.concept_name,
+              unit_cost: line.unit_cost,
+              quantity: line.quantity,
+            }));
+            setMaterialLines(materialLines);
+            setLaborLines(laborLines);
+            setExtraCostLines(extraCostLines);
+          }
+        })
+        .catch(() => {
+          toaster.create({ title: "Error cargando producto", type: "error" });
+          router.back();
+        })
+        .finally(() => setFetching(false));
+    }
+  }, [initial?.id, router]);
+
+  const handleSave = async () => {
+    if (!name.trim()) {
+      toaster.create({ title: "El nombre es requerido", type: "warning" });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload: ProductCreatePayload | ProductUpdatePayload = {
+        name: name.trim(),
+        sku: sku.trim() || undefined,
+        category_id: categoryId || undefined,
+        description: description.trim() || undefined,
+        notes: notes.trim() || undefined,
+        margin_percent: marginPercent || undefined,
+        discount_percent: discountPercent || undefined,
+        tax_percent: taxPercent || undefined,
+        status,
+        materials: materialLines,
+        labor: laborLines,
+        extra_costs: extraCostLines,
+      };
+
+      let savedProduct: Product;
+      if (initial?.id) {
+        // Update existing product
+        const result = await calcProductsService.updateProduct(initial.id, payload as ProductUpdatePayload);
+        savedProduct = result.product;
+        toaster.create({ title: "Producto actualizado exitosamente", type: "success" });
+      } else {
+        // Create new product
+        const result = await calcProductsService.createProduct(payload as ProductCreatePayload);
+        savedProduct = result.product;
+        toaster.create({ title: "Producto creado exitosamente", type: "success" });
+      }
+
+      onSave?.(savedProduct);
+      router.back();
+
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error guardando producto";
+      toaster.create({ title: message, type: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleLinesChange = (
+    materials: ProductLineMaterialIn[],
+    labor: ProductLineLaborIn[],
+    extraCosts: ProductLineExtraCostIn[]
+  ) => {
+    setMaterialLines(materials);
+    setLaborLines(labor);
+    setExtraCostLines(extraCosts);
+  };
+
+  if (fetching) {
+    return (
+      <Flex justify="center" align="center" minH="400px">
+        <Spinner size="xl" />
+      </Flex>
+    );
+  }
+
+  return (
+    <Flex direction="column" gap={6} maxW="1200px" mx="auto" p={6}>
+      <Flex justify="space-between" align="center">
+        <Heading as="h1" size="xl">
+          {initial?.id ? "Editar Producto" : "Nuevo Producto"}
+        </Heading>
+        <Button variant="ghost" onClick={() => router.back()}>
+          Cancelar
+        </Button>
+      </Flex>
+
+      <Flex direction={{ base: "column", lg: "row" }} gap={6}>
+        <Flex direction="column" gap={4} flex={1}>
+          <Heading as="h2" size="md">Información Básica</Heading>
+
+          <Flex direction="column" gap={3}>
+            <Flex direction={{ base: "column", sm: "row" }} gap={3}>
+              <Flex direction="column" flex={1}>
+                <UIText fontSize="sm" mb={1}>Nombre *</UIText>
+                <Input
+                  placeholder="Nombre del producto"
+                  maxLength={120}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </Flex>
+              <Flex direction="column" flex={1}>
+                <UIText fontSize="sm" mb={1}>SKU</UIText>
+                <Input
+                  placeholder="Código de producto (opcional)"
+                  maxLength={40}
+                  value={sku}
+                  onChange={(e) => setSku(e.target.value)}
+                />
+              </Flex>
+            </Flex>
+
+            <Flex direction={{ base: "column", sm: "row" }} gap={3}>
+              <Flex direction="column" flex={1}>
+                <UIText fontSize="sm" mb={1}>Categoría</UIText>
+                <Select.Root
+                  collection={categoryCollection}
+                  value={[categoryId]}
+                  onValueChange={(details) => {
+                    const next = details.value[0];
+                    if (next) setCategoryId(next);
+                  }}
+                >
+                  <Select.Trigger>
+                    <Select.ValueText placeholder="_placeholder" />
+                  </Select.Trigger>
+                  <Select.Positioner>
+                    <Select.Content>
+                      {categories.map(c => (
+                        <Select.Item key={c.id} item={{ value: c.id, label: c.name }}>
+                          {c.name}
+                        </Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select.Positioner>
+                </Select.Root>
+              </Flex>
+              <Flex direction="column" flex={1}>
+                <UIText fontSize="sm" mb={1}>Estado</UIText>
+                <Select.Root
+                  collection={statusCollection}
+                  value={[status]}
+                  onValueChange={(details) => {
+                    const next = details.value[0];
+                    if (next) setStatus(next as ProductStatus);
+                  }}
+                >
+                  <Select.Trigger>
+                    <Select.ValueText placeholder="_placeholder" />
+                  </Select.Trigger>
+                  <Select.Positioner>
+                    <Select.Content>
+                      {statusCollection.items.map(item => (
+                        <Select.Item key={item.value} item={{ value: item.value, label: item.label }}>
+                          {item.label}
+                        </Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select.Positioner>
+                </Select.Root>
+              </Flex>
+            </Flex>
+
+            <Flex direction={{ base: "column", sm: "row" }} gap={3}>
+              <Flex direction="column" flex={1}>
+                <UIText fontSize="sm" mb={1}>Margen %</UIText>
+                <Input
+                  placeholder="%"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={marginPercent}
+                  onChange={(e) => setMarginPercent(e.target.value)}
+                />
+              </Flex>
+              <Flex direction="column" flex={1}>
+                <UIText fontSize="sm" mb={1}>Descuento %</UIText>
+                <Input
+                  placeholder="%"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={discountPercent}
+                  onChange={(e) => setDiscountPercent(e.target.value)}
+                />
+              </Flex>
+              <Flex direction="column" flex={1}>
+                <UIText fontSize="sm" mb={1}>Impuesto %</UIText>
+                <Input
+                  placeholder="%"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={taxPercent}
+                  onChange={(e) => setTaxPercent(e.target.value)}
+                />
+              </Flex>
+            </Flex>
+
+            <Flex direction="column">
+              <UIText fontSize="sm" mb={1}>Descripción</UIText>
+              <Textarea
+                placeholder="Descripción del producto (opcional)"
+                rows={2}
+                maxLength={500}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </Flex>
+
+            <Flex direction="column">
+              <UIText fontSize="sm" mb={1}>Notas</UIText>
+              <Textarea
+                placeholder="Notas internas (opcional)"
+                rows={2}
+                maxLength={500}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </Flex>
+          </Flex>
+        </Flex>
+      </Flex>
+
+      <Flex direction="column" gap={4}>
+        <Heading as="h2" size="md">Líneas de Producto</Heading>
+        <ProductLines
+          materials={materials}
+          laborLines={laborLines}
+          extraCostLines={extraCostLines}
+          onLinesChange={handleLinesChange}
+          showPreview={showPreview}
+        />
+      </Flex>
+
+      <Flex justify="flex-end" gap={3} mt={6}>
+        <Button
+          variant="ghost"
+          onClick={() => setShowPreview(!showPreview)}
+        >
+          {showPreview ? "Ocultar" : "Mostrar"} Vista Previa
+        </Button>
+        <Button variant="outline" onClick={() => router.back()} disabled={saving}>
+          Cancelar
+        </Button>
+        <Button
+          onClick={handleSave}
+          loading={saving}
+          disabled={!name.trim()}
+        >
+          {initial?.id ? "Actualizar" : "Guardar"} Producto
+        </Button>
+      </Flex>
+    </Flex>
+  );
+}

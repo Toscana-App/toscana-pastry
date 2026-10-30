@@ -2,12 +2,18 @@
 
 Mismas reglas que CalcMaterialCategory.
 """
+
+# pyright: reportArgumentType=false, reportAttributeAccessIssue=false
+# El ORM usa el estilo Column legacy (mismo que B1-B8): pyright tipa los
+# atributos de instancia como Column[T], no como el valor. En runtime son
+# los valores; el mapeo ORM->dominio pasa por str() explicitos.
+
 from typing import List, Optional, Tuple
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from data.accent import accent_fold
-from data.models import CalcProductCategoryORM
+from data.models import CalcProductCategoryORM, CalcProductORM
 from domain.calc_settings import CalcProductCategory
 
 
@@ -105,10 +111,13 @@ class SQLCalcProductCategoryRepository:
         return _to_domain(orm)
 
     async def count_in_use(self, category_id: str) -> int:
-        """Productos que referencian esta categoria.
-
-        TODO(B9): completar con consulta real de FK en
-        calc_products.product_category_id cuando B9 agregue la tabla
-        calc_products. Por ahora siempre 0.
-        """
-        return 0
+        """Productos no eliminados que referencian esta categoria (B9)."""
+        result = await self.session.execute(
+            select(func.count())
+            .select_from(CalcProductORM)
+            .where(
+                CalcProductORM.product_category_id == category_id,
+                CalcProductORM.deleted_at.is_(None),
+            )
+        )
+        return result.scalar_one()

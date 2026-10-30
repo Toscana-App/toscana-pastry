@@ -243,3 +243,404 @@ class DefaultCostListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# ─── Materials (RF-P2CC-01..05) ────────────────────────────────────────
+
+MAX_MATERIAL_NAME = 120
+MAX_MATERIAL_INTERNAL_CODE = 40
+MAX_MATERIAL_UNIT_OF_MEASURE = 20
+MAX_MATERIAL_NOTES = 500
+
+
+class MaterialCreate(BaseModel):
+    """POST /calc/materials (RF-P2CC-01).
+
+    extra="forbid": unit_cost y status NUNCA aceptan entrada del cliente
+    (RF-P2CC-02/03, security #8).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=MAX_MATERIAL_NAME)
+    internal_code: str | None = Field(default=None, max_length=MAX_MATERIAL_INTERNAL_CODE)
+    category_id: str | None = None
+    supplier_id: str | None = None
+    unit_of_measure: str | None = Field(default=None, max_length=MAX_MATERIAL_UNIT_OF_MEASURE)
+    purchase_total_price: Money | None = Field(default=None, ge=Decimal("0"))
+    package_quantity: Qty | None = Field(default=None, gt=Decimal("0"))
+    notes: str | None = Field(default=None, max_length=MAX_MATERIAL_NOTES)
+
+    @field_validator("name")
+    @classmethod
+    def _name_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("nombre no puede estar vacio")
+        return value.strip()
+
+
+class MaterialUpdate(BaseModel):
+    """PATCH /calc/materials/{id} (RF-P2CC-01).
+
+    Envio explicito de null en purchase_total_price/package_quantity
+    elimina el dato (unit_cost -> None, status -> incomplete, y se
+    registra en el historial si cambio, RF-P2CC-04).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=MAX_MATERIAL_NAME)
+    internal_code: str | None = Field(default=None, max_length=MAX_MATERIAL_INTERNAL_CODE)
+    category_id: str | None = None
+    supplier_id: str | None = None
+    unit_of_measure: str | None = Field(default=None, max_length=MAX_MATERIAL_UNIT_OF_MEASURE)
+    purchase_total_price: Money | None = Field(default=None, ge=Decimal("0"))
+    package_quantity: Qty | None = Field(default=None, gt=Decimal("0"))
+    notes: str | None = Field(default=None, max_length=MAX_MATERIAL_NOTES)
+
+    @field_validator("name")
+    @classmethod
+    def _name_not_blank(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("nombre no puede estar vacio")
+        return value.strip() if value is not None else None
+
+
+class MaterialResponse(BaseModel):
+    id: str
+    name: str
+    internal_code: str | None = None
+    category_id: str | None = None
+    supplier_id: str | None = None
+    unit_of_measure: str | None = None
+    purchase_total_price: Money | None = None
+    package_quantity: Qty | None = None
+    unit_cost: Money | None = None
+    notes: str | None = None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class MaterialListResponse(BaseModel):
+    items: list[MaterialResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class CostHistoryResponse(BaseModel):
+    """Fila del historial de costos unitarios (RF-P2CC-04). Montos como str."""
+
+    previous_unit_cost: Money | None = None
+    new_unit_cost: Money | None = None
+    changed_at: datetime
+
+
+class CostHistoryListResponse(BaseModel):
+    items: list[CostHistoryResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+# ─── Products (RF-P4CC-01..08) ─────────────────────────────────────────
+
+MAX_PRODUCT_NAME = 120
+MAX_PRODUCT_SKU = 40
+MAX_PRODUCT_DESCRIPTION = 500
+MAX_PRODUCT_NOTES = 500
+MAX_LINE_NAME = 120
+
+PRODUCT_STATUSES = Literal["draft", "active", "archived"]
+
+
+class ProductLineMaterialIn(BaseModel):
+    """Linea de material del payload (RF-P4CC-02).
+
+    extra="forbid": los snapshots (`material_name`,
+    `unit_of_measure_snapshot`, `unit_cost_snapshot`) y
+    `line_total_cost` NUNCA vienen del cliente (security #8): el
+    servidor los resuelve desde calc_materials al guardar.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    material_id: str
+    quantity_used: Qty = Field(ge=Decimal("0"))
+
+
+class ProductLineLaborIn(BaseModel):
+    """Linea de mano de obra del payload (RF-P4CC-02).
+
+    extra="forbid": `line_total_cost` nunca viene del cliente
+    (security #8): lo deriva el motor.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    activity_name: str = Field(min_length=1, max_length=MAX_LINE_NAME)
+    hourly_rate: Money = Field(ge=Decimal("0"))
+    minutes_required: Qty = Field(ge=Decimal("0"))
+
+
+class ProductLineExtraCostIn(BaseModel):
+    """Linea de costo extra del payload (RF-P4CC-02).
+
+    extra="forbid": `line_total_cost` nunca viene del cliente
+    (security #8).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    concept_name: str = Field(min_length=1, max_length=MAX_LINE_NAME)
+    unit_cost: Money = Field(ge=Decimal("0"))
+    quantity: Qty = Field(ge=Decimal("0"))
+
+
+class ProductCreate(BaseModel):
+    """POST /calc/products (RF-P4CC-01..05).
+
+    Percents omitidos -> defaults del singleton CalcSettings
+    (RF-P5CC-01). `costs`, `line_total_cost` y campos `*_snapshot`
+    no existen en el payload (extra="forbid", security #8).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=MAX_PRODUCT_NAME)
+    sku: str | None = Field(default=None, max_length=MAX_PRODUCT_SKU)
+    category_id: str | None = None
+    description: str | None = Field(default=None, max_length=MAX_PRODUCT_DESCRIPTION)
+    notes: str | None = Field(default=None, max_length=MAX_PRODUCT_NOTES)
+    margin_percent: Decimal | None = Field(default=None, ge=Decimal("0"), le=Decimal("100"))
+    discount_percent: Decimal | None = Field(default=None, ge=Decimal("0"), le=Decimal("100"))
+    tax_percent: Decimal | None = Field(default=None, ge=Decimal("0"), le=Decimal("100"))
+    status: PRODUCT_STATUSES = "draft"
+    materials: list[ProductLineMaterialIn] = Field(default_factory=list)
+    labor: list[ProductLineLaborIn] = Field(default_factory=list)
+    extra_costs: list[ProductLineExtraCostIn] = Field(default_factory=list)
+
+    @field_validator("name")
+    @classmethod
+    def _name_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("nombre no puede estar vacio")
+        return value.strip()
+
+    @field_validator("sku")
+    @classmethod
+    def _sku_strip(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None and value.strip() else None
+
+
+class ProductUpdate(BaseModel):
+    """PATCH /calc/products/{id} (RF-P4CC-01/02).
+
+    Semantica de lineas (regla 4): clave ausente -> no cambia;
+    clave [] -> vacia el set de ese tipo; lista -> reemplazo
+    completo. Sin campos -> 422 (idomatico a B4-B7).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=MAX_PRODUCT_NAME)
+    sku: str | None = Field(default=None, max_length=MAX_PRODUCT_SKU)
+    category_id: str | None = None
+    description: str | None = Field(default=None, max_length=MAX_PRODUCT_DESCRIPTION)
+    notes: str | None = Field(default=None, max_length=MAX_PRODUCT_NOTES)
+    margin_percent: Decimal | None = Field(default=None, ge=Decimal("0"), le=Decimal("100"))
+    discount_percent: Decimal | None = Field(default=None, ge=Decimal("0"), le=Decimal("100"))
+    tax_percent: Decimal | None = Field(default=None, ge=Decimal("0"), le=Decimal("100"))
+    status: PRODUCT_STATUSES | None = None
+    materials: list[ProductLineMaterialIn] | None = None
+    labor: list[ProductLineLaborIn] | None = None
+    extra_costs: list[ProductLineExtraCostIn] | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _name_not_blank(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("nombre no puede estar vacio")
+        return value.strip() if value is not None else None
+
+    @field_validator("sku")
+    @classmethod
+    def _sku_strip(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None and value.strip() else None
+
+
+class ProductResponse(BaseModel):
+    """Producto sin lineas ni costs. Percents como numero (estilo
+    CalcSettingsResponse); montos de lineas/costs siempre str."""
+
+    id: str
+    name: str
+    sku: str | None = None
+    category_id: str | None = None
+    description: str | None = None
+    notes: str | None = None
+    margin_percent: Decimal
+    discount_percent: Decimal
+    tax_percent: Decimal
+    status: str
+    last_recalculated_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ProductListItem(BaseModel):
+    """Item del listado `GET /calc/products` enriquecido (RF-P3CC-01,
+    D5): `category_name` + montos SIEMPRE calculados por el motor
+    (cost nunca se redondea; final con el rounding_mode de settings)."""
+
+    id: str
+    name: str
+    sku: str | None = None
+    category_name: str | None = None
+    status: str
+    product_total_cost: Money
+    final_sale_price: Money
+    margin_percent: Decimal
+    last_recalculated_at: datetime | None = None
+
+
+class ProductListResponse(BaseModel):
+    items: list[ProductListItem]
+    total: int
+    page: int
+    page_size: int
+
+
+class ProductCostsResponse(BaseModel):
+    """Desglose de 6 montos (RF-P4CC-05), nombres exactos del motor
+    legacy. Montos siempre str (Money)."""
+
+    product_total_cost: Money
+    profit_amount: Money
+    discount_amount: Money
+    adjusted_profit_amount: Money
+    tax_amount: Money
+    final_sale_price: Money
+
+
+class ProductLineMaterialOut(BaseModel):
+    material_id: str
+    material_name: str
+    quantity_used: Qty
+    unit_of_measure_snapshot: str | None = None
+    unit_cost_snapshot: Money
+    line_total_cost: Money
+    sort_order: int
+
+
+class ProductLineLaborOut(BaseModel):
+    activity_name: str
+    hourly_rate: Money
+    minutes_required: Qty
+    line_total_cost: Money
+    sort_order: int
+
+
+class ProductLineExtraCostOut(BaseModel):
+    concept_name: str
+    unit_cost: Money
+    quantity: Qty
+    line_total_cost: Money
+    sort_order: int
+
+
+class ProductLinesOut(BaseModel):
+    materials: list[ProductLineMaterialOut]
+    labor: list[ProductLineLaborOut]
+    extra_costs: list[ProductLineExtraCostOut]
+
+
+class ProductWithLinesResponse(BaseModel):
+    """Respuesta de POST/PATCH/recalculate: producto + lineas + costs."""
+
+    product: ProductResponse
+    product_lines: ProductLinesOut
+    costs: ProductCostsResponse
+
+
+class ProductVersionResponse(BaseModel):
+    """Version append-only del precio (RF-P4CC-07). Montos str."""
+
+    version_number: int
+    product_total_cost: Money
+    profit_amount: Money
+    discount_amount: Money
+    adjusted_profit_amount: Money
+    tax_amount: Money
+    final_sale_price: Money
+    changed_at: datetime
+
+
+class PriceListItem(BaseModel):
+    """Item del price list (RF-P3CC-04): solo activos; `category_name`
+    null si el producto no tiene categoria; montos del motor."""
+
+    id: str
+    name: str
+    sku: str | None = None
+    category_id: str | None = None
+    category_name: str | None = None
+    product_total_cost: Money
+    final_sale_price: Money
+    margin_percent: Decimal
+
+
+class PriceListResponse(BaseModel):
+    """GET /calc/products/price-list: paginada, orden fijo por nombre."""
+
+    items: list[PriceListItem]
+    total: int
+    page: int
+    page_size: int
+
+
+class RecalculateAllResponse(BaseModel):
+    """POST /calc/products/recalculate-all: cantidad de productos
+    activos recalculados (RF-P3CC-03)."""
+
+    recalculated: int
+
+
+class DashboardTopItem(BaseModel):
+    """Item de `top_by_price` (RF-P3CC-05): hasta 5 por precio desc."""
+
+    id: str
+    name: str
+    final_sale_price: Money
+    margin_percent: Decimal
+
+
+class DashboardBottomItem(BaseModel):
+    """Item de `bottom_by_margin` (RF-P3CC-05): hasta 5 por margen asc."""
+
+    id: str
+    name: str
+    product_total_cost: Money
+    margin_percent: Decimal
+
+
+class DashboardResponse(BaseModel):
+    """GET /calc/dashboard: los 8 campos exactos de la spec
+    (RF-P3CC-05); `archived` no va en la respuesta."""
+
+    active_materials: int
+    active_products: int
+    draft_products: int
+    incomplete_materials: int
+    avg_product_cost: Money
+    avg_final_price: Money
+    top_by_price: list[DashboardTopItem]
+    bottom_by_margin: list[DashboardBottomItem]
+
+
+class ProductVersionListResponse(BaseModel):
+    items: list[ProductVersionResponse]
+    total: int
+    page: int
+    page_size: int
