@@ -3,11 +3,13 @@
 Namespace: /api/v1/orders.
 """
 
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi import status as http_status
 
 from api.v1.dependencies import require_admin, get_current_user
-from api.v1.orders.dependencies import get_order_repository
+from api.v1.orders.dependencies import get_checkout_provider, get_order_repository
 from api.v1.orders.schemas import (
     OrderDetailSchema,
     OrderItemSchema,
@@ -19,11 +21,14 @@ from api.v1.orders.schemas import (
 )
 from data.models import OrderItemORM, OrderORM
 from data.repositories.sql_order_repository import SQLOrderRepository
-from domain.mock_checkout_provider import MockCheckoutProvider
+from domain.checkout_provider import CheckoutProvider, PaymentProviderError
 from domain.models import User
 from domain.order import DeliveryMode, OrderStatus, PaymentMethod, PaymentStatus
 
 router = APIRouter(prefix="/orders", tags=["orders"])
+
+# Mercado Pago app is MLA (Argentina): orders are charged in ARS.
+_PAYMENT_CURRENCY = "ARS"
 
 
 # ─── PATCH /orders/{id}/paid (C1.0) ─────────────────────────────────
@@ -99,8 +104,9 @@ async def initiate_payment(
     idempotency_key: str = Header(..., alias="Idempotency-Key"),
     repo: SQLOrderRepository = Depends(get_order_repository),
     _admin: User = Depends(require_admin),
+    provider: CheckoutProvider = Depends(get_checkout_provider),
 ):
-    """POST /orders/{id}/payment: inicia pago Mercado Pago.
+    """POST /orders/{id}/payment: inicia pago Mercado Pago (Checkout Pro).
 
     Solo pedidos status=nuevo + payment_method=mercadopago.
     Idempotencia por Idempotency-Key.
@@ -125,9 +131,14 @@ async def initiate_payment(
             detail="order_not_payable",
         )
 
-    # Initiate payment via mock provider
-    provider = MockCheckoutProvider()
-    result = await provider.create_payment(str(id), 0.0, "ARS")
+    amount = order.total - (order.discount_amount or Decimal("0"))
+    try:
+        result = await provider.create_payment(order.id, float(amount), _PAYMENT_CURRENCY)
+    except PaymentProviderError as err:
+        raise HTTPException(
+            status_code=http_status.HTTP_502_BAD_GATEWAY,
+            detail="payment_provider_error",
+        ) from err
 
     return PaymentInitResponse(
         reference=result.reference,
