@@ -99,9 +99,14 @@ export function ProductsCatalog() {
     }
   }, [role, allowedAudiences]);
 
-  // Fetch products for the selected audience.
+  // Fetch products for the selected audience. Until the auth role is known
+  // (or the role does not allow the current audience) no request is fired:
+  // otherwise a customer mounting the page would trigger a guaranteed-403
+  // fetch against "revendedores" before the role effect switches the audience.
   useEffect(() => {
     let cancelled = false;
+
+    if (!allowedAudiences.includes(audience)) return;
 
     async function fetchProducts() {
       try {
@@ -114,7 +119,7 @@ export function ProductsCatalog() {
         toaster.create({
           title: "Error",
           description:
-            error instanceof Error ? error.message : "Could not load products.",
+            error instanceof Error ? error.message : "No se pudieron cargar los productos.",
           type: "error",
         });
       } finally {
@@ -126,7 +131,7 @@ export function ProductsCatalog() {
     return () => {
       cancelled = true;
     };
-  }, [audience]);
+  }, [audience, allowedAudiences]);
 
   if (loading) {
     return (
@@ -163,14 +168,14 @@ export function ProductsCatalog() {
       {allowedAudiences.map((aud) => (
         <Flex key={aud} gap={3} wrap="wrap">
           <Button colorPalette="brand" size="sm" onClick={() => downloadPricelistCSV(aud)}>
-            Export CSV
+            Exportar CSV
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => downloadPricelistPDF(aud)}
           >
-            Export PDF
+            Exportar PDF
           </Button>
         </Flex>
       ))}
@@ -184,16 +189,16 @@ export function ProductsCatalog() {
           py={10}
           textAlign="center"
         >
-          <Text color="fg.muted">No products found for this audience.</Text>
+          <Text color="fg.muted">No hay productos para esta audiencia.</Text>
         </Box>
       ) : (
         <Table.ScrollArea rounded="md">
           <Table.Root size="sm" variant="outline" striped>
             <Table.Header>
               <Table.Row>
-                <Table.ColumnHeader>Product</Table.ColumnHeader>
-                <Table.ColumnHeader>Unit</Table.ColumnHeader>
-                <Table.ColumnHeader textAlign="end">Price</Table.ColumnHeader>
+                <Table.ColumnHeader>Producto</Table.ColumnHeader>
+                <Table.ColumnHeader>Unidad</Table.ColumnHeader>
+                <Table.ColumnHeader textAlign="end">Precio</Table.ColumnHeader>
                 {showCart && <Table.ColumnHeader srOnly>Agregar</Table.ColumnHeader>}
               </Table.Row>
             </Table.Header>

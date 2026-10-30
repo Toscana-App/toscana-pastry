@@ -39,15 +39,15 @@ export default function LoginForm() {
       // authService persiste access_token y refresh_token en cookies.
       const data = await authService.loginWithMagicLink(email);
       toaster.create({
-        title: "Magic link sent!",
-        description: "Check your email to log in.",
+        title: "Link de acceso enviado",
+        description: "Revisá tu correo para ingresar.",
         type: "success",
       });
       router.push(resolvePostLogin(data.role));
     } catch (error) {
       toaster.create({
-        title: "Login failed",
-        description: error instanceof Error ? error.message : "Please try again",
+        title: "No se pudo iniciar sesión",
+        description: error instanceof Error ? error.message : "Intentá de nuevo",
         type: "error",
       });
     } finally {
@@ -60,14 +60,14 @@ export default function LoginForm() {
     try {
       const data = await authService.loginWithGoogle("google_test_id");
       toaster.create({
-        title: "Logged in!",
+        title: "¡Sesión iniciada!",
         type: "success",
       });
       router.push(resolvePostLogin(data.role));
     } catch (error) {
       toaster.create({
-        title: "Google login failed",
-        description: error instanceof Error ? error.message : "Please try again",
+        title: "No se pudo iniciar sesión con Google",
+        description: error instanceof Error ? error.message : "Intentá de nuevo",
         type: "error",
       });
     } finally {
@@ -88,10 +88,10 @@ export default function LoginForm() {
     >
       <Stack gap={6} align="center">
         <Heading fontSize="2xl" color="brand.600">
-          Sign In
+          Iniciar sesión
         </Heading>
         <Text color="gray.500" textAlign="center">
-          Choose a method to continue
+          Elige un método para continuar
         </Text>
         <Separator />
 
@@ -99,7 +99,7 @@ export default function LoginForm() {
           <Stack gap={4}>
             <Field.Root required>
               <Field.Label>
-                Email Address
+                Correo electrónico
                 <Field.RequiredIndicator />
               </Field.Label>
               <Input
@@ -115,12 +115,12 @@ export default function LoginForm() {
               loading={loading}
               width="full"
             >
-              Send Magic Link
+              Enviar link de acceso
             </Button>
           </Stack>
         </form>
 
-        <Text fontSize="sm" color="gray.500">or</Text>
+        <Text fontSize="sm" color="gray.500">o</Text>
 
         <Button
           onClick={handleGoogleLogin}
@@ -129,7 +129,7 @@ export default function LoginForm() {
           width="full"
         >
           <GoogleIcon />
-          Continue with Google
+          Continuar con Google
         </Button>
       </Stack>
     </Box>

@@ -59,27 +59,27 @@ export function Navbar() {
                 {isAdmin && (
                   <>
                     <Button variant="ghost" asChild>
-                      <NextLink href="/products">Products</NextLink>
+                      <NextLink href="/products">Productos</NextLink>
                     </Button>
                     <Button variant="ghost" asChild>
-                      <NextLink href="/admin">Admin</NextLink>
+                      <NextLink href="/admin">Administración</NextLink>
                     </Button>
                     <Button variant="ghost" asChild>
-                      <NextLink href="/admin/settings">Settings</NextLink>
+                      <NextLink href="/admin/settings">Ajustes</NextLink>
                     </Button>
                   </>
                 )}
                 {!isPortalRole(role) && !isAdmin && null}
                 <Button variant="ghost" asChild>
-                  <NextLink href="/profile">Profile</NextLink>
+                  <NextLink href="/profile">Cuenta</NextLink>
                 </Button>
                 <Button onClick={logout} colorPalette="red" size="sm" variant="outline">
-                  Logout
+                  Cerrar sesión
                 </Button>
               </>
             ) : (
               <Button colorPalette="brand" asChild>
-                <NextLink href="/login">Login</NextLink>
+                <NextLink href="/login">Iniciar sesión</NextLink>
               </Button>
             )}
           </Flex>

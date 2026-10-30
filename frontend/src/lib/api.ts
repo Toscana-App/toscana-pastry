@@ -92,8 +92,19 @@ export async function apiFetch<T>(
       (body as { message?: unknown } | null)?.message ??
       "An error occurred";
     // FastAPI responde 422 con detail: [{loc, msg, type}] — se toma el primer
-    // msg cuando es string; si no, se serializa el cuerpo completo.
-    const message = typeof candidate === "string" ? candidate : JSON.stringify(candidate);
+    // msg en vez de serializar el cuerpo completo (el usuario no debe ver
+    // JSON de validación de Pydantic).
+    let message: string;
+    if (typeof candidate === "string") {
+      message = candidate;
+    } else if (Array.isArray(candidate)) {
+      const firstMsg = (candidate as Array<{ msg?: unknown }>).map(
+        (issue) => issue?.msg
+      ).find((m): m is string => typeof m === "string");
+      message = firstMsg ?? "Solicitud inválida";
+    } else {
+      message = JSON.stringify(candidate);
+    }
     throw new ApiError(response.status, message, body);
   }
 

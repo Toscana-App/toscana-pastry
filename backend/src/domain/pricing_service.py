@@ -80,7 +80,7 @@ def _resolve_audience(user_role: str, requested: str | None) -> str:
     # No-admin: la audiencia es fija
     if requested and requested != default:
         raise AudienceForbiddenError(
-            f"Rol {user_role} no puede acceder a {requested}"
+            f"Tu rol no tiene acceso a la lista de {requested}"
         )
     return default
 
