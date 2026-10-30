@@ -17,6 +17,7 @@ Number(), así que mantiene el formato string.
 """
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Annotated
+
 from pydantic import BeforeValidator, PlainSerializer
 
 _HUNDRED = Decimal("100")

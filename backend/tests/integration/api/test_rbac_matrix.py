@@ -41,15 +41,11 @@ from io import StringIO
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import event
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from api.v1.auth.dependencies import get_user_repository
 from api.v1.ingredients.dependencies import get_ingredient_repository
 from api.v1.settings.dependencies import get_settings_repository
-from data.accent import accent_fold
 from data.db import get_db
-from data.models import Base
 from data.repositories.sql_ingredient_repository import SQLIngredientRepository
 from data.repositories.sql_settings_repository import SQLSettingsRepository
 from data.repositories.sql_user_repository import SQLUserRepository
@@ -65,42 +61,6 @@ _TEST_PRODUCTS = [
 ]
 
 _MARKUP_PCT = Decimal(40)  # 40% default
-
-
-@pytest_asyncio.fixture
-async def db_session():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-
-    @event.listens_for(engine.sync_engine, "connect")
-    def _register_functions(dbapi_connection, connection_record):
-        dbapi_connection.create_function(
-            "accent_fold", 1, accent_fold, deterministic=True
-        )
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-    async with factory() as session:
-        # Seed all roles
-        await SQLUserRepository(session).save(
-            User(id="admin-1", email="admin@example.com", role=UserRole.ADMIN)
-        )
-        await SQLUserRepository(session).save(
-            User(id="negocio-1", email="negocio@example.com", role=UserRole.NEGOCIO)
-        )
-        await SQLUserRepository(session).save(
-            User(id="cliente-1", email="cliente@example.com", role=UserRole.CUSTOMER)
-        )
-        # Seed products with known base prices
-        for prod in _TEST_PRODUCTS:
-            ingredient = Ingredient(
-                name=prod["name"],
-                unit=prod["unit"],
-                price_per_unit=Decimal(prod["price_per_unit"]),
-                stock_qty=Decimal(prod["stock_qty"]),
-            )
-            await SQLIngredientRepository(session).create(ingredient)
-        yield session
 
 
 @pytest_asyncio.fixture
@@ -121,6 +81,28 @@ async def client(db_session):
     app.dependency_overrides[get_user_repository] = override_get_user_repository
     app.dependency_overrides[get_settings_repository] = override_get_settings_repository
     app.dependency_overrides[get_ingredient_repository] = override_get_ingredient_repository
+
+    # La matriz documenta roles distintos por usuario; sin siembra el login
+    # auto-crea todos como `customer` (AuthenticateUser) y la matriz no valida
+    # roles reales. Siembran los 3 usuarios con su rol + el catalogo de insumos
+    # para la verificacion numerica de no-fuga (case8 ya usa _BASE_PRICES).
+    user_repo = SQLUserRepository(db_session)
+    for _email, _role in (
+        ("admin@example.com", UserRole.ADMIN),
+        ("negocio@example.com", UserRole.NEGOCIO),
+        ("cliente@example.com", UserRole.CUSTOMER),
+    ):
+        await user_repo.save(User(email=_email, role=_role))
+    ingredient_repo = SQLIngredientRepository(db_session)
+    for _p in _TEST_PRODUCTS:
+        await ingredient_repo.create(
+            Ingredient(
+                name=_p["name"],
+                unit=_p["unit"],
+                price_per_unit=Decimal(_p["price_per_unit"]),
+                stock_qty=Decimal(_p["stock_qty"]),
+            )
+        )
 
     try:
         async with AsyncClient(

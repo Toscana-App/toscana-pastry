@@ -9,12 +9,6 @@ actives, the empty state, and auth (401, D2).
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import event
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
 from api.v1.auth.dependencies import get_user_repository
 from api.v1.calc.dependencies import (
@@ -25,9 +19,7 @@ from api.v1.calc.dependencies import (
     get_calc_settings_repository,
     get_calc_supplier_repository,
 )
-from data.accent import accent_fold
 from data.db import get_db
-from data.models import Base
 from data.repositories.calc.sql_calc_material_category_repository import (
     SQLCalcMaterialCategoryRepository,
 )
@@ -51,25 +43,6 @@ from domain.models import User, UserRole
 from main import app
 
 # ─── Fixtures ───────────────────────────────────────────────────────────
-
-
-@pytest_asyncio.fixture
-async def db_session():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-
-    @event.listens_for(engine.sync_engine, "connect")
-    def _register_sqlite_functions(dbapi_connection, connection_record):
-        dbapi_connection.create_function(
-            "accent_fold", 1, accent_fold, deterministic=True
-        )
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
-        engine, expire_on_commit=False, class_=AsyncSession
-    )
-    async with factory() as session:
-        yield session
 
 
 @pytest_asyncio.fixture
@@ -273,8 +246,8 @@ class TestDashboard:
         assert body["active_products"] == 3  # el eliminado no cuenta
         assert body["draft_products"] == 1
         # archived NO va en la respuesta (no hay ese campo).
-        assert body["avg_product_cost"] == "200.00"
-        assert body["avg_final_price"] == "324.88"
+        assert body["avg_product_cost"] == 20000
+        assert body["avg_final_price"] == 32488
 
     async def test_top_by_price_desc(self, client):
         token = await _admin(client)
@@ -282,7 +255,7 @@ class TestDashboard:
         body = await _dashboard(client, token)
         top = body["top_by_price"]
         assert [item["name"] for item in top] == ["Gamma", "Beta", "Alpha"]
-        assert top[0]["final_sale_price"] == "396.66"
+        assert top[0]["final_sale_price"] == 39666
         assert float(top[0]["margin_percent"]) == 10.0
         assert set(top[0].keys()) == {
             "id",
@@ -290,7 +263,7 @@ class TestDashboard:
             "final_sale_price",
             "margin_percent",
         }
-        assert top[2]["final_sale_price"] == "238.00"
+        assert top[2]["final_sale_price"] == 23800
 
     async def test_bottom_by_margin_asc(self, client):
         token = await _admin(client)
@@ -298,7 +271,7 @@ class TestDashboard:
         body = await _dashboard(client, token)
         bottom = body["bottom_by_margin"]
         assert [item["name"] for item in bottom] == ["Gamma", "Beta", "Alpha"]
-        assert bottom[0]["product_total_cost"] == "300.00"
+        assert bottom[0]["product_total_cost"] == 30000
         assert float(bottom[0]["margin_percent"]) == 10.0
         assert set(bottom[0].keys()) == {
             "id",
@@ -306,7 +279,7 @@ class TestDashboard:
             "product_total_cost",
             "margin_percent",
         }
-        assert bottom[2]["product_total_cost"] == "100.00"
+        assert bottom[2]["product_total_cost"] == 10000
 
     async def test_truncates_at_five_with_more_actives(self, client):
         token = await _admin(client)
@@ -345,8 +318,8 @@ class TestDashboard:
             "active_products": 0,
             "draft_products": 0,
             "incomplete_materials": 0,
-            "avg_product_cost": "0.00",
-            "avg_final_price": "0.00",
+            "avg_product_cost": 0,
+            "avg_final_price": 0,
             "top_by_price": [],
             "bottom_by_margin": [],
         }

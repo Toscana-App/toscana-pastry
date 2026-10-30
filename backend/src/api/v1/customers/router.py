@@ -1,20 +1,28 @@
-"""Router del libro de direcciones por cliente (RF-P11-09, C2).
+"""Router de clientes: CRUD de pedidos (Fase 6, P6) + libro de
+direcciones por cliente (RF-P11-09, C2).
 
-Namespace: /api/v1/customers/me/addresses.
-Roles permitidos: CUSTOMER y NEGOCIO (admin no tiene "mis direcciones" → 403).
-Anti-sondeo: direcciones ajenas devuelven 404, nunca 403.
+- /customers (P6): lectura cualquier autenticado; alta admin. Sin edicion
+  ni borrado: el historial de pedidos no se rompe.
+- /customers/me/addresses (C2): roles CUSTOMER y NEGOCIO. Anti-sondeo:
+  direcciones ajenas devuelven 404, nunca 403.
 """
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
-from api.v1.customers.dependencies import get_customer_address_repository
+from api.v1.customers.dependencies import (
+    get_customer_address_repository,
+    get_customer_repository,
+)
 from api.v1.customers.schemas import (
     AddressCreate,
     AddressEnvelope,
     AddressListResponse,
     AddressResponse,
     AddressUpdate,
+    CustomerCreate,
+    CustomerListResponse,
+    CustomerResponse,
 )
-from api.v1.dependencies import require_role
+from api.v1.dependencies import get_current_user, require_role
 from data.repositories.sql_customer_address_repository import (
     SQLCustomerAddressRepository,
 )
@@ -23,10 +31,63 @@ from domain.customer_address import (
     CustomerAddress,
 )
 from domain.models import User, UserRole
+from domain.orders import Customer
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
 _ADDRESS_GUARD = require_role(UserRole.CUSTOMER, UserRole.NEGOCIO)
+
+
+def _customer_response(customer: Customer) -> CustomerResponse:
+    return CustomerResponse(
+        id=customer.id or "",
+        name=customer.name,
+        phone=customer.phone,
+        created_at=customer.created_at.isoformat() if customer.created_at else "",
+    )
+
+
+@router.get("", response_model=CustomerListResponse)
+async def list_customers(
+    q: str | None = Query(default=None, min_length=1, max_length=120),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    repo=Depends(get_customer_repository),
+    current_user: User = Depends(get_current_user),
+):
+    """Listado P6 con busqueda por nombre (sin acentos) o subcadena de
+    telefono (RF-P6-08)."""
+    items, total = await repo.list(q, page, page_size)
+    return CustomerListResponse(
+        items=[_customer_response(item) for item in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.post(
+    "", response_model=CustomerResponse, status_code=status.HTTP_201_CREATED
+)
+async def create_customer(
+    payload: CustomerCreate,
+    repo=Depends(get_customer_repository),
+    _admin: User = Depends(require_role(UserRole.ADMIN)),
+):
+    """Crea o reutiliza (dedup nombre+telefono). Duplicado: 409 con el
+    cliente existente (RF-P6-08)."""
+    try:
+        customer = Customer(name=payload.name, phone=payload.phone)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    existing, created = await repo.get_or_create(customer)
+    if not created:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cliente duplicado (mismo nombre y telefono)",
+            headers={"X-Customer-Id": existing.id or ""},
+        )
+    return _customer_response(existing)
 
 
 def _response(address: CustomerAddress) -> AddressResponse:

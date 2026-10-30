@@ -19,16 +19,6 @@ SETTINGS_PATH = "/api/v1/tenant/settings"
 
 
 @pytest_asyncio.fixture
-async def db_session():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-    async with factory() as session:
-        yield session
-
-
-@pytest_asyncio.fixture
 async def admin_client(db_session):
     """Client with admin user pre-seeded."""
     await SQLUserRepository(db_session).save(

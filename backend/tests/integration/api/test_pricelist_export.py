@@ -12,14 +12,13 @@ Reglas cubiertas:
 import csv
 from decimal import Decimal
 
+from pg_support import make_test_engine
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
-from sqlalchemy import event
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from main import app
-from data.accent import accent_fold
 from data.models import Base
 from data.repositories.sql_ingredient_repository import SQLIngredientRepository
 from data.repositories.sql_settings_repository import SQLSettingsRepository
@@ -52,23 +51,6 @@ _TEST_PRODUCTS = [
     {"name": "Azúcar refinada", "unit": "kg", "price_per_unit": "3500", "stock_qty": "30"},
     {"name": "Manteca sin sal", "unit": "kg", "price_per_unit": "8200", "stock_qty": "10"},
 ]
-
-
-@pytest_asyncio.fixture
-async def db_session():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-
-    @event.listens_for(engine.sync_engine, "connect")
-    def _register_functions(dbapi_connection, connection_record):
-        dbapi_connection.create_function(
-            "accent_fold", 1, accent_fold, deterministic=True
-        )
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-    async with factory() as session:
-        yield session
 
 
 @pytest_asyncio.fixture
@@ -333,13 +315,7 @@ async def test_csv_contains_product_rows_with_audience_price():
     Para revendedores: precio = price_per_unit (sin markup).
     Para consumidor_final: precio = price_per_unit × 1.40 (markup default 40%).
     """
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-
-    @event.listens_for(engine.sync_engine, "connect")
-    def _register_functions(dbapi_connection, connection_record):
-        dbapi_connection.create_function(
-            "accent_fold", 1, accent_fold, deterministic=True
-        )
+    engine = make_test_engine()
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -447,13 +423,7 @@ async def test_pdf_content_type_and_bytes():
     Nota: WeasyPrint en Windows requiere Pango. Si no está disponible,
     este test se salta con razón explícita.
     """
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-
-    @event.listens_for(engine.sync_engine, "connect")
-    def _register_functions(dbapi_connection, connection_record):
-        dbapi_connection.create_function(
-            "accent_fold", 1, accent_fold, deterministic=True
-        )
+    engine = make_test_engine()
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -520,13 +490,7 @@ async def test_csv_escapes_commas_and_quotes_in_product_names():
     Regression: _build_csv was using manual comma-join which corrupts
     values containing commas or quotes.
     """
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-
-    @event.listens_for(engine.sync_engine, "connect")
-    def _register_functions(dbapi_connection, connection_record):
-        dbapi_connection.create_function(
-            "accent_fold", 1, accent_fold, deterministic=True
-        )
+    engine = make_test_engine()
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

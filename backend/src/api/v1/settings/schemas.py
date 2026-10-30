@@ -31,9 +31,8 @@ class SettingsUpdate(BaseModel):
     urgent_surcharge_pct: Pct = Field(
         default=Decimal("20"), ge=0, le=100
     )
-    consumer_markup_pct: Money = Field(
-        default=Decimal("40"), ge=Decimal("0"), le=Decimal("100")
-    )
+    # Porcentaje plano 0-100 (Pct), NO centavos: 40 = 40% (S2/T8).
+    consumer_markup_pct: Pct = Field(default=Decimal("40"), ge=0, le=100)
     default_prep_minutes: int = Field(default=30, ge=0, le=1440)
     default_servings: int = Field(default=6, ge=1, le=999)
     default_difficulty: Literal["simple", "intermedio", "complejo"] = "simple"
@@ -58,14 +57,9 @@ class SettingsResponse(BaseModel):
     include_gas: bool
     gas_pct: Pct
     include_waste: bool
-<<<<<<< HEAD
-    waste_pct: Money
-    urgent_surcharge_pct: Money
-    consumer_markup_pct: Money
-=======
     waste_pct: Pct
     urgent_surcharge_pct: Pct
->>>>>>> origin/feat/phase5-backend
+    consumer_markup_pct: Pct
     default_prep_minutes: int
     default_servings: int
     default_difficulty: str

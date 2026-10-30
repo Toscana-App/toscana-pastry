@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from api.v1.dependencies import get_current_user, require_admin
 from api.v1.money import cents_to_decimal
 from api.v1.settings.dependencies import get_settings_repository
-from api.v1.settings.schemas import SettingsUpdate, SettingsResponse
+from api.v1.settings.schemas import SettingsResponse, SettingsUpdate
 from domain.models import BusinessSettings, User
 from domain.repositories import SettingsRepository
 from domain.use_cases import GetSettings, UpdateSettings
@@ -35,8 +35,12 @@ async def put_settings(
         # Money llega en centavos (long); el dominio trabaja en Decimal.
         data["hourly_rate"] = cents_to_decimal(data["hourly_rate"])
         data["round_step"] = cents_to_decimal(data["round_step"])
+        # consumer_markup_pct ya es porcentaje plano (Pct) 0-100: sin
+        # conversion a centavos (S2/T8).
         settings = BusinessSettings(**data)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
     saved = await UpdateSettings(settings_repo).execute(settings)
     return SettingsResponse(**saved.__dict__)

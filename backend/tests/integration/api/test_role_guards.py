@@ -14,16 +14,6 @@ from domain.models import User, UserRole
 
 
 @pytest_asyncio.fixture
-async def db_session():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-    async with factory() as session:
-        yield session
-
-
-@pytest_asyncio.fixture
 async def client(db_session):
     async def override_get_db():
         yield db_session

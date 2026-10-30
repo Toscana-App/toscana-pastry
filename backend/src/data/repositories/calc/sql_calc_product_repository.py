@@ -11,11 +11,13 @@ versiones append-only del precio (reglas 5/6, RF-P4CC-07).
 # atributos de instancia como Column[T], no como el valor. En runtime son
 # los valores; el mapeo ORM->dominio pasa por Decimal()/str() explicitos.
 
+from __future__ import annotations
+
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from data.accent import accent_fold
@@ -444,6 +446,9 @@ class SQLCalcProductRepository:
     ) -> CalcProduct:
         """Producto + lineas en una sola transaccion (regla 4)."""
         self.session.add(_product_to_orm(product))
+        # Flush para que la fila padre exista antes que las lineas hija
+        # (FK product_id); Postgres lo exige, SQLite no.
+        await self.session.flush()
         for line in material_lines:
             orm = _material_line_to_orm(line)
             orm.product_id = product.id
@@ -536,7 +541,11 @@ class SQLCalcProductRepository:
 
     async def soft_delete(self, product_id: str) -> CalcProduct | None:
         """Soft delete (regla 8): setea deleted_at; nunca borra la fila
-        ni las versiones."""
+        ni las versiones.
+
+        Regla 9: las lineas de material pierden la referencia a
+        calc_materials (material_id -> NULL) para que el material pueda
+        borrarse; los snapshots historicos se conservan."""
         result = await self.session.execute(
             select(CalcProductORM).where(
                 CalcProductORM.id == product_id,
@@ -547,6 +556,11 @@ class SQLCalcProductRepository:
         if orm is None:
             return None
         orm.deleted_at = datetime.now(UTC)
+        await self.session.execute(
+            update(CalcProductMaterialORM)
+            .where(CalcProductMaterialORM.product_id == product_id)
+            .values(material_id=None)
+        )
         await self.session.commit()
         return _product_to_domain(orm)
 

@@ -1,10 +1,9 @@
 import pytest
 import pytest_asyncio
 from decimal import Decimal
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from main import app
 from data.models import Base
@@ -17,25 +16,6 @@ from api.v1.auth.dependencies import get_user_repository
 from api.v1.settings.dependencies import get_settings_repository
 from api.v1.ingredients.dependencies import get_ingredient_repository
 from domain.models import User, UserRole
-
-
-@pytest_asyncio.fixture
-async def db_session():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-
-    # La búsqueda usa la función SQL accent_fold (RF-P2-02): se registra
-    # en el engine de test igual que en el de producción (data/db.py).
-    @event.listens_for(engine.sync_engine, "connect")
-    def _register_functions(dbapi_connection, connection_record):
-        dbapi_connection.create_function(
-            "accent_fold", 1, accent_fold, deterministic=True
-        )
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    factory = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-    async with factory() as session:
-        yield session
 
 
 @pytest_asyncio.fixture

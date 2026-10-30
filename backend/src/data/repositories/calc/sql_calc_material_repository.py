@@ -10,6 +10,8 @@ CRUD de materiales + historial append-only de costo unitario
 # atributos de instancia como Column[T], no como el valor. En runtime son
 # los valores; el mapeo ORM->dominio pasa por Decimal()/str() explicitos.
 
+from __future__ import annotations
+
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -147,6 +149,9 @@ class SQLCalcMaterialRepository:
         """Crea el material; si queda con unit_cost, registra la alta
         inicial en el historial (RF-P2CC-04): previous=None, new=valor."""
         self.session.add(_to_orm(material))
+        # Flush para que la fila padre exista antes que la hija (FK de
+        # calc_material_cost_history); Postgres lo exige, SQLite no.
+        await self.session.flush()
         if material.unit_cost is not None:
             self.session.add(
                 CalcMaterialCostHistoryORM(

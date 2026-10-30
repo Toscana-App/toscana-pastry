@@ -1,7 +1,10 @@
-"""Schemas para el libro de direcciones de clientes (RF-P11-09, C2).
+"""Schemas para el libro de direcciones de clientes (RF-P11-09, C2)
+y el CRUD de clientes de pedidos (Fase 6, P6).
 
 Pydantic v2 con extra="forbid" en todos los esquemas de escritura.
-"""
+El cliente (P6) es nombre + telefono (sin email: el canal es WhatsApp,
+RF-P6-06). La dedup por (nombre, telefono) la hace el repositorio
+(RF-P6-08): crear un duplicado devuelve al existente con 409."""
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -98,6 +101,29 @@ class AddressEnvelope(BaseModel):
     """Envoltorio {address} de POST/PATCH."""
 
     address: AddressResponse
+
+
+class CustomerCreate(BaseModel):
+    """POST /customers (P6)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=2, max_length=120)
+    phone: str = Field(min_length=5, max_length=30)
+
+
+class CustomerResponse(BaseModel):
+    id: str
+    name: str
+    phone: str
+    created_at: str
+
+
+class CustomerListResponse(BaseModel):
+    items: list[CustomerResponse]
+    total: int
+    page: int
+    page_size: int
 
 
 class AddressListResponse(BaseModel):

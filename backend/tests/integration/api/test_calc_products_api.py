@@ -57,26 +57,6 @@ from main import app
 
 
 @pytest_asyncio.fixture
-async def db_session():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-
-    # Registrar accent_fold para busquedas con acentos (D5/regla 7).
-    @event.listens_for(engine.sync_engine, "connect")
-    def _register_sqlite_functions(dbapi_connection, connection_record):
-        dbapi_connection.create_function(
-            "accent_fold", 1, accent_fold, deterministic=True
-        )
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
-        engine, expire_on_commit=False, class_=AsyncSession
-    )
-    async with factory() as session:
-        yield session
-
-
-@pytest_asyncio.fixture
 async def client(db_session):
     async def override_get_db():
         yield db_session
@@ -236,12 +216,12 @@ def _parity_payload(material_id: str, **overrides) -> dict:
 # Valores esperados del caso de paridad (verificados contra pricing.js):
 # margin=30, discount=10, tax=19, rounding none.
 PARITY_COSTS = {
-    "product_total_cost": "3227.30",
-    "profit_amount": "1383.13",
-    "discount_amount": "-461.04",
-    "adjusted_profit_amount": "922.09",
-    "tax_amount": "788.38",
-    "final_sale_price": "4937.77",
+    "product_total_cost": 322730,
+    "profit_amount": 138313,
+    "discount_amount": -46104,
+    "adjusted_profit_amount": 92209,
+    "tax_amount": 78838,
+    "final_sale_price": 493777,
 }
 
 
@@ -299,7 +279,7 @@ class TestCreateProduct:
         rounding none (mismo valor que calcProductPricing de pricing.js)."""
         token = await _admin(client)
         material = await _parity_material(client, token)
-        assert material["unit_cost"] == "456.80"
+        assert material["unit_cost"] == 45680
         body = await _create_product(
             client, token, **_parity_payload(material["id"])
         )
@@ -323,8 +303,8 @@ class TestCreateProduct:
         material_lines = body["product_lines"]["materials"]
         assert material_lines[0]["material_name"] == "Mantequilla"
         assert material_lines[0]["unit_of_measure_snapshot"] == "kg"
-        assert material_lines[0]["unit_cost_snapshot"] == "456.80"
-        assert material_lines[0]["line_total_cost"] == "1142.00"
+        assert material_lines[0]["unit_cost_snapshot"] == 45680
+        assert material_lines[0]["line_total_cost"] == 114200
         assert material_lines[0]["sort_order"] == 0
 
     async def test_parity_final_per_rounding_mode_via_settings(self, client):
@@ -337,10 +317,10 @@ class TestCreateProduct:
         )
         product_id = created["product"]["id"]
         for mode, expected_final in (
-            ("none", "4937.77"),
-            ("integer", "4938"),
-            ("multiple_10", "4940"),
-            ("commercial_99", "4999"),
+            ("none", 493777),
+            ("integer", 493800),
+            ("multiple_10", 494000),
+            ("commercial_99", 499900),
         ):
             await _set_settings(client, token, rounding_mode=mode)
             response = await client.get(
@@ -375,12 +355,12 @@ class TestCreateProduct:
             extra_costs=[],
         )
         line = body["product_lines"]["materials"][0]
-        assert line["unit_cost_snapshot"] == "0.00"
-        assert line["line_total_cost"] == "0.00"
+        assert line["unit_cost_snapshot"] == 0
+        assert line["line_total_cost"] == 0
         # cost 1000.00, margin 30, tax 19: pbd 1428.57, profit 428.57,
         # tax 271.43 (1428.57 x 0.19), final 1700.00.
-        assert body["costs"]["product_total_cost"] == "1000.00"
-        assert body["costs"]["final_sale_price"] == "1700.00"
+        assert body["costs"]["product_total_cost"] == 100000
+        assert body["costs"]["final_sale_price"] == 170000
 
     async def test_explicit_percents_are_used(self, client):
         token = await _admin(client)
@@ -817,13 +797,13 @@ class TestPatchProduct:
         ).json()
         assert len(detail["materials"]) == 1
         line = detail["materials"][0]
-        assert line["unit_cost_snapshot"] == "1000.00"
-        assert line["line_total_cost"] == "1000.00"
+        assert line["unit_cost_snapshot"] == 100000
+        assert line["line_total_cost"] == 100000
         # cost 1000.00 + 1125.00 + 960.30 = 3085.30; final con 30/10/19:
         # pbd 4407.57, profit 1322.27, discount -440.76, adjusted 881.51,
         # tax 753.69, final 4720.50.
-        assert body["costs"]["product_total_cost"] == "3085.30"
-        assert body["costs"]["final_sale_price"] == "4720.50"
+        assert body["costs"]["product_total_cost"] == 308530
+        assert body["costs"]["final_sale_price"] == 472050
 
     async def test_patch_empty_list_empties_only_that_type(self, client):
         """Regla 4: clave [] vacia ese tipo; claves ausentes no cambian."""
@@ -850,8 +830,8 @@ class TestPatchProduct:
         assert len(detail["extra_costs"]) == 1
         # cost 0 + 1125.00 + 960.30 = 2085.30; final none = 3190.51
         # (mismo calculo que el caso D4 sin material).
-        assert detail["costs"]["product_total_cost"] == "2085.30"
-        assert detail["costs"]["final_sale_price"] == "3190.51"
+        assert detail["costs"]["product_total_cost"] == 208530
+        assert detail["costs"]["final_sale_price"] == 319051
 
     async def test_patch_without_line_keys_keeps_lines(self, client):
         token = await _admin(client)
@@ -960,15 +940,15 @@ class TestRecalculate:
         body = response.json()
         # Nueva linea: 2.5 x 1000.00 = 2500.00 -> cost 4585.30, final
         # 7015.51 (paridad manual con margin 30 / discount 10 / tax 19).
-        assert body["costs"]["product_total_cost"] == "4585.30"
-        assert body["costs"]["final_sale_price"] == "7015.51"
+        assert body["costs"]["product_total_cost"] == 458530
+        assert body["costs"]["final_sale_price"] == 701551
         detail = (
             await client.get(
                 f"/api/v1/calc/products/{product_id}", headers=_auth(token)
             )
         ).json()
-        assert detail["materials"][0]["unit_cost_snapshot"] == "1000.00"
-        assert detail["materials"][0]["line_total_cost"] == "2500.00"
+        assert detail["materials"][0]["unit_cost_snapshot"] == 100000
+        assert detail["materials"][0]["line_total_cost"] == 250000
         versions = (
             await client.get(
                 f"/api/v1/calc/products/{product_id}/versions",
@@ -977,8 +957,8 @@ class TestRecalculate:
         ).json()
         assert versions["total"] == 1
         assert versions["items"][0]["version_number"] == 1
-        assert versions["items"][0]["final_sale_price"] == "7015.51"
-        assert versions["items"][0]["product_total_cost"] == "4585.30"
+        assert versions["items"][0]["final_sale_price"] == 701551
+        assert versions["items"][0]["product_total_cost"] == 458530
         assert versions["items"][0]["changed_at"]
 
     async def test_recalculate_twice_creates_only_one_version(self, client):
@@ -1082,8 +1062,8 @@ class TestProductVersions:
         ).json()
         assert body["total"] == 2
         assert [item["version_number"] for item in body["items"]] == [2, 1]
-        assert body["items"][0]["final_sale_price"] == "10840.51"
-        assert body["items"][1]["final_sale_price"] == "7015.51"
+        assert body["items"][0]["final_sale_price"] == 1084051
+        assert body["items"][1]["final_sale_price"] == 701551
 
     async def test_versions_pagination(self, client):
         token = await _admin(client)

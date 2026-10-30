@@ -56,25 +56,6 @@ from main import app
 
 
 @pytest_asyncio.fixture
-async def db_session():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-
-    @event.listens_for(engine.sync_engine, "connect")
-    def _register_sqlite_functions(dbapi_connection, connection_record):
-        dbapi_connection.create_function(
-            "accent_fold", 1, accent_fold, deterministic=True
-        )
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
-        engine, expire_on_commit=False, class_=AsyncSession
-    )
-    async with factory() as session:
-        yield session
-
-
-@pytest_asyncio.fixture
 async def client(db_session):
     async def override_get_db():
         yield db_session
@@ -336,17 +317,17 @@ class TestPriceList:
         assert alpha["sku"] == "AL-1"
         assert alpha["category_id"] == seed["cat"]["id"]
         assert alpha["category_name"] == "Postres"
-        assert alpha["product_total_cost"] == "100.00"
-        assert alpha["final_sale_price"] == "238.00"
+        assert alpha["product_total_cost"] == 10000
+        assert alpha["final_sale_price"] == 23800
         assert float(alpha["margin_percent"]) == 50.0
         beta = by_name["Beta"]
         assert beta["category_id"] is None
         assert beta["category_name"] is None
-        assert beta["product_total_cost"] == "200.00"
-        assert beta["final_sale_price"] == "339.99"
+        assert beta["product_total_cost"] == 20000
+        assert beta["final_sale_price"] == 33999
         gamma = by_name["Gamma"]
-        assert gamma["product_total_cost"] == "300.00"
-        assert gamma["final_sale_price"] == "396.66"
+        assert gamma["product_total_cost"] == 30000
+        assert gamma["final_sale_price"] == 39666
 
     async def test_final_price_uses_settings_rounding(self, client):
         """final_sale_price con el redondeo del rounding_mode de
@@ -360,7 +341,7 @@ class TestPriceList:
             )
         ).json()
         finals = {item["name"]: item["final_sale_price"] for item in body["items"]}
-        assert finals == {"Alpha": "238", "Beta": "340", "Gamma": "397"}
+        assert finals == {"Alpha": 23800, "Beta": 34000, "Gamma": 39700}
 
     async def test_q_searches_name_and_sku_accent_insensitive(self, client):
         token = await _admin(client)

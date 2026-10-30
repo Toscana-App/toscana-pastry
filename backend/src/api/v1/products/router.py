@@ -28,15 +28,17 @@ tiene un único hogar.
 """
 
 import csv as csv_module
+from decimal import Decimal
 from html import escape
 from io import StringIO
-from typing import Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse
 
 from api.v1.dependencies import get_current_user, require_admin
 from api.v1.ingredients.dependencies import get_ingredient_repository
+from api.v1.money import decimal_to_cents
+from api.v1.pricing.schemas import Audience
 from api.v1.products.dependencies import get_product_repository
 from api.v1.products.schemas import (
     PriceBreakdownResponse,
@@ -48,7 +50,6 @@ from api.v1.products.schemas import (
     RecipeItemInput,
     RecipeItemResponse,
 )
-from api.v1.pricing.schemas import Audience
 from api.v1.settings.dependencies import get_settings_repository
 from domain.models import (
     BusinessSettings,
@@ -56,13 +57,12 @@ from domain.models import (
     Product,
     RecipeItem,
     User,
-    UserRole,
 )
 from domain.pricing import CostBreakdown, calculate_price
 from domain.pricing_service import (
     AudienceForbiddenError,
-    derive_audience_price,
     _resolve_audience,
+    derive_audience_price,
 )
 from domain.product_price import ProductPrice, derive_product_price, line_cost_of_item
 from domain.repositories import (
@@ -77,9 +77,9 @@ router = APIRouter(prefix="/products", tags=["products"])
 _ALL_INGREDIENTS_PAGE_SIZE = 100
 
 
-async def _load_ingredients(repo: IngredientRepository) -> Dict[str, Ingredient]:
+async def _load_ingredients(repo: IngredientRepository) -> dict[str, Ingredient]:
     """Todos los insumos activos (app single-tenant: el catalogo es chico)."""
-    by_id: Dict[str, Ingredient] = {}
+    by_id: dict[str, Ingredient] = {}
     page = 1
     while True:
         items, total = await repo.list(None, None, page, _ALL_INGREDIENTS_PAGE_SIZE)
@@ -91,9 +91,9 @@ async def _load_ingredients(repo: IngredientRepository) -> Dict[str, Ingredient]
     return by_id
 
 
-async def _list_all_products(repo: ProductRepository) -> List[Product]:
+async def _list_all_products(repo: ProductRepository) -> list[Product]:
     """Todos los productos activos paginados (el catalogo es chico)."""
-    products: List[Product] = []
+    products: list[Product] = []
     page = 1
     page_size = 100
     while True:
@@ -105,26 +105,30 @@ async def _list_all_products(repo: ProductRepository) -> List[Product]:
     return products
 
 
+def _money_or_none(value: Decimal | None) -> int | None:
+    return None if value is None else decimal_to_cents(value)
+
+
 def _breakdown_response(
-    breakdown: Optional[CostBreakdown],
-) -> Optional[PriceBreakdownResponse]:
+    breakdown: CostBreakdown | None,
+) -> PriceBreakdownResponse | None:
     if breakdown is None:
         return None
     return PriceBreakdownResponse(
-        materials=breakdown.materials,
-        waste=breakdown.waste,
-        materials_con_merma=breakdown.materials_con_merma,
-        labor=breakdown.labor,
-        gas=breakdown.gas,
-        base=breakdown.base,
+        materials=decimal_to_cents(breakdown.materials),
+        waste=decimal_to_cents(breakdown.waste),
+        materials_con_merma=decimal_to_cents(breakdown.materials_con_merma),
+        labor=decimal_to_cents(breakdown.labor),
+        gas=decimal_to_cents(breakdown.gas),
+        base=decimal_to_cents(breakdown.base),
         margin_pct=breakdown.margin_pct,
-        final=breakdown.final,
-        rounded=breakdown.rounded,
+        final=decimal_to_cents(breakdown.final),
+        rounded=decimal_to_cents(breakdown.rounded),
     )
 
 
 def _recipe_item_response(
-    item: RecipeItem, ingredients_by_id: Dict[str, Ingredient]
+    item: RecipeItem, ingredients_by_id: dict[str, Ingredient]
 ) -> RecipeItemResponse:
     ingredient = ingredients_by_id.get(item.ingredient_id)
     missing = (
@@ -140,19 +144,30 @@ def _recipe_item_response(
         qty=item.qty,
         unit=item.unit,
         purchase_unit=ingredient.unit if ingredient is not None else None,
-        price_per_unit=ingredient.price_per_unit if ingredient is not None else None,
-        line_cost=None if missing else line_cost_of_item(item, ingredients_by_id),
+        price_per_unit=(
+            decimal_to_cents(ingredient.price_per_unit)
+            if ingredient is not None
+            else None
+        ),
+        line_cost=(
+            None
+            if missing
+            else _money_or_none(line_cost_of_item(item, ingredients_by_id))
+        ),
         missing=missing,
     )
 
 
 def _list_item(product: Product, price: ProductPrice) -> ProductListItem:
+    breakdown = price.breakdown if price.complete else None
     return ProductListItem(
         id=product.id,
         name=product.name,
         category=product.category,
-        price_final=price.breakdown.rounded if price.complete else None,
-        price_per_serving=price.per_serving,
+        price_final=decimal_to_cents(breakdown.rounded) if breakdown else None,
+        price_per_serving=(
+            decimal_to_cents(price.per_serving) if price.per_serving is not None else None
+        ),
         complete=price.complete,
     )
 
@@ -160,7 +175,7 @@ def _list_item(product: Product, price: ProductPrice) -> ProductListItem:
 def _detail_response(
     product: Product,
     price: ProductPrice,
-    ingredients_by_id: Dict[str, Ingredient],
+    ingredients_by_id: dict[str, Ingredient],
 ) -> ProductDetailResponse:
     return ProductDetailResponse(
         id=product.id,
@@ -173,7 +188,9 @@ def _detail_response(
         complete=price.complete,
         missing_ingredients=list(price.missing),
         price=_breakdown_response(price.breakdown if price.complete else None),
-        price_per_serving=price.per_serving,
+        price_per_serving=(
+            decimal_to_cents(price.per_serving) if price.per_serving is not None else None
+        ),
         recipe=[
             _recipe_item_response(item, ingredients_by_id)
             for item in product.recipe
@@ -182,17 +199,17 @@ def _detail_response(
 
 
 def _assemble_product(
-    name: Optional[str],
-    category: Optional[str],
-    description: Optional[str],
-    prep_time_min: Optional[int],
-    servings: Optional[int],
-    difficulty: Optional[str],
-    recipe_inputs: Optional[List[RecipeItemInput]],
-    existing: Optional[Product],
+    name: str | None,
+    category: str | None,
+    description: str | None,
+    prep_time_min: int | None,
+    servings: int | None,
+    difficulty: str | None,
+    recipe_inputs: list[RecipeItemInput] | None,
+    existing: Product | None,
     settings: BusinessSettings,
-    ingredients_by_id: Dict[str, Ingredient],
-) -> Tuple[Optional[Product], Optional[str]]:
+    ingredients_by_id: dict[str, Ingredient],
+) -> tuple[Product | None, str | None]:
     """Arma el Product de dominio y valida la receta contra los insumos
     corrientes. En create, los campos omitidos vienen de los default de
     settings (RF-P4-01). Devuelve (product, error)."""
@@ -218,8 +235,8 @@ def _assemble_product(
         )
 
     if recipe_inputs is not None:
-        recipe_items: List[RecipeItem] = []
-        line_items: List[tuple] = []
+        recipe_items: list[RecipeItem] = []
+        line_items: list[tuple] = []
         for entry in recipe_inputs:
             ingredient = ingredients_by_id.get(entry.ingredient_id)
             if ingredient is None:
@@ -330,19 +347,64 @@ def _build_pdf_html(product_rows: list[dict[str, str]]) -> str:
 </html>"""
 
 
-@router.get("", response_model=ProductListResponse)
+def _stock_status(stock_qty: Decimal, low_stock_threshold: Decimal) -> str:
+    if stock_qty == 0:
+        return "EMPTY"
+    if stock_qty <= low_stock_threshold:
+        return "LOW"
+    return "OK"
+
+
+@router.get("")
 async def list_products(
-    q: Optional[str] = Query(default=None, min_length=1, max_length=120),
-    category: Optional[str] = Query(default=None, min_length=1, max_length=60),
+    q: str | None = Query(default=None, min_length=1, max_length=120),
+    category: str | None = Query(default=None, min_length=1, max_length=60),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
+    audience: Audience | None = Query(
+        default=None, description="Audiencia de precios (S3)"
+    ),
     repo: ProductRepository = Depends(get_product_repository),
     ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     current_user: User = Depends(get_current_user),
 ):
-    """Listado P3: busqueda insensible a acentos (RF-P3-01), filtro por
-    categoria y categorias derivadas de los productos activos."""
+    """Dos contratos (integracion C1+S3 con P3):
+
+    - Sin `audience`: listado P3 (busqueda, categoria, paginacion) con
+      PriceBreakdown de cada producto.
+    - Con `audience`: catalogo S3 para el portal — insumos con precio
+      derivado para la audiencia del rol. Guard: admin ambas audiencias,
+      negocio solo revendedores, cliente solo consumidor_final (403 si no).
+    """
+    if audience is not None:
+        try:
+            resolved = _resolve_audience(current_user.role, audience)
+        except AudienceForbiddenError as e:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail=str(e)
+            ) from e
+        settings = await GetSettings(settings_repo).execute()
+        items, _ = await ingredient_repo.list(
+            q=None, status=None, page=1, page_size=1000
+        )
+        product_rows = []
+        for item in items:
+            price = derive_audience_price(
+                item.price_per_unit, settings.consumer_markup_pct, resolved
+            )
+            product_rows.append(
+                {
+                    "id": item.id,
+                    "name": item.name,
+                    "unit": item.unit,
+                    "price_per_unit": str(price),
+                    "status": _stock_status(
+                        item.stock_qty, item.low_stock_threshold
+                    ),
+                }
+            )
+        return {"audience": resolved, "products": product_rows, "total": len(product_rows)}
     settings = await GetSettings(settings_repo).execute()
     items, total = await repo.list(q, category, page, page_size)
     categories = await repo.distinct_categories()
@@ -406,8 +468,8 @@ async def create_product(
         settings=settings,
         ingredients_by_id=ingredients_by_id,
     )
-    if error is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+    if error is not None or product is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error or "Invalid product")
     await repo.create(product)
     return _detail_response(
         product, derive_product_price(product, ingredients_by_id, settings),
@@ -445,8 +507,8 @@ async def update_product(
         settings=settings,
         ingredients_by_id=ingredients_by_id,
     )
-    if error is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+    if error is not None or product is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error or "Invalid product")
     saved = await repo.update(product)
     if saved is None:
         raise HTTPException(
@@ -506,20 +568,21 @@ async def pricelist_csv(
         ) from e
 
     settings = await GetSettings(settings_repo).execute()
-    ingredients_by_id = await _load_ingredients(ingredient_repo)
-    products = await _list_all_products(product_repo)
+    # Contrato S3: la lista de precios sale de los insumos con el
+    # markup de audiencia aplicado (el P3 agrega el editor de productos,
+    # pero el export de pricelist mantiene su origen original).
+    ingredients, _ = await ingredient_repo.list(
+        q=None, status=None, page=1, page_size=1000
+    )
 
     rows = []
-    for product in products:
-        price = derive_product_price(product, ingredients_by_id, settings)
-        if not price.complete or price.breakdown is None:
-            continue
+    for ingredient in ingredients:
         audience_price = derive_audience_price(
-            price.breakdown.rounded, settings.consumer_markup_pct, resolved
+            ingredient.price_per_unit, settings.consumer_markup_pct, resolved
         )
         rows.append({
-            "name": product.name,
-            "unit": "por porcion" if product.servings else "unidad",
+            "name": ingredient.name,
+            "unit": ingredient.unit,
             "price": f"${audience_price}",
         })
 
@@ -561,23 +624,23 @@ async def pricelist_pdf(
         ) from e
 
     settings = await GetSettings(settings_repo).execute()
-    ingredients_by_id = await _load_ingredients(ingredient_repo)
-    products = await _list_all_products(product_repo)
+    # Contrato S3: la lista de precios sale de los insumos con el
+    # markup de audiencia aplicado (ver pricelist_csv).
+    ingredients, _ = await ingredient_repo.list(
+        q=None, status=None, page=1, page_size=1000
+    )
 
     audience_label = (
         "Revendedores" if resolved == "revendedores" else "Consumidor final"
     )
     product_rows = []
-    for product in products:
-        price = derive_product_price(product, ingredients_by_id, settings)
-        if not price.complete or price.breakdown is None:
-            continue
+    for ingredient in ingredients:
         audience_price = derive_audience_price(
-            price.breakdown.rounded, settings.consumer_markup_pct, resolved
+            ingredient.price_per_unit, settings.consumer_markup_pct, resolved
         )
         product_rows.append({
-            "name": product.name,
-            "unit": "por porcion" if product.servings else "unidad",
+            "name": ingredient.name,
+            "unit": ingredient.unit,
             "price": f"${audience_price}",
             "audience_label": audience_label,
         })

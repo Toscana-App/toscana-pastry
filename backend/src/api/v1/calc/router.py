@@ -63,6 +63,7 @@ from api.v1.calc.schemas import (
     SupplierUpdate,
 )
 from api.v1.dependencies import get_current_user, require_admin
+from api.v1.money import cents_to_decimal, decimal_to_cents
 from data.repositories.calc.sql_calc_default_cost_repository import (
     SQLCalcDefaultCostRepository,
 )
@@ -141,7 +142,7 @@ def _default_cost_response(cost: CalcDefaultCost) -> DefaultCostResponse:
         id=cost.id,
         name=cost.name,
         type=cost.type,
-        default_unit_cost_or_rate=cost.default_unit_cost_or_rate,
+        default_unit_cost_or_rate=decimal_to_cents(cost.default_unit_cost_or_rate),
         default_quantity_or_minutes=cost.default_quantity_or_minutes,
         status=cost.status,
         created_at=cost.created_at,
@@ -157,9 +158,17 @@ def _material_response(material: CalcMaterial) -> MaterialResponse:
         category_id=material.category_id,
         supplier_id=material.supplier_id,
         unit_of_measure=material.unit_of_measure,
-        purchase_total_price=material.purchase_total_price,
+        purchase_total_price=(
+            decimal_to_cents(material.purchase_total_price)
+            if material.purchase_total_price is not None
+            else None
+        ),
         package_quantity=material.package_quantity,
-        unit_cost=material.unit_cost,
+        unit_cost=(
+            decimal_to_cents(material.unit_cost)
+            if material.unit_cost is not None
+            else None
+        ),
         notes=material.notes,
         status=material.status,
         created_at=material.created_at,
@@ -654,7 +663,9 @@ async def create_default_cost(
         cost = CalcDefaultCost(
             name=payload.name,
             type=payload.type,
-            default_unit_cost_or_rate=payload.default_unit_cost_or_rate,
+            default_unit_cost_or_rate=cents_to_decimal(
+                payload.default_unit_cost_or_rate
+            ),
             default_quantity_or_minutes=payload.default_quantity_or_minutes,
             status=payload.status,
         )
@@ -698,8 +709,10 @@ async def update_default_cost(
             id=existing.id,
             name=updates.get("name", existing.name),
             type=updates.get("type", existing.type),
-            default_unit_cost_or_rate=updates.get(
-                "default_unit_cost_or_rate", existing.default_unit_cost_or_rate
+            default_unit_cost_or_rate=(
+                cents_to_decimal(updates["default_unit_cost_or_rate"])
+                if "default_unit_cost_or_rate" in updates
+                else existing.default_unit_cost_or_rate
             ),
             default_quantity_or_minutes=updates.get(
                 "default_quantity_or_minutes", existing.default_quantity_or_minutes
@@ -787,7 +800,11 @@ async def create_material(
             category_id=payload.category_id,
             supplier_id=payload.supplier_id,
             unit_of_measure=payload.unit_of_measure,
-            purchase_total_price=payload.purchase_total_price,
+            purchase_total_price=(
+                cents_to_decimal(payload.purchase_total_price)
+                if payload.purchase_total_price is not None
+                else None
+            ),
             package_quantity=payload.package_quantity,
             notes=payload.notes,
         )
@@ -897,8 +914,10 @@ async def update_material(
             category_id=updates.get("category_id", existing.category_id),
             supplier_id=updates.get("supplier_id", existing.supplier_id),
             unit_of_measure=updates.get("unit_of_measure", existing.unit_of_measure),
-            purchase_total_price=updates.get(
-                "purchase_total_price", existing.purchase_total_price
+            purchase_total_price=(
+                cents_to_decimal(updates["purchase_total_price"])
+                if updates.get("purchase_total_price") is not None
+                else updates.get("purchase_total_price", existing.purchase_total_price)
             ),
             package_quantity=updates.get("package_quantity", existing.package_quantity),
             notes=updates.get("notes", existing.notes),
@@ -974,8 +993,16 @@ async def list_material_cost_history(
     return CostHistoryListResponse(
         items=[
             CostHistoryResponse(
-                previous_unit_cost=item.previous_unit_cost,
-                new_unit_cost=item.new_unit_cost,
+                previous_unit_cost=(
+                    decimal_to_cents(item.previous_unit_cost)
+                    if item.previous_unit_cost is not None
+                    else None
+                ),
+                new_unit_cost=(
+                    decimal_to_cents(item.new_unit_cost)
+                    if item.new_unit_cost is not None
+                    else None
+                ),
                 changed_at=item.changed_at,
             )
             for item in items
@@ -1017,8 +1044,8 @@ def _product_list_item(
         sku=product.sku,
         category_name=category_name,
         status=product.status,
-        product_total_cost=costs.product_total_cost,
-        final_sale_price=costs.final_sale_price,
+        product_total_cost=decimal_to_cents(costs.product_total_cost),
+        final_sale_price=decimal_to_cents(costs.final_sale_price),
         margin_percent=product.margin_percent,
         last_recalculated_at=product.last_recalculated_at,
     )
@@ -1026,12 +1053,12 @@ def _product_list_item(
 
 def _costs_response(costs: CalcProductCosts) -> ProductCostsResponse:
     return ProductCostsResponse(
-        product_total_cost=costs.product_total_cost,
-        profit_amount=costs.profit_amount,
-        discount_amount=costs.discount_amount,
-        adjusted_profit_amount=costs.adjusted_profit_amount,
-        tax_amount=costs.tax_amount,
-        final_sale_price=costs.final_sale_price,
+        product_total_cost=decimal_to_cents(costs.product_total_cost),
+        profit_amount=decimal_to_cents(costs.profit_amount),
+        discount_amount=decimal_to_cents(costs.discount_amount),
+        adjusted_profit_amount=decimal_to_cents(costs.adjusted_profit_amount),
+        tax_amount=decimal_to_cents(costs.tax_amount),
+        final_sale_price=decimal_to_cents(costs.final_sale_price),
     )
 
 
@@ -1045,8 +1072,8 @@ def _product_lines_out(
                 material_name=line.material_name,
                 quantity_used=line.quantity_used,
                 unit_of_measure_snapshot=line.unit_of_measure_snapshot,
-                unit_cost_snapshot=line.unit_cost_snapshot,
-                line_total_cost=line.line_total_cost,
+                unit_cost_snapshot=decimal_to_cents(line.unit_cost_snapshot),
+                line_total_cost=decimal_to_cents(line.line_total_cost),
                 sort_order=line.sort_order,
             )
             for line in material_lines
@@ -1054,9 +1081,9 @@ def _product_lines_out(
         labor=[
             ProductLineLaborOut(
                 activity_name=line.activity_name,
-                hourly_rate=line.hourly_rate,
+                hourly_rate=decimal_to_cents(line.hourly_rate),
                 minutes_required=line.minutes_required,
-                line_total_cost=line.line_total_cost,
+                line_total_cost=decimal_to_cents(line.line_total_cost),
                 sort_order=line.sort_order,
             )
             for line in labor_lines
@@ -1064,9 +1091,9 @@ def _product_lines_out(
         extra_costs=[
             ProductLineExtraCostOut(
                 concept_name=line.concept_name,
-                unit_cost=line.unit_cost,
+                unit_cost=decimal_to_cents(line.unit_cost),
                 quantity=line.quantity,
-                line_total_cost=line.line_total_cost,
+                line_total_cost=decimal_to_cents(line.line_total_cost),
                 sort_order=line.sort_order,
             )
             for line in extra_lines
@@ -1135,10 +1162,10 @@ def _build_labor_lines(payload_lines) -> list[CalcProductLaborLine]:
         lines.append(
             CalcProductLaborLine(
                 activity_name=line.activity_name,
-                hourly_rate=line.hourly_rate,
+                hourly_rate=cents_to_decimal(line.hourly_rate),
                 minutes_required=line.minutes_required,
                 line_total_cost=calc_labor_line_cost(
-                    line.hourly_rate, line.minutes_required
+                    cents_to_decimal(line.hourly_rate), line.minutes_required
                 ),
                 sort_order=index,
             )
@@ -1152,10 +1179,10 @@ def _build_extra_lines(payload_lines) -> list[CalcProductExtraCostLine]:
         lines.append(
             CalcProductExtraCostLine(
                 concept_name=line.concept_name,
-                unit_cost=line.unit_cost,
+                unit_cost=cents_to_decimal(line.unit_cost),
                 quantity=line.quantity,
                 line_total_cost=calc_extra_line_cost(
-                    line.unit_cost, line.quantity
+                    cents_to_decimal(line.unit_cost), line.quantity
                 ),
                 sort_order=index,
             )
@@ -1334,8 +1361,8 @@ async def list_price_list(
                 sku=product.sku,
                 category_id=product.category_id,
                 category_name=category_name,
-                product_total_cost=costs.product_total_cost,
-                final_sale_price=costs.final_sale_price,
+                product_total_cost=decimal_to_cents(costs.product_total_cost),
+                final_sale_price=decimal_to_cents(costs.final_sale_price),
                 margin_percent=product.margin_percent,
             )
             for product, costs, category_name in items
@@ -1459,8 +1486,10 @@ async def get_product(
                 material_name=line.material_name,
                 quantity_used=line.quantity_used,
                 unit_of_measure_snapshot=line.unit_of_measure_snapshot,
-                unit_cost_snapshot=line.unit_cost_snapshot,
-                line_total_cost=line.line_total_cost,
+                unit_cost_snapshot=decimal_to_cents(line.unit_cost_snapshot),
+                line_total_cost=decimal_to_cents(
+                    line.line_total_cost or Decimal("0")
+                ),
                 sort_order=line.sort_order,
             ).model_dump(mode="json")
             for line in material_lines
@@ -1468,9 +1497,11 @@ async def get_product(
         "labor": [
             ProductLineLaborOut(
                 activity_name=line.activity_name,
-                hourly_rate=line.hourly_rate,
+                hourly_rate=decimal_to_cents(line.hourly_rate),
                 minutes_required=line.minutes_required,
-                line_total_cost=line.line_total_cost,
+                line_total_cost=decimal_to_cents(
+                    line.line_total_cost or Decimal("0")
+                ),
                 sort_order=line.sort_order,
             ).model_dump(mode="json")
             for line in labor_lines
@@ -1478,9 +1509,11 @@ async def get_product(
         "extra_costs": [
             ProductLineExtraCostOut(
                 concept_name=line.concept_name,
-                unit_cost=line.unit_cost,
+                unit_cost=decimal_to_cents(line.unit_cost),
                 quantity=line.quantity,
-                line_total_cost=line.line_total_cost,
+                line_total_cost=decimal_to_cents(
+                    line.line_total_cost or Decimal("0")
+                ),
                 sort_order=line.sort_order,
             ).model_dump(mode="json")
             for line in extra_lines
@@ -1492,12 +1525,12 @@ async def get_product(
         body["versions"] = [
             ProductVersionResponse(
                 version_number=v.version_number,
-                product_total_cost=v.product_total_cost,
-                profit_amount=v.profit_amount,
-                discount_amount=v.discount_amount,
-                adjusted_profit_amount=v.adjusted_profit_amount,
-                tax_amount=v.tax_amount,
-                final_sale_price=v.final_sale_price,
+                product_total_cost=decimal_to_cents(v.product_total_cost),
+                profit_amount=decimal_to_cents(v.profit_amount),
+                discount_amount=decimal_to_cents(v.discount_amount),
+                adjusted_profit_amount=decimal_to_cents(v.adjusted_profit_amount),
+                tax_amount=decimal_to_cents(v.tax_amount),
+                final_sale_price=decimal_to_cents(v.final_sale_price),
                 changed_at=v.changed_at,
             ).model_dump(mode="json")
             for v in versions
@@ -1636,13 +1669,13 @@ async def get_dashboard(
         active_products=stats.active_products,
         draft_products=stats.draft_products,
         incomplete_materials=stats.incomplete_materials,
-        avg_product_cost=stats.avg_product_cost,
-        avg_final_price=stats.avg_final_price,
+        avg_product_cost=decimal_to_cents(stats.avg_product_cost),
+        avg_final_price=decimal_to_cents(stats.avg_final_price),
         top_by_price=[
             DashboardTopItem(
                 id=item.id,
                 name=item.name,
-                final_sale_price=item.final_sale_price,
+                final_sale_price=decimal_to_cents(item.final_sale_price),
                 margin_percent=item.margin_percent,
             )
             for item in stats.top_by_price
@@ -1651,7 +1684,7 @@ async def get_dashboard(
             DashboardBottomItem(
                 id=item.id,
                 name=item.name,
-                product_total_cost=item.product_total_cost,
+                product_total_cost=decimal_to_cents(item.product_total_cost),
                 margin_percent=item.margin_percent,
             )
             for item in stats.bottom_by_margin
@@ -1739,12 +1772,12 @@ async def list_product_versions(
         items=[
             ProductVersionResponse(
                 version_number=item.version_number,
-                product_total_cost=item.product_total_cost,
-                profit_amount=item.profit_amount,
-                discount_amount=item.discount_amount,
-                adjusted_profit_amount=item.adjusted_profit_amount,
-                tax_amount=item.tax_amount,
-                final_sale_price=item.final_sale_price,
+                product_total_cost=decimal_to_cents(item.product_total_cost),
+                profit_amount=decimal_to_cents(item.profit_amount),
+                discount_amount=decimal_to_cents(item.discount_amount),
+                adjusted_profit_amount=decimal_to_cents(item.adjusted_profit_amount),
+                tax_amount=decimal_to_cents(item.tax_amount),
+                final_sale_price=decimal_to_cents(item.final_sale_price),
                 changed_at=item.changed_at,
             )
             for item in items

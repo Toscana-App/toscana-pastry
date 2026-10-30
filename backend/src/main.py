@@ -18,7 +18,7 @@ from api.v1.products.router import router as products_router
 from api.v1.settings.router import router as settings_router
 from api.v1.webhooks.router import router as webhooks_router
 from api.v1.whatsapp.router import router as whatsapp_router
-from data.db import engine
+from data.db import init_db
 from data.models import Base
 
 # The frontend calls the API from a different origin (different port), so
@@ -33,9 +33,8 @@ ALLOWED_ORIGINS = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # create_all is idempotent: creates the schema if missing and leaves existing ones alone.
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Idempotent: creates accent_fold and the schema if missing.
+    await init_db(Base)
     yield
 
 

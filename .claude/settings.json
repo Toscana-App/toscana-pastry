@@ -1,4 +1,7 @@
 {
   "theme": "dark",
-  "auto_install_skills": true
+  "auto_install_skills": true,
+  "enabledPlugins": {
+    "mercadopago@mercadopago-claude-marketplace": true
+  }
 }

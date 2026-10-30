@@ -10,7 +10,6 @@ search + pagination, and validation (422) for:
 """
 import pytest
 import pytest_asyncio
-from decimal import Decimal
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -46,26 +45,6 @@ from main import app
 
 
 # ─── Fixtures ───────────────────────────────────────────────────────────
-
-@pytest_asyncio.fixture
-async def db_session():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-
-    # Registrar accent_fold para busquedas con acentos (RF-P2-02).
-    @event.listens_for(engine.sync_engine, "connect")
-    def _register_sqlite_functions(dbapi_connection, connection_record):
-        dbapi_connection.create_function(
-            "accent_fold", 1, accent_fold, deterministic=True
-        )
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
-        engine, expire_on_commit=False, class_=AsyncSession
-    )
-    async with factory() as session:
-        yield session
-
 
 @pytest_asyncio.fixture
 async def client(db_session):
@@ -555,7 +534,8 @@ class TestDefaultCosts:
         assert response.status_code == 201
         body = response.json()
         assert body["type"] == "labor"
-        assert Decimal(body["default_unit_cost_or_rate"]) == Decimal("5000")
+        # Money viaja en centavos (int); el str legacy "5000" = 50.000 unidades.
+        assert body["default_unit_cost_or_rate"] == 500000
 
     @pytest.mark.asyncio
     async def test_create_extra_cost(self, client):
@@ -597,7 +577,7 @@ class TestDefaultCosts:
             headers=headers,
         )
         assert update.status_code == 200
-        assert Decimal(update.json()["default_unit_cost_or_rate"]) == Decimal("6000")
+        assert update.json()["default_unit_cost_or_rate"] == 600000
 
     @pytest.mark.asyncio
     async def test_delete(self, client):

@@ -11,15 +11,6 @@ import datetime
 import asyncio
 from fastapi import Depends
 
-@pytest_asyncio.fixture
-async def db_session():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-    async with async_session() as session:
-        yield session
-
 @pytest.mark.asyncio
 async def test_health():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:

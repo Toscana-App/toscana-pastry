@@ -9,6 +9,7 @@ Reglas cubiertas:
   6-8) matriz de 403/200 entre roles y audiencias
 """
 
+from pg_support import make_test_engine
 import pytest
 from decimal import Decimal
 from httpx import AsyncClient, ASGITransport
@@ -33,8 +34,7 @@ TORTA_ITEMS = [
 
 
 def _make_engine():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    return engine
+    return make_test_engine()
 
 
 def _make_session_factory(engine):

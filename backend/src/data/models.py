@@ -1,8 +1,3 @@
-<<<<<<< HEAD
-=======
-from sqlalchemy import Column, String, DateTime, Integer, Boolean, Enum as SQLAlchemyEnum, ForeignKey, Text
-from sqlalchemy.orm import declarative_base, relationship
->>>>>>> origin/feat/phase5-backend
 import datetime
 from enum import StrEnum
 
@@ -13,6 +8,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Text,
     TypeDecorator,
 )
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column, relationship
@@ -55,7 +51,7 @@ class UserORM(Base):
         default="customer",
         nullable=False,
     )
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.UTC))
 
 class BusinessSettingsORM(Base):
     """Parametros de precio. Un solo registro: la app es monotenante.
@@ -79,7 +75,7 @@ class BusinessSettingsORM(Base):
     default_prep_minutes = Column(Integer, default=30, nullable=False)
     default_servings = Column(Integer, default=6, nullable=False)
     default_difficulty = Column(String, default="simple", nullable=False)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.UTC))
 
 
 class IngredientORM(Base):
@@ -116,7 +112,6 @@ class StockMovementORM(Base):
     created_at = Column(DateTime(timezone=True), nullable=False)
 
 
-<<<<<<< HEAD
 class CalcSettingsORM(Base):
     """Configuracion de la calculadora de costos (singleton, RF-P5CC-01/02).
 
@@ -132,7 +127,7 @@ class CalcSettingsORM(Base):
     default_discount_percent = Column(String, nullable=False, default="0")
     default_tax_percent = Column(String, nullable=False, default="19")
     rounding_mode = Column(String, nullable=False, default="none")
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.UTC))
 
 
 class CalcMaterialCategoryORM(Base):
@@ -330,8 +325,13 @@ class CalcProductORM(Base):
     name = Column(String, nullable=False, index=True)
     sku = Column(String, nullable=True, index=True)
     product_category_id = Column(
-        String, ForeignKey("calc_product_categories.id"), nullable=True, index=True
-    )
+        String,
+        ForeignKey("calc_product_categories.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )  # ondelete SET NULL: los productos soft-deletados no retienen la
+    # categoria (S6/T5); los activos estan protegidos por el guard
+    # count_in_use en la capa API.
     description = Column(String, nullable=True)
     notes = Column(String, nullable=True)
     margin_percent = Column(String, nullable=False)
@@ -355,7 +355,11 @@ class CalcProductORM(Base):
 
 class CalcProductMaterialORM(Base):
     """Linea de material con snapshots resueltos por el servidor
-    (RF-P4CC-02, security #8). Montos/cantidades como TEXT."""
+    (RF-P4CC-02, security #8). Montos/cantidades como TEXT.
+
+    material_id es nullable: al soft-deletear el producto la referencia se
+    libera (regla 9) para que el material pueda borrarse; los snapshots
+    (material_name, unit_cost, etc.) quedan como dato historico."""
 
     __tablename__ = "calc_product_materials"
     id = Column(String, primary_key=True)
@@ -363,7 +367,7 @@ class CalcProductMaterialORM(Base):
         String, ForeignKey("calc_products.id"), nullable=False, index=True
     )
     material_id = Column(
-        String, ForeignKey("calc_materials.id"), nullable=False, index=True
+        String, ForeignKey("calc_materials.id"), nullable=True, index=True
     )
     material_name = Column(String, nullable=False)
     unit_of_measure_snapshot = Column(String, nullable=True)
@@ -523,6 +527,23 @@ class _PaymentStatusColumn(TypeDecorator):
         return value
 
 
+class CustomerORM(Base):
+    """Cliente del pedido (nombre + telefono). Dedup por (name_norm,
+    phone_norm): mismo criterio de plegado que la busqueda con acentos
+    (RF-P6-08). Sin borrado: el historial no se rompe."""
+
+    __tablename__ = "customers"
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False, index=True)
+    phone = Column(String, nullable=False)
+    name_norm = Column(String, nullable=False, index=True)
+    phone_norm = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False)
+    __table_args__ = (
+        {"extend_existing": True},
+    )
+
+
 class OrderORM(Base):
     """Order entity with payment tracking and portal fields (RF-P6-12 / RF-P11-06/08)."""
 
@@ -532,21 +553,38 @@ class OrderORM(Base):
     customer_id = Column(String, nullable=False, index=True)
     code = Column(String, nullable=False, unique=True, index=True)
     status = Column(_OrderStatusColumn(), default="nuevo", nullable=False)
-    date = Column(DateTime, nullable=False)
+    date = Column(DateTime(timezone=True), nullable=False)
     payment_method = Column(_PaymentMethodColumn(), default="cash", nullable=False)
     delivery_mode = Column(String, default="delivery", nullable=False)
     delivery_address = Column(String, default="", nullable=False)
     coupon_code = Column(String, nullable=True)
     discount_amount = Column(String, nullable=True)
     payment_reference = Column(String, nullable=True)
-    paid_at = Column(DateTime, nullable=True)
+    paid_at = Column(DateTime(timezone=True), nullable=True)
     payment_status = Column(_PaymentStatusColumn(), nullable=True)
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
+    # P6 (admin): snapshot del cliente + margen override + auditoria WhatsApp.
+    customer_name = Column(String, nullable=True, index=True)
+    customer_phone = Column(String, nullable=True)
+    margin_pct = Column(String, nullable=True)  # override; nulo = tenant
+    whatsapp_sent_at = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(DateTime(timezone=True), nullable=True)
     order_items = relationship("OrderItemORM", back_populates="order", cascade="all, delete-orphan")
+
+
+class OrderEventORM(Base):
+    """Evento audit del pedido (whatsapp, etc). Solo INSERT: historial."""
+
+    __tablename__ = "order_events"
+    id = Column(String, primary_key=True)
+    order_id = Column(String, ForeignKey("orders.id"), nullable=False, index=True)
+    type = Column(String, nullable=False)
+    payload = Column(Text, nullable=False, default="")
+    created_at = Column(DateTime(timezone=True), nullable=False)
 
 
 class OrderWindowORM(Base):
@@ -556,7 +594,7 @@ class OrderWindowORM(Base):
 
     id = Column(String, primary_key=True, default="singleton")
     open = Column(Boolean, default=True, nullable=False)
-    reopens_at = Column(DateTime, nullable=True)
+    reopens_at = Column(DateTime(timezone=True), nullable=True)
     message = Column(String, default="", nullable=False)
 
 
@@ -573,8 +611,14 @@ class OrderItemORM(Base):
     product_id = Column(String, nullable=False)
     product_name = Column(String, nullable=False)
     quantity = Column(Integer, nullable=False)
-    unit_price = Column(String, nullable=False)
+    unit_price = Column(String, nullable=True)
     portion_note = Column(String, default="", nullable=False)
+    # P6 (admin): snapshot congelado del desglose (JSON, RNF-P6-03).
+    qty = Column(Integer, nullable=True)
+    portions = Column(Integer, nullable=True)
+    note = Column(Text, nullable=False, default="")
+    position = Column(Integer, nullable=False, default=0)
+    snapshot = Column(Text, nullable=True)
 
 
 class PaymentEventORM(Base):
@@ -657,7 +701,6 @@ class WhatsAppSendORM(Base):
         default=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
-=======
 class ProductORM(Base):
     """Producto de catalogo (Fase 5). Money/qty como TEXT (RNF-P4-02).
     deleted_at no nulo = borrado suave (UC-07)."""
@@ -692,4 +735,3 @@ class RecipeItemORM(Base):
     qty = Column(Text, nullable=False)
     unit = Column(String, nullable=False)
     position = Column(Integer, nullable=False, default=0)
->>>>>>> origin/feat/phase5-backend

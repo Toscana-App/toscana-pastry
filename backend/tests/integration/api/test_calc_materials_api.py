@@ -52,26 +52,6 @@ from main import app
 
 
 @pytest_asyncio.fixture
-async def db_session():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-
-    # Registrar accent_fold para busquedas con acentos (RF-P2CC-05).
-    @event.listens_for(engine.sync_engine, "connect")
-    def _register_sqlite_functions(dbapi_connection, connection_record):
-        dbapi_connection.create_function(
-            "accent_fold", 1, accent_fold, deterministic=True
-        )
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
-        engine, expire_on_commit=False, class_=AsyncSession
-    )
-    async with factory() as session:
-        yield session
-
-
-@pytest_asyncio.fixture
 async def client(db_session):
     async def override_get_db():
         yield db_session
@@ -196,13 +176,13 @@ class TestCreateMaterial:
             package_quantity="2",
             notes="lote 1",
         )
-        # Derived by the server (RF-P2CC-02/03), money as str (RNF-P5CC-01).
-        assert body["unit_cost"] == "50.00"
+        # Derived by the server (RF-P2CC-02/03); money viaja en centavos (int).
+        assert body["unit_cost"] == 5000
         assert body["status"] == "active"
         assert body["name"] == "Mantequilla"
         assert body["internal_code"] == "REF-001"
         assert body["unit_of_measure"] == "kg"
-        assert body["purchase_total_price"] == "100"
+        assert body["purchase_total_price"] == 10000
         assert body["package_quantity"] == "2"
         assert body["notes"] == "lote 1"
         assert body["id"]
@@ -439,8 +419,8 @@ class TestPatchMaterial:
         )
         assert response.status_code == 200
         body = response.json()
-        assert body["purchase_total_price"] == "150"
-        assert body["unit_cost"] == "75.00"
+        assert body["purchase_total_price"] == 15000
+        assert body["unit_cost"] == 7500
         assert body["status"] == "active"
 
     async def test_patch_without_fields_returns_422(self, client):
@@ -517,7 +497,7 @@ class TestCostHistory:
         body = await _history(client, token, created["id"])
         assert body["total"] == 1
         assert body["items"][0]["previous_unit_cost"] is None
-        assert body["items"][0]["new_unit_cost"] == "50.00"
+        assert body["items"][0]["new_unit_cost"] == 5000
         assert body["items"][0]["changed_at"]
 
     async def test_create_incomplete_records_no_row(self, client):
@@ -543,10 +523,10 @@ class TestCostHistory:
         body = await _history(client, token, created["id"])
         assert body["total"] == 2
         # Mas recientes primero: el ultimo cambio arriba.
-        assert body["items"][0]["previous_unit_cost"] == "50.00"
-        assert body["items"][0]["new_unit_cost"] == "75.00"
+        assert body["items"][0]["previous_unit_cost"] == 5000
+        assert body["items"][0]["new_unit_cost"] == 7500
         assert body["items"][1]["previous_unit_cost"] is None
-        assert body["items"][1]["new_unit_cost"] == "50.00"
+        assert body["items"][1]["new_unit_cost"] == 5000
 
     async def test_patch_without_unit_cost_change_records_no_row(self, client):
         token = await _admin(client)
@@ -596,7 +576,7 @@ class TestCostHistory:
         )
         body = await _history(client, token, created["id"])
         assert body["total"] == 2
-        assert body["items"][0]["previous_unit_cost"] == "50.00"
+        assert body["items"][0]["previous_unit_cost"] == 5000
         assert body["items"][0]["new_unit_cost"] is None
 
     async def test_history_of_unknown_material_returns_404(self, client):
