@@ -110,6 +110,25 @@ def test_single_bound_ok():
     assert _coupon(valid_from=now).valid_until is None
 
 
+def test_naive_datetimes_become_aware_utc():
+    """naive → replace(tzinfo=UTC)."""
+    naive = datetime.datetime(2026, 10, 1, 12, 0)
+    coupon = _coupon(valid_from=naive, valid_until=naive + datetime.timedelta(days=1))
+    assert coupon.valid_from == naive.replace(tzinfo=datetime.UTC)
+    assert coupon.valid_from.utcoffset() == datetime.timedelta(0)
+    assert coupon.valid_until.tzinfo is datetime.UTC
+
+
+def test_aware_datetimes_converted_to_utc():
+    """aware no-UTC → astimezone(UTC)."""
+    tz = datetime.timezone(datetime.timedelta(hours=-3))
+    coupon = _coupon(valid_from=datetime.datetime(2026, 10, 1, 9, 0, tzinfo=tz))
+    assert coupon.valid_from == datetime.datetime(
+        2026, 10, 1, 12, 0, tzinfo=datetime.UTC
+    )
+    assert coupon.valid_from.utcoffset() == datetime.timedelta(0)
+
+
 def test_blank_code_rejected():
     """code solo espacios → ValueError."""
     with pytest.raises(ValueError):

@@ -18,6 +18,8 @@ from domain.coupon import Coupon
 
 
 def _to_domain(orm: CouponORM) -> Coupon:
+    # SQLite devuelve valid_from/valid_until naive: el dominio los
+    # reconvierte a aware UTC (Coupon._aware_utc).
     return Coupon(
         code=orm.code,
         type=orm.type,  # type: ignore[arg-type]

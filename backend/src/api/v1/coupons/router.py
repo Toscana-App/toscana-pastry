@@ -24,6 +24,9 @@ router = APIRouter(prefix="/coupons", tags=["coupons"])
 
 PAGINATION_MAX = 100
 
+# Campos que un PATCH puede volver a None explicitamente.
+NULLABLE_UPDATE_FIELDS = {"valid_from", "valid_until", "max_uses"}
+
 
 def _response(coupon: Coupon) -> CouponResponse:
     return CouponResponse(
@@ -116,7 +119,7 @@ async def update_coupon(
     updates = {
         key: value
         for key, value in payload.model_dump(exclude_unset=True).items()
-        if value is not None
+        if value is not None or key in NULLABLE_UPDATE_FIELDS
     }
     if not updates:
         raise HTTPException(

@@ -594,6 +594,32 @@ async def test_patch_invalid_validity_window_rejected(client):
 
 
 @pytest.mark.asyncio
+async def test_patch_explicit_null_clears_optional_fields(client):
+    """PATCH con null explicito limpia valid_until y max_uses."""
+    headers = await _admin_headers(client)
+    coupon = await _create(
+        client,
+        await _admin_token(client),
+        code="LIMPIAR",
+        type="percent",
+        value="10",
+        valid_until="2026-12-31T00:00:00Z",
+        max_uses=5,
+    )
+
+    response = await client.patch(
+        f"{PATH}/{coupon['id']}",
+        json={"valid_until": None, "max_uses": None},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()["coupon"]
+    assert body["valid_until"] is None
+    assert body["max_uses"] is None
+    assert body["code"] == "LIMPIAR"
+
+
+@pytest.mark.asyncio
 async def test_patch_empty_body_rejected(client):
     """PATCH sin campos → 422."""
     headers = await _admin_headers(client)
