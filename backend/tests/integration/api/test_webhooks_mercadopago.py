@@ -312,6 +312,96 @@ class TestWebhookDedupe:
         assert refreshed.payment_status == PaymentStatus.APPROVED
 
 
+class TestWebhookPayload:
+    async def _post(self, client, body: bytes, data_id: str = "1001"):
+        return await client.post(
+            "/api/v1/webhooks/mercadopago",
+            content=body,
+            headers={"x-signature": _signature(data_id), "x-request-id": REQUEST_ID},
+        )
+
+    async def test_non_object_payload_never_reaches_500(self, client):
+        # The signature manifest needs data.id, so a non-object body is
+        # rejected as unverifiable before any payload handling.
+        response = await self._post(client, b"[1, 2]")
+        assert response.status_code in (401, 422)
+
+    async def test_payment_with_empty_id_returns_422(self, client):
+        response = await self._post(client, b'{"type": "payment", "data": {"id": " "}}', " ")
+        assert response.status_code == 422
+        assert _MP_API_CALLS == []
+
+
+class TestWebhookPriorityAndAtomicity:
+    async def test_pending_after_rejected_does_not_overwrite(self, client, mercadopago_order):
+        _set_payment("1001", "rejected", mercadopago_order.id)
+        await _notify(client, "1001")
+        _set_payment("1002", "pending", mercadopago_order.id)
+        await _notify(client, "1002")
+        refreshed = await mercadopago_order._refresh()
+        assert refreshed.payment_status == PaymentStatus.REJECTED
+        assert refreshed.payment_reference == "1001"
+
+    async def test_pending_after_failed_does_not_overwrite(self, client, mercadopago_order):
+        _set_payment("1001", "cancelled", mercadopago_order.id)
+        await _notify(client, "1001")
+        _set_payment("1002", "pending", mercadopago_order.id)
+        await _notify(client, "1002")
+        assert (await mercadopago_order._refresh()).payment_status == PaymentStatus.FAILED
+
+    async def test_rejected_after_approved_never_reverts_paid(self, client, mercadopago_order):
+        _set_payment("1001", "approved", mercadopago_order.id)
+        await _notify(client, "1001")
+        _set_payment("1002", "rejected", mercadopago_order.id)
+        await _notify(client, "1002")
+        refreshed = await mercadopago_order._refresh()
+        assert refreshed.paid is True
+        assert refreshed.payment_status == PaymentStatus.APPROVED
+        assert refreshed.payment_reference == "1001"
+
+    async def test_approved_after_rejected_applies(self, client, mercadopago_order):
+        _set_payment("1001", "rejected", mercadopago_order.id)
+        await _notify(client, "1001")
+        _set_payment("1002", "approved", mercadopago_order.id)
+        await _notify(client, "1002")
+        refreshed = await mercadopago_order._refresh()
+        assert refreshed.paid is True
+        assert refreshed.payment_status == PaymentStatus.APPROVED
+
+    async def test_second_approved_payment_does_not_overwrite_paid_at_or_reference(
+        self, client, mercadopago_order
+    ):
+        _set_payment("1001", "approved", mercadopago_order.id)
+        await _notify(client, "1001")
+        first = await mercadopago_order._refresh()
+        _set_payment("1002", "approved", mercadopago_order.id)
+        await _notify(client, "1002")
+        second = await mercadopago_order._refresh()
+        assert second.paid_at == first.paid_at
+        assert second.payment_reference == "1001"
+
+    async def test_event_and_effect_are_one_transaction_and_dedupe_is_atomic(
+        self, db_session, mercadopago_order
+    ):
+        repo = SQLOrderRepository(db_session)
+        now = datetime.datetime.now(datetime.UTC)
+        args = dict(
+            event_id="1001:approved",
+            order_id=mercadopago_order.id,
+            provider_payment_id="1001",
+            status=PaymentStatus.APPROVED,
+            paid_at=now,
+        )
+        assert await repo.apply_payment_event(**args) is True
+        assert await repo.get_payment_event("1001:approved") is True
+        order = await repo.get(mercadopago_order.id)
+        assert order.paid is True
+
+        # Replay of the same event: no effect, no error.
+        assert await repo.apply_payment_event(**{**args, "paid_at": now + datetime.timedelta(hours=1)}) is False
+        assert (await repo.get(mercadopago_order.id)).paid_at == order.paid_at
+
+
 class TestWebhookStates:
     async def test_approved_sets_paid_true(self, client, mercadopago_order):
         _set_payment("1001", "approved", mercadopago_order.id)

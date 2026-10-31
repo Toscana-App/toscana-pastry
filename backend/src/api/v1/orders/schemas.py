@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
-
 from pydantic import BaseModel, Field
 
 
@@ -35,6 +33,19 @@ class WebhookResponse(BaseModel):
     """Response from POST /webhooks/mercadopago."""
 
     ok: bool = True
+
+
+class WebhookNotificationData(BaseModel):
+    """``data`` object of a Mercado Pago notification."""
+
+    id: str | int = Field(..., description="Provider payment id")
+
+
+class WebhookNotification(BaseModel):
+    """Mercado Pago notification body (validated after the signature)."""
+
+    type: str | None = None
+    data: WebhookNotificationData | None = None
 
 
 # ─── C6 Portal schemas ──────────────────────────────────────────────
@@ -80,10 +91,18 @@ class OrderListSchema(BaseModel):
     page_size: int
 
 
+class PortalOrderItemRequest(BaseModel):
+    """Portal order line: price and name are resolved server-side."""
+
+    product_id: str = Field(..., min_length=1)
+    quantity: int = Field(..., gt=0)
+    portion_note: str = ""
+
+
 class PortalOrderCreateRequest(BaseModel):
     """Request body for POST /orders (portal creation, C6)."""
 
-    items: list[dict[str, Any]] = Field(..., min_length=1)
+    items: list[PortalOrderItemRequest] = Field(..., min_length=1)
     date: datetime
     delivery_mode: str = "delivery"
     delivery_address: str | None = None

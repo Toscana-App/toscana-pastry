@@ -3,13 +3,17 @@
 Namespace: /api/v1/orders.
 """
 
+import datetime
 from decimal import Decimal
+from email.utils import format_datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi import status as http_status
 
 from api.v1.dependencies import require_admin, get_current_user
+from api.v1.ingredients.dependencies import get_ingredient_repository
 from api.v1.orders.dependencies import get_checkout_provider, get_order_repository
+from api.v1.settings.dependencies import get_settings_repository
 from api.v1.orders.schemas import (
     OrderDetailSchema,
     OrderItemSchema,
@@ -19,11 +23,21 @@ from api.v1.orders.schemas import (
     PaymentStatusResponse,
     PortalOrderCreateRequest,
 )
-from data.models import OrderItemORM, OrderORM
 from data.repositories.sql_order_repository import SQLOrderRepository
 from domain.checkout_provider import CheckoutProvider, PaymentProviderError
 from domain.models import User, UserRole
-from domain.order import DeliveryMode, Order, OrderStatus, PaymentMethod, PaymentStatus
+from domain.order import (
+    DeliveryMode,
+    Order,
+    OrderItem,
+    OrderStatus,
+    OrderValidationError,
+    PaymentMethod,
+    PaymentStatus,
+)
+from domain.pricing_service import _resolve_audience, derive_audience_price
+from domain.repositories import IngredientRepository
+from domain.use_cases import GetSettings
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -73,12 +87,13 @@ async def mark_order_paid(
     if order.payment_method == PaymentMethod.CASH:
         order.mark_cash_payment()
         # Cash orders: only paid_at changes (payment_status stays None)
-        result = await repo.update_payment_status(
-            order_id=order.id,
-            reference="",
-            status=PaymentStatus.APPROVED,
-            paid_at=order.paid_at,
-        )
+        marked = await repo.mark_paid_at(order.id, order.paid_at)
+        if not marked:
+            raise HTTPException(
+                status_code=http_status.HTTP_409_CONFLICT,
+                detail="order_already_paid",
+            )
+        return PaidResponse(paid=True)
     else:
         order.confirm_payment(reference="manual", status=PaymentStatus.APPROVED)
         result = await repo.update_payment_status(
@@ -162,14 +177,34 @@ async def initiate_payment(
             detail="payment_in_progress",
         )
 
+    # Row-guarded claim: exactly one concurrent initiation moves the order
+    # to ``pending`` (RF-P6-12, RNF-P6-10); the others see 409/422.
+    if not await repo.claim_payment_pending(order.id):
+        current = await repo.get(order.id)
+        if current is not None and (
+            current.paid or current.payment_status in _FINAL_PAYMENT_STATUSES
+        ):
+            raise HTTPException(
+                status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="payment_finalized",
+            )
+        raise HTTPException(
+            status_code=http_status.HTTP_409_CONFLICT,
+            detail="payment_in_progress",
+        )
+
     amount = order.total - (order.discount_amount or Decimal("0"))
     try:
         result = await provider.create_payment(order.id, float(amount), _PAYMENT_CURRENCY)
     except PaymentProviderError as err:
+        await repo.release_payment_pending(order.id)
         raise HTTPException(
             status_code=http_status.HTTP_502_BAD_GATEWAY,
             detail="payment_provider_error",
         ) from err
+    except Exception:
+        await repo.release_payment_pending(order.id)
+        raise
 
     result = await repo.save_payment_attempt(order.id, idempotency_key, result)
     return PaymentInitResponse(
@@ -200,6 +235,15 @@ async def get_payment_status(
     )
 
 
+def _retry_after_header(reopens_at: datetime.datetime | None) -> dict[str, str] | None:
+    """``Retry-After`` (HTTP-date) when the window has a reopening time."""
+    if reopens_at is None:
+        return None
+    if reopens_at.tzinfo is None:
+        reopens_at = reopens_at.replace(tzinfo=datetime.UTC)
+    return {"Retry-After": format_datetime(reopens_at, usegmt=True)}
+
+
 # ─── C6 Portal endpoints: POST /orders, GET /orders/mine ────────────
 
 @router.post("/", response_model=OrderDetailSchema)
@@ -207,6 +251,8 @@ async def create_order_portal(
     body: PortalOrderCreateRequest,
     user: User = Depends(get_current_user),
     repo: SQLOrderRepository = Depends(get_order_repository),
+    ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
+    settings_repo=Depends(get_settings_repository),
 ):
     """POST /orders: crea un pedido desde el portal (C6, RF-P11-06/08).
 
@@ -222,26 +268,7 @@ async def create_order_portal(
         raise HTTPException(
             status_code=http_status.HTTP_409_CONFLICT,
             detail="order_window_closed",
-            headers={"Reafter": str(window.reopens_at) if window.reopens_at else ""},
-        )
-
-    # Validate delivery address
-    if body.delivery_mode == "delivery" and (
-        not body.delivery_address or not body.delivery_address.strip()
-    ):
-        raise HTTPException(
-            status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="delivery_requires_address",
-        )
-
-    # Validate date (must be >= today)
-    import datetime as dt
-    today = dt.datetime.now(dt.UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-    order_date = body.date.replace(tzinfo=None) if body.date.tzinfo else body.date
-    if order_date < today:
-        raise HTTPException(
-            status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="date_must_be_today_or_later",
+            headers=_retry_after_header(window.reopens_at),
         )
 
     # Validate payment_method
@@ -253,58 +280,53 @@ async def create_order_portal(
             detail="invalid_payment_method",
         )
 
-    # Build items
-    items = []
-    for item_data in body.items:
-        items.append(
-            OrderItemORM(
-                id=str(__import__("uuid").uuid4()),
-                order_id="",  # placeholder, set after flush
-                product_id=item_data["product_id"],
-                product_name=item_data["product_name"],
-                quantity=item_data["quantity"],
-                unit_price=str(item_data["unit_price"]),
-                portion_note=item_data.get("portion_note", ""),
-            )
-        )
-
-    # Build delivery_mode
     try:
         delivery_mode = DeliveryMode(body.delivery_mode)
     except ValueError:
         delivery_mode = DeliveryMode.DELIVERY
 
-    import uuid as uuid_mod
-    order_id = str(uuid_mod.uuid4())
-    order_code = f"TP{uuid_mod.uuid4().hex[:6].upper()}"
-    created_at = dt.datetime.now(dt.UTC)
+    # Price and name come from the catalog, never from the request.
+    audience = _resolve_audience(user.role, None)
+    business = await GetSettings(settings_repo).execute()
+    items: list[OrderItem] = []
+    for item_data in body.items:
+        product = await ingredient_repo.get(item_data.product_id)
+        if product is None:
+            raise HTTPException(
+                status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="product_not_found",
+            )
+        items.append(
+            OrderItem(
+                product_id=item_data.product_id,
+                product_name=product.name,
+                quantity=item_data.quantity,
+                unit_price=derive_audience_price(
+                    product.price_per_unit, business.consumer_markup_pct, audience
+                ),
+                portion_note=item_data.portion_note,
+            )
+        )
 
-    # Persist order + items
-    orm = OrderORM(
-        id=order_id,
-        customer_id=user.id,
-        code=order_code,
-        date=body.date.replace(tzinfo=None) if body.date.tzinfo else body.date,
-        status="nuevo",
-        payment_method=payment_method.value,
-        delivery_mode=delivery_mode.value,
-        delivery_address=body.delivery_address or "",
-        coupon_code=body.coupon_code,
-        discount_amount=None,
-        created_at=created_at,
-    )
-    repo.session.add(orm)
-    await repo.session.flush()
-
-    # Add items with correct order_id
-    for item_orm in items:
-        item_orm.order_id = orm.id
-        item_orm.id = str(__import__("uuid").uuid4())
-        repo.session.add(item_orm)
-    await repo.session.commit()
+    try:
+        new_order = Order.place_portal(
+            customer_id=user.id,
+            date=body.date,
+            items=items,
+            payment_method=payment_method,
+            delivery_mode=delivery_mode,
+            delivery_address=body.delivery_address,
+            coupon_code=body.coupon_code,
+        )
+    except OrderValidationError as err:
+        raise HTTPException(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=err.code,
+        ) from err
+    await repo.add(new_order)
 
     # Fetch back and return
-    result = await repo.get(order_id)
+    result = await repo.get(new_order.id)
     if result is None:
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,

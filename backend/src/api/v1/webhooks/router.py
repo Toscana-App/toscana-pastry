@@ -7,18 +7,21 @@ from __future__ import annotations
 
 import datetime
 import json
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi import status as http_status
 from fastapi.requests import Request
+from pydantic import ValidationError
 
 from api.v1.orders.dependencies import get_checkout_provider, get_order_repository
-from api.v1.orders.schemas import WebhookResponse
+from api.v1.orders.schemas import WebhookNotification, WebhookResponse
 from data.repositories.sql_order_repository import SQLOrderRepository
 from domain.checkout_provider import CheckoutProvider, PaymentProviderError
-from domain.order import PaymentMethod, PaymentStatus
+from domain.order import PaymentStatus
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/mercadopago", response_model=WebhookResponse)
@@ -43,11 +46,23 @@ async def mercadopago_webhook(
             detail="Invalid signature",
         )
 
-    payload = json.loads(verified)
-    if payload.get("type") != "payment":
+    try:
+        notification = WebhookNotification.model_validate(json.loads(verified))
+    except (ValidationError, ValueError) as err:
+        # Signature is valid but the body is not a notification we understand.
+        raise HTTPException(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="invalid_webhook_payload",
+        ) from err
+    if notification.type != "payment":
         return WebhookResponse()
 
-    payment_id = str(payload["data"]["id"])
+    payment_id = str(notification.data.id).strip() if notification.data else ""
+    if not payment_id:
+        raise HTTPException(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="invalid_webhook_payload",
+        )
     try:
         payment = await provider.get_payment(payment_id)
     except PaymentProviderError as err:
@@ -68,32 +83,20 @@ async def mercadopago_webhook(
 
     order = await repo.get(payment.order_id)
     if order is None:
+        logger.warning(
+            "mercadopago webhook for unknown order %s (payment %s)",
+            payment.order_id,
+            payment_id,
+        )
         return WebhookResponse()
 
+    # One transaction: event insert (dedupe) + guarded, priority-aware update.
     # Cash orders ignore MP webhooks (payment_status stays None, paid false).
-    if order.payment_method != PaymentMethod.CASH:
-        if payment_status == PaymentStatus.APPROVED:
-            # Monotonic guard: approved is applied at most once.
-            if not order.paid:
-                await repo.update_payment_status(
-                    order_id=order.id,
-                    reference=payment_id,
-                    status=payment_status,
-                    paid_at=datetime.datetime.now(datetime.UTC),
-                )
-        elif order.payment_status != PaymentStatus.APPROVED:
-            # pending/rejected/failed never overwrite a terminal approved.
-            await repo.update_payment_status(
-                order_id=order.id,
-                reference=payment_id,
-                status=payment_status,
-                paid_at=order.paid_at,
-            )
-
-    await repo.record_payment_event(
+    await repo.apply_payment_event(
         event_id=event_id,
         order_id=order.id,
         provider_payment_id=payment_id,
         status=payment_status,
+        paid_at=datetime.datetime.now(datetime.UTC),
     )
     return WebhookResponse()

@@ -375,13 +375,45 @@ class TestPaymentIdempotency:
         assert second.json() == first.json()
         assert len(_MP_REQUESTS) == 1
 
-    async def test_other_key_without_started_payment_creates_new_preference(
+    async def test_initiating_payment_sets_pending_and_reference(
+        self, client, mercadopago_order
+    ):
+        await _pay(client, mercadopago_order.id, "key-1")
+        status = await client.get(f"/api/v1/orders/{mercadopago_order.id}/payment")
+        assert status.json()["status"] == "pending"
+        assert status.json()["payment_reference"] == f"pref-{mercadopago_order.id}"
+
+    async def test_other_key_after_initiation_returns_409_without_new_preference(
         self, client, mercadopago_order
     ):
         await _pay(client, mercadopago_order.id, "key-1")
         response = await _pay(client, mercadopago_order.id, "key-2")
-        assert response.status_code == 200
-        assert len(_MP_REQUESTS) == 2
+        assert response.status_code == 409
+        assert response.json()["detail"] == "payment_in_progress"
+        assert len(_MP_REQUESTS) == 1
+
+    async def test_provider_failure_releases_pending_so_retry_is_possible(
+        self, client, db_session
+    ):
+        order = Order(
+            id="explode",
+            customer_id=str(uuid.uuid4()),
+            date=datetime.datetime.now(datetime.UTC),
+            items=[OrderItem(product_id="p1", product_name="Torta", quantity=1, unit_price=Decimal(10))],
+            payment_method=PaymentMethod.MERCADOPAGO,
+        )
+        await _persist(db_session, order)
+        failed = await _pay(client, "explode", "key-1")
+        assert failed.status_code == 502
+        stored = await SQLOrderRepository(db_session).get("explode")
+        assert stored.payment_status is None
+        again = await _pay(client, "explode", "key-2")
+        assert again.status_code == 502  # not 409 payment_in_progress
+
+    async def test_claim_is_row_guarded(self, db_session, mercadopago_order):
+        repo = SQLOrderRepository(db_session)
+        assert await repo.claim_payment_pending(mercadopago_order.id) is True
+        assert await repo.claim_payment_pending(mercadopago_order.id) is False
 
     async def test_other_key_while_pending_returns_409(self, client, db_session, mercadopago_order):
         await _pay(client, mercadopago_order.id, "key-1")

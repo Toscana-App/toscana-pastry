@@ -6,10 +6,11 @@ Mapeo ORM↔dominio y operaciones de pago + order_window singleton.
 from __future__ import annotations
 
 import datetime
+import uuid
 from collections.abc import Sequence
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,7 +22,14 @@ from data.models import (
     PaymentEventORM,
 )
 from domain.checkout_provider import PaymentResult
-from domain.order import Order, OrderItem, OrderStatus, PaymentMethod, PaymentStatus
+from domain.order import (
+    Order,
+    OrderItem,
+    OrderStatus,
+    PaymentMethod,
+    PaymentStatus,
+    overridable_payment_statuses,
+)
 from domain.order_window import OrderWindow
 
 
@@ -106,6 +114,24 @@ class SQLOrderRepository:
         )
         self.session.add(orm)
         await self.session.flush()
+        return order
+
+    async def add(self, order: Order) -> Order:
+        """Persist a new order with its line items in one transaction."""
+        await self.create(order)
+        for item in order.items:
+            self.session.add(
+                OrderItemORM(
+                    id=str(uuid.uuid4()),
+                    order_id=order.id,
+                    product_id=item.product_id,
+                    product_name=item.product_name,
+                    quantity=item.quantity,
+                    unit_price=str(item.unit_price),
+                    portion_note=item.portion_note,
+                )
+            )
+        await self.session.commit()
         return order
 
     async def get_by_code(self, code: str) -> Order | None:
@@ -207,6 +233,101 @@ class SQLOrderRepository:
         await self.session.commit()
         return _to_domain(orm)
 
+    async def mark_paid_at(
+        self, order_id: str, paid_at: datetime.datetime
+    ) -> bool:
+        """Set only ``paid_at`` (cash orders keep ``payment_status`` null).
+
+        Guarded on ``paid_at IS NULL`` so ``paid`` stays monotonic.
+        """
+        result = await self.session.execute(
+            update(OrderORM)
+            .where(OrderORM.id == order_id, OrderORM.paid_at.is_(None))
+            .values(paid_at=paid_at)
+        )
+        await self.session.commit()
+        return result.rowcount == 1  # type: ignore[attr-defined]
+
+    async def claim_payment_pending(self, order_id: str) -> bool:
+        """Atomically move an unpaid order with no payment to ``pending``.
+
+        Row-guarded: of several concurrent initiations only one claims.
+        """
+        result = await self.session.execute(
+            update(OrderORM)
+            .where(
+                OrderORM.id == order_id,
+                OrderORM.paid_at.is_(None),
+                OrderORM.payment_status.is_(None),
+            )
+            .values(payment_status=PaymentStatus.PENDING.value)
+        )
+        await self.session.commit()
+        return result.rowcount == 1  # type: ignore[attr-defined]
+
+    async def release_payment_pending(self, order_id: str) -> None:
+        """Undo a claim whose preference was never created."""
+        await self.session.execute(
+            update(OrderORM)
+            .where(
+                OrderORM.id == order_id,
+                OrderORM.payment_status == PaymentStatus.PENDING.value,
+                OrderORM.payment_reference.is_(None),
+            )
+            .values(payment_status=None)
+        )
+        await self.session.commit()
+
+    async def apply_payment_event(
+        self,
+        event_id: str,
+        order_id: str,
+        provider_payment_id: str,
+        status: PaymentStatus,
+        paid_at: datetime.datetime,
+    ) -> bool:
+        """Record the event and apply its status in ONE transaction.
+
+        The event is inserted first (primary key = dedupe); a duplicate
+        returns False with no effect. The order update is conditional on the
+        status priority (approved > rejected = failed > pending) and, for
+        ``approved``, on ``paid_at IS NULL``; cash orders are never touched.
+        """
+        self.session.add(
+            PaymentEventORM(
+                id=event_id,
+                provider_payment_id=provider_payment_id,
+                order_id=order_id,
+                status=status.value,
+                created_at=datetime.datetime.now(datetime.UTC),
+            )
+        )
+        try:
+            await self.session.flush()
+        except IntegrityError:
+            await self.session.rollback()
+            return False
+
+        replaceable = [s.value for s in overridable_payment_statuses(status)]
+        conditions = [
+            OrderORM.id == order_id,
+            OrderORM.payment_method != PaymentMethod.CASH.value,
+            or_(
+                OrderORM.payment_status.is_(None),
+                OrderORM.payment_status.in_(replaceable),
+            ),
+        ]
+        values: dict[str, object] = {
+            "payment_reference": provider_payment_id,
+            "payment_status": status.value,
+        }
+        if status == PaymentStatus.APPROVED:
+            conditions.append(OrderORM.paid_at.is_(None))
+            values["paid_at"] = paid_at
+        await self.session.execute(update(OrderORM).where(*conditions).values(**values))
+        await self.session.commit()
+        return True
+
     async def record_payment_event(
         self, event_id: str, order_id: str, provider_payment_id: str, status: PaymentStatus
     ) -> bool:
@@ -251,6 +372,15 @@ class SQLOrderRepository:
                 reference=result.reference,
                 checkout_url=result.checkout_url,
             )
+        )
+        await self.session.execute(
+            update(OrderORM)
+            .where(
+                OrderORM.id == order_id,
+                OrderORM.paid_at.is_(None),
+                OrderORM.payment_status == PaymentStatus.PENDING.value,
+            )
+            .values(payment_reference=result.reference)
         )
         try:
             await self.session.commit()
