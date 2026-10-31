@@ -104,6 +104,13 @@ def test_product_empty_recipe_raises():
         _product([])
 
 
+def test_product_recipe_max_30_lines():
+    ok = [_recipe_item(ingredient_id=f"i{n}") for n in range(30)]
+    assert len(_product(ok).recipe) == 30
+    with pytest.raises(ValueError):
+        _product(ok + [_recipe_item(ingredient_id="i30")])
+
+
 def test_product_duplicate_ingredient_raises():
     with pytest.raises(ValueError):
         _product(

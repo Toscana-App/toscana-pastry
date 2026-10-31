@@ -183,6 +183,9 @@ class RecipeItem:
             raise ValueError(f"unidad de receta invalida: {self.unit!r}")
 
 
+MAX_RECIPE_LINES = 30
+
+
 @dataclass(frozen=True)
 class Product:
     """Producto de catalogo (P3/P4). El precio NO se persiste: se deriva en
@@ -220,6 +223,8 @@ class Product:
             raise ValueError(f"dificultad invalida: {self.difficulty!r}")
         if len(self.recipe) == 0:
             raise ValueError("la receta requiere al menos un insumo")
+        if len(self.recipe) > MAX_RECIPE_LINES:
+            raise ValueError(f"la receta admite como maximo {MAX_RECIPE_LINES} lineas")
         seen = set()
         for item in self.recipe:
             if item.ingredient_id in seen:
