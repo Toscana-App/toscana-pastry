@@ -216,6 +216,32 @@ class SQLCalcProductRepository:
         (los montos no estan persistidos) y la paginacion tambien es
         en Python (escala admin). Ties -> name asc; `dir` invierte
         solo el campo primario."""
+        if sort == "name":
+            # B9 por defecto: orden y paginacion en SQL; los costs se
+            # calculan solo para la pagina pedida.
+            filters = self._filters(q, category_id, status_filter)
+            total = (
+                await self.session.execute(
+                    select(func.count()).select_from(CalcProductORM).where(*filters)
+                )
+            ).scalar_one()
+            name_order = func.lower(CalcProductORM.name)
+            orms = (
+                (
+                    await self.session.execute(
+                        select(CalcProductORM)
+                        .where(*filters)
+                        .order_by(
+                            name_order.desc() if dir == "desc" else name_order
+                        )
+                        .limit(page_size)
+                        .offset((page - 1) * page_size)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            return await self._enrich(orms, rounding_mode), total
         rows, total = await self._matched_rows(
             q, category_id, status_filter, rounding_mode
         )
@@ -230,13 +256,15 @@ class SQLCalcProductRepository:
         q: str | None,
         category_id: str | None,
         page: int,
-        page_size: int,
+        page_size: int | None,
         rounding_mode: str,
     ) -> tuple[list[ListRow], int]:
         """Price list (RF-P3CC-04): solo productos activos no
         eliminados, con la misma busqueda/filtro de `list`, orden fijo
-        por nombre (D5)."""
+        por nombre (D5). `page_size=None` devuelve el set completo."""
         rows, total = await self._matched_rows(q, category_id, "active", rounding_mode)
+        if page_size is None:
+            return rows, total
         start = (page - 1) * page_size
         return rows[start : start + page_size], total
 
@@ -246,14 +274,29 @@ class SQLCalcProductRepository:
         """Datos crudos del dashboard (RF-P3CC-05): counts de
         productos no eliminados por status + los activos con sus costs
         ya calculados por el motor con el `rounding_mode` dado."""
-        rows, _total = await self._matched_rows(None, None, None, rounding_mode)
-        counts: dict[str, int] = {}
-        for product, _costs, _category in rows:
-            counts[product.status] = counts.get(product.status, 0) + 1
+        base = CalcProductORM.deleted_at.is_(None)
+        count_rows = await self.session.execute(
+            select(CalcProductORM.status, func.count())
+            .where(base)
+            .group_by(CalcProductORM.status)
+        )
+        counts = {str(status): int(n) for status, n in count_rows.all()}
+        orms = (
+            (
+                await self.session.execute(
+                    select(CalcProductORM)
+                    .where(base, CalcProductORM.status == "active")
+                    .order_by(func.lower(CalcProductORM.name))
+                )
+            )
+            .scalars()
+            .all()
+        )
         active = [
             (product, costs)
-            for product, costs, _category in rows
-            if product.status == "active"
+            for product, costs, _category in await self._enrich(
+                orms, rounding_mode
+            )
         ]
         return counts, active
 
@@ -267,20 +310,7 @@ class SQLCalcProductRepository:
         """Todas las filas que matchean los filtros (sin paginacion),
         cada una con sus costs del motor y el nombre de su categoria;
         orden base por nombre (func.lower), igual que B9."""
-        filters = [CalcProductORM.deleted_at.is_(None)]
-        if q and q.strip():
-            folded = accent_fold(q) or q
-            filters.append(
-                func.accent_fold(CalcProductORM.name).like(f"%{folded}%")
-                | (
-                    CalcProductORM.sku.isnot(None)
-                    & func.accent_fold(CalcProductORM.sku).like(f"%{folded}%")
-                )
-            )
-        if category_id and category_id.strip():
-            filters.append(CalcProductORM.product_category_id == category_id.strip())
-        if status_filter and status_filter.strip():
-            filters.append(CalcProductORM.status == status_filter.strip())
+        filters = self._filters(q, category_id, status_filter)
         count_stmt = (
             select(func.count()).select_from(CalcProductORM).where(*filters)
         )
@@ -296,11 +326,39 @@ class SQLCalcProductRepository:
             .scalars()
             .all()
         )
+        return await self._enrich(rows, rounding_mode), total
+
+    @staticmethod
+    def _filters(
+        q: str | None, category_id: str | None, status_filter: str | None
+    ) -> list:
+        filters = [CalcProductORM.deleted_at.is_(None)]
+        if q and q.strip():
+            folded = accent_fold(q) or q
+            filters.append(
+                func.accent_fold(CalcProductORM.name).like(f"%{folded}%")
+                | (
+                    CalcProductORM.sku.isnot(None)
+                    & func.accent_fold(CalcProductORM.sku).like(f"%{folded}%")
+                )
+            )
+        if category_id and category_id.strip():
+            filters.append(CalcProductORM.product_category_id == category_id.strip())
+        if status_filter and status_filter.strip():
+            filters.append(CalcProductORM.status == status_filter.strip())
+        return filters
+
+    async def _enrich(
+        self, orms: list[CalcProductORM], rounding_mode: str
+    ) -> list[ListRow]:
+        """Producto + costs del motor + categoria, conservando el orden
+        recibido; las lineas se cargan con IN (...) (3 consultas)."""
         category_names = await self._category_names()
+        lines = await self._lines_for([str(o.id) for o in orms])
         enriched: list[ListRow] = []
-        for row in rows:
+        for row in orms:
             product = _product_to_domain(row)
-            material_lines, labor_lines, extra_lines = await self.get_lines(row.id)
+            material_lines, labor_lines, extra_lines = lines[str(row.id)]
             costs = compute_costs(
                 material_lines,
                 labor_lines,
@@ -313,7 +371,34 @@ class SQLCalcProductRepository:
             enriched.append(
                 (product, costs, category_names.get(row.product_category_id))
             )
-        return enriched, total
+        return enriched
+
+    async def _lines_for(self, product_ids: list[str]) -> dict[str, tuple]:
+        """Lineas de varios productos (una consulta por tipo, por
+        lotes), ordenadas por sort_order, agrupadas por producto."""
+        result: dict[str, tuple] = {pid: ([], [], []) for pid in product_ids}
+        specs = (
+            (CalcProductMaterialORM, _material_line_to_domain, 0),
+            (CalcProductLaborORM, _labor_line_to_domain, 1),
+            (CalcProductExtraCostORM, _extra_line_to_domain, 2),
+        )
+        for start in range(0, len(product_ids), 500):
+            chunk = product_ids[start : start + 500]
+            for orm_cls, to_domain, idx in specs:
+                found = (
+                    (
+                        await self.session.execute(
+                            select(orm_cls)
+                            .where(orm_cls.product_id.in_(chunk))
+                            .order_by(orm_cls.sort_order)
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                for line in found:
+                    result[str(line.product_id)][idx].append(to_domain(line))
+        return result
 
     async def _category_names(self) -> dict[str, str]:
         """Id -> nombre de las categorias de producto (una sola

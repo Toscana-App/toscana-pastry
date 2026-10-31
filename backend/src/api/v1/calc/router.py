@@ -1346,6 +1346,13 @@ async def list_price_list(
     )
 
 
+def _csv_safe(value: str) -> str:
+    """Evita que Excel/Sheets interprete la celda como formula."""
+    if value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value
+
+
 @router.get("/products/price-list/export")
 async def export_price_list_csv(
     q: str | None = Query(default=None, min_length=1, max_length=120),
@@ -1362,12 +1369,9 @@ async def export_price_list_csv(
     redondea; filename `lista_precios.csv` (paridad legacy)."""
     settings = await settings_repo.get()
     _, _, _, rounding_mode = _settings_defaults(settings)
-    _rows, total = await repo.list_price_list(q, category_id, 1, 1, rounding_mode)
-    rows: list = []
-    if total:
-        rows, _total = await repo.list_price_list(
-            q, category_id, 1, total, rounding_mode
-        )
+    rows, _total = await repo.list_price_list(
+        q, category_id, 1, None, rounding_mode
+    )
     buffer = StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
     writer.writerow(["id", "name", "category", "cost", "margin_pct", "final_price"])
@@ -1375,8 +1379,8 @@ async def export_price_list_csv(
         writer.writerow(
             [
                 product.id,
-                product.name,
-                category_name if category_name is not None else "",
+                _csv_safe(product.name),
+                _csv_safe(category_name if category_name is not None else ""),
                 str(costs.product_total_cost),
                 str(product.margin_percent),
                 str(costs.final_sale_price),
