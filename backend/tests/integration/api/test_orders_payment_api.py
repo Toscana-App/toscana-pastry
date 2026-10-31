@@ -36,7 +36,7 @@ from main import app
 # ─── Fixtures ─────────────────────────────────────────────────────────
 
 
-async def _admin_user():
+def _admin_user():
     """Return a fake admin user for dependency overrides."""
     return User(email="admin@example.com", role=UserRole.ADMIN)
 
