@@ -321,11 +321,11 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
       {/* Acciones admin */}
       {isAdmin ? (
         <HStack gap={3} wrap="wrap">
+          <Button variant="outline" asChild>
+            <NextLink href={`/presupuestos/${budget.id}/editar`}>Editar</NextLink>
+          </Button>
           {budget.status === "borrador" ? (
             <>
-              <Button variant="outline" asChild>
-                <NextLink href={`/presupuestos/${budget.id}/editar`}>Editar</NextLink>
-              </Button>
               <Button variant="outline" loading={recalcLoading} onClick={() => void runRecalc()}>
                 Recalcular precios
               </Button>

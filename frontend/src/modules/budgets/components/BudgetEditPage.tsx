@@ -87,7 +87,7 @@ interface EditRow {
 /**
  * Edición de presupuesto (Fase 7, P8, UC-04) — /presupuestos/[id]/editar.
  *
- * Editable mientras no esté marcado enviado (RF-P8-04): modo de cálculo,
+ * Editable en borrador y enviado (RF-P8-04/05; un enviado requiere reenvío): modo de cálculo,
  * margen y líneas (producto, cantidad, override manual). El PUT re-deriva
  * los costos contra el catálogo corriente: al guardar se ven los precios
  * nuevos en el detalle.
@@ -129,7 +129,7 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
             // En manual se precargan los overrides guardados; en cost_plus
             // los precios los fija el motor (inputs ocultos).
             price:
-              d.calculation_mode === "manual"
+              d.calculation_mode === "manual" && it.price_overridden
                 ? String(centsToPesos(it.unit_selling))
                 : "",
           })),
@@ -189,7 +189,7 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
   }, []);
 
   const addRow = useCallback(() => {
-    setRows((rs) => [...rs, { key: rs.length + 1, product_id: "", qty: "1", price: "" }]);
+    setRows((rs) => [...rs, { key: Math.max(0, ...rs.map((r) => r.key)) + 1, product_id: "", qty: "1", price: "" }]);
   }, []);
 
   const removeRow = useCallback((key: number) => {
@@ -209,7 +209,7 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
       items: rows.map((r) => ({
         product_id: r.product_id,
         qty: r.qty === "" ? 0 : Number(r.qty),
-        price_override: r.price === "" ? "" : pesosToCents(r.price),
+        price_override: mode === "manual" && r.price !== "" ? pesosToCents(r.price) : "",
       })),
     });
     if (!parsed.success) {
@@ -275,20 +275,6 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
     );
   }
 
-  if (budget.status !== "borrador") {
-    return (
-      <Alert.Root status="warning" maxW="640px">
-        <Alert.Content>
-          <Alert.Title>Solo se editan borradores</Alert.Title>
-          <Alert.Description>
-            Este presupuesto ya fue enviado. Volvé al detalle para reenviarlo,
-            convertirlo en pedido o eliminarlo.
-          </Alert.Description>
-        </Alert.Content>
-      </Alert.Root>
-    );
-  }
-
   return (
     <VStack align="stretch" gap={5} maxW="860px" w="full">
       <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
@@ -297,6 +283,15 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
           <NextLink href={`/presupuestos/${budget.id}`}>Cancelar</NextLink>
         </Button>
       </Flex>
+
+      {budget.status === "enviado" ? (
+        <Alert.Root status="warning" fontSize="sm">
+          <Alert.Description>
+            Este presupuesto ya fue enviado. Tras guardar los cambios hay que
+            reenviarlo desde el detalle.
+          </Alert.Description>
+        </Alert.Root>
+      ) : null}
 
       <Alert.Root status="info" fontSize="sm">
         <Alert.Description>

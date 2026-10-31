@@ -247,7 +247,7 @@ export function BudgetWizard() {
   }, []);
 
   const addRow = useCallback(() => {
-    setDraft((d) => ({ ...d, rows: [...d.rows, { key: d.rows.length + 1, product_id: "", qty: "1", price: "" }] }));
+    setDraft((d) => ({ ...d, rows: [...d.rows, { key: Math.max(0, ...d.rows.map((r) => r.key)) + 1, product_id: "", qty: "1", price: "" }] }));
   }, []);
 
   const removeRow = useCallback((key: number) => {
@@ -297,7 +297,7 @@ export function BudgetWizard() {
     const rows = draft.rows.map((r) => ({
       product_id: r.product_id,
       qty: r.qty === "" ? 0 : Number(r.qty),
-      price_override: r.price === "" ? "" : pesosToCents(r.price),
+      price_override: draft.mode === "manual" && r.price !== "" ? pesosToCents(r.price) : "",
     }));
     const parsed = budgetItemsSchema.safeParse({
       mode: draft.mode,
@@ -336,7 +336,7 @@ export function BudgetWizard() {
       const items = draft.rows.map((r) => ({
         product_id: r.product_id,
         qty: Number(r.qty),
-        price_override: r.price === "" ? null : pesosToCents(r.price),
+        price_override: draft.mode === "manual" && r.price !== "" ? pesosToCents(r.price) : null,
       }));
       const budget = await budgetsService.create({
         customer_id: draft.customer!.id,
