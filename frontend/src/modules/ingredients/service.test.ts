@@ -145,6 +145,22 @@ describe("ingredientsService — casos especiales del contrato", () => {
     expect((error as ApiError).payload).toEqual({ impacted_recipes: 3 });
   });
 
+  it("a 422 with an array detail exposes the first msg and keeps the body in payload", async () => {
+    const body = {
+      detail: [{ type: "greater_than", loc: ["body", "delta"], msg: "Input should be greater than 0" }],
+    };
+    mockFetch(422, body);
+
+    const error = await ingredientsService.adjustStock("1", {
+      delta: -1,
+      reason: "manual",
+    } as never).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).message).toBe("Input should be greater than 0");
+    expect((error as ApiError).payload).toEqual(body);
+  });
+
   it("un 422 devuelve el detalle del backend en el mensaje", async () => {
     mockFetch(422, { detail: "Stock insuficiente" });
 
