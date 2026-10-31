@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, List
 from decimal import Decimal
+from domain.customer_address import CustomerAddress
 from domain.models import User, UserRole, BusinessSettings, Ingredient, StockMovement, StockStatus
 
 class UserRepository(ABC):
@@ -86,4 +87,44 @@ class IngredientRepository(ABC):
     async def list_movements(
         self, ingredient_id: str, page: int, page_size: int
     ) -> tuple[List[StockMovement], int]:
+        pass
+
+
+class CustomerAddressRepository(ABC):
+    @abstractmethod
+    async def lock_book(self, user_id: str) -> None:
+        """Serializa escrituras concurrentes sobre el libro del usuario."""
+
+    @abstractmethod
+    async def list_by_user(self, user_id: str) -> List[CustomerAddress]:
+        """Direcciones del usuario, de la mas antigua a la mas nueva."""
+
+    @abstractmethod
+    async def get_for_user(
+        self, address_id: str, user_id: str
+    ) -> Optional[CustomerAddress]:
+        pass
+
+    @abstractmethod
+    async def insert(self, address: CustomerAddress, user_id: str) -> None:
+        pass
+
+    @abstractmethod
+    async def set_fields(self, address: CustomerAddress, user_id: str) -> None:
+        pass
+
+    @abstractmethod
+    async def set_default_flag(
+        self, address_id: str, user_id: str, is_default: bool
+    ) -> None:
+        pass
+
+    @abstractmethod
+    async def remove(
+        self, address_id: str, user_id: str
+    ) -> Optional[CustomerAddress]:
+        pass
+
+    @abstractmethod
+    async def commit(self) -> None:
         pass

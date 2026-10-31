@@ -211,7 +211,7 @@ api/presentation/routers/
 | Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
 |---|---|---|---|---|---|
 | GET | `/api/v1/orders` | Lista con filtros. | `?customer,status,paid,from,to,q,page,page_size` → `{items,total,...}` | 200 | Item: `id,customer,status,paid,final_price,date`. |
-| POST | `/api/v1/orders` | Crea pedido (dueña o portal). | `{customer_id*, date?, margin_pct?(override), items:[{product_id,qty,portion_note?}], payment_method?(default cash), delivery_address?, pickup?, coupon_code?}` → `{order, breakdown}` | 201 / 409 / 422 | **No descuenta stock** (descuenta al confirmar). Snapshot de precios. Si `order_window_open=false` → 409 `order_window_closed` + mensaje (RF-P6-09). `coupon_code` → valida y snapshotea `discount_amount` (RF-P11-14). |
+| POST | `/api/v1/orders` | Crea pedido (dueña o portal). | `{customer_id*, date?, margin_pct?(override), items:[{product_id,qty,portion_note?}], payment_method*(portal; admin: default cash), delivery_address?, pickup?, coupon_code?}` → `{order, breakdown}` | 201 / 409 / 422 | **No descuenta stock** (descuenta al confirmar). `payment_method` es **requerido** desde el portal (422 si falta); `default cash` aplica solo al rol admin (RF-P6-12). Snapshot de precios. Si `order_window_open=false` → 409 `order_window_closed` + mensaje (RF-P6-09). `coupon_code` → valida y snapshotea `discount_amount` (RF-P11-14). |
 | GET | `/api/v1/orders/{id}` | Detalle con desglose. | — → `{order, items, breakdown}` | 200 / 404 | `breakdown`: materiales (por insumo), labor, gas, margin_pct, gain, final, rounded. Inmutable (snapshot). |
 | PATCH | `/api/v1/orders/{id}` | Edita ítems / margen override. | `{items?, margin_pct?}` → `{order, breakdown}` | 200 | Solo si `status=nuevo`. Recalcula. |
 | PATCH | `/api/v1/orders/{id}/status` | Transición de estado. | `{status}` → `{order}` | 200 / 409 | `nuevo→confirmado` = **descuento atómico** de stock (`SELECT…FOR UPDATE`); si falta → 409 + insumo faltante, sin cambios. `→entregado`. `→cancelado` (desde confirmado) = re-pozo de stock. Header `Idempotency-Key` en confirmar. |
@@ -278,7 +278,7 @@ api/presentation/routers/
 ---
 
 ## FASE 5 — Portal self-service + checkout e2e (P11)
-> Objetivo: el cliente/negocio pide y paga solo. ~20 endpoints. Precondición: roles de 3 vías + precios duales (`odd/tasks/roles-dual-pricing.md`). Especificación completa: `p11_portal_checkout.md` (pagos: `p06_orders.md` RF-P6-12…14).
+> Objetivo: el cliente/negocio pide y paga solo. ~25 endpoints. Precondición: roles de 3 vías + precios duales (`odd/tasks/roles-dual-pricing.md`). Especificación completa: `p11_portal_checkout.md` (pagos: `p06_orders.md` RF-P6-12…14).
 
 ### Portal: pedidos y carrito (rol `negocio`/`cliente`)
 | Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
@@ -302,8 +302,8 @@ api/presentation/routers/
 | Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
 |---|---|---|---|---|---|
 | GET | `/api/v1/customers/me/addresses` | Mis direcciones. | — → `{items}` | 200 | Máx. 5; incluye `is_default`. |
-| POST | `/api/v1/customers/me/addresses` | Crea dirección. | `{street_line_1*, street_line_2?, city?, postal_code?, province?, phone?}` → `{address}` | 201 / 422 | La primera creada pasa a default. |
-| PATCH | `/api/v1/customers/me/addresses/{id}` | Edita / marca default. | `{...campos, is_default?}` → `{address}` | 200 / 404 | `is_default=true` remueve la anterior (transacción). |
+| POST | `/api/v1/customers/me/addresses` | Crea dirección. | `{street_line_1*, street_line_2?, city?, postal_code?, province?, phone?}` → `{address}` | 201 / 422 | La primera creada pasa a default. Exceder el máximo de 5 → 422. |
+| PATCH | `/api/v1/customers/me/addresses/{id}` | Edita / marca default. | `{...campos, is_default?}` → `{address}` | 200 / 404 / 422 | `is_default=true` remueve la anterior (transacción). `is_default=false` sobre la default vigente → 422; cuerpo sin campos o campos inválidos → 422. |
 | DELETE | `/api/v1/customers/me/addresses/{id}` | Elimina. | — → `204` | 204 / 404 / 409 | 409 si es la única; borrar la default pasa la primera a default. |
 
 ### Cupones (ABM admin + uso portal)
@@ -342,8 +342,8 @@ api/presentation/routers/
 | F2 Pedidos y stock | 16 | customers, orders |
 | F3 Presupuestos + PDF + WhatsApp | 15 | budgets, pdf, webhooks |
 | F4 Endurecimiento | 0 nuevos (+1 opcional contacto) | cross-cutting |
-| F5 Portal + checkout e2e (P11) | 21 | orders(mine), cart, payments+webhook, customers(addresses), coupons, leads, whatsapp(sends) |
-| **Total** | **~82** | 14 routers |
+| F5 Portal + checkout e2e (P11) | 25 | orders(mine), cart, payments+webhook, customers(addresses), coupons, leads, whatsapp(sends) |
+| **Total** | **~86** | 14 routers |
 
 ### Endpoints aún por confirmar con Gaspar
 1. `/tenant/settings/recalculate` (F1): ¿recálculo global síncrono o task asíncrona? (impacta UX si catálogo grande).

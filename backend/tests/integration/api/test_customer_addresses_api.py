@@ -307,6 +307,31 @@ async def test_patch_updates_fields(client):
 
 
 @pytest.mark.asyncio
+async def test_patch_null_and_empty_string_clear_optional_fields(client):
+    """PATCH con null o "" limpia campos opcionales (ausente != null)."""
+    token = await _customer_token(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    address = await _create(client, token)
+    await client.patch(
+        f"{PATH}/{address['id']}",
+        json={"city": "Toscana", "phone": "+54911999999999"},
+        headers=headers,
+    )
+
+    cleared = await client.patch(
+        f"{PATH}/{address['id']}",
+        json={"phone": "", "city": None},
+        headers=headers,
+    )
+    assert cleared.status_code == 200
+    body = cleared.json()["address"]
+    assert body["phone"] is None
+    assert body["city"] is None
+    assert body["street_line_1"] == address["street_line_1"]
+
+
+@pytest.mark.asyncio
 async def test_patch_is_default_true_demotes_previous(client):
     """PATCH is_default=true: la nueva pasa a default y la anterior no."""
     token = await _customer_token(client)

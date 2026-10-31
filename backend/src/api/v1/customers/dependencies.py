@@ -6,9 +6,10 @@ from data.db import get_db
 from data.repositories.sql_customer_address_repository import (
     SQLCustomerAddressRepository,
 )
+from domain.repositories import CustomerAddressRepository
 
 
 def get_customer_address_repository(
     db: AsyncSession = Depends(get_db),
-) -> SQLCustomerAddressRepository:
+) -> CustomerAddressRepository:
     return SQLCustomerAddressRepository(db)

@@ -15,18 +15,21 @@ from api.v1.customers.schemas import (
     AddressUpdate,
 )
 from api.v1.dependencies import require_role
-from data.repositories.sql_customer_address_repository import (
-    SQLCustomerAddressRepository,
-)
 from domain.customer_address import (
-    MAX_ADDRESSES_PER_CUSTOMER,
+    CannotRemoveOnlyAddress,
     CustomerAddress,
+    add_address,
+    apply_changes,
+    default_to_demote,
+    remove_address,
 )
 from domain.models import User, UserRole
+from domain.repositories import CustomerAddressRepository
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
 _ADDRESS_GUARD = require_role(UserRole.CUSTOMER, UserRole.NEGOCIO)
+_NON_NULLABLE_FIELDS = {"street_line_1", "is_default"}
 
 
 def _response(address: CustomerAddress) -> AddressResponse:
@@ -46,7 +49,7 @@ def _response(address: CustomerAddress) -> AddressResponse:
 
 @router.get("/me/addresses", response_model=AddressListResponse)
 async def list_my_addresses(
-    repo: SQLCustomerAddressRepository = Depends(get_customer_address_repository),
+    repo: CustomerAddressRepository = Depends(get_customer_address_repository),
     current_user: User = Depends(_ADDRESS_GUARD),
 ):
     """GET /customers/me/addresses: lista el libro del usuario."""
@@ -61,30 +64,28 @@ async def list_my_addresses(
 )
 async def create_my_address(
     payload: AddressCreate,
-    repo: SQLCustomerAddressRepository = Depends(get_customer_address_repository),
+    repo: CustomerAddressRepository = Depends(get_customer_address_repository),
     current_user: User = Depends(_ADDRESS_GUARD),
 ):
     """POST /customers/me/addresses: crea una direccion (max 5, RF-P11-09).
 
     La primera creada pasa a default (exactly-one-default).
     """
-    count = await repo.count_by_user(current_user.id)
-    if count >= MAX_ADDRESSES_PER_CUSTOMER:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Maximo {MAX_ADDRESSES_PER_CUSTOMER} direcciones por cliente",
-        )
+    await repo.lock_book(current_user.id)
+    existing = await repo.list_by_user(current_user.id)
     try:
-        address = CustomerAddress(
-            street_line_1=payload.street_line_1,
-            street_line_2=payload.street_line_2,
-            city=payload.city,
-            postal_code=payload.postal_code,
-            province=payload.province,
-            phone=payload.phone,
-            is_default=count == 0,
+        address = add_address(
+            existing,
+            CustomerAddress(
+                street_line_1=payload.street_line_1,
+                street_line_2=payload.street_line_2,
+                city=payload.city,
+                postal_code=payload.postal_code,
+                province=payload.province,
+                phone=payload.phone,
+            ),
         )
-    except ValueError as err:
+    except ValueError as err:  # includes AddressLimitExceeded
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(err)
         ) from err
@@ -100,7 +101,7 @@ async def create_my_address(
 async def update_my_address(
     address_id: str,
     payload: AddressUpdate,
-    repo: SQLCustomerAddressRepository = Depends(get_customer_address_repository),
+    repo: CustomerAddressRepository = Depends(get_customer_address_repository),
     current_user: User = Depends(_ADDRESS_GUARD),
 ):
     """PATCH /customers/me/addresses/{id}: edita (anti-sondeo: 404 si ajena).
@@ -109,6 +110,7 @@ async def update_my_address(
     `is_default=false` sobre la default vigente rompe el invariant
     exactly-one-default → 422.
     """
+    await repo.lock_book(current_user.id)
     existing = await repo.get_for_user(address_id, current_user.id)
     if existing is None:
         raise HTTPException(
@@ -116,10 +118,12 @@ async def update_my_address(
             detail="Direccion no encontrada",
         )
 
+    # exclude_unset distingue "ausente" de null explicito: los opcionales
+    # aceptan null para limpiarse; street_line_1 e is_default no.
     updates = {
         key: value
         for key, value in payload.model_dump(exclude_unset=True).items()
-        if value is not None
+        if value is not None or key not in _NON_NULLABLE_FIELDS
     }
     if not updates:
         raise HTTPException(
@@ -127,56 +131,21 @@ async def update_my_address(
             detail="al menos un campo para actualizar",
         )
 
-    new_default: bool | None = updates.get("is_default")
-    if new_default is False and existing.is_default:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="No se puede quitar el default: debe existir exactamente una",
-        )
-
+    new_default: bool | None = updates.pop("is_default", None)
     try:
-        updated = CustomerAddress(
-            street_line_1=updates.get("street_line_1", existing.street_line_1),
-            street_line_2=updates.get("street_line_2", existing.street_line_2),
-            city=updates.get("city", existing.city),
-            postal_code=updates.get("postal_code", existing.postal_code),
-            province=updates.get("province", existing.province),
-            phone=updates.get("phone", existing.phone),
-            is_default=existing.is_default,
-            id=existing.id,
-            created_at=existing.created_at,
-            updated_at=existing.updated_at,
-        )
-    except ValueError as err:
+        updated = apply_changes(existing, updates, set_default=new_default)
+    except ValueError as err:  # includes CannotUnsetDefault
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(err)
         ) from err
 
-    await repo.set_fields(updated, current_user.id)
-
     if new_default is True and not existing.is_default:
-        current_default = await repo.default_for_user(current_user.id)
-        if (
-            current_default is not None
-            and current_default.id != existing.id
-        ):
+        addresses = await repo.list_by_user(current_user.id)
+        for demoted_id in default_to_demote(addresses, existing.id):
             await repo.set_default_flag(
-                current_default.id, current_user.id, is_default=False
+                demoted_id, current_user.id, is_default=False
             )
-        await repo.set_default_flag(existing.id, current_user.id, is_default=True)
-        updated = CustomerAddress(
-            street_line_1=updated.street_line_1,
-            street_line_2=updated.street_line_2,
-            city=updated.city,
-            postal_code=updated.postal_code,
-            province=updated.province,
-            phone=updated.phone,
-            is_default=True,
-            id=updated.id,
-            created_at=updated.created_at,
-            updated_at=updated.updated_at,
-        )
-
+    await repo.set_fields(updated, current_user.id)
     await repo.commit()
     return AddressEnvelope(address=_response(updated))
 
@@ -187,7 +156,7 @@ async def update_my_address(
 )
 async def delete_my_address(
     address_id: str,
-    repo: SQLCustomerAddressRepository = Depends(get_customer_address_repository),
+    repo: CustomerAddressRepository = Depends(get_customer_address_repository),
     current_user: User = Depends(_ADDRESS_GUARD),
 ):
     """DELETE /customers/me/addresses/{id}: elimina (anti-sondeo: 404 si ajena).
@@ -202,20 +171,17 @@ async def delete_my_address(
             detail="Direccion no encontrada",
         )
 
-    count = await repo.count_by_user(current_user.id)
-    if count <= 1:
+    await repo.lock_book(current_user.id)
+    addresses = await repo.list_by_user(current_user.id)
+    try:
+        heir_id = remove_address(addresses, address_id)
+    except CannotRemoveOnlyAddress as err:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="No se puede borrar la unica direccion del cliente",
-        )
+            status_code=status.HTTP_409_CONFLICT, detail=str(err)
+        ) from err
 
-    was_default = existing.is_default
     await repo.remove(address_id, current_user.id)
-    if was_default:
-        remaining = await repo.list_by_user(current_user.id)
-        if remaining:
-            await repo.set_default_flag(
-                remaining[0].id, current_user.id, is_default=True
-            )
+    if heir_id is not None:
+        await repo.set_default_flag(heir_id, current_user.id, is_default=True)
     await repo.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
