@@ -14,6 +14,7 @@ import {
   Button,
   Card,
   Flex,
+  Heading,
   Input,
   Separator,
   Skeleton,
@@ -41,6 +42,7 @@ function CartPage() {
 
   const [couponInput, setCouponInput] = useState("");
   const [couponError, setCouponError] = useState<string | null>(null);
+  const [loadKey, setLoadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,6 +68,12 @@ function CartPage() {
     return () => {
       cancelled = true;
     };
+  }, [loadKey]);
+
+  const retryLoad = useCallback(() => {
+    setLoadError(null);
+    setLoading(true);
+    setLoadKey((k) => k + 1);
   }, []);
 
   const changeQty = useCallback(
@@ -126,9 +134,11 @@ function CartPage() {
 
   if (loading) {
     return (
-      <Card.Root>
+      <Card.Root as="main">
         <Card.Body>
-          <Stack gap={3} py={4}>
+          {/* role=status: anuncia el estado de carga a lectores de pantalla */}
+          <Stack gap={3} py={4} role="status">
+            <Text srOnly>Cargando tu carrito</Text>
             <Skeleton h="20px" />
             <Skeleton h="20px" />
             <Skeleton h="20px" />
@@ -140,13 +150,18 @@ function CartPage() {
 
   if (loadError) {
     return (
-      <Alert.Root status="error">
-        <Alert.Indicator />
-        <Alert.Content>
-          <Alert.Title>No pudimos cargar tu carrito</Alert.Title>
-          <Alert.Description>{loadError}</Alert.Description>
-        </Alert.Content>
-      </Alert.Root>
+      <main>
+        <Alert.Root status="error" role="alert" aria-live="polite">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>No pudimos cargar tu carrito</Alert.Title>
+            <Alert.Description>{loadError}</Alert.Description>
+          </Alert.Content>
+          <Button variant="outline" size="sm" onClick={() => retryLoad()}>
+            Reintentar
+          </Button>
+        </Alert.Root>
+      </main>
     );
   }
 
@@ -169,11 +184,15 @@ function CartPage() {
   }
 
   return (
-    <Card.Root>
+    <Card.Root as="main">
       <Card.Body>
         <Stack gap={4}>
-          <Text fontSize="lg" fontWeight="semibold">
+          <Heading as="h1" size="md">
             Tu carrito
+          </Heading>
+          {/* Región live permanente: anuncia cambios dinámicos del carrito */}
+          <Text srOnly role="status">
+            {cart.items.length} {cart.items.length === 1 ? "producto" : "productos"} en el carrito
           </Text>
 
           {cart.audience === "premium" && (
@@ -256,8 +275,17 @@ function CartPage() {
                 </Flex>
               )}
               {!cart.coupon && (
-                <Flex gap={2}>
+                <Flex
+                  as="form"
+                  aria-label="Cupón de descuento"
+                  gap={2}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void submitCoupon();
+                  }}
+                >
                   <Input
+                    aria-label="Código de cupón"
                     placeholder="Código de cupón"
                     value={couponInput}
                     onChange={(e) => setCouponInput(e.target.value)}
