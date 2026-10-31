@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, List
+from typing import Dict, List, Optional, Tuple
 from datetime import datetime, date
 from decimal import Decimal
 from domain.models import User, UserRole, BusinessSettings, Ingredient, Product, StockMovement, StockStatus
@@ -191,23 +191,43 @@ class OrderRepository(ABC):
         pass
 
     @abstractmethod
-    async def confirm(self, order: "Order") -> "Order":
-        """nuevo -> confirmado con descuento de stock atómico. Levanta
-        InsufficientOrderStockError (rollback total) si no alcanza."""
-        pass
-
-    @abstractmethod
-    async def cancel(self, order: "Order") -> "Order":
-        """confirmado -> cancelado con reposicion de stock."""
-        pass
-
-    @abstractmethod
-    async def mark_delivered(self, order: "Order") -> "Order":
-        """confirmado -> entregado. Sin efecto sobre stock."""
-        pass
-
-    @abstractmethod
     async def mark_whatsapp_sent(
         self, order: "Order", sent_at: datetime
     ) -> None:
+        pass
+
+
+class OrderTransitionStore(ABC):
+    """Primitivas transaccionales para transicionar un pedido. No decide
+    reglas de negocio: el caso de uso TransitionOrderStatus las orquesta.
+    Orden de locks obligatorio: `lock_order` primero, `lock_ingredients`
+    despues (ids ordenados) para evitar deadlocks."""
+
+    @abstractmethod
+    async def lock_order(self, order_id: str) -> Optional["Order"]:
+        """Lockea el pedido y lo devuelve fresco desde la base (None si no
+        existe). Abre la transaccion."""
+
+    @abstractmethod
+    async def lock_ingredients(
+        self, ingredient_ids: List[str]
+    ) -> Dict[str, Ingredient]:
+        """Lockea los insumos existentes (no borrados), ordenados por id."""
+
+    @abstractmethod
+    async def apply_movements(
+        self, changes: List[Tuple[Ingredient, StockMovement]]
+    ) -> None:
+        """Persiste el nuevo stock de cada insumo y su movimiento (sin commit)."""
+
+    @abstractmethod
+    async def set_status(self, order_id: str, status: str) -> None:
+        """Cambia el estado del pedido lockeado (sin commit)."""
+
+    @abstractmethod
+    async def commit(self) -> None:
+        pass
+
+    @abstractmethod
+    async def rollback(self) -> None:
         pass
