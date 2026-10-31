@@ -168,7 +168,7 @@ export const ordersService = {
     const body: Record<string, unknown> = {};
     if (payload.customer_id != null) body.customer_id = payload.customer_id;
     if (payload.date != null) body.date = payload.date;
-    if (payload.margin_pct != null) body.margin_pct = payload.margin_pct;
+    if (payload.margin_pct !== undefined) body.margin_pct = payload.margin_pct;
     if (payload.items != null) {
       body.items = payload.items.map((i) => ({
         product_id: i.product_id,

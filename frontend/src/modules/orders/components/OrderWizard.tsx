@@ -59,7 +59,8 @@ interface PreviewState {
   error?: string;
 }
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+// Fecha local (no UTC): evita que de noche el default sea el día siguiente.
+const todayIso = () => new Date().toLocaleDateString("sv-SE");
 
 /**
  * Select nativo estilizado (misma convención de EnumSelect de F5) para
@@ -146,6 +147,16 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
   const [detail, setDetail] = useState<OrderDetail | null>(null);
 
   const debouncedCustomerQuery = useDebounce(customerQuery, 250);
+
+  // En edición el cliente actual puede quedar fuera de los primeros 50 resultados.
+  const customerOptions = useMemo(() => {
+    const list = customers.map((c) => ({ value: c.id, label: `${c.name} · ${c.phone}` }));
+    const current = detail?.customer;
+    if (current && !list.some((o) => o.value === current.id)) {
+      list.unshift({ value: current.id, label: current.name });
+    }
+    return list;
+  }, [customers, detail]);
   const previewSeq = useRef(0);
 
   // Catálogo para el picker de líneas.
@@ -303,12 +314,7 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
         })),
       };
 
-      const validated = orderCreateSchema.safeParse({
-        customer_id: resolvedCustomerId,
-        date,
-        margin_pct: margin,
-        items: payload.items,
-      });
+      const validated = orderCreateSchema.safeParse(payload);
       if (!validated.success) {
         setSubmitError(validated.error.issues[0]?.message ?? "Revisá el pedido");
         return;
@@ -388,7 +394,7 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
                 onChange={setCustomerId}
                 placeholder="Buscar por nombre o teléfono…"
                 aria-label="Elegir cliente"
-                options={customers.map((c) => ({ value: c.id, label: `${c.name} · ${c.phone}` }))}
+                options={customerOptions}
               />
               <Field.ErrorText>
                 {customerId === "" ? "Elegí un cliente" : ""}
@@ -555,8 +561,8 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
             ) : null}
             {preview.status === "done" && preview.data ? (
               <Stack gap={3}>
-                {preview.data.items.map((item) => (
-                  <Box key={item.product_id} px={3} py={2} bg="gray.50" rounded="sm">
+                {preview.data.items.map((item, idx) => (
+                  <Box key={`${item.product_id}-${idx}`} px={3} py={2} bg="gray.50" rounded="sm">
                     <HStack justify="space-between" wrap="wrap">
                       <Text fontWeight="600">
                         {item.product_name} × {item.qty}
