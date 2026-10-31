@@ -454,6 +454,16 @@ class TestPatchMaterial:
         assert response.status_code == 422
         assert "al menos un campo" in response.json()["detail"]
 
+    async def test_patch_null_name_returns_422(self, client):
+        token = await _admin(client)
+        created = await _create_material(client, token)
+        response = await client.patch(
+            f"/api/v1/calc/materials/{created['id']}",
+            json={"name": None},
+            headers=_auth(token),
+        )
+        assert response.status_code == 422
+
     async def test_patch_unknown_id_returns_404(self, client):
         token = await _admin(client)
         response = await client.patch(
