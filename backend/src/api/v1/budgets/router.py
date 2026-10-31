@@ -47,8 +47,6 @@ from api.v1.orders.dependencies import (
 )
 from api.v1.orders.schemas import OrderItemInput
 from api.v1.settings.dependencies import get_settings_repository
-from data.repositories.sql_ingredient_repository import SQLIngredientRepository
-from data.repositories.sql_product_repository import SQLProductRepository
 from domain.budget_pricing import unit_product_cost
 from domain.budgets import (
     Budget,
@@ -64,6 +62,7 @@ from domain.pricing import UnitConversionError
 from domain.repositories import (
     BudgetRepository,
     CustomerRepository,
+    IngredientRepository,
     OrderRepository,
     ProductRepository,
     SettingsRepository,
@@ -141,7 +140,7 @@ async def _load_products(
     return by_id
 
 
-async def _load_ingredients(repo: SQLIngredientRepository) -> Dict[str, Ingredient]:
+async def _load_ingredients(repo: IngredientRepository) -> Dict[str, Ingredient]:
     """Insumos activos paginados (los borrados quedan con costo 0, mismo
     criterio que el pedido)."""
     by_id: Dict[str, Ingredient] = {}
@@ -164,7 +163,7 @@ def _resolve_margin(
 
 async def _derive_items(
     product_repo: ProductRepository,
-    ingredient_repo: SQLIngredientRepository,
+    ingredient_repo: IngredientRepository,
     settings: BusinessSettings,
     inputs: List[BudgetItemInput],
     margin_override: Optional[Decimal],
@@ -246,7 +245,7 @@ async def create_budget(
     budget_repo: BudgetRepository = Depends(get_budget_repository),
     customer_repo: CustomerRepository = Depends(get_customer_repository),
     product_repo: ProductRepository = Depends(get_product_repository),
-    ingredient_repo: SQLIngredientRepository = Depends(get_ingredient_repository),
+    ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     _admin: User = Depends(require_admin),
 ):
@@ -302,7 +301,7 @@ async def update_budget(
     budget_repo: BudgetRepository = Depends(get_budget_repository),
     customer_repo: CustomerRepository = Depends(get_customer_repository),
     product_repo: ProductRepository = Depends(get_product_repository),
-    ingredient_repo: SQLIngredientRepository = Depends(get_ingredient_repository),
+    ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     _admin: User = Depends(require_admin),
 ):
@@ -385,7 +384,7 @@ async def patch_budget_items(
     payload: BudgetItemsPatch,
     budget_repo: BudgetRepository = Depends(get_budget_repository),
     product_repo: ProductRepository = Depends(get_product_repository),
-    ingredient_repo: SQLIngredientRepository = Depends(get_ingredient_repository),
+    ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     _admin: User = Depends(require_admin),
 ):
@@ -446,7 +445,7 @@ async def recalculate_budget(
     budget_id: str,
     budget_repo: BudgetRepository = Depends(get_budget_repository),
     product_repo: ProductRepository = Depends(get_product_repository),
-    ingredient_repo: SQLIngredientRepository = Depends(get_ingredient_repository),
+    ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     _admin: User = Depends(require_admin),
 ):
@@ -511,7 +510,7 @@ async def convert_to_order(
     budget_repo: BudgetRepository = Depends(get_budget_repository),
     order_repo: OrderRepository = Depends(get_order_repository),
     product_repo: ProductRepository = Depends(get_product_repository),
-    ingredient_repo: SQLIngredientRepository = Depends(get_ingredient_repository),
+    ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     _admin: User = Depends(require_admin),
 ):
