@@ -32,8 +32,8 @@ def normalize_e164_ar(phone: str) -> str:
             digits = "54" + digits
     if not (12 <= len(digits) <= 13):
         raise ValueError(
-            f"Teléfono inválido para WhatsApp (esperado +54 con 10-11 "
-            f"dígitos locales), recibido: {phone}"
+            "Teléfono inválido para WhatsApp (esperado +54 con 10-11 "
+            "dígitos locales)"
         )
     return digits
 

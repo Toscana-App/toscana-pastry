@@ -18,6 +18,7 @@ import json
 from decimal import ROUND_HALF_UP
 from decimal import Decimal
 from typing import Tuple
+from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT
@@ -147,7 +148,7 @@ def build_budget_pdf(budget: Budget, business_name: str, footer_text: str) -> by
     fecha = _format_date(now) if now is not None else ""
 
     elements = [
-        Paragraph(business, s["business"]),
+        Paragraph(escape(business), s["business"]),
         Spacer(1, 2 * mm),
         Table(
             [
@@ -159,8 +160,8 @@ def build_budget_pdf(budget: Budget, business_name: str, footer_text: str) -> by
                         s["title"],
                     ),
                     Paragraph(
-                        f"<b>Cliente</b><br/>{budget.customer_name}<br/>"
-                        f"Tel: {budget.customer_phone}",
+                        f"<b>Cliente</b><br/>{escape(budget.customer_name)}<br/>"
+                        f"Tel: {escape(budget.customer_phone)}",
                         s["cell"],
                     ),
                 ]
@@ -181,7 +182,7 @@ def build_budget_pdf(budget: Budget, business_name: str, footer_text: str) -> by
     for item in budget.items:
         rows.append(
             [
-                Paragraph(item.product_name, s["cell"]),
+                Paragraph(escape(item.product_name), s["cell"]),
                 Paragraph(str(item.qty), s["cell"]),
                 Paragraph(format_money_peso(item.unit_selling), s["cell"]),
                 Paragraph(format_money_peso(item.line_selling), s["cell"]),
@@ -236,7 +237,7 @@ def build_budget_pdf(budget: Budget, business_name: str, footer_text: str) -> by
     elements.append(Spacer(1, 14 * mm))
 
     footer = footer_text.strip() or f"{business} — presupuesto {budget.seq}"
-    elements.append(Paragraph(footer, s["footer"]))
+    elements.append(Paragraph(escape(footer), s["footer"]))
     elements.append(Spacer(1, 2 * mm))
     elements.append(Paragraph(
         f"Presupuesto {budget.seq} · Versión {budget.version} · Documento generado el {fecha}",
@@ -245,12 +246,3 @@ def build_budget_pdf(budget: Budget, business_name: str, footer_text: str) -> by
 
     doc.build(elements)
     return buffer.getvalue()
-
-
-def extract_pdf_text(pdf_bytes: bytes) -> str:
-    """Texto extraído de un PDF (pypdf). Solo para tests: verificar que
-    el documento no contiene términos internos (costo/ganancia/margen)."""
-    from pypdf import PdfReader
-
-    reader = PdfReader(io.BytesIO(pdf_bytes))
-    return "\n".join((page.extract_text() or "") for page in reader.pages)

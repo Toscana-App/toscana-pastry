@@ -625,15 +625,6 @@ async def budget_whatsapp_link(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     now = datetime.datetime.now(datetime.timezone.utc)
-    sent_recently = await budget_repo.count_whatsapp_sent_since(
-        now - datetime.timedelta(days=1)
-    )
-    if sent_recently >= WHATSAPP_DAILY_LIMIT:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Límite diario de links de WhatsApp alcanzado (30/día)",
-        )
-
     settings = await GetSettings(settings_repo).execute()
     token, _expires = make_share_token(budget.id, app_settings.SECRET_KEY)
     share_url = f"{app_settings.PUBLIC_BASE_URL}/api/v1/pdf/{token}"
@@ -641,5 +632,17 @@ async def budget_whatsapp_link(
         budget, settings.business_name or "", share_url
     )
     url = f"https://wa.me/{e164}?text={quote(message)}"
-    sent_at = await budget_repo.record_whatsapp_sent(budget.id, mask_phone(e164))
+    # Conteo + registro atómicos (RF-P10-06): sin carrera entre el chequeo
+    # del límite y el INSERT.
+    sent_at = await budget_repo.record_whatsapp_sent_within_limit(
+        budget.id,
+        mask_phone(e164),
+        now - datetime.timedelta(days=1),
+        WHATSAPP_DAILY_LIMIT,
+    )
+    if sent_at is None:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Límite diario de links de WhatsApp alcanzado (30/día)",
+        )
     return WhatsAppLinkResponse(url=url, sent_at=sent_at.isoformat())

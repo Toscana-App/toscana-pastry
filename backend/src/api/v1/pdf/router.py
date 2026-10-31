@@ -10,6 +10,7 @@ Seguridad: el documento renderizado no contiene costos ni margen — el
 builder (domain/pdf.py) solo toca el snapshot del cliente, y la suite de
 tests lo verifica contra el PDF real.
 """
+import asyncio
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -52,7 +53,7 @@ async def _pdf_for_budget(
     cached = await document_repo.get(budget_id, content_hash)
     if cached is not None:
         return cached, content_hash, budget
-    pdf = build_budget_pdf(budget, business, footer)
+    pdf = await asyncio.to_thread(build_budget_pdf, budget, business, footer)
     await document_repo.save(budget_id, content_hash, pdf)
     return pdf, content_hash, budget
 

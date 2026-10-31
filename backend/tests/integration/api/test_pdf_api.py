@@ -363,6 +363,36 @@ class TestShareLink:
         response = await client.get(f"/api/v1/pdf/{tamper(valid)}")
         assert response.status_code == 404
 
+    def test_token_usa_subclave_con_separacion_de_dominio(self):
+        import hashlib
+        import hmac
+
+        from api.v1.pdf.signing import verify_share_token
+
+        token, _ = make_share_token("b1", "secreto")
+        assert verify_share_token(token, "secreto") == "b1"
+        assert verify_share_token(token, "otro") is None
+        # Un token firmado directamente con la SECRET_KEY (sin subclave,
+        # p. ej. forjado con la clave del JWT) no es válido.
+        import base64
+
+        payload = b"v1|b1|9999999999"
+        sig = hmac.new(b"secreto", payload, hashlib.sha256).digest()
+        b64 = lambda d: base64.urlsafe_b64encode(d).decode().rstrip("=")
+        assert verify_share_token(f"{b64(payload)}.{b64(sig)}", "secreto") is None
+
+    def test_token_sin_version_en_el_payload_es_invalido(self):
+        import base64
+        import hashlib
+        import hmac
+
+        from api.v1.pdf.signing import _signing_key, verify_share_token
+
+        payload = b"b1|9999999999"
+        sig = hmac.new(_signing_key("secreto"), payload, hashlib.sha256).digest()
+        b64 = lambda d: base64.urlsafe_b64encode(d).decode().rstrip("=")
+        assert verify_share_token(f"{b64(payload)}.{b64(sig)}", "secreto") is None
+
     async def test_token_vencido_es_404(self, client):
         expired, _ = make_share_token(
             "cualquier-id", app_settings.SECRET_KEY, ttl_seconds=-10
@@ -427,6 +457,8 @@ class TestWhatsAppLink:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 400
+        # RNF-P10-05: el teléfono no se devuelve en `detail`.
+        assert "123456" not in response.text
 
     async def test_evento_registrado_con_telefono_enmascarado(self, client, db_session):
         from sqlalchemy import select
@@ -487,3 +519,40 @@ class TestWhatsAppLink:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 429
+
+    async def test_limite_atomico_registra_el_30_y_rechaza_el_31(
+        self, client, db_session
+    ):
+        from sqlalchemy import func, select
+
+        token = await _login(client)
+        product_id = await _setup(client, token)
+        customer_id = await _make_customer(
+            client, token, "María", "5493571234567"
+        )
+        budget_id = await _make_budget(client, token, customer_id, product_id)
+        now = datetime.now(timezone.utc)
+        for i in range(29):
+            db_session.add(
+                BudgetEventORM(
+                    id=f"evt-{i}",
+                    budget_id=budget_id,
+                    type="whatsapp_sent",
+                    payload="+54 ** ****00",
+                    created_at=now - timedelta(minutes=i),
+                )
+            )
+        await db_session.commit()
+        headers = {"Authorization": f"Bearer {token}"}
+        url = f"/api/v1/budgets/{budget_id}/whatsapp-link"
+
+        assert (await client.get(url, headers=headers)).status_code == 200
+        assert (await client.get(url, headers=headers)).status_code == 429
+        total = (
+            await db_session.execute(
+                select(func.count())
+                .select_from(BudgetEventORM)
+                .where(BudgetEventORM.type == "whatsapp_sent")
+            )
+        ).scalar_one()
+        assert total == 30

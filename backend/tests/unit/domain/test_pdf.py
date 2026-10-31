@@ -15,9 +15,18 @@ from domain.budgets import Budget, derive_budget_items
 from domain.pdf import (
     budget_content_hash,
     build_budget_pdf,
-    extract_pdf_text,
     format_money_peso,
 )
+
+
+def extract_pdf_text(pdf_bytes: bytes) -> str:
+    """Texto extraído de un PDF (pypdf). Solo para tests."""
+    from io import BytesIO
+
+    from pypdf import PdfReader
+
+    reader = PdfReader(BytesIO(pdf_bytes))
+    return "\n".join((page.extract_text() or "") for page in reader.pages)
 
 
 def _budget(
@@ -103,6 +112,36 @@ class TestBuildBudgetPdf:
         a = build_budget_pdf(_budget(qty=2), "T", "")
         b = build_budget_pdf(_budget(qty=3), "T", "")
         assert a != b
+
+
+class TestPdfMarkupEscaping:
+    HOSTILE = [
+        "Dulces & Tortas",
+        "Torta <3",
+        "a > b",
+        '<img src="file:///etc/passwd"/>',
+        "<b>negrita sin cerrar",
+    ]
+
+    @pytest.mark.parametrize("name", HOSTILE)
+    def test_nombre_de_cliente_y_producto_se_renderizan_literales(self, name):
+        items, _ = derive_budget_items(
+            (("p1", name, 1, Decimal("100"), None),), Decimal("100")
+        )
+        budget = Budget(
+            customer_id="c1",
+            customer_name=name,
+            customer_phone="5493571234567",
+            items=items,
+            margin_pct=Decimal("100"),
+            seq="#00001",
+            version=1,
+            status="enviado",
+        )
+        pdf = build_budget_pdf(budget, name, name)
+        assert pdf[:4] == b"%PDF"
+        text = extract_pdf_text(pdf).replace("\n", " ")
+        assert " ".join(name.split()) in " ".join(text.split())
 
 
 class TestBudgetContentHash:

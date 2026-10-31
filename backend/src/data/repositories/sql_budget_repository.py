@@ -12,7 +12,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import List, Optional, Tuple
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, insert, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -373,6 +373,39 @@ class SQLBudgetRepository:
             )
             await self.session.commit()
             return now
+        except Exception:
+            await self.session.rollback()
+            raise
+
+    async def record_whatsapp_sent_within_limit(
+        self, budget_id: str, masked_phone: str, since: datetime, limit: int
+    ) -> Optional[datetime]:
+        """Conteo + inserción en UN statement: no hay ventana entre el
+        chequeo del límite y el registro (requests concurrentes)."""
+        try:
+            now = datetime.now(timezone.utc)
+            sent_count = (
+                select(func.count())
+                .select_from(BudgetEventORM)
+                .where(
+                    BudgetEventORM.type == "whatsapp_sent",
+                    BudgetEventORM.created_at >= since,
+                )
+                .scalar_subquery()
+            )
+            stmt = insert(BudgetEventORM).from_select(
+                ["id", "budget_id", "type", "payload", "created_at"],
+                select(
+                    literal(str(uuid.uuid4())),
+                    literal(budget_id),
+                    literal("whatsapp_sent"),
+                    literal(masked_phone),
+                    literal(now, type_=BudgetEventORM.created_at.type),
+                ).where(sent_count < limit),
+            )
+            result = await self.session.execute(stmt)
+            await self.session.commit()
+            return now if result.rowcount == 1 else None
         except Exception:
             await self.session.rollback()
             raise
