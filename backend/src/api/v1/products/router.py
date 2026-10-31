@@ -10,17 +10,19 @@ Gate por rol:
   - negocio: solo revendedores (consumidor_final → 403)
   - cliente: solo consumidor_final (revendedores → 403)
 
-Reutiliza ``compute_dual_pricing`` / ``_resolve_audience`` de
+Reutiliza ``compute_dual_pricing`` / ``resolve_audience`` de
 ``domain.pricing_service`` para la resolución de audiencia y el cálculo
 del precio derivado — la regla de negocio tiene un único hogar.
 """
+import asyncio
+import logging
 from decimal import Decimal
 from html import escape
 from io import StringIO
 
 import csv as csv_module
-from fastapi import APIRouter, Depends, Query
-from fastapi.responses import Response
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import JSONResponse, Response
 
 from api.v1.dependencies import require_role
 from api.v1.ingredients.dependencies import get_ingredient_repository
@@ -30,12 +32,68 @@ from domain.models import User, UserRole
 from domain.pricing_service import (
     AudienceForbiddenError,
     derive_audience_price,
-    _resolve_audience,
+    resolve_audience,
 )
 from domain.repositories import IngredientRepository, SettingsRepository
 from domain.use_cases import GetSettings
 
 router = APIRouter(prefix="/products", tags=["products"])
+logger = logging.getLogger(__name__)
+
+_LIST_PAGE_SIZE = 500
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "	")
+
+
+def _csv_safe(value: str) -> str:
+    """Neutraliza formula injection: un texto que empieza con ``= + - @`` o
+    tab se prefija con ``'`` para que Excel/Sheets no lo ejecuten."""
+    if value.startswith(_FORMULA_PREFIXES):
+        return "'" + value
+    return value
+
+
+async def _list_all_ingredients(ingredient_repo: IngredientRepository) -> list:
+    """Recorre todas las paginas del repositorio: sin truncado silencioso."""
+    products: list = []
+    page = 1
+    while True:
+        batch, total = await ingredient_repo.list(
+            q=None, status=None, page=page, page_size=_LIST_PAGE_SIZE
+        )
+        products.extend(batch)
+        if not batch or len(products) >= total:
+            return products
+        page += 1
+
+
+def _resolve_or_403(user: User, audience: str) -> str:
+    try:
+        return resolve_audience(user.role, audience)
+    except AudienceForbiddenError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e),
+        ) from e
+
+
+async def _build_audience_rows(
+    ingredient_repo: IngredientRepository,
+    settings_repo: SettingsRepository,
+    resolved: str,
+) -> list[tuple]:
+    """Devuelve ``(ingredient, precio_para_la_audiencia)`` para TODOS los
+    productos; unico lugar donde se aplica ``derive_audience_price``."""
+    settings = await GetSettings(settings_repo).execute()
+    products = await _list_all_ingredients(ingredient_repo)
+    return [
+        (
+            product,
+            derive_audience_price(
+                product.price_per_unit, settings.consumer_markup_pct, resolved
+            ),
+        )
+        for product in products
+    ]
 
 
 def _build_csv(rows: list[dict[str, str]]) -> str:
@@ -47,7 +105,7 @@ def _build_csv(rows: list[dict[str, str]]) -> str:
     writer = csv_module.writer(output, lineterminator="\n")
     writer.writerow(header)
     for row in rows:
-        writer.writerow([row[h] for h in header])
+        writer.writerow([_csv_safe(row[h]) for h in header])
     return output.getvalue()
 
 
@@ -111,29 +169,11 @@ async def pricelist_csv(
     - negocio: solo revendedores.
     - cliente: solo consumidor_final.
     """
-    # Resolve audience via domain service (S3 — T4)
-    try:
-        resolved = _resolve_audience(current_user.role, audience)
-    except AudienceForbiddenError as e:
-        from fastapi import HTTPException, status
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e),
-        ) from e
+    resolved = _resolve_or_403(current_user, audience)
+    priced = await _build_audience_rows(ingredient_repo, settings_repo, resolved)
 
-    settings = await GetSettings(settings_repo).execute()
-
-    # Get all products (ingredients)
-    products, _ = await ingredient_repo.list(q=None, status=None, page=1, page_size=1000)
-
-    # Build CSV rows using domain price computation
     rows = []
-    for product in products:
-        price = derive_audience_price(
-            product.price_per_unit,
-            settings.consumer_markup_pct,
-            resolved,
-        )
+    for product, price in priced:
         rows.append({
             "name": product.name,
             "unit": product.unit,
@@ -189,29 +229,11 @@ async def list_products(
             "total": int
         }
     """
-    # Resolve audience via domain service
-    try:
-        resolved = _resolve_audience(current_user.role, audience)
-    except AudienceForbiddenError as e:
-        from fastapi import HTTPException, status
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e),
-        ) from e
+    resolved = _resolve_or_403(current_user, audience)
+    priced = await _build_audience_rows(ingredient_repo, settings_repo, resolved)
 
-    settings = await GetSettings(settings_repo).execute()
-
-    # Get all products (ingredients) with page-size cap
-    products, _ = await ingredient_repo.list(q=None, status=None, page=1, page_size=1000)
-
-    # Build response rows using domain price computation
     product_rows = []
-    for product in products:
-        price = derive_audience_price(
-            product.price_per_unit,
-            settings.consumer_markup_pct,
-            resolved,
-        )
+    for product, price in priced:
         product_rows.append({
             "id": product.id,
             "name": product.name,
@@ -225,6 +247,19 @@ async def list_products(
         "products": product_rows,
         "total": len(product_rows),
     }
+
+
+def _pdf_unavailable() -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        media_type="application/problem+json",
+        content={
+            "type": "about:blank",
+            "title": "Service Unavailable",
+            "status": status.HTTP_503_SERVICE_UNAVAILABLE,
+            "detail": "PDF generation is temporarily unavailable.",
+        },
+    )
 
 
 @router.get("/pricelist/pdf")
@@ -244,30 +279,12 @@ async def pricelist_pdf(
 
     Renderiza con WeasyPrint (requiere Pango en Windows).
     """
-    # Resolve audience via domain service (S3 — T4)
-    try:
-        resolved = _resolve_audience(current_user.role, audience)
-    except AudienceForbiddenError as e:
-        from fastapi import HTTPException, status
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e),
-        ) from e
+    resolved = _resolve_or_403(current_user, audience)
+    priced = await _build_audience_rows(ingredient_repo, settings_repo, resolved)
 
-    settings = await GetSettings(settings_repo).execute()
-
-    # Get all products (ingredients)
-    products, _ = await ingredient_repo.list(q=None, status=None, page=1, page_size=1000)
-
-    # Build PDF rows using domain price computation
     audience_label = "Revendedores" if resolved == "revendedores" else "Consumidor final"
     product_rows = []
-    for product in products:
-        price = derive_audience_price(
-            product.price_per_unit,
-            settings.consumer_markup_pct,
-            resolved,
-        )
+    for product, price in priced:
         product_rows.append({
             "name": product.name,
             "unit": product.unit,
@@ -276,18 +293,18 @@ async def pricelist_pdf(
         })
 
     html_content = _build_pdf_html(product_rows)
-    # Lazy import: WeasyPrint requires Pango/GObject on Windows.
-    # If unavailable, the error surfaces here with the exact OS message.
+    # Lazy import: WeasyPrint requires Pango/GObject on Windows. El detalle
+    # del error va solo al log; el cliente recibe un problema generico.
     try:
         from weasyprint import HTML
-    except OSError as e:
-        from fastapi import HTTPException, status
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"WeasyPrint no puede renderizar: {e}",
-        ) from e
 
-    pdf_bytes = HTML(string=html_content).render().write_pdf()
+        # Render CPU-bound: fuera del event loop.
+        pdf_bytes = await asyncio.to_thread(
+            lambda: HTML(string=html_content).render().write_pdf()
+        )
+    except OSError as e:
+        logger.error("PDF render failed: %s", e)
+        return _pdf_unavailable()
 
     return Response(
         content=pdf_bytes,

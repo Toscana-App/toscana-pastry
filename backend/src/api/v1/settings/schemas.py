@@ -57,7 +57,13 @@ class SettingsResponse(BaseModel):
     include_waste: bool
     waste_pct: Money
     urgent_surcharge_pct: Money
-    consumer_markup_pct: Money
     default_prep_minutes: int
     default_servings: int
     default_difficulty: str
+
+
+class AdminSettingsResponse(SettingsResponse):
+    """Solo admin: agrega el markup de consumidor final, que un revendedor
+    o cliente no debe poder leer."""
+
+    consumer_markup_pct: Money
