@@ -42,6 +42,20 @@ async function requestNewAccessToken(): Promise<string | null> {
   return refreshInFlight;
 }
 
+// Error tipado de respuestas no-ok: conserva status y body para que los
+// llamadores distingan casos (p. ej. 409 con `in_use_by`) sin parsear mensajes.
+export class ApiError extends Error {
+  status: number;
+  body: unknown;
+
+  constructor(message: string, status: number, body: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
 export async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {},
@@ -68,7 +82,16 @@ export async function apiFetch<T>(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: "An error occurred" }));
-    throw new Error(error.detail || error.message || "Network error");
+    throw new ApiError(
+      error?.detail || error?.message || "Network error",
+      response.status,
+      error
+    );
+  }
+
+  // 204 / body vacío (p. ej. DELETE exitoso): no hay JSON que parsear.
+  if (response.status === 204 || response.headers?.get("content-length") === "0") {
+    return undefined as T;
   }
 
   return response.json() as Promise<T>;

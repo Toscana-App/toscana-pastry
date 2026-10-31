@@ -14,6 +14,7 @@ import {
 } from "@chakra-ui/react";
 import { calcSettingsService } from "@/services/calcSettingsService";
 import { toaster } from "@/lib/toaster";
+import { ApiError } from "@/lib/api";
 import type {
   Category,
   CategoryCreatePayload,
@@ -114,15 +115,8 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
       const payload: CategoryCreatePayload = { name };
       if (newDescription.trim()) payload.description = newDescription.trim();
       const created = await calcSettingsService.createCategory(endpoint, payload);
-      setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              items: [...prev.items, created],
-              total: prev.total + 1,
-            }
-          : prev
-      );
+      // Refetch de la página actual: respeta filtro, orden y PAGE_SIZE del server.
+      setReloadKey((key) => key + 1);
       setNewName("");
       setNewDescription("");
       toaster.create({ title: "Categoría creada", type: "success" });
@@ -201,25 +195,18 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
     setDeletingBusy(true);
     try {
       await calcSettingsService.deleteCategory(endpoint, deleting.id);
-      const removedId = deleting.id;
-      setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              items: prev.items.filter((item) => item.id !== removedId),
-              total: Math.max(0, prev.total - 1),
-            }
-          : prev
-      );
+      setReloadKey((key) => key + 1);
       setDeleting(null);
       toaster.create({ title: "Categoría eliminada", type: "success" });
     } catch (error) {
-      // 409 "en uso": el body es {"in_use_by": N} sin `detail`, así que
-      // apiFetch cae en su fallback "Network error". Para ese caso usamos
-      // un mensaje propio; los demás errores (409 duplicado, 422) traen
-      // su `detail` y se muestran como llegan.
+      // 409 "en uso": el body es {"in_use_by": N}. Se detecta por status y
+      // body tipados (ApiError), no por el texto del mensaje.
       const inUse =
-        error instanceof Error && error.message === "Network error";
+        error instanceof ApiError &&
+        error.status === 409 &&
+        typeof error.body === "object" &&
+        error.body !== null &&
+        "in_use_by" in error.body;
       toaster.create({
         title: "Error al eliminar",
         description: inUse
@@ -233,14 +220,6 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
     } finally {
       setDeletingBusy(false);
     }
-  }
-
-  if (loading) {
-    return (
-      <Flex align="center" justify="center" py={16}>
-        <Spinner size="xl" />
-      </Flex>
-    );
   }
 
   if (loadError) {
@@ -314,7 +293,11 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
         <Text color="fg.muted">Total: {total}</Text>
       </Flex>
 
-      {items.length === 0 ? (
+      {loading ? (
+        <Flex align="center" justify="center" py={16}>
+          <Spinner size="xl" />
+        </Flex>
+      ) : items.length === 0 ? (
         <EmptyState.Root>
           <EmptyState.Content>
             <EmptyState.Title>Sin categorías</EmptyState.Title>

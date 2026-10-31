@@ -19,6 +19,7 @@ vi.mock("@/lib/toaster", () => ({
 
 import { calcSettingsService } from "@/services/calcSettingsService";
 import { toaster } from "@/lib/toaster";
+import { ApiError } from "@/lib/api";
 import type { Category, CategoryListResponse } from "@/types/calc";
 
 const pasta: Category = {
@@ -110,6 +111,8 @@ describe("CategoryAbm (material-categories)", () => {
 
     fireEvent.change(createNameInput(), { target: { value: "Hojaldres" } });
     fireEvent.change(createDescInput(), { target: { value: "Masa hojaldrada" } });
+    // La lista se refetchea tras crear: el server ya devuelve el nuevo item.
+    setupList([nueva]);
     fireEvent.click(screen.getByRole("button", { name: "Crear" }));
 
     await waitFor(() =>
@@ -149,6 +152,8 @@ describe("CategoryAbm (material-categories)", () => {
     render(<CategoryAbm endpoint="material-categories" title="Categorías de materiales" />);
     await screen.findByText("Pasta");
 
+    // Tras el DELETE la lista se refetchea sin el item borrado.
+    setupList([salsa]);
     await openDeleteConfirm("Pasta");
     fireEvent.click(screen.getByRole("button", { name: "Eliminar" }));
 
@@ -168,10 +173,9 @@ describe("CategoryAbm (material-categories)", () => {
   });
 
   it("keeps the row intact and shows a danger toast when DELETE returns 409 in-use", async () => {
-    // El 409 in-use viaja como {"in_use_by": N} sin `detail`: apiFetch cae
-    // en su fallback "Network error".
+    // El 409 in-use viaja como {"in_use_by": N} sin `detail`.
     vi.mocked(calcSettingsService.deleteCategory).mockRejectedValue(
-      new Error("Network error")
+      new ApiError("Network error", 409, { in_use_by: 3 })
     );
 
     render(<CategoryAbm endpoint="material-categories" title="Categorías de materiales" />);
@@ -207,5 +211,21 @@ describe("CategoryAbm (material-categories)", () => {
         { q: "sal", page: 1, page_size: 50 }
       )
     );
+  });
+
+  it("keeps the search input mounted and focused after the debounce refetch", async () => {
+    render(<CategoryAbm endpoint="material-categories" title="Categorías de materiales" />);
+    await screen.findByText("Pasta");
+
+    const input = screen.getByLabelText("Buscar");
+    input.focus();
+    fireEvent.change(input, { target: { value: "x" } });
+
+    await waitFor(() =>
+      expect(calcSettingsService.listCategories).toHaveBeenCalledTimes(2)
+    );
+    await screen.findByText("Pasta");
+    expect(screen.getByLabelText("Buscar")).toBe(input);
+    expect(input).toHaveFocus();
   });
 });

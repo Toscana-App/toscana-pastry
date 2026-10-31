@@ -41,16 +41,8 @@ function jsonOptions(method: string, body: unknown): RequestInit {
   return { method, body: JSON.stringify(body) };
 }
 
-// apiFetch termina siempre con response.json(); un DELETE exitoso responde
-// 204 con body vacío y ese json() lanza SyntaxError. Se traga ese caso
-// concreto como éxito; los errores reales (Error con detail) se re-lanzan.
 async function deleteViaApiFetch(endpoint: string): Promise<void> {
-  try {
-    await apiFetch(endpoint, { method: "DELETE" });
-  } catch (error) {
-    if (error instanceof SyntaxError) return;
-    throw error;
-  }
+  await apiFetch<void>(endpoint, { method: "DELETE" });
 }
 
 export const calcSettingsService = {
