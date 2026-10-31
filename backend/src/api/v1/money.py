@@ -4,7 +4,7 @@
 dígitos son los centavos (310050 = $3.100,50). El dominio trabaja en
 Decimal; la conversión vive en este módulo (el borde de la API):
 
-  - entrada : centavos (int) → Decimal para el dominio (cents_to_decimal)
+  - entrada : centavos (int, estricto: str/float/bool -> 422) → Decimal para el dominio (cents_to_decimal)
   - salida  : Decimal del dominio → centavos (int) (BeforeValidator + serializer)
 
 **Qty** (cantidad: kg, g, L, ml, unidades) NO es dinero: sigue siendo
@@ -23,20 +23,18 @@ _HUNDRED = Decimal("100")
 
 
 def _to_cents(value) -> int:
-    """Normaliza a centavos (int). Acepta int (canonical), Decimal (del
-    dominio) y el formato legacy str/float en unidades (migración)."""
+    """Centavos (int) estrictos: solo `int` (bool excluido) y Decimal del
+    dominio (serializacion interna). str/float se rechazan: ValueError
+    (no TypeError) para que Pydantic responda 422."""
     if isinstance(value, bool):
-        raise TypeError("bool no es un monto valido")
+        raise ValueError("bool no es un monto valido")
     if isinstance(value, int):
         return value
     if isinstance(value, Decimal):
         return int((value * _HUNDRED).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
-    if isinstance(value, (float, str)):
-        try:
-            return int((Decimal(str(value)) * _HUNDRED).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
-        except InvalidOperation as exc:
-            raise ValueError(f"monto invalido: {value!r}") from exc
-    raise TypeError(f"tipo no aceptado para monto: {type(value).__name__}")
+    raise ValueError(
+        f"el monto debe ser un entero de centavos, no {type(value).__name__}"
+    )
 
 
 def cents_to_decimal(cents: int) -> Decimal:

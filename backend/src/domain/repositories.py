@@ -254,6 +254,12 @@ class BudgetRepository(ABC):
         pass
 
     @abstractmethod
+    async def mark_converted(self, budget_id: str, order_id: str) -> bool:
+        """Persiste el pedido asociado solo si aun no hay uno (RF-P8-08).
+        False = ya convertido o inexistente."""
+        pass
+
+    @abstractmethod
     async def mark_sent(self, budget: "Budget") -> "Budget":
         """enviado (version nueva) con snapshot congelado (RF-P8-05).
         `budget` ya pasa por transition_to_sent."""

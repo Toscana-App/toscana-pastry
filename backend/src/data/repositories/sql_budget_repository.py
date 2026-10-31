@@ -66,6 +66,7 @@ def _budget_to_domain(orm: BudgetORM) -> Budget:
         created_at=orm.created_at,
         updated_at=orm.updated_at,
         sent_at=orm.sent_at,
+        order_id=orm.order_id,
     )
 
 
@@ -306,6 +307,25 @@ class SQLBudgetRepository:
                 await self.session.delete(version)
             await self.session.commit()
             return True
+        except Exception:
+            await self.session.rollback()
+            raise
+
+    # -------------------------------------------------------------- convert
+
+    async def mark_converted(self, budget_id: str, order_id: str) -> bool:
+        """Asocia el pedido solo si el presupuesto sigue sin convertir
+        (UPDATE condicional: la base serializa conversiones concurrentes).
+        False = ya estaba convertido o no existe."""
+        try:
+            result = await self.session.execute(
+                update(BudgetORM)
+                .where(BudgetORM.id == budget_id, BudgetORM.order_id.is_(None))
+                .values(order_id=order_id)
+                .execution_options(synchronize_session=False)
+            )
+            await self.session.commit()
+            return result.rowcount == 1
         except Exception:
             await self.session.rollback()
             raise

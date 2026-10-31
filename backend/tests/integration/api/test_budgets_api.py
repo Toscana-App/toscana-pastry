@@ -7,6 +7,7 @@ Costo de una torta: 700 (harina) + 75 (mano) = 775; margen 100% -> 1.550.
 Flujo: wizard -> borrador #000NN -> editar/recalcular -> enviar (version)
 -> convertir a pedido -> borrar. Money en centavos (RF-P8-03).
 """
+import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy import event
@@ -223,6 +224,14 @@ async def _create_budget(
     )
     assert response.status_code == 201, response.text
     return response.json()
+
+
+async def _send(client: AsyncClient, token: str, budget_id: str) -> None:
+    response = await client.post(
+        f"/api/v1/budgets/{budget_id}/send",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200, response.text
 
 
 async def _list(client: AsyncClient, token: str, **params) -> dict:
@@ -630,6 +639,7 @@ class TestConvertToOrder:
         token, flour_id, torta_id, customer_id = await _setup(client)
         body = await _create_budget(client, token, customer_id, torta_id, qty=2)
         budget_id = body["id"]
+        await _send(client, token, budget_id)
 
         response = await client.post(
             f"/api/v1/budgets/{budget_id}/convert-to-order",
@@ -670,6 +680,7 @@ class TestConvertToOrder:
         body = await _create_budget(
             client, token, customer_id, torta_id, qty=1, margin_pct="200"
         )
+        await _send(client, token, body["id"])
         response = await client.post(
             f"/api/v1/budgets/{body['id']}/convert-to-order",
             headers={"Authorization": f"Bearer {token}"},
@@ -692,6 +703,7 @@ class TestConvertToOrder:
             headers={"Authorization": f"Bearer {token}"},
         )
         body = await _create_budget(client, token, customer_id, torta_id, qty=2)
+        await _send(client, token, body["id"])
         response = await client.post(
             f"/api/v1/budgets/{body['id']}/convert-to-order",
             headers={"Authorization": f"Bearer {token}"},
@@ -713,6 +725,84 @@ class TestConvertToOrder:
             headers={"Authorization": f"Bearer {customer_token}"},
         )
         assert response.status_code == 403
+
+
+class TestMoneyContract:
+    @pytest.mark.parametrize("bad", ["1500.00", 1500.5, True])
+    async def test_price_override_no_entero_da_422(self, client: AsyncClient, bad):
+        token, _, torta_id, customer_id = await _setup(client)
+        response = await client.post(
+            "/api/v1/budgets",
+            json={
+                "customer_id": customer_id,
+                "calculation_mode": "manual",
+                "items": [
+                    {"product_id": torta_id, "qty": 1, "price_override": bad}
+                ],
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 422
+
+
+class TestConvertRules:
+    async def test_conserva_el_precio_manual(self, client: AsyncClient):
+        token, _, torta_id, customer_id = await _setup(client)
+        body = await _create_budget(
+            client, token, customer_id, torta_id, qty=2,
+            mode="manual", price_override=2000,
+        )
+        await _send(client, token, body["id"])
+        response = await client.post(
+            f"/api/v1/budgets/{body['id']}/convert-to-order",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 201, response.text
+        detail = await client.get(
+            f"/api/v1/orders/{response.json()['order_id']}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert detail.json()["total"] == 4000  # 2 * 2000, no 2 * 1550
+
+    async def test_solo_enviado_es_convertible(self, client: AsyncClient):
+        token, _, torta_id, customer_id = await _setup(client)
+        body = await _create_budget(client, token, customer_id, torta_id)
+        response = await client.post(
+            f"/api/v1/budgets/{body['id']}/convert-to-order",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 409
+        assert response.json()["detail"] == "budget_not_sent"
+
+    async def test_segunda_conversion_da_409_already_converted(
+        self, client: AsyncClient
+    ):
+        token, _, torta_id, customer_id = await _setup(client)
+        body = await _create_budget(client, token, customer_id, torta_id)
+        await _send(client, token, body["id"])
+        url = f"/api/v1/budgets/{body['id']}/convert-to-order"
+        headers = {"Authorization": f"Bearer {token}"}
+        first = await client.post(url, headers=headers)
+        assert first.status_code == 201
+        second = await client.post(url, headers=headers)
+        assert second.status_code == 409
+        assert second.json()["detail"] == "already_converted"
+        orders = await client.get("/api/v1/orders", headers=headers)
+        assert orders.json()["total"] == 1
+
+    async def test_persiste_order_id_en_el_presupuesto(
+        self, client: AsyncClient, db_session
+    ):
+        token, _, torta_id, customer_id = await _setup(client)
+        body = await _create_budget(client, token, customer_id, torta_id)
+        await _send(client, token, body["id"])
+        response = await client.post(
+            f"/api/v1/budgets/{body['id']}/convert-to-order",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        stored = await SQLBudgetRepository(db_session).get(body["id"])
+        assert stored is not None
+        assert stored.order_id == response.json()["order_id"]
 
 
 # ---------------------------------------------------------------------------

@@ -207,7 +207,7 @@ class BudgetORM(Base):
 
     __tablename__ = "budgets"
     id = Column(String, primary_key=True)
-    seq = Column(String, nullable=False, index=True)
+    seq = Column(String, nullable=False, unique=True, index=True)
     customer_id = Column(
         String, ForeignKey("customers.id"), nullable=False, index=True
     )
@@ -218,6 +218,10 @@ class BudgetORM(Base):
     margin_pct = Column(String, nullable=True)  # override; nulo = tenant
     version = Column(Integer, nullable=False, default=0)
     sent_at = Column(DateTime(timezone=True), nullable=True)
+    # Pedido creado al convertir; nulo = aun no convertido (RF-P8-08).
+    order_id = Column(
+        String, ForeignKey("orders.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     created_at = Column(DateTime(timezone=True), nullable=False)
     updated_at = Column(DateTime(timezone=True), nullable=False)
     items = relationship(

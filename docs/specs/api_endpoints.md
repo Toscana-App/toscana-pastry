@@ -22,7 +22,7 @@
 | Rate limiting | `slowapi`: `auth/*` y formularios públicos con tope por IP+email (ver §F0/F4). |
 | Anti-spam | hCaptcha en `auth/magic-link` (público) y contacto. Honeypot oculto. |
 | Login Google | Flujo GIS **ID token** (no authorization-code): `sub` → `google_id` (identidad, nunca email); nonce server-issued de un solo uso; `email_verified`; **link solo tras re-auth** (`magic-link` → `verify` con `purpose=google_link`); Google no crea cuentas. `GOOGLE_CLIENT_ID` público; client secret inexistente en la app. (skill `google-signin`) |
-| Decimal | Todo monto con `Decimal` (serializado como string en JSON) + `ROUND_HALF_UP` al paso configurado. |
+| Dinero | El dominio opera con `Decimal` + `ROUND_HALF_UP` al paso configurado. En la API el dinero viaja como **entero de centavos** (310050 = $3.100,50); se rechaza con 422 cualquier string, float o bool. Cantidades (`Qty`) y porcentajes (`Pct`) viajan como string decimal. |
 | OpenAPI | `GET /openapi.json` + docs `/docs` (FastAPI) — **fuente** de los tipos TS de `web/lib`. En producción: cerrados o detrás de auth (security #12). |
 | RLS | Postgres **Row-Level Security** en toda tabla de tenant; `set_config('app.tenant_id')` por transacción. Objeto de otro tenant → 404 (security #4, #7). |
 | Queries | Solo SQLAlchemy con **bind parameters**; prohibido SQL concatenado (security #13). |
@@ -179,7 +179,7 @@ api/presentation/routers/
 | PATCH | `/api/v1/budgets/{id}/items` | Ajusta cantidades/ítems. | `{items:[{product_id,qty,unit_price?}]}` → `{summary}` | 200 | Recalcula < 50 ms. (RF-P8-02) |
 | DELETE | `/api/v1/budgets/{id}` | Elimina. | — → `204` | 204 | **No toca stock ni pedidos**. |
 | POST | `/api/v1/budgets/{id}/recalculate` | Recalcula resumen. | — → `{summary}` | 200 | Modo cost-plus o manual (explícito en UI). |
-| POST | `/api/v1/budgets/{id}/convert-to-order` | Convierte en pedido. | — → `{order}` | 201 | Crea pedido con mismos ítems (F2). |
+| POST | `/api/v1/budgets/{id}/convert-to-order` | Convierte en pedido. | — → `{order_id, seq}` | 201 | Crea pedido con mismos ítems y respeta los precios manuales. Solo presupuestos `enviado` (si no: 409 `budget_not_sent`). Guarda `order_id` en el presupuesto; una segunda conversión responde 409 `already_converted`. (RF-P8-08) |
 | POST | `/api/v1/budgets/{id}/send` | Marca enviado (congela versión). | — → `{budget, sent_at}` | 200 / 409 | `borrador→enviado`; snapshot inmutable por versión (auditoría). Header `Idempotency-Key`. |
 
 ### PDF (P9)
