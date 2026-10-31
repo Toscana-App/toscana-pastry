@@ -87,6 +87,8 @@ from domain.calc_product import (
     calc_labor_line_cost,
     calc_extra_line_cost,
     compute_costs,
+    recalculate_product as recalculate_product_domain,
+    resolve_material_line,
 )
 from domain.calc_material import CalcMaterial
 
@@ -1040,6 +1042,13 @@ def _settings_defaults(
     )
 
 
+# Campos de ProductUpdate que admiten `None` en el schema pero no pueden
+# quedar nulos en el producto: `null` explicito -> 422 (no 500).
+_PRODUCT_NON_NULLABLE_FIELDS = frozenset(
+    {"name", "margin_percent", "discount_percent", "tax_percent", "status"}
+)
+
+
 async def _build_material_lines(
     payload_lines, repo: SQLCalcProductRepository
 ) -> list[CalcProductMaterialLine]:
@@ -1054,23 +1063,8 @@ async def _build_material_lines(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Material no encontrado",
             )
-        unit_cost = (
-            Decimal(material.unit_cost)
-            if material.unit_cost is not None
-            else Decimal("0.00")
-        )
         lines.append(
-            CalcProductMaterialLine(
-                material_id=material.id,
-                material_name=material.name,
-                quantity_used=line.quantity_used,
-                unit_of_measure_snapshot=material.unit_of_measure,
-                unit_cost_snapshot=unit_cost,
-                line_total_cost=calc_material_line_cost(
-                    line.quantity_used, unit_cost
-                ),
-                sort_order=index,
-            )
+            resolve_material_line(material, line.quantity_used, index)
         )
     return lines
 
@@ -1355,6 +1349,14 @@ async def update_product(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="al menos un campo para actualizar",
         )
+    null_fields = sorted(
+        k for k in _PRODUCT_NON_NULLABLE_FIELDS if k in updates and updates[k] is None
+    )
+    if null_fields:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"campos no anulables: {null_fields}",
+        )
     if updates.get("category_id") is not None:
         category = await product_category_repo.get(updates["category_id"])
         if category is None:
@@ -1459,24 +1461,52 @@ async def recalculate_product(
     """POST /calc/products/{id}/recalculate: re-resolve snapshots y
     recalcula lineas (regla 6); crea version solo si el final
     redondeado cambio (regla 5, RF-P4CC-07)."""
-    settings = await settings_repo.get()
-    _, _, _, rounding_mode = _settings_defaults(settings)
-    try:
-        result = await repo.recalculate(product_id, rounding_mode)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
-        ) from e
-    if result is None:
+    product = await repo.get(product_id)
+    if product is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Producto no encontrado",
         )
-    product, (material_lines, labor_lines, extra_lines), costs = result
+    settings = await settings_repo.get()
+    _, _, _, rounding_mode = _settings_defaults(settings)
+    material_lines, labor_lines, extra_lines = await repo.get_lines(product_id)
+    materials_by_id = await repo.get_materials(
+        [line.material_id for line in material_lines]
+    )
+    try:
+        result = recalculate_product_domain(
+            product,
+            material_lines,
+            labor_lines,
+            extra_lines,
+            materials_by_id,
+            rounding_mode,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
+    saved = await repo.save_lines(
+        product_id,
+        result.material_lines,
+        result.labor_lines,
+        result.extra_lines,
+        last_recalculated_at=datetime.datetime.now(datetime.UTC),
+    )
+    if saved is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Producto no encontrado",
+        )
+    if result.creates_version:
+        await repo.add_version(product_id, result.new_costs)
+    await repo.commit()
     return ProductWithLinesResponse(
-        product=_product_response(product),
-        product_lines=_product_lines_out(material_lines, labor_lines, extra_lines),
-        costs=_costs_response(costs),
+        product=_product_response(saved),
+        product_lines=_product_lines_out(
+            result.material_lines, result.labor_lines, result.extra_lines
+        ),
+        costs=_costs_response(result.new_costs),
     )
 
 

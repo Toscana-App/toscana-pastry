@@ -35,10 +35,6 @@ from domain.calc_product import (
     CalcProductLaborLine,
     CalcProductMaterialLine,
     CalcProductVersion,
-    calc_extra_line_cost,
-    calc_labor_line_cost,
-    calc_material_line_cost,
-    compute_costs,
 )
 
 _ZERO = Decimal("0")
@@ -155,6 +151,30 @@ def _extra_line_to_domain(orm: CalcProductExtraCostORM) -> CalcProductExtraCostL
     )
 
 
+def _material_to_domain(orm: CalcMaterialORM) -> CalcMaterial:
+    return CalcMaterial(
+        id=orm.id,
+        name=orm.name,
+        internal_code=orm.internal_code,
+        category_id=orm.material_category_id,
+        supplier_id=orm.supplier_id,
+        unit_of_measure=orm.unit_of_measure,
+        purchase_total_price=(
+            Decimal(orm.purchase_total_price)
+            if orm.purchase_total_price is not None
+            else None
+        ),
+        package_quantity=(
+            Decimal(orm.package_quantity)
+            if orm.package_quantity is not None
+            else None
+        ),
+        notes=orm.notes,
+        created_at=orm.created_at,
+        updated_at=orm.updated_at,
+    )
+
+
 def _version_to_domain(orm: CalcProductVersionORM) -> CalcProductVersion:
     return CalcProductVersion(
         id=orm.id,
@@ -238,29 +258,26 @@ class SQLCalcProductRepository:
             select(CalcMaterialORM).where(CalcMaterialORM.id == material_id)
         )
         orm = result.scalars().first()
-        if orm is None:
-            return None
-        return CalcMaterial(
-            id=orm.id,
-            name=orm.name,
-            internal_code=orm.internal_code,
-            category_id=orm.material_category_id,
-            supplier_id=orm.supplier_id,
-            unit_of_measure=orm.unit_of_measure,
-            purchase_total_price=(
-                Decimal(orm.purchase_total_price)
-                if orm.purchase_total_price is not None
-                else None
-            ),
-            package_quantity=(
-                Decimal(orm.package_quantity)
-                if orm.package_quantity is not None
-                else None
-            ),
-            notes=orm.notes,
-            created_at=orm.created_at,
-            updated_at=orm.updated_at,
+        return _material_to_domain(orm) if orm else None
+
+    async def get_materials(
+        self, material_ids: list[str]
+    ) -> dict[str, CalcMaterial]:
+        """Materiales actuales por id (para recalcular snapshots)."""
+        if not material_ids:
+            return {}
+        rows = (
+            (
+                await self.session.execute(
+                    select(CalcMaterialORM).where(
+                        CalcMaterialORM.id.in_(material_ids)
+                    )
+                )
+            )
+            .scalars()
+            .all()
         )
+        return {row.id: _material_to_domain(row) for row in rows}
 
     async def find_sku_owner(
         self, sku: str, exclude_product_id: str | None = None
@@ -442,22 +459,17 @@ class SQLCalcProductRepository:
         await self.session.commit()
         return _product_to_domain(orm)
 
-    async def recalculate(
-        self, product_id: str, rounding_mode: str
-    ) -> tuple[
-        CalcProduct,
-        tuple[
-            list[CalcProductMaterialLine],
-            list[CalcProductLaborLine],
-            list[CalcProductExtraCostLine],
-        ],
-        CalcProductCosts,
-    ] | None:
-        """Recalculate (reglas 5/6): re-resuelve los snapshots de
-        materiales desde calc_materials actuales (D4: unit_cost None ->
-        0.00), recalcula line_total_cost de cada linea y marca
-        last_recalculated_at. Crea version SOLO si el final
-        redondeado difiere del calculado ANTES de re-resolver."""
+    async def save_lines(
+        self,
+        product_id: str,
+        material_lines: list[CalcProductMaterialLine],
+        labor_lines: list[CalcProductLaborLine],
+        extra_lines: list[CalcProductExtraCostLine],
+        last_recalculated_at: datetime,
+    ) -> CalcProduct | None:
+        """Persiste los valores recalculados de las lineas existentes
+        (por id) y `last_recalculated_at`. No hace commit: lo hace
+        `commit()` junto con `add_version` (misma transaccion)."""
         result = await self.session.execute(
             select(CalcProductORM).where(
                 CalcProductORM.id == product_id,
@@ -467,122 +479,48 @@ class SQLCalcProductRepository:
         orm = result.scalars().first()
         if orm is None:
             return None
-        product = _product_to_domain(orm)
-        material_lines, labor_lines, extra_lines = await self.get_lines(product_id)
-        old_costs = compute_costs(
-            material_lines,
-            labor_lines,
-            extra_lines,
-            product.margin_percent,
-            product.discount_percent,
-            product.tax_percent,
-            rounding_mode,
-        )
+        for line in material_lines:
+            row = await self.session.get(CalcProductMaterialORM, line.id)
+            if row is not None:
+                row.material_name = line.material_name
+                row.unit_of_measure_snapshot = line.unit_of_measure_snapshot
+                row.unit_cost_snapshot = str(line.unit_cost_snapshot)
+                row.line_total_cost = str(line.line_total_cost)
+        for labor in labor_lines:
+            row = await self.session.get(CalcProductLaborORM, labor.id)
+            if row is not None:
+                row.line_total_cost = str(labor.line_total_cost)
+        for extra in extra_lines:
+            row = await self.session.get(CalcProductExtraCostORM, extra.id)
+            if row is not None:
+                row.line_total_cost = str(extra.line_total_cost)
+        orm.last_recalculated_at = last_recalculated_at
+        return _product_to_domain(orm)
 
-        material_orms = (
-            (
-                await self.session.execute(
-                    select(CalcMaterialORM).where(
-                        CalcMaterialORM.id.in_(
-                            [line.material_id for line in material_lines]
-                        )
-                    )
-                )
+    async def add_version(
+        self, product_id: str, costs: CalcProductCosts
+    ) -> None:
+        """Agrega la siguiente version append-only del precio
+        (RF-P4CC-07). No hace commit (ver `commit()`)."""
+        version_number = await self._next_version_number(product_id)
+        self.session.add(
+            CalcProductVersionORM(
+                id=str(uuid.uuid4()),
+                product_id=product_id,
+                version_number=version_number,
+                product_total_cost=str(costs.product_total_cost),
+                profit_amount=str(costs.profit_amount),
+                discount_amount=str(costs.discount_amount),
+                adjusted_profit_amount=str(costs.adjusted_profit_amount),
+                tax_amount=str(costs.tax_amount),
+                final_sale_price=str(costs.final_sale_price),
+                changed_at=datetime.now(UTC),
             )
-            .scalars()
-            .all()
         )
-        material_by_id = {row.id: row for row in material_orms}
+        await self.session.flush()
 
-        for line_orm in (
-            (
-                await self.session.execute(
-                    select(CalcProductMaterialORM).where(
-                        CalcProductMaterialORM.product_id == product_id
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        ):
-            material = material_by_id.get(line_orm.material_id)
-            if material is not None:
-                unit_cost = (
-                    Decimal(material.unit_cost)
-                    if material.unit_cost is not None
-                    else Decimal("0.00")
-                )
-                line_orm.material_name = material.name
-                line_orm.unit_of_measure_snapshot = material.unit_of_measure
-                line_orm.unit_cost_snapshot = str(unit_cost)
-                line_orm.line_total_cost = str(
-                    calc_material_line_cost(
-                        Decimal(line_orm.quantity_used), unit_cost
-                    )
-                )
-        for line_orm in (
-            (
-                await self.session.execute(
-                    select(CalcProductLaborORM).where(
-                        CalcProductLaborORM.product_id == product_id
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        ):
-            line_orm.line_total_cost = str(
-                calc_labor_line_cost(
-                    Decimal(line_orm.hourly_rate), Decimal(line_orm.minutes_required)
-                )
-            )
-        for line_orm in (
-            (
-                await self.session.execute(
-                    select(CalcProductExtraCostORM).where(
-                        CalcProductExtraCostORM.product_id == product_id
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        ):
-            line_orm.line_total_cost = str(
-                calc_extra_line_cost(
-                    Decimal(line_orm.unit_cost), Decimal(line_orm.quantity)
-                )
-            )
-        orm.last_recalculated_at = datetime.now(UTC)
-
-        material_lines, labor_lines, extra_lines = await self.get_lines(product_id)
-        new_costs = compute_costs(
-            material_lines,
-            labor_lines,
-            extra_lines,
-            product.margin_percent,
-            product.discount_percent,
-            product.tax_percent,
-            rounding_mode,
-        )
-        if new_costs.final_sale_price != old_costs.final_sale_price:
-            version_number = await self._next_version_number(product_id)
-            self.session.add(
-                CalcProductVersionORM(
-                    id=str(uuid.uuid4()),
-                    product_id=product_id,
-                    version_number=version_number,
-                    product_total_cost=str(new_costs.product_total_cost),
-                    profit_amount=str(new_costs.profit_amount),
-                    discount_amount=str(new_costs.discount_amount),
-                    adjusted_profit_amount=str(new_costs.adjusted_profit_amount),
-                    tax_amount=str(new_costs.tax_amount),
-                    final_sale_price=str(new_costs.final_sale_price),
-                    changed_at=datetime.now(UTC),
-                )
-            )
+    async def commit(self) -> None:
         await self.session.commit()
-        product = _product_to_domain(orm)
-        return product, (material_lines, labor_lines, extra_lines), new_costs
 
     async def _next_version_number(self, product_id: str) -> int:
         result = await self.session.execute(
