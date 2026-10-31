@@ -23,20 +23,15 @@ _HUNDRED = Decimal("100")
 
 
 def _to_cents(value) -> int:
-    """Normaliza a centavos (int). Acepta int (canonical), Decimal (del
-    dominio) y el formato legacy str/float en unidades (migración)."""
+    """Normaliza a centavos (int). Acepta int (canonical) y Decimal (del
+    dominio, en unidades). str/float/bool se rechazan (-> 422)."""
     if isinstance(value, bool):
-        raise TypeError("bool no es un monto valido")
+        raise ValueError("bool no es un monto valido")
     if isinstance(value, int):
         return value
     if isinstance(value, Decimal):
         return int((value * _HUNDRED).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
-    if isinstance(value, (float, str)):
-        try:
-            return int((Decimal(str(value)) * _HUNDRED).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
-        except InvalidOperation as exc:
-            raise ValueError(f"monto invalido: {value!r}") from exc
-    raise TypeError(f"tipo no aceptado para monto: {type(value).__name__}")
+    raise ValueError(f"el monto debe ser entero de centavos, no {type(value).__name__}")
 
 
 def cents_to_decimal(cents: int) -> Decimal:

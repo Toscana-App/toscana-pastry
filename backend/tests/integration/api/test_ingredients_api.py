@@ -108,7 +108,7 @@ async def _create_ingredient(
 async def test_ingredients_requires_authentication(client):
     assert (await client.get("/api/v1/ingredients")).status_code == 401
     assert (
-        await client.post("/api/v1/ingredients", json={"name": "x", "unit": "kg", "price_per_unit": "1"})
+        await client.post("/api/v1/ingredients", json={"name": "x", "unit": "kg", "price_per_unit": 100})
     ).status_code == 401
 
 
@@ -148,7 +148,7 @@ async def test_create_rejects_invalid_unit(client):
     token = await _token_for(client)
     response = await client.post(
         "/api/v1/ingredients",
-        json={"name": "Harina", "unit": "onzas", "price_per_unit": "2800"},
+        json={"name": "Harina", "unit": "onzas", "price_per_unit": 280000},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 422
@@ -159,7 +159,7 @@ async def test_create_rejects_negative_stock(client):
     token = await _token_for(client)
     response = await client.post(
         "/api/v1/ingredients",
-        json={"name": "Harina", "unit": "kg", "price_per_unit": "2800", "stock_qty": "-1"},
+        json={"name": "Harina", "unit": "kg", "price_per_unit": 280000, "stock_qty": "-1"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 422
@@ -170,7 +170,7 @@ async def test_create_rejects_empty_name(client):
     token = await _token_for(client)
     response = await client.post(
         "/api/v1/ingredients",
-        json={"name": "  ", "unit": "kg", "price_per_unit": "2800"},
+        json={"name": "  ", "unit": "kg", "price_per_unit": 280000},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 422
@@ -181,7 +181,7 @@ async def test_create_rejects_unknown_field(client):
     token = await _token_for(client)
     response = await client.post(
         "/api/v1/ingredients",
-        json={"name": "Harina", "unit": "kg", "price_per_unit": "2800", "brand": "X"},
+        json={"name": "Harina", "unit": "kg", "price_per_unit": 280000, "brand": "X"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 422
@@ -503,3 +503,25 @@ async def test_import_all_invalid_reports_every_line(client):
     body = response.json()
     assert body["created"] == 0
     assert [error["line"] for error in body["errors"]] == [1, 2]
+
+
+# --- Money contract: integer cents only -------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_create_accepts_integer_cents(client):
+    token = await _token_for(client)
+    body = await _create_ingredient(client, token, price=12345)
+    assert body["price_per_unit"] == 12345
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad_price", ["5", 5.0, True])
+async def test_create_rejects_non_integer_money(client, bad_price):
+    token = await _token_for(client)
+    response = await client.post(
+        "/api/v1/ingredients",
+        json={"name": "Harina", "unit": "kg", "price_per_unit": bad_price},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 422
