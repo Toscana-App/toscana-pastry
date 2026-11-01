@@ -1,5 +1,5 @@
-from sqlalchemy import Column, String, DateTime, Date, Integer, Boolean, Enum as SQLAlchemyEnum, ForeignKey, Text, LargeBinary
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy import Column, String, DateTime, Date, Integer, Boolean, Enum as SQLAlchemyEnum, ForeignKey, Index, Text, LargeBinary, text
+from sqlalchemy.orm import Mapped, mapped_column, declarative_base, relationship
 from sqlalchemy import TypeDecorator
 import datetime
 import enum
@@ -404,6 +404,45 @@ class CalcSupplierORM(Base):
     )
 
 
+class CustomerAddressORM(Base):
+    """Direccion de entrega de un cliente (RF-P11-09). Exactamente una
+    is_default=True por user_id (invariant a nivel de dominio)."""
+
+    __tablename__ = "customer_addresses"
+    # At most one default per user, enforced by the DB (partial unique index).
+    __table_args__ = (
+        Index(
+            "uq_customer_addresses_one_default_per_user",
+            "user_id",
+            unique=True,
+            postgresql_where=text("is_default"),
+            sqlite_where=text("is_default"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        String, ForeignKey("users.id"), nullable=False, index=True
+    )
+    street_line_1: Mapped[str] = mapped_column(String, nullable=False)
+    street_line_2: Mapped[str | None] = mapped_column(String, nullable=True)
+    city: Mapped[str | None] = mapped_column(String, nullable=True)
+    postal_code: Mapped[str | None] = mapped_column(String, nullable=True)
+    province: Mapped[str | None] = mapped_column(String, nullable=True)
+    phone: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        onupdate=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+
+
 class CalcDefaultCostORM(Base):
     """Costo por defecto (RF-P5CC-06)."""
 
@@ -416,12 +455,12 @@ class CalcDefaultCostORM(Base):
     status = Column(String, nullable=False, default="active")
     created_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
     updated_at = Column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
-        onupdate=lambda: datetime.datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        onupdate=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )

@@ -12,6 +12,7 @@ from api.v1.pricing.router import router as pricing_router
 from api.v1.ingredients.router import router as ingredients_router
 from api.v1.products.router import router as products_router
 from api.v1.customers.router import router as customers_router
+
 from api.v1.orders.router import router as orders_router
 from api.v1.budgets.router import router as budgets_router
 from api.v1.pdf.router import router as pdf_router
@@ -85,6 +86,7 @@ app.include_router(pricing_router, prefix="/api/v1")
 app.include_router(ingredients_router, prefix="/api/v1")
 app.include_router(products_router, prefix="/api/v1")
 app.include_router(customers_router, prefix="/api/v1")
+
 app.include_router(orders_router, prefix="/api/v1")
 app.include_router(budgets_router, prefix="/api/v1")
 # El router de PDF ya lleva sus prefijos internos (/budgets/.../pdf y /pdf/...).
