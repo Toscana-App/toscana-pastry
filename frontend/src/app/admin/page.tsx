@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Badge, Container, Flex, Heading, Spinner, Table, Text } from "@chakra-ui/react";
+import { Badge, Flex, Heading, Spinner, Table, Text } from "@chakra-ui/react";
 import CouponsAdmin from "@/components/admin/CouponsAdmin";
 import LeadAdmin from "@/components/admin/LeadAdmin";
-import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { apiFetch } from "@/lib/api";
 import { toaster } from "@/lib/toaster";
 import type { UserRole } from "@/types/auth";
@@ -91,15 +90,11 @@ function AdminUsers() {
 
 export default function AdminPage() {
   return (
-    <ProtectedRoute requiredRole="admin">
-      <Container py={10} maxW="container.md">
-        <Flex direction="column" gap={6}>
-          <Heading fontSize="3xl">Admin</Heading>
-          <AdminUsers />
-          <CouponsAdmin />
-          <LeadAdmin />
-        </Flex>
-      </Container>
-    </ProtectedRoute>
+    <Flex direction="column" gap={6}>
+      <Heading fontSize="2xl">Usuarios</Heading>
+      <AdminUsers />
+      <CouponsAdmin />
+      <LeadAdmin />
+    </Flex>
   );
 }

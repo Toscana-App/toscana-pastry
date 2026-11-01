@@ -27,6 +27,8 @@ export interface BusinessSettings {
   include_waste: boolean;
   waste_pct: string;
   urgent_surcharge_pct: string;
+  /** Solo admin: el backend lo omite para los demás roles (Pct). */
+  consumer_markup_pct?: string;
   default_prep_minutes: number;
   default_servings: number;
   default_difficulty: Difficulty;
@@ -43,6 +45,7 @@ export interface SettingsFormValues {
   include_waste: boolean;
   waste_pct: number;
   urgent_surcharge_pct: number;
+  consumer_markup_pct: number;
   default_prep_minutes: number;
   default_servings: number;
   default_difficulty: Difficulty;
@@ -62,6 +65,7 @@ export const SETTINGS_DEFAULTS: SettingsFormValues = {
   include_waste: true,
   waste_pct: 3,
   urgent_surcharge_pct: 20,
+  consumer_markup_pct: 40,
   default_prep_minutes: 30,
   default_servings: 6,
   default_difficulty: "simple",
@@ -79,6 +83,7 @@ export function toFormValues(settings: BusinessSettings): SettingsFormValues {
     include_waste: settings.include_waste,
     waste_pct: Number(settings.waste_pct),
     urgent_surcharge_pct: Number(settings.urgent_surcharge_pct),
+    consumer_markup_pct: Number(settings.consumer_markup_pct ?? SETTINGS_DEFAULTS.consumer_markup_pct),
     default_prep_minutes: settings.default_prep_minutes,
     default_servings: settings.default_servings,
     default_difficulty: settings.default_difficulty,

@@ -75,7 +75,7 @@ En la app de origen, cada material entra con **precio del paquete** y **cantidad
 - **RF-P2CC-02**: `unit_cost` es **solo-escritura del servidor**: `purchase_total_price / package_quantity` con `Decimal` + `ROUND_HALF_UP` a centavos. Nunca llega del cliente (security #8). `package_quantity` = 0 → 422.
 - **RF-P2CC-03**: Si falta `purchase_total_price` o `package_quantity` el material queda `incomplete` (computado por el servidor, no aceptado del cliente).
 - **RF-P2CC-04**: **Historial de costos**: cada cambio de `purchase_total_price` que altere `unit_cost` registra `{previous_unit_cost, new_unit_cost, changed_at}`; `GET /calc/materials/{id}/cost-history` paginado.
-- **RF-P2CC-05**: Búsqueda `?q` por nombre/código; filtros `?category_id`, `?supplier_id`, `?status`; paginación (default 50, max 100). Delete de material usado en productos → 409 + `{impacted_products}`.
+- **RF-P2CC-05**: Búsqueda `?q` por nombre/código; filtros `?category_id`, `?supplier_id`, `?status`; paginación (default 50, max 100). Delete de material usado en productos → 409 + `{impacted_products}`. Delete de material con historial de costos (append-only) → 409 + `{"detail": "has_cost_history"}`.
 
 ## API — ver `api_endpoints.md` §FASE CC
 - `GET|POST /api/v1/calc/materials`, `GET|PATCH|DELETE /api/v1/calc/materials/{id}`, `GET /api/v1/calc/materials/{id}/cost-history`

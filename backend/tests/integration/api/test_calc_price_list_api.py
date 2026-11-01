@@ -190,7 +190,7 @@ async def _seed_price_list(client: AsyncClient, token: str) -> dict:
     material = await _create_material(
         client, token,
         unit_of_measure="kg",
-        purchase_total_price="100", package_quantity="1",
+        purchase_total_price=10000, package_quantity="1",
     )
     cat = await _create_product_category(client, token, name="Postres")
     await _create_product(
@@ -514,3 +514,14 @@ class TestPriceListExport:
         ).text
         lines = [line for line in text.split("\n") if line]
         assert lines == ["id,name,category,cost,margin_pct,final_price"]
+
+    async def test_export_neutralizes_formula_prefix_in_name(self, client):
+        token = await _admin(client)
+        await _create_product(client, token, name="=1+1", status="active")
+        text = (
+            await client.get(
+                "/api/v1/calc/products/price-list/export", headers=_auth(token)
+            )
+        ).text
+        lines = [line for line in text.split(chr(10)) if line]
+        assert lines[1].split(",")[1] == "'=1+1"

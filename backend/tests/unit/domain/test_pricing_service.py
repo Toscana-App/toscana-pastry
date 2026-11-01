@@ -48,10 +48,10 @@ class TestResolveAudienceError:
 
     def test_forbidden_message_is_clean_spanish(self):
         """customer requesting revendedores gets a friendly Spanish message."""
-        from domain.pricing_service import _resolve_audience
+        from domain.pricing_service import resolve_audience
 
         with pytest.raises(AudienceForbiddenError) as excinfo:
-            _resolve_audience("customer", "revendedores")
+            resolve_audience("customer", "revendedores")
         message = str(excinfo.value)
         assert message == "Tu rol no tiene acceso a la lista de revendedores"
         assert "UserRole" not in message

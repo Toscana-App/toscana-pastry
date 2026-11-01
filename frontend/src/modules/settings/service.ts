@@ -33,6 +33,7 @@ export const settingsService = {
         gas_pct: String(values.gas_pct),
         waste_pct: String(values.waste_pct),
         urgent_surcharge_pct: String(values.urgent_surcharge_pct),
+        consumer_markup_pct: String(values.consumer_markup_pct),
       }),
     });
   },

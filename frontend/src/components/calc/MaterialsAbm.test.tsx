@@ -206,6 +206,34 @@ describe("MaterialsAbm", () => {
     );
   });
 
+  it.each([
+    ["Filtrar por categoría", "Masa", "Todas", "category_id", "cat1"],
+    ["Filtrar por proveedor", "Distribuidora X", "Todos", "supplier_id", "s1"],
+    ["Filtrar por estado", "Incompleto", "Todos", "status", "incomplete"],
+  ])(
+    "drops the param when %s is set back to the all option",
+    async (label, option, allLabel, param, value) => {
+      render(<MaterialsAbm />);
+      await screen.findByText("Harina 000");
+
+      fireEvent.click(screen.getByRole("combobox", { name: label }));
+      fireEvent.click(await screen.findByRole("option", { name: option }));
+      await waitFor(() =>
+        expect(calcMaterialsService.listMaterials).toHaveBeenLastCalledWith(
+          expect.objectContaining({ [param]: value })
+        )
+      );
+
+      fireEvent.click(screen.getByRole("combobox", { name: label }));
+      fireEvent.click(await screen.findByRole("option", { name: allLabel }));
+      await waitFor(() =>
+        expect(calcMaterialsService.listMaterials).toHaveBeenLastCalledWith(
+          expect.objectContaining({ [param]: undefined, page: 1 })
+        )
+      );
+    }
+  );
+
   it("sends supplier_id when the supplier filter changes", async () => {
     render(<MaterialsAbm />);
     await screen.findByText("Harina 000");
@@ -274,15 +302,15 @@ describe("MaterialsAbm", () => {
   });
 
   it("creates a material via POST without unit_cost/status and shows the new row", async () => {
-    vi.mocked(calcMaterialsService.listMaterials).mockResolvedValue(
-      listResponse([])
-    );
     const nuevo: Material = {
       ...harina,
       id: "m9",
       name: "Rúcula",
     };
     vi.mocked(calcMaterialsService.createMaterial).mockResolvedValue(nuevo);
+    vi.mocked(calcMaterialsService.listMaterials)
+      .mockResolvedValueOnce(listResponse([]))
+      .mockResolvedValue(listResponse([nuevo]));
 
     render(<MaterialsAbm />);
     await screen.findByText("Sin materiales");
@@ -304,7 +332,9 @@ describe("MaterialsAbm", () => {
       )
     );
     // toHaveBeenCalledWith con objeto exacto: unit_cost/status no existen.
+    // La fila llega por un refetch del GET, no por mutación local.
     expect(await screen.findByText("Rúcula")).toBeInTheDocument();
+    expect(calcMaterialsService.listMaterials).toHaveBeenCalledTimes(2);
     // Form limpiado tras el 201.
     expect(screen.getByLabelText("Nombre")).toHaveValue("");
     expect(toaster.create).toHaveBeenCalledWith(
@@ -384,7 +414,10 @@ describe("MaterialsAbm", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
-  it("removes the row after a confirmed DELETE returns 204", async () => {
+  it("removes the row after a confirmed DELETE returns 204 by refetching", async () => {
+    vi.mocked(calcMaterialsService.listMaterials)
+      .mockResolvedValueOnce(listResponse([harina, manteca]))
+      .mockResolvedValue(listResponse([manteca]));
     render(<MaterialsAbm />);
     await screen.findByText("Harina 000");
 
@@ -398,9 +431,41 @@ describe("MaterialsAbm", () => {
       expect(screen.queryByText("Harina 000")).not.toBeInTheDocument()
     );
     expect(screen.getByText("Manteca")).toBeInTheDocument();
+    expect(calcMaterialsService.listMaterials).toHaveBeenCalledTimes(2);
     expect(toaster.create).toHaveBeenCalledWith(
       expect.objectContaining({ type: "success" })
     );
+  });
+
+  it("goes back one page when deleting the last row of a page > 1", async () => {
+    vi.mocked(calcMaterialsService.listMaterials).mockImplementation(
+      async (query) =>
+        query?.page === 2
+          ? listResponse([harina], 51, 2)
+          : listResponse([manteca], 51, 1)
+    );
+    render(<MaterialsAbm />);
+    await screen.findByText("Manteca");
+
+    fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
+    await screen.findByText("Harina 000");
+
+    // Tras el borrado la página 2 queda vacía: debe volver a la 1.
+    vi.mocked(calcMaterialsService.listMaterials).mockImplementation(
+      async (query) =>
+        query?.page === 2
+          ? listResponse([], 50, 2)
+          : listResponse([manteca], 51, 1)
+    );
+    await openDeleteConfirm("Harina 000");
+    fireEvent.click(screen.getByRole("button", { name: "Eliminar" }));
+
+    await waitFor(() =>
+      expect(calcMaterialsService.listMaterials).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 1 })
+      )
+    );
+    expect(await screen.findByText("Manteca")).toBeInTheDocument();
   });
 
   it("keeps the row and shows the in-use danger toast when DELETE returns 409", async () => {

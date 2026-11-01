@@ -85,6 +85,8 @@ describe("SupplierAbm", () => {
     fireEvent.change(screen.getByLabelText("Notas"), {
       target: { value: "Envíos los martes" },
     });
+    // La lista se refetchea tras crear: el server ya devuelve el nuevo item.
+    setupList([molino, nuevo]);
     fireEvent.click(screen.getByRole("button", { name: "Crear" }));
 
     await waitFor(() =>
@@ -123,5 +125,21 @@ describe("SupplierAbm", () => {
         })
       )
     );
+  });
+
+  it("keeps the search input mounted and focused after the debounce refetch", async () => {
+    render(<SupplierAbm />);
+    await screen.findByText("Molino del Valle");
+
+    const input = screen.getByLabelText("Buscar");
+    input.focus();
+    fireEvent.change(input, { target: { value: "x" } });
+
+    await waitFor(() =>
+      expect(calcSettingsService.listSuppliers).toHaveBeenCalledTimes(2)
+    );
+    await screen.findByText("Molino del Valle");
+    expect(screen.getByLabelText("Buscar")).toBe(input);
+    expect(input).toHaveFocus();
   });
 });
