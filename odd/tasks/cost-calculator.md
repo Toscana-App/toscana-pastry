@@ -1,0 +1,34 @@
+# Cost Calculator (Calculadora de costos)
+
+Refactor de la calculadora de costos funcionando (`E:/toscana/calculadora-costos-toscana`, app Base44) hacia la arquitectura de Toscana Pastry (FastAPI DDD + Next.js/Chakra v3), manteniendo la funcionalidad. Alcance: **rol administrador exclusivamente**. El settings/pricing legacy (p05, markup, gas/merma) queda intacto y coexiste (decisión del usuario: coexistencia).
+
+## Specs
+S1. Configuración general de la calculadora (singleton): `business_name`, `main_currency_name`, `main_currency_symbol`, `default_margin_percent` (default 30), `default_discount_percent` (default 0), `default_tax_percent` (default 19), `rounding_mode` (allow-list `none|integer|multiple_10|commercial_99`, default `none`). GET devuelve defaults si no hay fila; PUT es reemplazo completo atómico con `extra="forbid"` y rangos 0–100 en percents. — `docs/specs/p05_settings.md` §P5-CC, RF-P5CC-01/02
+S2. ABM (CRUD) admin-only bajo `/api/v1/calc`: material-categories (`name*` único case-insensitive, `description?` ≤200), product-categories (mismas reglas), suppliers (`name*`, `contact_name?`, `phone?`, `email?`, `notes?`), default-costs (`name*`, `type ∈ {labor, extra_cost}`, `default_unit_cost_or_rate` Money ≥ 0, `default_quantity_or_minutes` Qty ≥ 0, `status ∈ {active, inactive}` default `active`). Búsqueda `?q` + paginación `?page&page_size`. — `docs/specs/p05_settings.md` §P5-CC, RF-P5CC-03..07, `api_endpoints.md` §FASE CC
+S3. Todo el namespace `/api/v1/calc` exige auth + rol admin: no-admin → 403, sin sesión → 401. — RF-P5CC-08
+S4. Materiales (cost catalog, sin stock): `calc_material` con `name*`, `internal_code?`, `category_id?`, `supplier_id?`, `unit_of_measure?`, `purchase_total_price?`, `package_quantity?`, `notes?`; `unit_cost` derivado por servidor = `purchase_total_price / package_quantity` (Decimal, ROUND_HALF_UP a centavos); `status` derivado: `incomplete` si falta precio o cantidad; historial de costos al cambiar el costo; delete 409 si usado en productos. — `docs/specs/p02_ingredients.md` §P2-CC
+S5. Productos de la calculadora: `calc_product` (name*, sku?, category_id?, description?, notes?, margin/discount/tax percent, status `draft|active|archived`) con 3 listas de líneas con snapshot (materials/labor/extra_costs) y motor de precio EXACTO de la app de origen: `price_before_discount = cost / (1 − margin)` (margin ≥ 100 → sin margen), `discount_amount = −(cost + profit) × discount`, `tax = (cost + adjusted_profit) × tax`, `final = cost + adjusted_profit + tax`, luego redondeo según `rounding_mode` (`none`, `integer`, `multiple_10`, `commercial_99` = ceil(v/100)×100−1). Desglose derivado solo-escritura del servidor. Recalcular individual/global. Historial de versiones. — `docs/specs/p04_product_detail.md` §P4-CC, RF-P4CC-01..08
+S6. Listado de productos (search/filter/sort/duplicate/archive/delete/recalculate-all/CSV), price list de productos activos, y dashboard de stats (active/incomplete materials, drafts, promedios, top 5 por precio, bottom 5 por margen). — `docs/specs/p03_products_list.md` §P3-CC
+S7. UI admin (Next.js 15 + Chakra UI v3) alineada a `.claude/design/DESIGN.md`: página de configuración con 5 tabs (General, categorías de materiales, categorías de productos, proveedores, costos por defecto); páginas de materiales, biblioteca de productos, editor de producto, price list, dashboard. Tokens del design system (cards surface outline sin shadow, pill buttons, success/danger states). — `docs/specs/p05_settings.md` §P5-CC UI, `.claude/design/DESIGN.md`
+S8. TDD obligatorio: pytest (unit domain >90% cobertura, integración API con SQLite in-memory + dependency overrides, patrón de fixtures de `tests/integration/api/test_settings_api.py`); Vitest para la UI. Conviertes con `.claude/rules/{api-conventions,code-style,testing}.md` y la skill `senior-backend` (API estricta Pydantic, money Decimal, seguridad, async).
+
+## Tasks
+- B1 [backend, S1] Domain `CalcSettings` (frozen dataclass + validación de rangos + defaults) — `odd/tasks/cost-calculator.md` T-B1, commit pendiente
+- B2 [backend, S1] ORM + repository `calc_settings` (upsert singleton) + tests — T-B2
+- B3 [backend, S1, S3] API `GET/PUT /calc/settings` (admin guard, 422 rangos, defaults) + tests — T-B3
+- B4 [backend, S2] ABM material-categories: domain/ORM/repo + API CRUD + tests (409 duplicado, 409 en uso) — T-B4
+- B5 [backend, S2] ABM product-categories: domain/ORM/repo + API CRUD + tests — T-B5
+- B6 [backend, S2] ABM suppliers: domain/ORM/repo + API CRUD + tests — T-B6
+- B7 [backend, S2] ABM default-costs: domain/ORM/repo + API CRUD + tests — T-B7
+- B8 [backend, S4] `calc_material` + unit_cost derivado + status derivado + historial de costos + API CRUD + tests — T-B8
+- B9 [backend, S5] Motor de precio (parity con `pricing.js`) + `calc_product` con líneas snapshot + API CRUD + recalculate + versions + tests — T-B9
+- B10 [backend, S5, S6] recalculate-all, price-list (+CSV), dashboard + tests — T-B10
+- F1 [frontend, S1, S2, S7] Página `/admin/calculadora/configuracion`: 5 tabs con ABM inline (Chakra v3 + DESIGN.md) + Vitest — T-F1
+- F2 [frontend, S4, S7] Página materiales (lista, búsqueda, filtros, form, historial) + Vitest — T-F2
+- F3 [frontend, S5, S7] Editor de producto (tablas materiales/labor/extra + summary en vivo + simulación) + Vitest — T-F3
+- F4 [frontend, S6, S7] Biblioteca de productos + price list + dashboard + Vitest — T-F4
+
+## Log
+- L1: "Tarea: Implementar la seccion de calculadora de costos para la pasteleria a partir de un codigo funcionando pero que deberias refactorizar. Debes mantener la funcionalidad pero aplicar un refactor para implementar buenas practicas de desarrollo, que esten alineadas a las definiciones de code-written del proyecto de toscana-pastry. Proyecto a explorar: @E:\toscana\calculadora-costos-toscana. Criterios: actualizar las specs considerando la calculadora EXCLUSIVAMENTE para el rol de administrador; definir tareas atomicas en odd/tasks (frontend y backend); implementar las tareas del backend para hacer persistentes las configuraciones mediante ABM CRUD (skill backend-senior-dev); skills de design y .claude/design/DESIGN.md para la UI."
+- L2: Decisión de usuario (2025): COEXISTENCIA — el settings/pricing legacy (`/tenant/settings`, markup, gas/merma, `POST /pricing/preview`) queda intacto; la calculadora usa su propio namespace `/api/v1/calc` y su modelo de precio.
+- L3: Instrucción de usuario: los subagentes deben usar codegraph para exploration y NUNCA grep.
