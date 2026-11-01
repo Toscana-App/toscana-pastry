@@ -7,126 +7,115 @@ from __future__ import annotations
 
 import datetime
 import json
+import logging
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi import status as http_status
 from fastapi.requests import Request
+from pydantic import ValidationError
 
-from api.v1.orders.dependencies import get_order_repository
-from api.v1.orders.schemas import WebhookResponse
+from api.v1.orders.dependencies import get_checkout_provider, get_order_repository
+from api.v1.orders.schemas import WebhookNotification, WebhookResponse
 from data.repositories.sql_order_repository import SQLOrderRepository
-from domain.mock_checkout_provider import MockCheckoutProvider
-from domain.order import PaymentMethod, PaymentStatus
+from domain.checkout_provider import CheckoutProvider, PaymentProviderError
+from domain.order import PaymentStatus
+
+_PAYMENT_CURRENCY = "ARS"
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/mercadopago", response_model=WebhookResponse)
 async def mercadopago_webhook(
     request: Request,
     repo: SQLOrderRepository = Depends(get_order_repository),
+    provider: CheckoutProvider = Depends(get_checkout_provider),
 ):
-    """POST /webhooks/mercadopago: webhook de pago (firma + idempotencia).
+    """POST /webhooks/mercadopago: notificación de pago (firma + idempotencia).
 
-    Público (solo firma, sin auth por cookie).
+    Público (solo firma, sin auth por cookie). El body solo trae el id del
+    pago; el estado y el pedido (external_reference) se leen del proveedor.
     """
-    raw = await request.body()
-    signature = request.headers.get("x-signature")
-
-    provider = MockCheckoutProvider()
-    verified = provider.verify_webhook(raw, signature)
+    verified = provider.verify_webhook(
+        await request.body(),
+        request.headers.get("x-signature"),
+        request.headers.get("x-request-id"),
+    )
     if verified is None:
         raise HTTPException(
             status_code=http_status.HTTP_401_UNAUTHORIZED,
             detail="Invalid signature",
-        ) from None
+        )
 
-    # Parse payload
     try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError as err:
+        notification = WebhookNotification.model_validate(json.loads(verified))
+    except (ValidationError, ValueError) as err:
+        # Signature is valid but the body is not a notification we understand.
         raise HTTPException(
             status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Invalid payload",
+            detail="invalid_webhook_payload",
+        ) from err
+    if notification.type != "payment":
+        return WebhookResponse()
+
+    payment_id = str(notification.data.id).strip() if notification.data else ""
+    if not payment_id:
+        raise HTTPException(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="invalid_webhook_payload",
+        )
+    try:
+        payment = await provider.get_payment(payment_id)
+    except PaymentProviderError as err:
+        # Non-200 makes Mercado Pago retry the notification later.
+        raise HTTPException(
+            status_code=http_status.HTTP_502_BAD_GATEWAY,
+            detail="payment_provider_error",
         ) from err
 
-    # Extract payment info
-    payment_id = payload.get("id", "")
-    payment_status_str = payload.get("status", "")
-    order_id = payload.get("resource", "")
+    if not payment.order_id:
+        return WebhookResponse()
+    payment_status = PaymentStatus(payment.status)
 
-    # Map status
-    status_map = {
-        "approved": PaymentStatus.APPROVED,
-        "rejected": PaymentStatus.REJECTED,
-        "failed": PaymentStatus.FAILED,
-        "pending": PaymentStatus.PENDING,
-    }
-    payment_status = status_map.get(payment_status_str)
-    if payment_status is None:
-        raise HTTPException(
-            status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Invalid status",
-        )
-
-    # Dedupe check
-    if await repo.get_payment_event(payment_id):
+    # Dedupe by (payment, status): one payment is notified once per status.
+    event_id = f"{payment_id}:{payment_status.value}"
+    if await repo.get_payment_event(event_id):
         return WebhookResponse()
 
-    # Apply status
-    order = await repo.get(order_id)
+    order = await repo.get(payment.order_id)
     if order is None:
-        raise HTTPException(
-            status_code=http_status.HTTP_404_NOT_FOUND, detail="Order not found"
-        )
-
-    # Cash orders: ignore MP webhook (payment_status stays None, paid stays false)
-    if order.payment_method == PaymentMethod.CASH:
-        # Still record the event for dedupe idempotency
-        await repo.record_payment_event(
-            event_id=f"evt_{payment_id}",
-            order_id=order_id,
-            provider_payment_id=payment_id,
-            status=payment_status,
+        logger.warning(
+            "mercadopago webhook for unknown order %s (payment %s)",
+            payment.order_id,
+            payment_id,
         )
         return WebhookResponse()
 
-    # approved → paid (monotonic guard; skip if already paid)
-    if payment_status == PaymentStatus.APPROVED and not order.paid:
-        await repo.update_payment_status(
-            order_id=order_id,
-            reference=payment_id,
-            status=payment_status,
-            paid_at=datetime.datetime.now(datetime.UTC),
-        )
-    elif payment_status in (
-        PaymentStatus.PENDING,
-        PaymentStatus.REJECTED,
-        PaymentStatus.FAILED,
-    ):
-        # pending/rejected/failed: never overwrite a terminal approved state
-        if order.payment_status == PaymentStatus.APPROVED:
-            # Already approved — skip non-terminal updates (dedupe still recorded above)
-            await repo.record_payment_event(
-                event_id=f"evt_{payment_id}",
-                order_id=order_id,
-                provider_payment_id=payment_id,
-                status=payment_status,
+    if payment_status == PaymentStatus.APPROVED:
+        expected = order.total - (order.discount_amount or Decimal("0"))
+        if payment.amount != expected or payment.currency != _PAYMENT_CURRENCY:
+            # Never mark paid on a mismatch; 200 so MP does not retry.
+            logger.error(
+                "mercadopago payment %s discrepancy for order %s: "
+                "amount %s %s, expected %s %s; not marked paid",
+                payment_id,
+                order.id,
+                payment.amount,
+                payment.currency,
+                expected,
+                _PAYMENT_CURRENCY,
             )
             return WebhookResponse()
-        await repo.update_payment_status(
-            order_id=order_id,
-            reference=payment_id,
-            status=payment_status,
-            paid_at=order.paid_at,
-        )
 
-    # Record event (idempotent)
-    await repo.record_payment_event(
-        event_id=f"evt_{payment_id}",
-        order_id=order_id,
+    # One transaction: event insert (dedupe) + guarded, priority-aware update.
+    # Cash orders ignore MP webhooks (payment_status stays None, paid false).
+    await repo.apply_payment_event(
+        event_id=event_id,
+        order_id=order.id,
         provider_payment_id=payment_id,
         status=payment_status,
+        paid_at=datetime.datetime.now(datetime.UTC),
     )
-
     return WebhookResponse()

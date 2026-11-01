@@ -14,7 +14,7 @@ const ROLE_LABELS: Record<string, string> = {
 /**
  * Global navbar with the visible role (p11 "UI — portal shell").
  *
- * - admin: Products / Admin / Settings / Profile
+ * - admin: Productos / Pedidos / Presupuestos / Catálogo / Admin / Settings / Profile
  * - portal (business/customer): Profile + Logout — portal navigation
  *   lives in the tab bar of the `(portal)` route group; no access to /admin.
  * - no session: Login.
@@ -59,7 +59,16 @@ export function Navbar() {
                 {isAdmin && (
                   <>
                     <Button variant="ghost" asChild>
-                      <NextLink href="/products">Products</NextLink>
+                      <NextLink href="/productos">Productos</NextLink>
+                    </Button>
+                    <Button variant="ghost" asChild>
+                      <NextLink href="/pedidos">Pedidos</NextLink>
+                    </Button>
+                    <Button variant="ghost" asChild>
+                      <NextLink href="/presupuestos">Presupuestos</NextLink>
+                    </Button>
+                    <Button variant="ghost" asChild>
+                      <NextLink href="/products">Catálogo</NextLink>
                     </Button>
                     <Button variant="ghost" asChild>
                       <NextLink href="/admin">Admin</NextLink>

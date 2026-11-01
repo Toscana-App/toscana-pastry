@@ -364,8 +364,7 @@ async def test_resend_budget_exceeded_is_429(client, db_session):
     from domain.whatsapp_send import BUSINESS_API_DAILY_LIMIT
 
     repo = SQLWhatsAppSendRepository(db_session)
-    # The router counts the daily budget on the REAL UTC day, so seed from
-    # datetime.now(UTC), not the fixed NOW fixture (flakes after UTC midnight).
+    # The router budgets against the real clock, so seed relative to today.
     today_start = datetime.datetime.now(datetime.UTC).replace(
         hour=0, minute=0, second=0, microsecond=0
     )

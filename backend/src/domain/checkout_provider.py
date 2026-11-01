@@ -1,13 +1,13 @@
 """Provider-agnostic contract for checkout payment flows (RF-P6-13, C1.3).
 
-Safe mode: zero SDK imports, zero external I/O. The mock adapter lives in
-``domain.mock_checkout_provider`` to keep the domain layer free of
-MercadoPago-specific code.
+Zero SDK imports, zero external I/O. Adapters (Mercado Pago) live in the
+``data`` layer, keeping the domain free of provider-specific code.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Protocol, runtime_checkable
 
 
@@ -20,6 +20,8 @@ class CheckoutProvider(Protocol):
         get_payment: poll the current status of a payment by reference.
         verify_webhook: validate a webhook payload signature and return the
             verified payload (or None if the signature is invalid).
+
+    I/O failures are raised as ``PaymentProviderError``.
     """
 
     async def create_payment(self, order_id: str, amount: float, currency: str) -> PaymentResult:
@@ -30,9 +32,15 @@ class CheckoutProvider(Protocol):
         """Poll the current status of a payment by reference."""
         ...  # type: ignore[misc]
 
-    def verify_webhook(self, payload: bytes, signature: str | None) -> bytes | None:
+    def verify_webhook(
+        self, payload: bytes, signature: str | None, request_id: str | None
+    ) -> bytes | None:
         """Validate a webhook payload signature and return the verified payload."""
         ...  # type: ignore[misc]
+
+
+class PaymentProviderError(Exception):
+    """The payment provider could not be reached or rejected the request."""
 
 
 @dataclass(frozen=True)
@@ -48,3 +56,6 @@ class PaymentStatusResult:
     """Status of a payment by reference."""
 
     status: str  # "pending" | "approved" | "rejected" | "failed"
+    order_id: str | None = None
+    amount: Decimal | None = None  # provider-reported transaction amount
+    currency: str | None = None  # ISO currency code, e.g. "ARS"

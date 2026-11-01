@@ -2,7 +2,7 @@
 
 Covers:
     - update_payment_status: fields are persisted correctly
-    - record_payment_event: dedupe via unique constraint
+    - record_payment_event: dedupe by event id ("{payment_id}:{status}")
     - get_payment_event: replay does not duplicate
 """
 
@@ -117,23 +117,40 @@ class TestRecordPaymentEvent:
         )
         assert result is True
 
-    async def test_duplicate_returns_false(self, order_with_repo):
+    async def test_duplicate_event_id_returns_false(self, order_with_repo):
         order, repo = order_with_repo
-        # First insert
         await repo.record_payment_event(
-            event_id="evt_002",
+            event_id="mp_dedupe_test:pending",
             order_id=order.id,
             provider_payment_id="mp_dedupe_test",
             status=PaymentStatus.PENDING,
         )
-        # Replay same provider_payment_id (different event_id) — should fail
+        # Replay of the same event (same payment + status) — rejected
         result = await repo.record_payment_event(
-            event_id="evt_003",
+            event_id="mp_dedupe_test:pending",
+            order_id=order.id,
+            provider_payment_id="mp_dedupe_test",
+            status=PaymentStatus.PENDING,
+        )
+        assert result is False
+
+    async def test_same_payment_new_status_succeeds(self, order_with_repo):
+        """S2: Mercado Pago notifies one payment several times (pending → approved)."""
+        order, repo = order_with_repo
+        r1 = await repo.record_payment_event(
+            event_id="mp_dedupe_test:pending",
+            order_id=order.id,
+            provider_payment_id="mp_dedupe_test",
+            status=PaymentStatus.PENDING,
+        )
+        r2 = await repo.record_payment_event(
+            event_id="mp_dedupe_test:approved",
             order_id=order.id,
             provider_payment_id="mp_dedupe_test",
             status=PaymentStatus.APPROVED,
         )
-        assert result is False
+        assert r1 is True
+        assert r2 is True
 
     async def test_different_provider_ids_both_succeed(self, order_with_repo):
         order, repo = order_with_repo
@@ -159,13 +176,13 @@ class TestGetPaymentEvent:
     async def test_existing_event_returns_true(self, order_with_repo):
         order, repo = order_with_repo
         await repo.record_payment_event(
-            event_id="evt_005",
+            event_id="mp_check_exist:approved",
             order_id=order.id,
             provider_payment_id="mp_check_exist",
             status=PaymentStatus.APPROVED,
         )
-        result = await repo.get_payment_event("mp_check_exist")
-        assert result is True
+        assert await repo.get_payment_event("mp_check_exist:approved") is True
+        assert await repo.get_payment_event("mp_check_exist:pending") is False
 
     async def test_nonexisting_event_returns_false(self, order_with_repo):
         _, repo = order_with_repo

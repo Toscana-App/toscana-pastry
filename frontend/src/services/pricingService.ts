@@ -4,8 +4,7 @@ Reuses ``apiFetch`` for JSON endpoints and a lightweight blob helper
 for the CSV/PDF pricelist downloads.
 */
 
-import { apiFetch } from "@/lib/api";
-import { Audience, SettingsResponse, SettingsUpdatePayload } from "@/types/pricing";
+import { Audience } from "@/types/pricing";
 
 const API_BASE_URL =
   typeof process !== "undefined"
@@ -106,27 +105,4 @@ function triggerDownload(blob: Blob, filename: string): void {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-}
-
-/* ------------------------------------------------------------------ */
-/*  Tenant settings                                                    */
-/* ------------------------------------------------------------------ */
-
-/**
- * Fetch current tenant settings.
- */
-export async function fetchSettings(): Promise<SettingsResponse> {
-  return apiFetch<SettingsResponse>("/tenant/settings");
-}
-
-/**
- * Update tenant settings. Returns the updated settings.
- */
-export async function updateSettings(
-  payload: SettingsUpdatePayload
-): Promise<SettingsResponse> {
-  return apiFetch<SettingsResponse>("/tenant/settings", {
-    method: "PUT",
-    body: JSON.stringify(payload),
-  });
 }

@@ -26,9 +26,9 @@ from domain.models import User, UserRole
 SETTINGS_PATH = "/api/v1/tenant/settings"
 
 TORTA_ITEMS = [
-    {"qty": "250", "unit": "g", "price_per_purchase_unit": "2800", "purchase_unit": "kg"},
-    {"qty": "4", "unit": "unidad", "price_per_purchase_unit": "90", "purchase_unit": "unidad"},
-    {"qty": "1.5", "unit": "l", "price_per_purchase_unit": "1200", "purchase_unit": "l"},
+    {"qty": "250", "unit": "g", "price_per_purchase_unit": 280000, "purchase_unit": "kg"},
+    {"qty": "4", "unit": "unidad", "price_per_purchase_unit": 9000, "purchase_unit": "unidad"},
+    {"qty": "1.5", "unit": "l", "price_per_purchase_unit": 120000, "purchase_unit": "l"},
 ]
 
 
@@ -78,9 +78,9 @@ async def _put_settings(ac: AsyncClient, token: str, markup: str = "40") -> None
     await ac.put(
         SETTINGS_PATH,
         json={
-            "hourly_rate": "150",
+            "hourly_rate": 15000,
             "margin_pct": "100",
-            "round_step": "5",
+            "round_step": 500,
             "include_labor": True,
             "include_gas": False,
             "gas_pct": "0",

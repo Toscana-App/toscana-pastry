@@ -11,8 +11,27 @@ export const REFRESH_TOKEN_COOKIE = "refresh_token";
 // something reloading the page.
 export const AUTH_SESSION_CLEARED_EVENT = "auth:session-cleared";
 
-// A single shared refresh promise: avoids N calls to /auth/refresh when
-// several requests fail with 401 at the same time.
+/**
+ * Error tipado de la API.
+ *
+ * `status` y `payload` son necesarios para los flujos de la Fase 4:
+ * - DELETE /ingredients/{id} → 409 con `{"impacted_recipes": N}` (UC-05): el
+ *   diálogo de confirmación muestra el impacto antes de eliminar.
+ * - 422 del backend: `detail` es un array de issues (FastAPI), no un string.
+ */
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+    public readonly payload: unknown = null,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+// Una sola promesa de refresh compartida: evita N llamadas a /auth/refresh
+// cuando varias requests fallan con 401 al mismo tiempo.
 let refreshInFlight: Promise<string | null> | null = null;
 
 async function requestNewAccessToken(): Promise<string | null> {
@@ -67,9 +86,25 @@ export async function apiFetch<T>(
   }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: "An error occurred" }));
-    throw new Error(error.detail || error.message || "Network error");
+    const body: unknown = await response.json().catch(() => null);
+    const candidate =
+      (body as { detail?: unknown } | null)?.detail ??
+      (body as { message?: unknown } | null)?.message ??
+      "An error occurred";
+    // FastAPI responde 422 con detail: [{loc, msg, type}] — se toma el primer
+    // msg; el cuerpo completo queda en `payload`.
+    const message =
+      typeof candidate === "string"
+        ? candidate
+        : Array.isArray(candidate) &&
+            typeof (candidate[0] as { msg?: unknown } | undefined)?.msg === "string"
+          ? (candidate[0] as { msg: string }).msg
+          : "An error occurred";
+    throw new ApiError(response.status, message, body);
   }
+
+  // 204 No Content (p. ej. DELETE /ingredients/{id}): no hay cuerpo que parsear.
+  if (response.status === 204) return undefined as T;
 
   return response.json() as Promise<T>;
 }

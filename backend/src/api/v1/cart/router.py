@@ -31,7 +31,7 @@ from domain.cart import (
 )
 from domain.coupon import Coupon
 from domain.models import User, UserRole
-from domain.pricing_service import _resolve_audience, derive_audience_price
+from domain.pricing_service import resolve_audience, derive_audience_price
 from domain.repositories import IngredientRepository
 from domain.use_cases import GetSettings
 
@@ -56,7 +56,7 @@ async def _build_cart(
     user: User,
 ) -> CartResponse:
     """Snapshotea el carrito con los precios derivados de la audiencia."""
-    audience = _resolve_audience(user.role, None)
+    audience = resolve_audience(user.role, None)
     settings = await GetSettings(settings_repo).execute()
     lines_state, coupon_code = await cart_repo.get_state(user.id)
 

@@ -286,3 +286,46 @@ async def test_response_shape_consistent(client):
         assert isinstance(product["unit"], str)
         assert isinstance(product["price_per_unit"], str)
         assert isinstance(product["status"], str)
+
+
+# ─── Optional pagination ─────────────────────────────────────────────────
+
+
+async def _list(client, **params):
+    token = await _token_for(client, "admin@example.com")
+    return await client.get(
+        LIST_PRODUCTS,
+        params={"audience": "revendedores", **params},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_without_pagination_params_returns_all_rows(client):
+    data = (await _list(client)).json()
+    assert data["total"] == 3
+    assert len(data["products"]) == 3
+
+
+@pytest.mark.asyncio
+async def test_pagination_returns_slice_and_full_total(client):
+    first = (await _list(client, page=1, page_size=2)).json()
+    second = (await _list(client, page=2, page_size=2)).json()
+    assert first["total"] == second["total"] == 3
+    assert len(first["products"]) == 2
+    assert len(second["products"]) == 1
+    ids = {p["id"] for p in first["products"]} | {p["id"] for p in second["products"]}
+    assert len(ids) == 3
+
+
+@pytest.mark.asyncio
+async def test_page_size_only_defaults_to_first_page(client):
+    data = (await _list(client, page_size=1)).json()
+    assert len(data["products"]) == 1
+    assert data["total"] == 3
+
+
+@pytest.mark.asyncio
+async def test_invalid_pagination_returns_422(client):
+    assert (await _list(client, page=0)).status_code == 422
+    assert (await _list(client, page_size=501)).status_code == 422
