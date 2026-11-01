@@ -192,17 +192,17 @@ class TestCreateMaterial:
             token,
             internal_code="REF-001",
             unit_of_measure="kg",
-            purchase_total_price="100",
+            purchase_total_price=10000,
             package_quantity="2",
             notes="lote 1",
         )
         # Derived by the server (RF-P2CC-02/03), money as str (RNF-P5CC-01).
-        assert body["unit_cost"] == "50.00"
+        assert body["unit_cost"] == 5000
         assert body["status"] == "active"
         assert body["name"] == "Mantequilla"
         assert body["internal_code"] == "REF-001"
         assert body["unit_of_measure"] == "kg"
-        assert body["purchase_total_price"] == "100"
+        assert body["purchase_total_price"] == 10000
         assert body["package_quantity"] == "2"
         assert body["notes"] == "lote 1"
         assert body["id"]
@@ -220,7 +220,7 @@ class TestCreateMaterial:
         token = await _admin(client)
         response = await client.post(
             "/api/v1/calc/materials",
-            json={"name": "X", "purchase_total_price": "10", "package_quantity": "0"},
+            json={"name": "X", "purchase_total_price": 1000, "package_quantity": "0"},
             headers=_auth(token),
         )
         assert response.status_code == 422
@@ -229,7 +229,7 @@ class TestCreateMaterial:
         token = await _admin(client)
         response = await client.post(
             "/api/v1/calc/materials",
-            json={"name": "X", "purchase_total_price": "-5"},
+            json={"name": "X", "purchase_total_price": -500},
             headers=_auth(token),
         )
         assert response.status_code == 422
@@ -309,7 +309,7 @@ class TestGetMaterial:
     async def test_get_by_id_returns_200(self, client):
         token = await _admin(client)
         created = await _create_material(
-            client, token, internal_code="REF-002", purchase_total_price="10"
+            client, token, internal_code="REF-002", purchase_total_price=1000
         )
         response = await client.get(
             f"/api/v1/calc/materials/{created['id']}", headers=_auth(token)
@@ -356,7 +356,7 @@ class TestGetMaterial:
             client,
             token,
             name="Activo",
-            purchase_total_price="10",
+            purchase_total_price=1000,
             package_quantity="2",
         )
         await _create_material(client, token, name="Incompleto")
@@ -429,18 +429,18 @@ class TestPatchMaterial:
         created = await _create_material(
             client,
             token,
-            purchase_total_price="100",
+            purchase_total_price=10000,
             package_quantity="2",
         )
         response = await client.patch(
             f"/api/v1/calc/materials/{created['id']}",
-            json={"purchase_total_price": "150"},
+            json={"purchase_total_price": 15000},
             headers=_auth(token),
         )
         assert response.status_code == 200
         body = response.json()
-        assert body["purchase_total_price"] == "150"
-        assert body["unit_cost"] == "75.00"
+        assert body["purchase_total_price"] == 15000
+        assert body["unit_cost"] == 7500
         assert body["status"] == "active"
 
     async def test_patch_without_fields_returns_422(self, client):
@@ -453,6 +453,16 @@ class TestPatchMaterial:
         )
         assert response.status_code == 422
         assert "al menos un campo" in response.json()["detail"]
+
+    async def test_patch_null_name_returns_422(self, client):
+        token = await _admin(client)
+        created = await _create_material(client, token)
+        response = await client.patch(
+            f"/api/v1/calc/materials/{created['id']}",
+            json={"name": None},
+            headers=_auth(token),
+        )
+        assert response.status_code == 422
 
     async def test_patch_unknown_id_returns_404(self, client):
         token = await _admin(client)
@@ -479,7 +489,7 @@ class TestPatchMaterial:
         created = await _create_material(
             client,
             token,
-            purchase_total_price="100",
+            purchase_total_price=10000,
             package_quantity="2",
         )
         response = await client.patch(
@@ -511,13 +521,13 @@ class TestCostHistory:
         created = await _create_material(
             client,
             token,
-            purchase_total_price="100",
+            purchase_total_price=10000,
             package_quantity="2",
         )
         body = await _history(client, token, created["id"])
         assert body["total"] == 1
         assert body["items"][0]["previous_unit_cost"] is None
-        assert body["items"][0]["new_unit_cost"] == "50.00"
+        assert body["items"][0]["new_unit_cost"] == 5000
         assert body["items"][0]["changed_at"]
 
     async def test_create_incomplete_records_no_row(self, client):
@@ -532,28 +542,28 @@ class TestCostHistory:
         created = await _create_material(
             client,
             token,
-            purchase_total_price="100",
+            purchase_total_price=10000,
             package_quantity="2",
         )
         await client.patch(
             f"/api/v1/calc/materials/{created['id']}",
-            json={"purchase_total_price": "150"},
+            json={"purchase_total_price": 15000},
             headers=_auth(token),
         )
         body = await _history(client, token, created["id"])
         assert body["total"] == 2
         # Mas recientes primero: el ultimo cambio arriba.
-        assert body["items"][0]["previous_unit_cost"] == "50.00"
-        assert body["items"][0]["new_unit_cost"] == "75.00"
+        assert body["items"][0]["previous_unit_cost"] == 5000
+        assert body["items"][0]["new_unit_cost"] == 7500
         assert body["items"][1]["previous_unit_cost"] is None
-        assert body["items"][1]["new_unit_cost"] == "50.00"
+        assert body["items"][1]["new_unit_cost"] == 5000
 
     async def test_patch_without_unit_cost_change_records_no_row(self, client):
         token = await _admin(client)
         created = await _create_material(
             client,
             token,
-            purchase_total_price="100",
+            purchase_total_price=10000,
             package_quantity="2",
         )
         await client.patch(
@@ -570,12 +580,12 @@ class TestCostHistory:
         created = await _create_material(
             client,
             token,
-            purchase_total_price="50",
+            purchase_total_price=5000,
             package_quantity="1",
         )
         await client.patch(
             f"/api/v1/calc/materials/{created['id']}",
-            json={"purchase_total_price": "50.00"},
+            json={"purchase_total_price": 5000},
             headers=_auth(token),
         )
         body = await _history(client, token, created["id"])
@@ -586,7 +596,7 @@ class TestCostHistory:
         created = await _create_material(
             client,
             token,
-            purchase_total_price="100",
+            purchase_total_price=10000,
             package_quantity="2",
         )
         await client.patch(
@@ -596,7 +606,7 @@ class TestCostHistory:
         )
         body = await _history(client, token, created["id"])
         assert body["total"] == 2
-        assert body["items"][0]["previous_unit_cost"] == "50.00"
+        assert body["items"][0]["previous_unit_cost"] == 5000
         assert body["items"][0]["new_unit_cost"] is None
 
     async def test_history_of_unknown_material_returns_404(self, client):
@@ -622,6 +632,50 @@ class TestDeleteMaterial:
             f"/api/v1/calc/materials/{created['id']}", headers=_auth(token)
         )
         assert again.status_code == 404
+
+    async def test_delete_with_cost_history_returns_409_and_keeps_rows(
+        self, client, db_session
+    ):
+        from sqlalchemy import func, select, text
+
+        from data.models import CalcMaterialCostHistoryORM
+
+        # FK enforcement on this test's connection: proves no orphan history.
+        await db_session.execute(text("PRAGMA foreign_keys=ON"))
+        token = await _admin(client)
+        created = await _create_material(
+            client, token, purchase_total_price=10000, package_quantity="2"
+        )
+        assert (await _history(client, token, created["id"]))["total"] == 1
+        response = await client.delete(
+            f"/api/v1/calc/materials/{created['id']}", headers=_auth(token)
+        )
+        assert response.status_code == 409
+        assert response.json() == {"detail": "has_cost_history"}
+        still = await client.get(
+            f"/api/v1/calc/materials/{created['id']}", headers=_auth(token)
+        )
+        assert still.status_code == 200
+        rows = await db_session.scalar(
+            select(func.count())
+            .select_from(CalcMaterialCostHistoryORM)
+            .where(CalcMaterialCostHistoryORM.material_id == created["id"])
+        )
+        assert rows >= 1
+
+    async def test_delete_without_history_returns_204_with_fk_on(
+        self, client, db_session
+    ):
+        from sqlalchemy import text
+
+        await db_session.execute(text("PRAGMA foreign_keys=ON"))
+        token = await _admin(client)
+        created = await _create_material(client, token)
+        assert (await _history(client, token, created["id"]))["total"] == 0
+        response = await client.delete(
+            f"/api/v1/calc/materials/{created['id']}", headers=_auth(token)
+        )
+        assert response.status_code == 204
 
     async def test_delete_unknown_returns_404(self, client):
         token = await _admin(client)

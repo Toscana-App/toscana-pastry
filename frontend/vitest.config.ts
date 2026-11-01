@@ -1,11 +1,16 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
-import path from "node:path";
 
+/**
+ * Vitest: runner de los unit tests de la Fase 4.
+ * - jsdom: entorno DOM para los tests de componentes.
+ * - alias "@" → src/: el mismo atajo de tsconfig, que Vitest no resuelve solo.
+ * - include: solo tests bajo src/ (patrón *.test.{ts,tsx} de las specs).
+ */
 export default defineConfig({
-  // Mismo alias "@" → ./src que tsconfig.json (paths).
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
   test: {

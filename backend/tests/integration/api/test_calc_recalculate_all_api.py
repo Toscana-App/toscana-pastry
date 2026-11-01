@@ -183,9 +183,9 @@ async def _seed_full(client: AsyncClient, token: str) -> dict:
     material = await _create_material(
         client, token, name="Mantequilla",
         unit_of_measure="kg",
-        purchase_total_price="100", package_quantity="1",
+        purchase_total_price=10000, package_quantity="1",
     )
-    assert material["unit_cost"] == "100.00"
+    assert material["unit_cost"] == 10000
     lines = [{"material_id": material["id"], "quantity_used": "1"}]
     alpha = await _create_product(
         client, token, name="Alpha", status="active", materials=lines
@@ -286,7 +286,7 @@ class TestRecalculateAll:
         seed = await _seed_full(client, token)
         await client.patch(
             f"/api/v1/calc/materials/{seed['material']['id']}",
-            json={"purchase_total_price": "200", "package_quantity": "1"},
+            json={"purchase_total_price": 20000, "package_quantity": "1"},
             headers=_auth(token),
         )
         await _recalculate_all(client, token)
@@ -294,8 +294,8 @@ class TestRecalculateAll:
             detail = await _detail(client, token, seed[key])
             assert detail["product"]["last_recalculated_at"] is None
             line = detail["materials"][0]
-            assert line["unit_cost_snapshot"] == "100.00"
-            assert line["line_total_cost"] == "100.00"
+            assert line["unit_cost_snapshot"] == 10000
+            assert line["line_total_cost"] == 10000
             assert await _versions_total(client, token, seed[key]) == 0
         # El eliminado ni siquiera es visible.
         response = await client.get(
@@ -312,19 +312,19 @@ class TestRecalculateAll:
         seed = await _seed_full(client, token)
         await client.patch(
             f"/api/v1/calc/materials/{seed['material']['id']}",
-            json={"purchase_total_price": "200", "package_quantity": "1"},
+            json={"purchase_total_price": 20000, "package_quantity": "1"},
             headers=_auth(token),
         )
         await _recalculate_all(client, token)
         for key in ("alpha", "beta", "gamma"):
             detail = await _detail(client, token, seed[key])
             line = detail["materials"][0]
-            assert line["unit_cost_snapshot"] == "200.00"
-            assert line["line_total_cost"] == "200.00"
+            assert line["unit_cost_snapshot"] == 20000
+            assert line["line_total_cost"] == 20000
             # cost 200.00, margin 30 / discount 0 / tax 19:
             # pbd 285.71, profit 85.71, tax 54.28, final 339.99.
-            assert detail["costs"]["product_total_cost"] == "200.00"
-            assert detail["costs"]["final_sale_price"] == "339.99"
+            assert detail["costs"]["product_total_cost"] == 20000
+            assert detail["costs"]["final_sale_price"] == 33999
             response = await client.get(
                 f"/api/v1/calc/products/{seed[key]}/versions",
                 headers=_auth(token),
@@ -332,7 +332,7 @@ class TestRecalculateAll:
             versions = response.json()
             assert versions["total"] == 1
             assert versions["items"][0]["version_number"] == 1
-            assert versions["items"][0]["final_sale_price"] == "339.99"
+            assert versions["items"][0]["final_sale_price"] == 33999
 
     async def test_version_number_continues_product_sequence(self, client):
         """Si un producto ya tenia versiones de recalcules individuales,
@@ -340,18 +340,18 @@ class TestRecalculateAll:
         token = await _admin(client)
         seed = await _seed_full(client, token)
 
-        async def bump(price: str):
+        async def bump(price: int):
             await client.patch(
                 f"/api/v1/calc/materials/{seed['material']['id']}",
                 json={"purchase_total_price": price, "package_quantity": "1"},
                 headers=_auth(token),
             )
 
-        await bump("200")
+        await bump(20000)
         await _recalculate_all(client, token)  # alpha/beta/gamma -> version 1
         assert await _versions_total(client, token, seed["alpha"]) == 1
 
-        await bump("300")
+        await bump(30000)
         response = await client.post(
             f"/api/v1/calc/products/{seed['alpha']}/recalculate",
             headers=_auth(token),
@@ -359,7 +359,7 @@ class TestRecalculateAll:
         assert response.status_code == 200
         assert await _versions_total(client, token, seed["alpha"]) == 2
 
-        await bump("400")
+        await bump(40000)
         await _recalculate_all(client, token)
         assert await _versions_total(client, token, seed["alpha"]) == 3
         assert await _versions_total(client, token, seed["beta"]) == 2
@@ -380,7 +380,7 @@ class TestRecalculateAll:
         assert incomplete["unit_cost"] is None
         priced = await _create_material(
             client, token, name="Azucar",
-            purchase_total_price="50", package_quantity="1",
+            purchase_total_price=5000, package_quantity="1",
         )
         p1 = await _create_product(
             client,
@@ -399,14 +399,14 @@ class TestRecalculateAll:
         # El incomplete sigue a 0.00: su producto no cambia de final.
         await client.patch(
             f"/api/v1/calc/materials/{priced['id']}",
-            json={"purchase_total_price": "60", "package_quantity": "1"},
+            json={"purchase_total_price": 6000, "package_quantity": "1"},
             headers=_auth(token),
         )
         await _recalculate_all(client, token)
         detail = await _detail(client, token, p1["product"]["id"])
         line = detail["materials"][0]
-        assert line["unit_cost_snapshot"] == "0.00"
-        assert line["line_total_cost"] == "0.00"
+        assert line["unit_cost_snapshot"] == 0
+        assert line["line_total_cost"] == 0
         assert detail["product"]["last_recalculated_at"] is not None
         assert await _versions_total(client, token, p1["product"]["id"]) == 0
         # El otro si cambio: version 1 con el nuevo costo.

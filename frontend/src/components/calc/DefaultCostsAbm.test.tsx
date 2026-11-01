@@ -100,6 +100,8 @@ describe("DefaultCostsAbm", () => {
     fireEvent.change(screen.getByLabelText("Cantidad o minutos"), {
       target: { value: "1" },
     });
+    // La lista se refetchea tras crear: el server ya devuelve el nuevo item.
+    setupList([manoDeObra, nuevo]);
     fireEvent.click(screen.getByRole("button", { name: "Crear" }));
 
     await waitFor(() =>
@@ -130,5 +132,21 @@ describe("DefaultCostsAbm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Crear" }));
 
     expect(calcSettingsService.createDefaultCost).not.toHaveBeenCalled();
+  });
+
+  it("keeps the search input mounted and focused after the debounce refetch", async () => {
+    render(<DefaultCostsAbm />);
+    await screen.findByText("250.00");
+
+    const input = screen.getByLabelText("Buscar");
+    input.focus();
+    fireEvent.change(input, { target: { value: "x" } });
+
+    await waitFor(() =>
+      expect(calcSettingsService.listDefaultCosts).toHaveBeenCalledTimes(2)
+    );
+    await screen.findByText("250.00");
+    expect(screen.getByLabelText("Buscar")).toBe(input);
+    expect(input).toHaveFocus();
   });
 });

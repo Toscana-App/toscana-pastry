@@ -147,6 +147,9 @@ class SQLCalcMaterialRepository:
         """Crea el material; si queda con unit_cost, registra la alta
         inicial en el historial (RF-P2CC-04): previous=None, new=valor."""
         self.session.add(_to_orm(material))
+        # Sin relationship() el UoW no ordena por FK: insertar el material
+        # primero para que el historial no viole la FK (Postgres / PRAGMA).
+        await self.session.flush()
         if material.unit_cost is not None:
             self.session.add(
                 CalcMaterialCostHistoryORM(
@@ -255,6 +258,15 @@ class SQLCalcMaterialRepository:
             )
         ).all()
         return {str(status_value): count for status_value, count in rows}
+
+    async def count_cost_history(self, material_id: str) -> int:
+        """Filas de historial de costo (append-only) del material."""
+        result = await self.session.execute(
+            select(func.count())
+            .select_from(CalcMaterialCostHistoryORM)
+            .where(CalcMaterialCostHistoryORM.material_id == material_id)
+        )
+        return result.scalar_one()
 
     async def list_cost_history(
         self, material_id: str, page: int, page_size: int
