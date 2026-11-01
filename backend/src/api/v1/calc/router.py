@@ -1095,13 +1095,14 @@ async def _build_material_lines(
 def _build_labor_lines(payload_lines) -> list[CalcProductLaborLine]:
     lines: list[CalcProductLaborLine] = []
     for index, line in enumerate(payload_lines):
+        hourly_rate = cents_to_decimal(line.hourly_rate)
         lines.append(
             CalcProductLaborLine(
                 activity_name=line.activity_name,
-                hourly_rate=line.hourly_rate,
+                hourly_rate=hourly_rate,
                 minutes_required=line.minutes_required,
                 line_total_cost=calc_labor_line_cost(
-                    line.hourly_rate, line.minutes_required
+                    hourly_rate, line.minutes_required
                 ),
                 sort_order=index,
             )
@@ -1112,13 +1113,14 @@ def _build_labor_lines(payload_lines) -> list[CalcProductLaborLine]:
 def _build_extra_lines(payload_lines) -> list[CalcProductExtraCostLine]:
     lines: list[CalcProductExtraCostLine] = []
     for index, line in enumerate(payload_lines):
+        unit_cost = cents_to_decimal(line.unit_cost)
         lines.append(
             CalcProductExtraCostLine(
                 concept_name=line.concept_name,
-                unit_cost=line.unit_cost,
+                unit_cost=unit_cost,
                 quantity=line.quantity,
                 line_total_cost=calc_extra_line_cost(
-                    line.unit_cost, line.quantity
+                    unit_cost, line.quantity
                 ),
                 sort_order=index,
             )
