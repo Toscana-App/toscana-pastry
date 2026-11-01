@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { SN_Pro } from "next/font/google";
 import "./globals.css";
 import { Provider } from "@/providers/ChakraProvider"
 import { AuthProvider } from "@/contexts/AuthContext"
@@ -8,14 +8,10 @@ import { Toaster } from "@/lib/toaster"
 import { AppGooeyToaster } from "@/components/ui/GoeyToasterClient"
 import "goey-toast/styles.css"
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+// Consumed by the Chakra font tokens in components/ui/theme.ts.
+const snPro = SN_Pro({
+  variable: "--font-sn-pro",
+  subsets: ["latin", "latin-ext"],
 });
 
 export const metadata: Metadata = {
@@ -29,7 +25,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="es" className={snPro.variable}>
       <body className="min-h-screen bg-white antialiased">
         <Provider>
           <AuthProvider>

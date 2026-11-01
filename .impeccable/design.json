@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-31T00:00:00Z",
+  "title": "Design System: Toscana Pastry",
+  "extensions": {
+    "colorMeta": {
+      "brand-indigo": { "role": "primary", "displayName": "Ledger Indigo", "canonical": "#4f46e5", "tonalRamp": ["#1e1b4b", "#312e81", "#3730a3", "#4338ca", "#4f46e5", "#6366f1", "#a5b4fc", "#e0e7ff"] },
+      "brand-indigo-bright": { "role": "primary", "displayName": "Bright Indigo", "canonical": "#6366f1" },
+      "brand-indigo-wash": { "role": "primary", "displayName": "Indigo Wash", "canonical": "#eef2ff" },
+      "brand-indigo-deep": { "role": "primary", "displayName": "Deep Indigo", "canonical": "#3730a3" },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#000000" },
+      "ink-muted": { "role": "neutral", "displayName": "Muted Ink", "canonical": "#52525b", "tonalRamp": ["#111111", "#18181b", "#27272a", "#3f3f46", "#52525b", "#71717a", "#a1a1aa", "#e4e4e7"] },
+      "ink-subtle": { "role": "neutral", "displayName": "Subtle Ink", "canonical": "#a1a1aa" },
+      "paper": { "role": "neutral", "displayName": "Paper", "canonical": "#ffffff" },
+      "paper-subtle": { "role": "neutral", "displayName": "Paper Subtle", "canonical": "#fafafa" },
+      "paper-muted": { "role": "neutral", "displayName": "Paper Muted", "canonical": "#f4f4f5" },
+      "rule": { "role": "neutral", "displayName": "Rule", "canonical": "#e4e4e7" },
+      "rule-muted": { "role": "neutral", "displayName": "Rule Muted", "canonical": "#f4f4f5" },
+      "alert-red": { "role": "semantic", "displayName": "Alert Red", "canonical": "#dc2626", "tonalRamp": ["#1f0808", "#300c0c", "#511111", "#991919", "#dc2626", "#ef4444", "#fca5a5", "#fef2f2"] },
+      "alert-red-wash": { "role": "semantic", "displayName": "Red Wash", "canonical": "#fef2f2" }
+    },
+    "typographyMeta": {
+      "wordmark": { "displayName": "Wordmark", "purpose": "\"Toscana Pastry\" text in the navbar." },
+      "body": { "displayName": "Body", "purpose": "Table cells, form text, descriptions. Set in SN Pro." },
+      "label": { "displayName": "Label", "purpose": "Tabs, badges, small buttons, table headers; bold only for the active nav item." },
+      "mono": { "displayName": "Mono", "purpose": "Chakra default mono stack; rarely used." }
+    },
+    "shadows": [],
+    "motion": [],
+    "breakpoints": [
+      { "name": "sm", "value": "480px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" },
+      { "name": "2xl", "value": "1536px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Single primary action of a view (e.g. Iniciar sesión, Exportar CSV).",
+      "html": "<button class=\"ds-btn-primary\">Exportar CSV</button>",
+      "css": ".ds-btn-primary { background: #4f46e5; color: #fff; height: 40px; padding: 0 16px; border: none; border-radius: 4px; font: 500 0.875rem/1 'SN Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; cursor: pointer; transition: background 0.15s; } .ds-btn-primary:hover { background: #4338ca; } .ds-btn-primary:focus-visible { outline: 2px solid #6366f1; outline-offset: 2px; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary action next to a primary (e.g. Exportar PDF).",
+      "html": "<button class=\"ds-btn-outline\">Exportar PDF</button>",
+      "css": ".ds-btn-outline { background: #fff; color: #000; height: 32px; padding: 0 12px; border: 1px solid #e4e4e7; border-radius: 4px; font: 500 0.875rem/1 'SN Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; cursor: pointer; transition: background 0.15s; } .ds-btn-outline:hover { background: #f4f4f5; } .ds-btn-outline:focus-visible { outline: 2px solid #6366f1; outline-offset: 2px; }"
+    },
+    {
+      "name": "Danger Outline Button",
+      "kind": "button",
+      "refersTo": "button-danger-outline",
+      "description": "Logout and other destructive or exit actions.",
+      "html": "<button class=\"ds-btn-danger\">Cerrar sesión</button>",
+      "css": ".ds-btn-danger { background: transparent; color: #dc2626; height: 32px; padding: 0 12px; border: 1px solid #fca5a5; border-radius: 4px; font: 500 0.875rem/1 'SN Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; cursor: pointer; transition: background 0.15s; } .ds-btn-danger:hover { background: #fef2f2; } .ds-btn-danger:focus-visible { outline: 2px solid #dc2626; outline-offset: 2px; }"
+    },
+    {
+      "name": "Audience Badge",
+      "kind": "chip",
+      "refersTo": "badge-audience",
+      "description": "Marks which price list the visitor sees.",
+      "html": "<span class=\"ds-badge-audience\">Consumidor final</span>",
+      "css": ".ds-badge-audience { display: inline-flex; align-items: center; background: #eef2ff; color: #3730a3; padding: 2px 6px; border-radius: 2px; font: 500 0.75rem/1.33 'SN Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }"
+    },
+    {
+      "name": "Restriction Tag",
+      "kind": "chip",
+      "refersTo": "badge-tag",
+      "description": "Allergen/restriction tag under a product name.",
+      "html": "<span class=\"ds-badge-tag\">sin TACC</span>",
+      "css": ".ds-badge-tag { display: inline-flex; align-items: center; background: #f4f4f5; color: #52525b; padding: 2px 6px; border-radius: 2px; font: 500 0.75rem/1.33 'SN Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }"
+    },
+    {
+      "name": "Portal Tab Bar",
+      "kind": "nav",
+      "refersTo": "tab-active",
+      "description": "Underline tabs; active = bold + indigo underline + aria-current.",
+      "html": "<nav class=\"ds-tabs\"><a class=\"ds-tab\" aria-current=\"page\" href=\"#\">Inicio</a><a class=\"ds-tab\" href=\"#\">Mis pedidos</a><a class=\"ds-tab\" href=\"#\">Carrito</a><a class=\"ds-tab\" href=\"#\">Cuenta</a></nav>",
+      "css": ".ds-tabs { display: flex; border-bottom: 1px solid #f4f4f5; font-family: 'SN Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; } .ds-tab { display: flex; align-items: center; min-height: 44px; padding: 0 16px; font-size: 0.875rem; color: #52525b; text-decoration: none; border-bottom: 2px solid transparent; white-space: nowrap; } .ds-tab:hover { color: #000; } .ds-tab:focus-visible { outline: 2px solid #6366f1; outline-offset: -2px; } .ds-tab[aria-current='page'] { color: #4f46e5; font-weight: 700; border-bottom-color: #6366f1; }"
+    },
+    {
+      "name": "Price Table",
+      "kind": "custom",
+      "description": "Striped outline table; prices right-aligned, es-AR format.",
+      "html": "<table class=\"ds-table\"><thead><tr><th>Producto</th><th>Unidad</th><th class=\"ds-num\">Precio</th></tr></thead><tbody><tr><td>Alfajor de maicena</td><td>docena</td><td class=\"ds-num\">4.340,00</td></tr><tr><td>Torta brownie</td><td>unidad</td><td class=\"ds-num\">12.500,00</td></tr></tbody></table>",
+      "css": ".ds-table { width: 100%; border-collapse: collapse; border: 1px solid #e4e4e7; border-radius: 6px; font: 400 0.875rem/1.43 'SN Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; color: #000; } .ds-table th { text-align: left; font-weight: 500; color: #52525b; padding: 8px 12px; border-bottom: 1px solid #e4e4e7; } .ds-table td { padding: 8px 12px; border-bottom: 1px solid #e4e4e7; } .ds-table tbody tr:nth-child(odd) { background: #fafafa; } .ds-table .ds-num { text-align: right; font-variant-numeric: tabular-nums; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Shop Ledger",
+    "overview": "Toscana Pastry is the shop's ledger: prices, stock, orders, and budgets kept in one honest book. The interface exists to make numbers trustworthy and easy to scan. Tables, clear labels, and plain-sans text carry the work. Ornament stays out of the way of the figures.\n\nToday the system is provisional. It is Chakra UI v3's default theme with one custom color scale (`brand`, an unmodified copy of Tailwind's indigo). There is no logo and no product imagery. The typeface is SN Pro. Layout is light-mode only, on white paper with zinc-gray rules. The admin side is a desktop work surface; the customer portal is a mobile path entered from a WhatsApp link.\n\nThe confirmed intent for components is warm and approachable: friendlier corners and more breathing room than the current defaults, especially on customer-facing screens. The current code does not yet deliver that; new work should move toward it without breaking the ledger's clarity.",
+    "keyCharacteristics": [
+      "Chakra UI v3 defaults; single accent (indigo `brand`), zinc neutrals.",
+      "Light mode only; white background, thin gray rules.",
+      "Tables are the primary data surface (catalog, orders, ingredients).",
+      "Active state never relies on color alone (bold weight + underline), per WCAG 2.1 AA.",
+      "Toasts via `goey-toast`, Spanish (es-AR) copy, es-AR number formatting."
+    ],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "Indigo `brand` is the only accent. Status colors (red, green, orange) mean state, never decoration.", "section": "colors" },
+      { "name": "The Semantic Token Rule", "body": "Use Chakra semantic tokens (`bg`, `fg`, `fg.muted`, `border`, `border.muted`) for neutrals, not raw `gray.*` values, so a future theme swap lands in one file (`frontend/src/components/ui/theme.ts`).", "section": "colors" },
+      { "name": "The Weight-Means-State Rule", "body": "Bold in navigation marks the current page. Don't use bold for decoration in nav.", "section": "typography" },
+      { "name": "The Flat Ledger Rule", "body": "Surfaces sit flat on the page. Separate regions with a rule or spacing, not a shadow.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use `colorPalette=\"brand\"` for the single primary action of a view, and outline for its secondary.",
+      "Do use Chakra semantic tokens (`bg`, `fg.muted`, `border.muted`) for neutrals.",
+      "Do mark the active nav item with weight + underline + `aria-current`, never color alone.",
+      "Do keep portal touch targets at least 44px tall.",
+      "Do right-align prices and format them `toLocaleString(\"es-AR\", { minimumFractionDigits: 2 })`.",
+      "Do put theme changes in `frontend/src/components/ui/theme.ts`, not inline hex values."
+    ],
+    "donts": [
+      "Don't add a second accent color or decorative gradients; the One Accent Rule holds until a redesign.",
+      "Don't separate surfaces with shadows; use 1px rules.",
+      "Don't invent a logo, mascot, or product photos; none exist (see PRODUCT.md).",
+      "Don't set `fontFamily` inline; type comes from Chakra's `fonts.body` / `fonts.heading` tokens (SN Pro)."
+    ]
+  }
+}
