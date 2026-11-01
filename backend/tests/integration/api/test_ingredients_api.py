@@ -81,7 +81,7 @@ async def _create_ingredient(
     token: str,
     name: str = "Harina 0000",
     unit: str = "kg",
-    price: str = "2800",
+    price: int = 280000,
     stock: str = "0",
     threshold: str = "0",
     **extra,
@@ -108,7 +108,7 @@ async def _create_ingredient(
 async def test_ingredients_requires_authentication(client):
     assert (await client.get("/api/v1/ingredients")).status_code == 401
     assert (
-        await client.post("/api/v1/ingredients", json={"name": "x", "unit": "kg", "price_per_unit": "1"})
+        await client.post("/api/v1/ingredients", json={"name": "x", "unit": "kg", "price_per_unit": 100})
     ).status_code == 401
 
 
@@ -121,7 +121,7 @@ async def test_create_ingredient(client):
     body = await _create_ingredient(client, token)
     assert body["name"] == "Harina 0000"
     assert body["unit"] == "kg"
-    assert body["price_per_unit"] == "2800"  # Decimal viaja como str
+    assert body["price_per_unit"] == 280000
     assert body["stock_qty"] == "0"
     assert body["status"] == "EMPTY"
 
@@ -148,7 +148,7 @@ async def test_create_rejects_invalid_unit(client):
     token = await _token_for(client)
     response = await client.post(
         "/api/v1/ingredients",
-        json={"name": "Harina", "unit": "onzas", "price_per_unit": "2800"},
+        json={"name": "Harina", "unit": "onzas", "price_per_unit": 280000},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 422
@@ -159,7 +159,7 @@ async def test_create_rejects_negative_stock(client):
     token = await _token_for(client)
     response = await client.post(
         "/api/v1/ingredients",
-        json={"name": "Harina", "unit": "kg", "price_per_unit": "2800", "stock_qty": "-1"},
+        json={"name": "Harina", "unit": "kg", "price_per_unit": 280000, "stock_qty": "-1"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 422
@@ -170,7 +170,7 @@ async def test_create_rejects_empty_name(client):
     token = await _token_for(client)
     response = await client.post(
         "/api/v1/ingredients",
-        json={"name": "  ", "unit": "kg", "price_per_unit": "2800"},
+        json={"name": "  ", "unit": "kg", "price_per_unit": 280000},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 422
@@ -181,7 +181,7 @@ async def test_create_rejects_unknown_field(client):
     token = await _token_for(client)
     response = await client.post(
         "/api/v1/ingredients",
-        json={"name": "Harina", "unit": "kg", "price_per_unit": "2800", "brand": "X"},
+        json={"name": "Harina", "unit": "kg", "price_per_unit": 280000, "brand": "X"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 422
@@ -297,12 +297,12 @@ async def test_patch_partial_update(client):
     created = await _create_ingredient(client, token)
     response = await client.patch(
         f"/api/v1/ingredients/{created['id']}",
-        json={"price_per_unit": "3000", "name": "Harina 0000 premium"},
+        json={"price_per_unit": 300000, "name": "Harina 0000 premium"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["price_per_unit"] == "3000"
+    assert body["price_per_unit"] == 300000
     assert body["name"] == "Harina 0000 premium"
     assert body["stock_qty"] == "0"  # el stock no se toca por PATCH
 
@@ -503,3 +503,25 @@ async def test_import_all_invalid_reports_every_line(client):
     body = response.json()
     assert body["created"] == 0
     assert [error["line"] for error in body["errors"]] == [1, 2]
+
+
+# --- Money contract: integer cents only -------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_create_accepts_integer_cents(client):
+    token = await _token_for(client)
+    body = await _create_ingredient(client, token, price=12345)
+    assert body["price_per_unit"] == 12345
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad_price", ["5", 5.0, True])
+async def test_create_rejects_non_integer_money(client, bad_price):
+    token = await _token_for(client)
+    response = await client.post(
+        "/api/v1/ingredients",
+        json={"name": "Harina", "unit": "kg", "price_per_unit": bad_price},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 422

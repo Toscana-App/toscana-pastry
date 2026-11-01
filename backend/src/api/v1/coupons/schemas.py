@@ -1,7 +1,10 @@
 """Schemas para el ABM de cupones (RF-P11-14, C3).
 
 Pydantic v2 con extra="forbid" en todos los esquemas de escritura.
-`value` viaja como Money (Decimal, nunca float) — api.v1.money.
+`value` viaja como decimal crudo (serializado a str, NUNCA float):
+`percent` -> 0-100; `fixed` -> dinero en unidades. No aplica el
+validador de centavos de Money (x100): el contrato C3 round-trips
+el decimal tal cual (api.v1.money.Qty).
 """
 from datetime import datetime
 from decimal import Decimal
@@ -9,7 +12,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from api.v1.money import Money
+from api.v1.money import Qty
 from domain.coupon import MAX_COUPON_CODE
 
 COUPON_TYPES = Literal["percent", "fixed"]
@@ -23,7 +26,7 @@ class CouponCreate(BaseModel):
 
     code: str = Field(min_length=1, max_length=MAX_COUPON_CODE)
     type: COUPON_TYPES
-    value: Money = Field(ge=Decimal("0"))
+    value: Qty = Field(ge=Decimal("0"))
     valid_from: datetime | None = None
     valid_until: datetime | None = None
     max_uses: int | None = Field(default=None, ge=1)
@@ -49,7 +52,7 @@ class CouponUpdate(BaseModel):
         default=None, min_length=1, max_length=MAX_COUPON_CODE
     )
     type: COUPON_TYPES | None = None
-    value: Money | None = Field(default=None, ge=Decimal("0"))
+    value: Qty | None = Field(default=None, ge=Decimal("0"))
     valid_from: datetime | None = None
     valid_until: datetime | None = None
     max_uses: int | None = Field(default=None, ge=1)
@@ -69,7 +72,7 @@ class CouponResponse(BaseModel):
     id: str
     code: str
     type: str
-    value: Money
+    value: Qty
     valid_from: datetime | None = None
     valid_until: datetime | None = None
     max_uses: int | None = None

@@ -164,6 +164,6 @@ class TestPatchOrderPaid:
 
     async def test_nonexistent_order_returns_404(self, client):
         response = await client.patch(
-            "/api/v1/orders/nonexistent-paid"
+            "/api/v1/orders/nonexistent-paid/paid"
         )
         assert response.status_code == 404

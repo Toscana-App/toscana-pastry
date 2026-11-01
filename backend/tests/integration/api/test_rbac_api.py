@@ -104,9 +104,9 @@ async def test_admin_users_allowed_for_admin(client, db_session):
 # --- Escritura de configuración, catálogo y pricing: sólo ADMIN ------------
 
 _SETTINGS_PAYLOAD = {
-    "hourly_rate": "3000",
+    "hourly_rate": 300000,
     "margin_pct": "30",
-    "round_step": "100",
+    "round_step": 10000,
     "include_labor": True,
     "include_gas": True,
     "gas_pct": "3",
@@ -121,7 +121,7 @@ _SETTINGS_PAYLOAD = {
 _INGREDIENT_PAYLOAD = {
     "name": "Harina 0000",
     "unit": "kg",
-    "price_per_unit": "2800",
+    "price_per_unit": 280000,
     "stock_qty": "5",
     "low_stock_threshold": "1",
 }
@@ -131,7 +131,7 @@ _PREVIEW_PAYLOAD = {
         {
             "qty": "250",
             "unit": "g",
-            "price_per_purchase_unit": "2800",
+            "price_per_purchase_unit": 280000,
             "purchase_unit": "kg",
         }
     ],

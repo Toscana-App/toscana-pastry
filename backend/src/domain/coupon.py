@@ -21,20 +21,24 @@ ALLOWED_COUPON_STATUSES = ("active", "paused")
 # Longitud maxima del code (cortos y legibles: "VERANO10", "CAFÉ10").
 MAX_COUPON_CODE = 32
 
+class DuplicateCouponCodeError(Exception):
+    """El code (case/accent-insensitive) ya existe: viola code_key UNIQUE."""
+
+
 PERCENT_MAX = Decimal("100")
 MONEY_MIN = Decimal("0")
 
 
-def _naive_utc(
+def _aware_utc(
     dt: datetime.datetime | None,
 ) -> datetime.datetime | None:
-    """Normaliza a naive UTC: SQLite devuelve naive en el round-trip,
-    mezclar naive y aware rompe la comparacion de la ventana."""
+    """Normaliza a aware UTC: naive se asume UTC (SQLite devuelve naive
+    en el round-trip), aware se convierte a UTC."""
     if dt is None:
         return None
-    if dt.tzinfo is not None:
-        return dt.astimezone(datetime.UTC).replace(tzinfo=None)
-    return dt
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=datetime.UTC)
+    return dt.astimezone(datetime.UTC)
 
 
 @dataclass(frozen=True)
@@ -58,9 +62,9 @@ class Coupon:
     )
 
     def __post_init__(self):
-        object.__setattr__(self, "valid_from", _naive_utc(self.valid_from))
+        object.__setattr__(self, "valid_from", _aware_utc(self.valid_from))
         object.__setattr__(
-            self, "valid_until", _naive_utc(self.valid_until)
+            self, "valid_until", _aware_utc(self.valid_until)
         )
         code = self.code.strip()
         if not code:

@@ -22,7 +22,7 @@ class IngredientCreate(BaseModel):
 
     name: str = Field(min_length=1, max_length=120)
     unit: UNITS
-    price_per_unit: Money = Field(ge=Decimal("0"))
+    price_per_unit: Money = Field(ge=0)
     stock_qty: Qty = Field(default=Decimal("0"), ge=Decimal("0"))
     low_stock_threshold: Qty = Field(default=Decimal("0"), ge=Decimal("0"))
 
@@ -44,7 +44,7 @@ class IngredientUpdate(BaseModel):
 
     name: Optional[str] = Field(default=None, min_length=1, max_length=120)
     unit: Optional[UNITS] = None
-    price_per_unit: Optional[Money] = Field(default=None, ge=Decimal("0"))
+    price_per_unit: Optional[Money] = Field(default=None, ge=0)
     low_stock_threshold: Optional[Qty] = Field(default=None, ge=Decimal("0"))
 
     @field_validator("name")

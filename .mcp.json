@@ -2,7 +2,7 @@
   "mcpServers": {
     "chakra-ui": {
       "command": "npx",
-      "args": ["-y", "@chakra-ui/react-mcp"]
+      "args": ["-y", "@chakra-ui/react-mcp@2.1.1"]
     }
   }
 }

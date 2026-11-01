@@ -22,7 +22,7 @@
 | Rate limiting | `slowapi`: `auth/*` y formularios públicos con tope por IP+email (ver §F0/F4). |
 | Anti-spam | hCaptcha en `auth/magic-link` (público) y contacto. Honeypot oculto. |
 | Login Google | Flujo GIS **ID token** (no authorization-code): `sub` → `google_id` (identidad, nunca email); nonce server-issued de un solo uso; `email_verified`; **link solo tras re-auth** (`magic-link` → `verify` con `purpose=google_link`); Google no crea cuentas. `GOOGLE_CLIENT_ID` público; client secret inexistente en la app. (skill `google-signin`) |
-| Decimal | Todo monto con `Decimal` (serializado como string en JSON) + `ROUND_HALF_UP` al paso configurado. |
+| Dinero | El dominio opera con `Decimal` + `ROUND_HALF_UP` al paso configurado. En la API el dinero viaja como **entero de centavos** (310050 = $3.100,50); se rechaza con 422 cualquier string, float o bool. Cantidades (`Qty`) y porcentajes (`Pct`) viajan como string decimal. |
 | OpenAPI | `GET /openapi.json` + docs `/docs` (FastAPI) — **fuente** de los tipos TS de `web/lib`. En producción: cerrados o detrás de auth (security #12). |
 | RLS | Postgres **Row-Level Security** en toda tabla de tenant; `set_config('app.tenant_id')` por transacción. Objeto de otro tenant → 404 (security #4, #7). |
 | Queries | Solo SQLAlchemy con **bind parameters**; prohibido SQL concatenado (security #13). |
@@ -211,7 +211,7 @@ api/presentation/routers/
 | Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
 |---|---|---|---|---|---|
 | GET | `/api/v1/orders` | Lista con filtros. | `?customer,status,paid,from,to,q,page,page_size` → `{items,total,...}` | 200 | Item: `id,customer,status,paid,final_price,date`. |
-| POST | `/api/v1/orders` | Crea pedido (dueña o portal). | `{customer_id*, date?, margin_pct?(override), items:[{product_id,qty,portion_note?}], payment_method?(default cash), delivery_address?, pickup?, coupon_code?}` → `{order, breakdown}` | 201 / 409 / 422 | **No descuenta stock** (descuenta al confirmar). Snapshot de precios. Si `order_window_open=false` → 409 `order_window_closed` + mensaje (RF-P6-09). `coupon_code` → valida y snapshotea `discount_amount` (RF-P11-14). |
+| POST | `/api/v1/orders` | Crea pedido (dueña o portal). | `{customer_id*, date?, margin_pct?(override), items:[{product_id,qty,portion_note?}], payment_method*(portal; admin: default cash), delivery_address?, pickup?, coupon_code?}` → `{order, breakdown}` | 201 / 409 / 422 | **No descuenta stock** (descuenta al confirmar). `payment_method` es **requerido** desde el portal (422 si falta); `default cash` aplica solo al rol admin (RF-P6-12). Snapshot de precios. Si `order_window_open=false` → 409 `order_window_closed` + mensaje (RF-P6-09). `coupon_code` → valida y snapshotea `discount_amount` (RF-P11-14). |
 | GET | `/api/v1/orders/{id}` | Detalle con desglose. | — → `{order, items, breakdown}` | 200 / 404 | `breakdown`: materiales (por insumo), labor, gas, margin_pct, gain, final, rounded. Inmutable (snapshot). |
 | PATCH | `/api/v1/orders/{id}` | Edita ítems / margen override. | `{items?, margin_pct?}` → `{order, breakdown}` | 200 | Solo si `status=nuevo`. Recalcula. |
 | PATCH | `/api/v1/orders/{id}/status` | Transición de estado. | `{status}` → `{order}` | 200 / 409 | `nuevo→confirmado` = **descuento atómico** de stock (`SELECT…FOR UPDATE`); si falta → 409 + insumo faltante, sin cambios. `→entregado`. `→cancelado` (desde confirmado) = re-pozo de stock. Header `Idempotency-Key` en confirmar. |
@@ -239,7 +239,7 @@ api/presentation/routers/
 | PATCH | `/api/v1/budgets/{id}/items` | Ajusta cantidades/ítems. | `{items:[{product_id,qty,unit_price?}]}` → `{summary}` | 200 | Recalcula < 50 ms. (RF-P8-02) |
 | DELETE | `/api/v1/budgets/{id}` | Elimina. | — → `204` | 204 | **No toca stock ni pedidos**. |
 | POST | `/api/v1/budgets/{id}/recalculate` | Recalcula resumen. | — → `{summary}` | 200 | Modo cost-plus o manual (explícito en UI). |
-| POST | `/api/v1/budgets/{id}/convert-to-order` | Convierte en pedido. | — → `{order}` | 201 | Crea pedido con mismos ítems (F2). |
+| POST | `/api/v1/budgets/{id}/convert-to-order` | Convierte en pedido. | — → `{order_id, seq}` | 201 | Crea pedido con mismos ítems y respeta los precios manuales. Solo presupuestos `enviado` (si no: 409 `budget_not_sent`). Guarda `order_id` en el presupuesto; una segunda conversión responde 409 `already_converted`. (RF-P8-08) |
 | POST | `/api/v1/budgets/{id}/send` | Marca enviado (congela versión). | — → `{budget, sent_at}` | 200 / 409 | `borrador→enviado`; snapshot inmutable por versión (auditoría). Header `Idempotency-Key`. |
 
 ### PDF (P9)
@@ -252,7 +252,7 @@ api/presentation/routers/
 ### WhatsApp (P10)
 | Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
 |---|---|---|---|---|---|
-| GET | `/api/v1/budgets/{id}/whatsapp-link` | Genera + registra `wa.me` (outbound). | — → `{url, sent_at}` | 200 | `wa.me/?text=` (ítems + total). Gratis, sin Cloud API. (CTA "Enviar por WhatsApp"). |
+| POST | `/api/v1/budgets/{id}/whatsapp-link` | Genera + registra `wa.me` (outbound). | — → `{url, sent_at}` | 200 | `wa.me/?text=` (ítems + total). Gratis, sin Cloud API. (CTA "Enviar por WhatsApp"). |
 | POST | `/api/v1/webhooks/whatsapp` | Webhook inbound (Chat SDK, opcional). | payload Cloud API → `200 {"ok":true}` | 200 | **Verifica firma** (X-Hub-Signature / Cloud API). Handler `onNewMention`/`onSubscribedMessage`. State en Redis (`createRedisState`). |
 | GET | `/api/v1/webhooks/whatsapp/verify` | Handshake de verificación Cloud API. | `?hub.mode, hub.verify_token, hub.challenge` → `challenge` (text) | 200 | Solo si se habilita inbound. Confirma ownership del webhook. |
 
@@ -278,7 +278,7 @@ api/presentation/routers/
 ---
 
 ## FASE 5 — Portal self-service + checkout e2e (P11)
-> Objetivo: el cliente/negocio pide y paga solo. ~20 endpoints. Precondición: roles de 3 vías + precios duales (`odd/tasks/roles-dual-pricing.md`). Especificación completa: `p11_portal_checkout.md` (pagos: `p06_orders.md` RF-P6-12…14).
+> Objetivo: el cliente/negocio pide y paga solo. ~25 endpoints. Precondición: roles de 3 vías + precios duales (`odd/tasks/roles-dual-pricing.md`). Especificación completa: `p11_portal_checkout.md` (pagos: `p06_orders.md` RF-P6-12…14).
 
 ### Portal: pedidos y carrito (rol `negocio`/`cliente`)
 | Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
@@ -302,8 +302,8 @@ api/presentation/routers/
 | Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
 |---|---|---|---|---|---|
 | GET | `/api/v1/customers/me/addresses` | Mis direcciones. | — → `{items}` | 200 | Máx. 5; incluye `is_default`. |
-| POST | `/api/v1/customers/me/addresses` | Crea dirección. | `{street_line_1*, street_line_2?, city?, postal_code?, province?, phone?}` → `{address}` | 201 / 422 | La primera creada pasa a default. |
-| PATCH | `/api/v1/customers/me/addresses/{id}` | Edita / marca default. | `{...campos, is_default?}` → `{address}` | 200 / 404 | `is_default=true` remueve la anterior (transacción). |
+| POST | `/api/v1/customers/me/addresses` | Crea dirección. | `{street_line_1*, street_line_2?, city?, postal_code?, province?, phone?}` → `{address}` | 201 / 422 | La primera creada pasa a default. Exceder el máximo de 5 → 422. |
+| PATCH | `/api/v1/customers/me/addresses/{id}` | Edita / marca default. | `{...campos, is_default?}` → `{address}` | 200 / 404 / 422 | `is_default=true` remueve la anterior (transacción). `is_default=false` sobre la default vigente → 422; cuerpo sin campos o campos inválidos → 422. |
 | DELETE | `/api/v1/customers/me/addresses/{id}` | Elimina. | — → `204` | 204 / 404 / 409 | 409 si es la única; borrar la default pasa la primera a default. |
 
 ### Cupones (ABM admin + uso portal)
@@ -342,8 +342,8 @@ api/presentation/routers/
 | F2 Pedidos y stock | 16 | customers, orders |
 | F3 Presupuestos + PDF + WhatsApp | 15 | budgets, pdf, webhooks |
 | F4 Endurecimiento | 0 nuevos (+1 opcional contacto) | cross-cutting |
-| F5 Portal + checkout e2e (P11) | 21 | orders(mine), cart, payments+webhook, customers(addresses), coupons, leads, whatsapp(sends) |
-| **Total** | **~82** | 14 routers |
+| F5 Portal + checkout e2e (P11) | 25 | orders(mine), cart, payments+webhook, customers(addresses), coupons, leads, whatsapp(sends) |
+| **Total** | **~86** | 14 routers |
 
 ### Endpoints aún por confirmar con Gaspar
 1. `/tenant/settings/recalculate` (F1): ¿recálculo global síncrono o task asíncrona? (impacta UX si catálogo grande).

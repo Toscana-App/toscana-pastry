@@ -90,7 +90,7 @@ async def _pending_order(db_session, coupon_code: str | None = None) -> Order:
 
 
 async def _coupon(db_session, uses: int) -> None:
-    db_session.add(CouponORM(id="c1", code="PROMO", type="percent", value="10", uses=uses))
+    db_session.add(CouponORM(id="c1", code="PROMO", code_key="promo", type="percent", value="10", uses=uses))
     await db_session.commit()
 
 
