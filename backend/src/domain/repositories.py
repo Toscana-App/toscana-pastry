@@ -4,6 +4,7 @@ from datetime import datetime, date
 from decimal import Decimal
 from domain.models import User, UserRole, BusinessSettings, Ingredient, Product, StockMovement, StockStatus
 from domain.orders import Customer, Order
+from domain.budgets import Budget
 
 class UserRepository(ABC):
     @abstractmethod
@@ -201,6 +202,56 @@ class OrderRepository(ABC):
     ) -> None:
         pass
 
+
+class BudgetRepository(ABC):
+    """P7/P8 presupuestos. Los items guardan costo/precio derivados
+    contra el catalogo al momento de la escritura; las lecturas son puras.
+    La secuencia `#000NN` se asigna en create (misma transaccion) y no se
+    reusa tras borrado (RNF-P8-04). `mark_sent` congela un snapshot de
+    version (RF-P8-05)."""
+
+    @abstractmethod
+    async def list(
+        self,
+        status: Optional[str],
+        q: Optional[str],
+        date_from: Optional[date],
+        date_to: Optional[date],
+        page: int,
+        page_size: int,
+    ) -> tuple[List["Budget"], int]:
+        pass
+
+    @abstractmethod
+    async def get(self, budget_id: str) -> Optional["Budget"]:
+        pass
+
+    @abstractmethod
+    async def create(self, budget: "Budget") -> "Budget":
+        """Asigna la secuencia del tenant en la misma transaccion."""
+        pass
+
+    @abstractmethod
+    async def update(self, budget: "Budget") -> Optional["Budget"]:
+        """Reemplaza items/parametros. Conserva seq/status/version.
+        El estado lo valida el router antes de llamar."""
+        pass
+
+    @abstractmethod
+    async def delete(self, budget_id: str) -> bool:
+        """Borrado duro: no tiene efecto sobre stock ni secuencia."""
+        pass
+
+    @abstractmethod
+    async def mark_converted(self, budget_id: str, order_id: str) -> bool:
+        """Persiste el pedido asociado solo si aun no hay uno (RF-P8-08).
+        False = ya convertido o inexistente."""
+        pass
+
+    @abstractmethod
+    async def mark_sent(self, budget: "Budget") -> "Budget":
+        """enviado (version nueva) con snapshot congelado (RF-P8-05).
+        `budget` ya pasa por transition_to_sent."""
 
 class OrderTransitionStore(ABC):
     """Primitivas transaccionales para transicionar un pedido. No decide
