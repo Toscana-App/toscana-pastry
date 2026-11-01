@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Container, Heading, Spinner, Flex } from "@chakra-ui/react";
+import { Box, Container, Heading, Spinner, Flex } from "@chakra-ui/react";
 import { authService } from "@/services/authService";
+import AddressBook from "@/components/profile/AddressBook";
 import { ProfileCard } from "@/components/profile/ProfileCard";
 import { User } from "@/types/auth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -57,9 +58,12 @@ export default function ProfilePage() {
   return (
     <ProtectedRoute>
       <Container py={10} maxW="container.sm">
-        <Flex direction="column" align="center" gap={6}>
-          <Heading fontSize="3xl">My Profile</Heading>
+        <Flex direction="column" align="center" gap={6} width="100%">
+          <Heading fontSize="3xl">Mi cuenta</Heading>
           <ProfileCard user={user} />
+          <Box w="100%">
+            <AddressBook />
+          </Box>
         </Flex>
       </Container>
     </ProtectedRoute>

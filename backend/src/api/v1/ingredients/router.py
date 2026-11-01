@@ -1,6 +1,3 @@
-from decimal import Decimal
-from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse
 
@@ -54,15 +51,15 @@ def _movement_response(movement: StockMovement) -> StockMovementResponse:
 
 @router.get("", response_model=IngredientListResponse)
 async def list_ingredients(
-    q: Optional[str] = Query(default=None, min_length=1, max_length=120),
+    q: str | None = Query(default=None, min_length=1, max_length=120),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
-    status_: Optional[StockStatus] = Query(default=None, alias="status"),
+    status_: StockStatus | None = Query(default=None, alias="status"),
     repo: IngredientRepository = Depends(get_ingredient_repository),
     current_user: User = Depends(get_current_user),
 ):
-    """Lista con búsqueda insensible a acentos/case (RF-P2-02) y filtro
-    por estado de stock (RF-P2-03)."""
+    """List with accent/case-insensitive search (RF-P2-02) and a stock
+    status filter (RF-P2-03)."""
     items, total = await repo.list(q, status_, page, page_size)
     return IngredientListResponse(
         items=[_to_response(item) for item in items],
@@ -76,7 +73,7 @@ async def list_ingredients(
 async def create_ingredient(
     payload: IngredientCreate,
     repo: IngredientRepository = Depends(get_ingredient_repository),
-    # Alta de insumos: funcion de administracion (RBAC de Fase 3).
+    # Ingredient creation: admin-only function (Phase 3 RBAC).
     _admin: User = Depends(require_admin),
 ):
     try:
@@ -85,10 +82,10 @@ async def create_ingredient(
         data["price_per_unit"] = cents_to_decimal(data["price_per_unit"])
         ingredient = Ingredient(**data)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     initial_movement = None
     if ingredient.stock_qty > 0:
-        # La cantidad inicial deja huella en el historial (RF-P2-04).
+        # The initial quantity leaves a trail in the history (RF-P2-04).
         initial_movement = StockMovement(
             qty_delta=ingredient.stock_qty,
             reason="compra",
@@ -105,8 +102,8 @@ async def import_ingredients(
     repo: IngredientRepository = Depends(get_ingredient_repository),
     _admin: User = Depends(require_admin),
 ):
-    """Carga inicial por lista (RF-P2-07): parsing tolerante por línea;
-    las líneas en error se reportan, no abortan el lote."""
+    """Initial bulk load (RF-P2-07): per-line tolerant parsing;
+    error lines are reported, they do not abort the batch."""
     created = 0
     errors = []
     for index, line in enumerate(payload.lines, start=1):
@@ -184,7 +181,7 @@ async def update_ingredient(
             deleted_at=existing.deleted_at,
         )
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     saved = await repo.update(updated)
     if saved is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ingrediente no encontrado")
@@ -226,7 +223,7 @@ async def adjust_stock(
             ingredient, payload.delta, payload.reason, payload.ref
         )
     except (InsufficientStockError, ValueError) as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     saved = await repo.add_movement(ingredient_id, movement, updated.stock_qty)
     if saved is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ingrediente no encontrado")
