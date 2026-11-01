@@ -1,8 +1,9 @@
 """Repository para cupones (RF-P11-14, C3).
 
 Estilo sql_calc_supplier_repository.py: mapeo ORM↔dominio y commit en
-cada mutacion. La unicidad case-insensitive de `code` se resuelve con
-accent_fold (funcion SQL registrada en SQLite).
+cada mutacion. La unicidad case/accent-insensitive de `code` se resuelve con la
+columna `code_key` (= accent_fold(code), UNIQUE); un IntegrityError
+sobre ella se traduce a DuplicateCouponCodeError.
 
 `get_by_code` e `increment_uses` quedan limpios para C4 (carrito:
 aplicar cupon + confirmar pedido).
@@ -10,14 +11,17 @@ aplicar cupon + confirmar pedido).
 from decimal import Decimal
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from data.accent import accent_fold
 from data.models import CouponORM
-from domain.coupon import Coupon
+from domain.coupon import Coupon, DuplicateCouponCodeError
 
 
 def _to_domain(orm: CouponORM) -> Coupon:
+    # SQLite devuelve valid_from/valid_until naive: el dominio los
+    # reconvierte a aware UTC (Coupon._aware_utc).
     return Coupon(
         code=orm.code,
         type=orm.type,  # type: ignore[arg-type]
@@ -37,6 +41,7 @@ def _to_orm(domain: Coupon) -> CouponORM:
     return CouponORM(
         id=domain.id,
         code=domain.code,
+        code_key=accent_fold(domain.code),
         type=domain.type,
         value=str(domain.value),
         valid_from=domain.valid_from,
@@ -52,6 +57,15 @@ def _to_orm(domain: Coupon) -> CouponORM:
 class SQLCouponRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    async def _commit_unique(self) -> None:
+        try:
+            await self.session.commit()
+        except IntegrityError as err:
+            await self.session.rollback()
+            if "code_key" in str(err.orig):
+                raise DuplicateCouponCodeError() from err
+            raise
 
     async def list(
         self,
@@ -95,16 +109,14 @@ class SQLCouponRepository:
         """Busca case/accent-insensitive (unicidad, RF-P11-14)."""
         folded = accent_fold(code) or code
         result = await self.session.execute(
-            select(CouponORM).where(
-                func.accent_fold(CouponORM.code) == folded
-            )
+            select(CouponORM).where(CouponORM.code_key == folded)
         )
         orm = result.scalars().first()
         return _to_domain(orm) if orm else None
 
     async def create(self, coupon: Coupon) -> Coupon:
         self.session.add(_to_orm(coupon))
-        await self.session.commit()
+        await self._commit_unique()
         return coupon
 
     async def update(self, coupon: Coupon) -> Coupon | None:
@@ -115,6 +127,7 @@ class SQLCouponRepository:
         if orm is None:
             return None
         orm.code = coupon.code
+        orm.code_key = accent_fold(coupon.code)
         orm.type = coupon.type
         orm.value = str(coupon.value)
         orm.valid_from = coupon.valid_from
@@ -122,7 +135,7 @@ class SQLCouponRepository:
         orm.max_uses = coupon.max_uses
         orm.status = coupon.status
         orm.updated_at = coupon.updated_at
-        await self.session.commit()
+        await self._commit_unique()
         return _to_domain(orm)
 
     async def set_status(

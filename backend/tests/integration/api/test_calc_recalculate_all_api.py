@@ -163,7 +163,7 @@ async def _seed_full(client: AsyncClient, token: str) -> dict:
     material = await _create_material(
         client, token, name="Mantequilla",
         unit_of_measure="kg",
-        purchase_total_price="100", package_quantity="1",
+        purchase_total_price=10000, package_quantity="1",
     )
     assert material["unit_cost"] == 10000
     lines = [{"material_id": material["id"], "quantity_used": "1"}]
@@ -266,7 +266,7 @@ class TestRecalculateAll:
         seed = await _seed_full(client, token)
         await client.patch(
             f"/api/v1/calc/materials/{seed['material']['id']}",
-            json={"purchase_total_price": "200", "package_quantity": "1"},
+            json={"purchase_total_price": 20000, "package_quantity": "1"},
             headers=_auth(token),
         )
         await _recalculate_all(client, token)
@@ -292,7 +292,7 @@ class TestRecalculateAll:
         seed = await _seed_full(client, token)
         await client.patch(
             f"/api/v1/calc/materials/{seed['material']['id']}",
-            json={"purchase_total_price": "200", "package_quantity": "1"},
+            json={"purchase_total_price": 20000, "package_quantity": "1"},
             headers=_auth(token),
         )
         await _recalculate_all(client, token)
@@ -320,18 +320,18 @@ class TestRecalculateAll:
         token = await _admin(client)
         seed = await _seed_full(client, token)
 
-        async def bump(price: str):
+        async def bump(price: int):
             await client.patch(
                 f"/api/v1/calc/materials/{seed['material']['id']}",
                 json={"purchase_total_price": price, "package_quantity": "1"},
                 headers=_auth(token),
             )
 
-        await bump("200")
+        await bump(20000)
         await _recalculate_all(client, token)  # alpha/beta/gamma -> version 1
         assert await _versions_total(client, token, seed["alpha"]) == 1
 
-        await bump("300")
+        await bump(30000)
         response = await client.post(
             f"/api/v1/calc/products/{seed['alpha']}/recalculate",
             headers=_auth(token),
@@ -339,7 +339,7 @@ class TestRecalculateAll:
         assert response.status_code == 200
         assert await _versions_total(client, token, seed["alpha"]) == 2
 
-        await bump("400")
+        await bump(40000)
         await _recalculate_all(client, token)
         assert await _versions_total(client, token, seed["alpha"]) == 3
         assert await _versions_total(client, token, seed["beta"]) == 2
@@ -360,7 +360,7 @@ class TestRecalculateAll:
         assert incomplete["unit_cost"] is None
         priced = await _create_material(
             client, token, name="Azucar",
-            purchase_total_price="50", package_quantity="1",
+            purchase_total_price=5000, package_quantity="1",
         )
         p1 = await _create_product(
             client,
@@ -379,7 +379,7 @@ class TestRecalculateAll:
         # El incomplete sigue a 0.00: su producto no cambia de final.
         await client.patch(
             f"/api/v1/calc/materials/{priced['id']}",
-            json={"purchase_total_price": "60", "package_quantity": "1"},
+            json={"purchase_total_price": 6000, "package_quantity": "1"},
             headers=_auth(token),
         )
         await _recalculate_all(client, token)

@@ -20,13 +20,17 @@ from domain.calc_product import (
     CalcProductLaborLine,
     CalcProductMaterialLine,
     CalcProductVersion,
+    RecalculationResult,
     apply_rounding,
     calc_extra_line_cost,
     calc_labor_line_cost,
     calc_material_line_cost,
     calc_product_pricing,
     compute_costs,
+    recalculate_product,
+    resolve_material_line,
 )
+from domain.calc_material import CalcMaterial
 
 D = Decimal
 
@@ -586,3 +590,118 @@ class TestCalcProductCosts:
             costs.tax_amount,
             costs.final_sale_price,
         ) == (D("1"), D("2"), D("3"), D("4"), D("5"), D("6"))
+
+
+# ─── resolve_material_line / recalculate_product (reglas 5/6, D4) ──────
+
+
+def _material(unit_cost, material_id="m1", name="Harina"):
+    # unit_cost se deriva en el dominio: precio / cantidad (None -> incomplete).
+    return CalcMaterial(
+        id=material_id,
+        name=name,
+        unit_of_measure="kg",
+        purchase_total_price=unit_cost,
+        package_quantity=D("1") if unit_cost is not None else None,
+    )
+
+
+def _stale_material_line(material_id="m1", quantity="2"):
+    return CalcProductMaterialLine(
+        material_id=material_id,
+        material_name="Viejo",
+        quantity_used=D(quantity),
+        unit_of_measure_snapshot="g",
+        unit_cost_snapshot=D("1.00"),
+        line_total_cost=D("2.00"),
+        sort_order=3,
+    )
+
+
+class TestResolveMaterialLine:
+    def test_snapshot_comes_from_material(self):
+        line = resolve_material_line(_material(D("5.00")), D("3"), 1)
+        assert line.material_name == "Harina"
+        assert line.unit_of_measure_snapshot == "kg"
+        assert line.unit_cost_snapshot == D("5.00")
+        assert line.line_total_cost == D("15.00")
+        assert line.sort_order == 1
+
+    def test_incomplete_material_resolves_to_zero(self):
+        line = resolve_material_line(_material(None), D("3"), 0)
+        assert line.unit_cost_snapshot == D("0.00")
+        assert line.line_total_cost == D("0.00")
+
+    def test_keeps_given_line_id(self):
+        line = resolve_material_line(_material(D("1")), D("1"), 0, line_id="abc")
+        assert line.id == "abc"
+
+
+class TestRecalculateProduct:
+    def _product(self):
+        return CalcProduct(name="Torta", margin_percent=D("0"))
+
+    def test_re_resolves_snapshot_and_flags_new_version(self):
+        old = _stale_material_line()
+        result = recalculate_product(
+            self._product(),
+            [old],
+            [],
+            [],
+            {"m1": _material(D("10.00"))},
+            "none",
+        )
+        assert isinstance(result, RecalculationResult)
+        (line,) = result.material_lines
+        assert line.id == old.id
+        assert line.sort_order == 3
+        assert line.material_name == "Harina"
+        assert line.unit_cost_snapshot == D("10.00")
+        assert line.line_total_cost == D("20.00")
+        assert result.old_costs.final_sale_price == D("2.00")
+        assert result.new_costs.final_sale_price == D("20.00")
+        assert result.creates_version is True
+
+    def test_no_price_change_creates_no_version(self):
+        result = recalculate_product(
+            self._product(),
+            [_stale_material_line()],
+            [],
+            [],
+            {"m1": _material(D("1.00"))},
+            "none",
+        )
+        assert result.creates_version is False
+
+    def test_missing_material_keeps_line_unchanged(self):
+        old = _stale_material_line()
+        result = recalculate_product(self._product(), [old], [], [], {}, "none")
+        assert result.material_lines == [old]
+        assert result.creates_version is False
+
+    def test_recomputes_labor_and_extra_totals(self):
+        labor = CalcProductLaborLine(
+            activity_name="Horno",
+            hourly_rate=D("60"),
+            minutes_required=D("30"),
+            line_total_cost=D("0.00"),
+            sort_order=0,
+        )
+        extra = CalcProductExtraCostLine(
+            concept_name="Caja",
+            unit_cost=D("2.50"),
+            quantity=D("2"),
+            line_total_cost=D("0.00"),
+            sort_order=0,
+        )
+        result = recalculate_product(
+            self._product(), [], [labor], [extra], {}, "none"
+        )
+        assert result.labor_lines[0].line_total_cost == D("30.00")
+        assert result.extra_lines[0].line_total_cost == D("5.00")
+        assert result.new_costs.final_sale_price == D("35.00")
+        assert result.creates_version is True
+
+    def test_unknown_rounding_mode_raises(self):
+        with pytest.raises(ValueError):
+            recalculate_product(self._product(), [], [], [], {}, "bogus")

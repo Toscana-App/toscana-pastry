@@ -22,9 +22,32 @@ Skip reason (Windows environment):
   server connection.
 */
 
-import { execSync } from "node:child_process";
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Backend source dir and DB are configurable; defaults are relative to this file.
+const BACKEND_SRC_DIR = process.env.E2E_BACKEND_SRC_DIR
+  ? path.resolve(process.env.E2E_BACKEND_SRC_DIR)
+  : path.resolve(__dirname, "../../backend/src");
+const E2E_DATABASE_URL =
+  process.env.E2E_DATABASE_URL ?? "sqlite+aiosqlite:///toscana_e2e.db";
+
+// SKIPPED by default: the login page only offers "Continue with Google" and this
+// script has no way to pick which seeded user (admin/negocio/cliente) signs in,
+// so each step could run with the wrong role. Set E2E_ROLE_SELECTION_READY=1 only
+// once role selection is implemented in the steps below.
+if (process.env.E2E_ROLE_SELECTION_READY !== "1") {
+  console.error(
+    "roles-no-leak NOT RUN (exit 2): Google login cannot select the admin/negocio/cliente user yet. " +
+      "Set E2E_ROLE_SELECTION_READY=1 once role selection is implemented. This is not a pass."
+  );
+  process.exit(2);
+}
 
 // ─── Seed users via backend test client ───────────────────────────────────
 
@@ -34,11 +57,12 @@ async function seedUsers() {
     seedScript,
     `
 import asyncio
+import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 async def main():
-    engine = create_async_engine("sqlite+aiosqlite:///toscana_e2e.db")
+    engine = create_async_engine(os.environ["E2E_DATABASE_URL"])
     async with engine.begin() as conn:
         from data.models import Base
         await conn.run_sync(Base.metadata.create_all)
@@ -61,10 +85,15 @@ asyncio.run(main())
 `
   );
   try {
-    execSync(
-      `cd /c/Users/Usuario/toscana-pastry/backend/src && python ${seedScript}`,
-      { stdio: "inherit" }
-    );
+    execFileSync("python", [seedScript], {
+      cwd: BACKEND_SRC_DIR,
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        PYTHONPATH: BACKEND_SRC_DIR,
+        E2E_DATABASE_URL,
+      },
+    });
   } finally {
     fs.unlinkSync(seedScript);
   }
@@ -88,11 +117,11 @@ async function runE2ETest() {
 
   const adminSnapshot = await page.snapshot();
   // Admin should see BOTH audience segments
-  console.assert(
+  assert(
     adminSnapshot.includes("Revendedores"),
     "Admin should see Revendedores segment"
   );
-  console.assert(
+  assert(
     adminSnapshot.includes("Consumidor final"),
     "Admin should see Consumidor final segment"
   );
@@ -113,11 +142,11 @@ async function runE2ETest() {
 
   const negocioSnapshot = await page.snapshot();
   // Negocio should ONLY see Revendedores
-  console.assert(
+  assert(
     negocioSnapshot.includes("Revendedores"),
     "Negocio should see Revendedores segment"
   );
-  console.assert(
+  assert(
     !negocioSnapshot.includes("Consumidor final"),
     "Negocio should NOT see Consumidor final segment"
   );
@@ -128,12 +157,13 @@ async function runE2ETest() {
   console.log("\n=== Test 3: API 403 verification (negocio) ===");
   const cookies = await page.cdp("Network.getAllCookies");
   const token = cookies.cookies.find((c) => c.name === "auth_token");
-  if (token) {
+  assert.ok(token, "auth_token cookie missing after negocio login");
+  {
     const response = await page.fetch(
       "/api/v1/products?audience=consumidor_final",
       { headers: { Authorization: `Bearer ${token.value}` } }
     );
-    console.assert(
+    assert(
       response.status === 403,
       `Expected 403 for negocio+consumidor_final, got ${response.status}`
     );
@@ -155,11 +185,11 @@ async function runE2ETest() {
 
   const clienteSnapshot = await page.snapshot();
   // Cliente should ONLY see Consumidor final
-  console.assert(
+  assert(
     !clienteSnapshot.includes("Revendedores"),
     "Cliente should NOT see Revendedores segment"
   );
-  console.assert(
+  assert(
     clienteSnapshot.includes("Consumidor final"),
     "Cliente should see Consumidor final segment"
   );
@@ -170,12 +200,13 @@ async function runE2ETest() {
   console.log("\n=== Test 5: API 403 verification (cliente) ===");
   const cookies2 = await page.cdp("Network.getAllCookies");
   const token2 = cookies2.cookies.find((c) => c.name === "auth_token");
-  if (token2) {
+  assert.ok(token2, "auth_token cookie missing after cliente login");
+  {
     const response = await page.fetch(
       "/api/v1/products?audience=revendedores",
       { headers: { Authorization: `Bearer ${token2.value}` } }
     );
-    console.assert(
+    assert(
       response.status === 403,
       `Expected 403 for cliente+revendedores, got ${response.status}`
     );

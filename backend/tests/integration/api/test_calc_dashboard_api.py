@@ -147,11 +147,11 @@ async def _seed_dashboard(client: AsyncClient, token: str) -> None:
     """
     await _create_material(
         client, token, name="Mantequilla",
-        purchase_total_price="100", package_quantity="1",
+        purchase_total_price=10000, package_quantity="1",
     )
     await _create_material(
         client, token, name="Harina",
-        purchase_total_price="50", package_quantity="1",
+        purchase_total_price=5000, package_quantity="1",
     )
     await _create_material(client, token, name="Azucar")  # incomplete
     await _create_material(client, token, name="Huevo")  # incomplete
@@ -285,7 +285,7 @@ class TestDashboard:
         token = await _admin(client)
         material = await _create_material(
             client, token, name="Base",
-            purchase_total_price="100", package_quantity="1",
+            purchase_total_price=10000, package_quantity="1",
         )
         for index in range(6):
             await _create_product(

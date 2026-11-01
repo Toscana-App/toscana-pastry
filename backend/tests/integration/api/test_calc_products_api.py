@@ -10,6 +10,7 @@ parity case against `pricing.js` legacy, and the two `count_in_use`
 queries completed by B9 (material + product category).
 """
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event
@@ -185,7 +186,7 @@ async def _parity_material(client: AsyncClient, token: str) -> dict:
         token,
         name="Mantequilla",
         unit_of_measure="kg",
-        purchase_total_price="45680",
+        purchase_total_price=4568000,
         package_quantity="100",
     )
 
@@ -201,12 +202,12 @@ def _parity_payload(material_id: str, **overrides) -> dict:
         "labor": [
             {
                 "activity_name": "Coccion",
-                "hourly_rate": "1500.00",
+                "hourly_rate": 150000,
                 "minutes_required": "45",
             }
         ],
         "extra_costs": [
-            {"concept_name": "Embalaje", "unit_cost": "320.10", "quantity": "3"}
+            {"concept_name": "Embalaje", "unit_cost": 32010, "quantity": "3"}
         ],
     }
     payload.update(overrides)
@@ -348,7 +349,7 @@ class TestCreateProduct:
             labor=[
                 {
                     "activity_name": "Amasado",
-                    "hourly_rate": "1000",
+                    "hourly_rate": 100000,
                     "minutes_required": "60",
                 }
             ],
@@ -452,7 +453,7 @@ class TestCreateProduct:
         token = await _admin(client)
         response = await client.post(
             "/api/v1/calc/products",
-            json={"name": "X", "costs": {"final_sale_price": "1"}},
+            json={"name": "X", "costs": {"final_sale_price": 100}},
             headers=_auth(token),
         )
         assert response.status_code == 422
@@ -469,7 +470,7 @@ class TestCreateProduct:
                     {
                         "material_id": material["id"],
                         "quantity_used": "1",
-                        "unit_cost_snapshot": "999",
+                        "unit_cost_snapshot": 99900,
                     }
                 ],
             },
@@ -486,9 +487,9 @@ class TestCreateProduct:
                 "labor": [
                     {
                         "activity_name": "X",
-                        "hourly_rate": "10",
+                        "hourly_rate": 1000,
                         "minutes_required": "5",
-                        "line_total_cost": "1",
+                        "line_total_cost": 100,
                     }
                 ],
             },
@@ -520,7 +521,7 @@ class TestCreateProduct:
                 "labor": [
                     {
                         "activity_name": "X",
-                        "hourly_rate": "-10",
+                        "hourly_rate": -1000,
                         "minutes_required": "5",
                     }
                 ],
@@ -724,6 +725,20 @@ class TestPatchProduct:
         assert response.status_code == 422
         assert "al menos un campo" in response.json()["detail"]
 
+    @pytest.mark.parametrize("field", ["name", "margin_percent"])
+    async def test_patch_explicit_null_on_non_nullable_returns_422(
+        self, client, field
+    ):
+        token = await _admin(client)
+        created = await _create_product(client, token)
+        response = await client.patch(
+            f"/api/v1/calc/products/{created['product']['id']}",
+            json={field: None},
+            headers=_auth(token),
+        )
+        assert response.status_code == 422
+        assert field in response.json()["detail"]
+
     async def test_patch_unknown_returns_404(self, client):
         token = await _admin(client)
         response = await client.patch(
@@ -780,7 +795,7 @@ class TestPatchProduct:
         # El material sube de precio: 10000 / 10 = 1000.00.
         await client.patch(
             f"/api/v1/calc/materials/{material['id']}",
-            json={"purchase_total_price": "10000", "package_quantity": "10"},
+            json={"purchase_total_price": 1000000, "package_quantity": "10"},
             headers=_auth(token),
         )
         response = await client.patch(
@@ -929,7 +944,7 @@ class TestRecalculate:
         # El material sube a 10000 / 10 = 1000.00.
         await client.patch(
             f"/api/v1/calc/materials/{material['id']}",
-            json={"purchase_total_price": "10000", "package_quantity": "10"},
+            json={"purchase_total_price": 1000000, "package_quantity": "10"},
             headers=_auth(token),
         )
         response = await client.post(
@@ -970,7 +985,7 @@ class TestRecalculate:
         product_id = created["product"]["id"]
         await client.patch(
             f"/api/v1/calc/materials/{material['id']}",
-            json={"purchase_total_price": "10000", "package_quantity": "10"},
+            json={"purchase_total_price": 1000000, "package_quantity": "10"},
             headers=_auth(token),
         )
         await client.post(
@@ -1040,7 +1055,7 @@ class TestProductVersions:
         )
         product_id = created["product"]["id"]
 
-        async def bump_and_recalculate(price: str):
+        async def bump_and_recalculate(price: int):
             await client.patch(
                 f"/api/v1/calc/materials/{material['id']}",
                 json={"purchase_total_price": price, "package_quantity": "10"},
@@ -1052,8 +1067,8 @@ class TestProductVersions:
             )
             assert response.status_code == 200
 
-        await bump_and_recalculate("10000")  # version 1: final 7015.51
-        await bump_and_recalculate("20000")  # version 2: final 10840.51
+        await bump_and_recalculate(1000000)  # version 1: final 7015.51
+        await bump_and_recalculate(2000000)  # version 2: final 10840.51
         body = (
             await client.get(
                 f"/api/v1/calc/products/{product_id}/versions",
@@ -1072,7 +1087,7 @@ class TestProductVersions:
             client, token, **_parity_payload(material["id"])
         )
         product_id = created["product"]["id"]
-        for price in ("10000", "20000"):
+        for price in (1000000, 2000000):
             await client.patch(
                 f"/api/v1/calc/materials/{material['id']}",
                 json={"purchase_total_price": price, "package_quantity": "10"},
@@ -1198,3 +1213,104 @@ class TestCountInUse:
             f"/api/v1/calc/product-categories/{cat['id']}", headers=_auth(token)
         )
         assert response.status_code == 204
+
+
+# ─── Unique (product_id, version_number) + 409 version_conflict ────────
+
+
+class TestVersionUniqueness:
+    async def test_duplicate_version_number_raises_integrity_error(
+        self, db_session
+    ):
+        import datetime
+
+        from sqlalchemy.exc import IntegrityError
+
+        from data.models import CalcProductORM, CalcProductVersionORM
+
+        # Postgres enforces the FK: the product must exist first.
+        db_session.add(
+            CalcProductORM(
+                id="p1",
+                name="P1",
+                margin_percent="30",
+                discount_percent="0",
+                tax_percent="0",
+                status="active",
+            )
+        )
+        await db_session.flush()
+
+        def _version(row_id: str) -> CalcProductVersionORM:
+            return CalcProductVersionORM(
+                id=row_id,
+                product_id="p1",
+                version_number=1,
+                product_total_cost="1",
+                profit_amount="1",
+                discount_amount="0",
+                adjusted_profit_amount="1",
+                tax_amount="0",
+                final_sale_price="2",
+                changed_at=datetime.datetime.now(datetime.UTC),
+            )
+
+        db_session.add(_version("v1"))
+        await db_session.flush()
+        db_session.add(_version("v2"))
+        with pytest.raises(IntegrityError):
+            await db_session.flush()
+        await db_session.rollback()
+
+    async def test_recalculate_returns_409_on_version_conflict(
+        self, client, monkeypatch
+    ):
+        token = await _admin(client)
+        material = await _parity_material(client, token)
+        created = await _create_product(
+            client, token, **_parity_payload(material["id"])
+        )
+        product_id = created["product"]["id"]
+
+        async def _bump_price():
+            await client.patch(
+                f"/api/v1/calc/materials/{material['id']}",
+                json={"purchase_total_price": 1000000, "package_quantity": "10"},
+                headers=_auth(token),
+            )
+
+        await _bump_price()
+        first = await client.post(
+            f"/api/v1/calc/products/{product_id}/recalculate",
+            headers=_auth(token),
+        )
+        assert first.status_code == 200
+
+        # Segundo cambio de precio -> nueva version; forzamos que el
+        # siguiente numero choque con la version 1 ya existente.
+        await client.patch(
+            f"/api/v1/calc/materials/{material['id']}",
+            json={"purchase_total_price": 2000000, "package_quantity": "10"},
+            headers=_auth(token),
+        )
+
+        async def _existing_number(self, product_id):
+            return 1
+
+        monkeypatch.setattr(
+            SQLCalcProductRepository, "_next_version_number", _existing_number
+        )
+        response = await client.post(
+            f"/api/v1/calc/products/{product_id}/recalculate",
+            headers=_auth(token),
+        )
+        assert response.status_code == 409
+        assert response.json()["detail"] == "version_conflict"
+        monkeypatch.undo()
+        versions = (
+            await client.get(
+                f"/api/v1/calc/products/{product_id}/versions",
+                headers=_auth(token),
+            )
+        ).json()
+        assert versions["total"] == 1

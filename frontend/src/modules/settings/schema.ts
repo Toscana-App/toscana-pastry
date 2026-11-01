@@ -37,6 +37,10 @@ export const settingsSchema = z
       .number({ message: "Ingresá un porcentaje" })
       .min(0, "Mínimo 0")
       .max(100, "Máximo 100"),
+    consumer_markup_pct: z
+      .number({ message: "Ingresá un markup" })
+      .min(0, "Mínimo 0")
+      .max(100, "Máximo 100"),
     default_prep_minutes: z
       .number({ message: "Ingresá los minutos" })
       .int("Tiene que ser un número entero")

@@ -122,9 +122,9 @@ async def _token_for(client: AsyncClient, email: str) -> str:
 # ─── Settings payload ───────────────────────────────────────────────────────
 
 _SETTINGS_PAYLOAD = {
-    "hourly_rate": "150",
+    "hourly_rate": 15000,
     "margin_pct": "100",
-    "round_step": "5",
+    "round_step": 500,
     "include_labor": True,
     "include_gas": False,
     "gas_pct": "0",
@@ -149,6 +149,28 @@ def _expected_price(base_price: Decimal, audience: str) -> Decimal:
 _BASE_PRICES = {
     p["name"]: Decimal(p["price_per_unit"])
     for p in _TEST_PRODUCTS
+}
+
+
+def _parse_pricelist(csv_text: str) -> dict[str, Decimal]:
+    """Parse a pricelist CSV by header name; assert shape and product coverage."""
+    reader = csv.DictReader(StringIO(csv_text))
+    assert reader.fieldnames == ["name", "unit", "price"]
+    rows = list(reader)
+    assert len(rows) == len(_TEST_PRODUCTS)
+    prices: dict[str, Decimal] = {}
+    for row in rows:
+        assert row["name"] in _BASE_PRICES, f"Unknown product in CSV: {row['name']}"
+        prices[row["name"]] = Decimal(row["price"].replace("$", "").strip())
+    assert set(prices) == set(_BASE_PRICES)
+    return prices
+
+
+_PREVIEW_BODY = {
+    "line_items": [
+        {"qty": "250", "unit": "g", "price_per_purchase_unit": 280000, "purchase_unit": "kg"}
+    ],
+    "prep_minutes": 30,
 }
 
 
@@ -184,11 +206,12 @@ async def test_case2_negocio_revendedores_products_200_no_leak(client):
     assert data["audience"] == "revendedores"
 
     # NO-FUGA: cada precio debe coincidir con derive_audience_price(base, markup, "revendedores")
+    assert len(data["products"]) == len(_TEST_PRODUCTS)
     for product in data["products"]:
-        base = Decimal(product["price_per_unit"])
-        expected = _expected_price(Decimal(product["price_per_unit"]), "revendedores")
-        assert base == expected, (
-            f"Producto {product['name']}: precio {base} != esperado {expected} (no-fuga fallida)"
+        expected = _expected_price(_BASE_PRICES[product["name"]], "revendedores")
+        actual = Decimal(product["price_per_unit"])
+        assert actual == expected, (
+            f"Producto {product['name']}: precio {actual} != esperado {expected} (no-fuga fallida)"
         )
 
 
@@ -222,19 +245,11 @@ async def test_case4_negocio_revendedores_pricelist_csv_200_no_leak(client):
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/csv")
 
-    # Parse CSV and verify prices match base (no markup for revendedores)
-    csv_text = r.content.decode("utf-8")
-    reader = csv.reader(StringIO(csv_text))
-    rows = list(reader)
-    # Skip header
-    for row in rows[1:]:
-        if len(row) >= 3:
-            price_str = row[2].replace("$", "").strip()
-            price = Decimal(price_str)
-            # For revendedores, price should equal base (no markup)
-            assert price in _BASE_PRICES.values(), (
-                f"CSV price {price} should match a base price for revendedores"
-            )
+    # Parse CSV by header; revendedores price must equal the known base price
+    prices = _parse_pricelist(r.content.decode("utf-8"))
+    for name, price in prices.items():
+        expected = _expected_price(_BASE_PRICES[name], "revendedores")
+        assert price == expected, f"CSV price {price} != base {expected} for {name}"
 
 
 # ─── Case 5: cliente → revendedores → 403 ─────────────────────────────────
@@ -269,6 +284,7 @@ async def test_case6_cliente_consumidor_final_products_200_no_leak(client):
     assert data["audience"] == "consumidor_final"
 
     # NO-FUGA: cada precio debe coincidir con derive_audience_price(base, markup, "consumidor_final")
+    assert len(data["products"]) == len(_TEST_PRODUCTS)
     for product in data["products"]:
         base_price = _BASE_PRICES[product["name"]]
         expected = _expected_price(base_price, "consumidor_final")
@@ -308,22 +324,11 @@ async def test_case8_cliente_consumidor_final_pricelist_csv_200_no_leak(client):
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/csv")
 
-    # Parse CSV and verify prices match markup (base × 1.40 for consumidor_final)
-    csv_text = r.content.decode("utf-8")
-    reader = csv.reader(StringIO(csv_text))
-    rows = list(reader)
-    for row in rows[1:]:
-        if len(row) >= 3:
-            price_str = row[2].replace("$", "").strip()
-            price = Decimal(price_str)
-            # For consumidor_final, price should be base × 1.40
-            # Look up base price from known products
-            base_price = _BASE_PRICES.get(row[0].strip())
-            if base_price is not None:
-                expected = _expected_price(base_price, "consumidor_final")
-                assert price == expected, (
-                    f"CSV price {price} != expected {expected} for {row[0].strip()}"
-                )
+    # Parse CSV by header; consumidor_final price must equal base x 1.40
+    prices = _parse_pricelist(r.content.decode("utf-8"))
+    for name, price in prices.items():
+        expected = _expected_price(_BASE_PRICES[name], "consumidor_final")
+        assert price == expected, f"CSV price {price} != expected {expected} for {name}"
 
 
 # ─── Case 9: negocio → POST /pricing/preview/dual (consumidor_final) → 403 ─
@@ -337,7 +342,7 @@ async def test_case9_negocio_pricing_preview_dual_403(client):
         "/api/v1/pricing/preview/dual",
         json={
             "line_items": [
-                {"qty": "250", "unit": "g", "price_per_purchase_unit": "2800", "purchase_unit": "kg"}
+                {"qty": "250", "unit": "g", "price_per_purchase_unit": 280000, "purchase_unit": "kg"}
             ],
             "prep_minutes": 30,
             "audience": "consumidor_final",
@@ -412,6 +417,7 @@ async def test_case13_admin_products_consumidor_final_200_no_leak(client):
     assert data["audience"] == "consumidor_final"
 
     # NO-FUGA: verificar precios con derive_audience_price
+    assert len(data["products"]) == len(_TEST_PRODUCTS)
     for product in data["products"]:
         base_price = _BASE_PRICES[product["name"]]
         expected = _expected_price(base_price, "consumidor_final")
@@ -462,10 +468,12 @@ async def test_case15_admin_pricelist_csv_both_audiences_200(client):
     assert r_cons.status_code == 200
     assert r_cons.headers["content-type"].startswith("text/csv")
 
-    # Verify prices differ between audiences (no-fuga cross-check)
-    csv_rev = r_rev.content.decode("utf-8")
-    csv_cons = r_cons.content.decode("utf-8")
-    assert csv_rev != csv_cons, "CSV para revendedores y consumidor_final deberían tener precios distintos"
+    # Per-product prices must match each audience's expected price
+    rev = _parse_pricelist(r_rev.content.decode("utf-8"))
+    cons = _parse_pricelist(r_cons.content.decode("utf-8"))
+    for name, base in _BASE_PRICES.items():
+        assert rev[name] == _expected_price(base, "revendedores")
+        assert cons[name] == _expected_price(base, "consumidor_final")
 
 
 # ─── Case 16: anónimo → GET /products → 401 ──────────────────────────────
@@ -475,4 +483,90 @@ async def test_case15_admin_pricelist_csv_both_audiences_200(client):
 async def test_case16_anonimo_products_401(client):
     """T6-16: sin token → 401."""
     r = await client.get("/api/v1/products", params={"audience": "revendedores"})
+    assert r.status_code == 401
+
+
+# ─── Extra cases: preview/dual for all roles + anonymous 401 ─────────────
+
+
+@pytest.mark.asyncio
+async def test_case17_cliente_preview_dual_revendedores_403(client):
+    """cliente + audience=revendedores en preview/dual → 403."""
+    token = await _token_for(client, "cliente@example.com")
+    r = await client.post(
+        "/api/v1/pricing/preview/dual",
+        json={**_PREVIEW_BODY, "audience": "revendedores"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_case18_admin_preview_dual_200_both_audiences(client):
+    """admin → preview/dual 200 para ambas audiencias; consumidor = derive(revendedores)."""
+    token = await _token_for(client, "admin@example.com")
+    headers = {"Authorization": f"Bearer {token}"}
+    r_rev = await client.post(
+        "/api/v1/pricing/preview/dual",
+        json={**_PREVIEW_BODY, "audience": "revendedores"},
+        headers=headers,
+    )
+    r_cons = await client.post(
+        "/api/v1/pricing/preview/dual",
+        json={**_PREVIEW_BODY, "audience": "consumidor_final"},
+        headers=headers,
+    )
+    assert r_rev.status_code == 200
+    assert r_cons.status_code == 200
+    assert r_rev.json()["audience"] == "revendedores"
+    assert r_cons.json()["audience"] == "consumidor_final"
+    rev_price = Decimal(r_rev.json()["rounded"])
+    assert Decimal(r_cons.json()["rounded"]) == _expected_price(rev_price, "consumidor_final")
+
+
+@pytest.mark.asyncio
+async def test_case19_negocio_preview_dual_amounts_no_leak(client):
+    """negocio → preview/dual 200 con importes de revendedores (iguales a los del admin)."""
+    admin_token = await _token_for(client, "admin@example.com")
+    admin_r = await client.post(
+        "/api/v1/pricing/preview/dual",
+        json={**_PREVIEW_BODY, "audience": "revendedores"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    admin_cons = await client.post(
+        "/api/v1/pricing/preview/dual",
+        json={**_PREVIEW_BODY, "audience": "consumidor_final"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert admin_r.status_code == 200
+    assert admin_cons.status_code == 200
+
+    token = await _token_for(client, "negocio@example.com")
+    r = await client.post(
+        "/api/v1/pricing/preview/dual",
+        json=_PREVIEW_BODY,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["audience"] == "revendedores"
+    # PR #23 review fix: non-admin roles only get {audience, price} (no cost
+    # breakdown, no base price).
+    assert set(body) == {"audience", "price"}
+    assert Decimal(body["price"]) == Decimal(admin_r.json()["rounded"])
+    assert Decimal(body["price"]) != Decimal(admin_cons.json()["rounded"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method", "path", "payload"),
+    [
+        ("GET", "/api/v1/products/pricelist/csv?audience=revendedores", None),
+        ("POST", "/api/v1/pricing/preview/dual", _PREVIEW_BODY),
+        ("PUT", "/api/v1/tenant/settings", _SETTINGS_PAYLOAD),
+    ],
+)
+async def test_case20_anonimo_protected_endpoints_401(client, method, path, payload):
+    """Sin token → 401 en pricelist/csv, pricing/preview/dual y PUT /tenant/settings."""
+    r = await client.request(method, path, json=payload)
     assert r.status_code == 401

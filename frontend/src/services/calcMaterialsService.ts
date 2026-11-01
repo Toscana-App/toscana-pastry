@@ -1,4 +1,5 @@
 import { apiFetch } from "@/lib/api";
+import { pesosToCents } from "@/lib/format";
 import type {
   CostHistoryListResponse,
   Material,
@@ -40,34 +41,69 @@ async function deleteViaApiFetch(endpoint: string): Promise<void> {
   }
 }
 
+// La API habla centavos enteros (Money, ver api/v1/money.py); la UI trabaja
+// en pesos. La conversión ocurre solo en el borde, acá: pesos → centavos al
+// enviar, centavos → string de pesos ("50.00") al recibir.
+type Cents = number | string | null;
+
+function fromCents(value: Cents): string | null {
+  if (value === null || value === undefined) return null;
+  return (Number(value) / 100).toFixed(2);
+}
+
+function toCentsPayload<T extends { purchase_total_price?: number | null }>(
+  payload: T
+): T {
+  if (payload.purchase_total_price === undefined || payload.purchase_total_price === null) {
+    return payload;
+  }
+  return { ...payload, purchase_total_price: pesosToCents(payload.purchase_total_price) };
+}
+
+function materialFromApi(material: Material): Material {
+  return {
+    ...material,
+    purchase_total_price: fromCents(material.purchase_total_price),
+    unit_cost: fromCents(material.unit_cost),
+  };
+}
+
 export const calcMaterialsService = {
   // GET /calc/materials?q?,category_id?,supplier_id?,status?,page,page_size.
-  listMaterials(query: MaterialListQuery = {}): Promise<MaterialListResponse> {
-    return apiFetch<MaterialListResponse>(
+  async listMaterials(query: MaterialListQuery = {}): Promise<MaterialListResponse> {
+    const res = await apiFetch<MaterialListResponse>(
       `/calc/materials${buildQuery({ ...query })}`
     );
+    return { ...res, items: res.items.map(materialFromApi) };
   },
 
   // GET /calc/materials/{id}
-  getMaterial(id: string): Promise<Material> {
-    return apiFetch<Material>(`/calc/materials/${id}`);
+  async getMaterial(id: string): Promise<Material> {
+    return materialFromApi(await apiFetch<Material>(`/calc/materials/${id}`));
   },
 
   // POST /calc/materials → 201. extra="forbid": el payload nunca lleva
   // unit_cost ni status (RF-P2CC-02/03).
-  createMaterial(payload: MaterialCreatePayload): Promise<Material> {
-    return apiFetch<Material>("/calc/materials", jsonOptions("POST", payload));
+  async createMaterial(payload: MaterialCreatePayload): Promise<Material> {
+    return materialFromApi(
+      await apiFetch<Material>(
+        "/calc/materials",
+        jsonOptions("POST", toCentsPayload(payload))
+      )
+    );
   },
 
   // PATCH /calc/materials/{id} (exclude_unset): solo campos tocados;
   // null en purchase_total_price/package_quantity elimina el dato.
-  updateMaterial(
+  async updateMaterial(
     id: string,
     payload: MaterialUpdatePayload
   ): Promise<Material> {
-    return apiFetch<Material>(
-      `/calc/materials/${id}`,
-      jsonOptions("PATCH", payload)
+    return materialFromApi(
+      await apiFetch<Material>(
+        `/calc/materials/${id}`,
+        jsonOptions("PATCH", toCentsPayload(payload))
+      )
     );
   },
 
@@ -79,12 +115,20 @@ export const calcMaterialsService = {
 
   // GET /calc/materials/{id}/cost-history?page,page_size (RF-P2CC-04):
   // más recientes primero (desc).
-  listCostHistory(
+  async listCostHistory(
     id: string,
     query: { page?: number; page_size?: number } = {}
   ): Promise<CostHistoryListResponse> {
-    return apiFetch<CostHistoryListResponse>(
+    const res = await apiFetch<CostHistoryListResponse>(
       `/calc/materials/${id}/cost-history${buildQuery({ ...query })}`
     );
+    return {
+      ...res,
+      items: res.items.map((entry) => ({
+        ...entry,
+        previous_unit_cost: fromCents(entry.previous_unit_cost),
+        new_unit_cost: fromCents(entry.new_unit_cost),
+      })),
+    };
   },
 };

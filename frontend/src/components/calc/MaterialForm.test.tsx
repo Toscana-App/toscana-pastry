@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders as render } from "../../test-utils";
 import MaterialForm from "./MaterialForm";
@@ -185,5 +185,90 @@ describe("MaterialForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
 
     expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "El precio del paquete no puede ser negativo."
+    );
+  });
+
+  it("shows an error when the package quantity is 0 or less", () => {
+    const onSubmit = vi.fn();
+    render(
+      <MaterialForm
+        categories={categories}
+        suppliers={suppliers}
+        onSubmit={onSubmit}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("Nombre"), {
+      target: { value: "Harina" },
+    });
+    fireEvent.change(screen.getByLabelText("Cantidad por paquete"), {
+      target: { value: "0" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "La cantidad por paquete debe ser mayor a 0."
+    );
+  });
+
+  it("shows an error instead of submitting an edit with no changes", () => {
+    const onSubmit = vi.fn();
+    render(
+      <MaterialForm
+        initial={manteca}
+        categories={categories}
+        suppliers={suppliers}
+        onSubmit={onSubmit}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "No hay cambios para guardar."
+    );
+  });
+
+  it("sends null for category_id and supplier_id when cleared while editing", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <MaterialForm
+        initial={manteca}
+        categories={categories}
+        suppliers={suppliers}
+        onSubmit={onSubmit}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Categoría" }));
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Sin categoría" })
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "Categoría" })
+      ).toHaveTextContent("Sin categoría")
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    expect(onSubmit).toHaveBeenLastCalledWith({ category_id: null });
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Proveedor" }));
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Sin proveedor" })
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "Proveedor" })
+      ).toHaveTextContent("Sin proveedor")
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    expect(onSubmit).toHaveBeenLastCalledWith({
+      category_id: null,
+      supplier_id: null,
+    });
   });
 });

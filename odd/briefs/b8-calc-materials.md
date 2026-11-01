@@ -59,6 +59,7 @@ Escribí los tests de unit+integración en rojo antes del código. Cobertura dom
    - La comparación es sobre el valor **computado** (re-roundeado), no sobre los strings crudos.
 4. **FK**: `category_id`/`supplier_id` deben existir en sus tablas → si no, 404 (POST y PATCH; validar contra el repo correspondiente ya existente).
 5. **Delete en uso** (S4): si el material está referenciado por líneas de productos → 409 + body `{"impacted_products": N}`. La tabla de líneas es de B9 (no existe aún): implementá el chequeo llamando a `repo.count_in_use(material_id)` y dejá ese método como **stub `return 0` con docstring `TODO(B9)`** — MISMO patrón que B4/B6 dejaron. El camino 409 se testa con monkeypatch del `count_in_use` devolviendo N.
+   - **Delete con historial de costos**: el historial es append-only, así que un material con filas en `calc_material_cost_history` NO se puede borrar → 409 + body `{"detail": "has_cost_history"}` (se evalúa después del chequeo de uso en productos). Material sin historial → 204.
 
 ## Endpoints (según `api_endpoints.md` §FASE CC "CC Materiales")
 Todos bajo el `router` existente (`prefix="/calc"`), con `get_current_user` en GET y `require_admin` en writes (patrón B3-B7 exacto — ver `router.py`).
@@ -67,7 +68,7 @@ Todos bajo el `router` existente (`prefix="/calc"`), con `get_current_user` en G
 - `POST /calc/materials` — `{name*,internal_code?,category_id?,supplier_id?,unit_of_measure?,purchase_total_price?,package_quantity?,notes?}` → 201 `{material}` / 422 (rangos, `package_quantity` 0, campos extra o prohibidos) / 404 (FK inválida). Body **`extra="forbid"`**; `unit_cost` y `status` en el payload → 422.
 - `GET /calc/materials/{id}` → 200 `{material}` / 404.
 - `PATCH /calc/materials/{id}` — campos opcionales (mismos que POST) → 200 / 404 / 422 (sin campos → 422 "al menos un campo para actualizar", idéntico a B4-B7) / 404 FK inválida. Recalcula `unit_cost`/`status` sobre el resultado post-merge y aplica regla 3 de historial.
-- `DELETE /calc/materials/{id}` → 204 / 404 / 409 `{"impacted_products":N}` (regla 5).
+- `DELETE /calc/materials/{id}` → 204 / 404 / 409 `{"impacted_products":N}` (regla 5) / 409 `{"detail":"has_cost_history"}` (material con historial de costos).
 - `GET /calc/materials/{id}/cost-history` — `?page,page_size` → 200 `{items,total,page,page_size}`, items `{previous_unit_cost, new_unit_cost, changed_at}` (montos como **string** vía Money), **más recientes primero** (desc por `changed_at`), 404 si el material no existe.
 
 Responses: `unit_cost`/`purchase_total_price`/`package_quantity` salen como **str** en JSON (usar `Money`/`Qty` de `api/v1/money.py` — `PlainSerializer(when_used="json")`, igual que `DefaultCostResponse`). `MaterialResponse`: `id, name, internal_code, category_id, supplier_id, unit_of_measure, purchase_total_price, package_quantity, unit_cost, notes, status, created_at, updated_at`.

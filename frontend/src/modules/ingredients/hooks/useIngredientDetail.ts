@@ -75,9 +75,7 @@ export function useIngredientDetail(id: string): UseIngredientDetailResult {
 
   const adjustStock = useCallback(
     async (delta: number, reason: StockReason, ref?: string): Promise<AdjustStockResult> => {
-      let previous: Ingredient | null = null;
       setIngredient((current) => {
-        previous = current;
         if (!current) return current;
         return {
           ...current,
@@ -104,8 +102,17 @@ export function useIngredientDetail(id: string): UseIngredientDetailResult {
         setMovements((current) => [result.movement, ...current]);
         return { ok: true };
       } catch (e) {
-        // Rollback: el estado autoritativo es el del servidor.
-        if (previous) setIngredient(previous);
+        // Rollback por delta: revierte solo este ajuste, sin pisar otros
+        // ajustes optimistas en vuelo con un snapshot viejo.
+        setIngredient((current) => {
+          if (!current) return current;
+          const reverted = Number(current.stock_qty) - delta;
+          return {
+            ...current,
+            stock_qty: String(reverted),
+            status: statusOf(reverted, current.low_stock_threshold),
+          };
+        });
         return {
           ok: false,
           message: e instanceof Error ? e.message : "No se pudo ajustar el stock",

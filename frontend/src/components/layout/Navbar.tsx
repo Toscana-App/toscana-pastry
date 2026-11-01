@@ -14,7 +14,7 @@ const ROLE_LABELS: Record<string, string> = {
 /**
  * Global navbar with the visible role (p11 "UI — portal shell").
  *
- * - admin: Products / Admin / Settings / Profile
+ * - admin: Productos / Pedidos / Presupuestos / Catálogo / Admin / Settings / Profile
  * - portal (business/customer): Profile + Logout — portal navigation
  *   lives in the tab bar of the `(portal)` route group; no access to /admin.
  * - no session: Login.
@@ -59,27 +59,36 @@ export function Navbar() {
                 {isAdmin && (
                   <>
                     <Button variant="ghost" asChild>
-                      <NextLink href="/products">Productos</NextLink>
+                      <NextLink href="/productos">Productos</NextLink>
                     </Button>
                     <Button variant="ghost" asChild>
-                      <NextLink href="/admin">Administración</NextLink>
+                      <NextLink href="/pedidos">Pedidos</NextLink>
                     </Button>
                     <Button variant="ghost" asChild>
-                      <NextLink href="/admin/settings">Ajustes</NextLink>
+                      <NextLink href="/presupuestos">Presupuestos</NextLink>
+                    </Button>
+                    <Button variant="ghost" asChild>
+                      <NextLink href="/products">Catálogo</NextLink>
+                    </Button>
+                    <Button variant="ghost" asChild>
+                      <NextLink href="/admin">Admin</NextLink>
+                    </Button>
+                    <Button variant="ghost" asChild>
+                      <NextLink href="/admin/settings">Settings</NextLink>
                     </Button>
                   </>
                 )}
                 {!isPortalRole(role) && !isAdmin && null}
                 <Button variant="ghost" asChild>
-                  <NextLink href="/profile">Cuenta</NextLink>
+                  <NextLink href="/profile">Profile</NextLink>
                 </Button>
                 <Button onClick={logout} colorPalette="red" size="sm" variant="outline">
-                  Cerrar sesión
+                  Logout
                 </Button>
               </>
             ) : (
               <Button colorPalette="brand" asChild>
-                <NextLink href="/login">Iniciar sesión</NextLink>
+                <NextLink href="/login">Login</NextLink>
               </Button>
             )}
           </Flex>

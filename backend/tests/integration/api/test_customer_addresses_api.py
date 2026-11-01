@@ -285,6 +285,31 @@ async def test_patch_updates_fields(client):
 
 
 @pytest.mark.asyncio
+async def test_patch_null_and_empty_string_clear_optional_fields(client):
+    """PATCH con null o "" limpia campos opcionales (ausente != null)."""
+    token = await _customer_token(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    address = await _create(client, token)
+    await client.patch(
+        f"{PATH}/{address['id']}",
+        json={"city": "Toscana", "phone": "+54911999999999"},
+        headers=headers,
+    )
+
+    cleared = await client.patch(
+        f"{PATH}/{address['id']}",
+        json={"phone": "", "city": None},
+        headers=headers,
+    )
+    assert cleared.status_code == 200
+    body = cleared.json()["address"]
+    assert body["phone"] is None
+    assert body["city"] is None
+    assert body["street_line_1"] == address["street_line_1"]
+
+
+@pytest.mark.asyncio
 async def test_patch_is_default_true_demotes_previous(client):
     """PATCH is_default=true: la nueva pasa a default y la anterior no."""
     token = await _customer_token(client)
@@ -532,3 +557,67 @@ async def test_business_role_can_use_address_book(client):
 
     listed = await client.get(PATH, headers=headers)
     assert len(listed.json()["items"]) == 1
+
+
+# ─── DB-level one-default-per-user index ────────────────────────────────
+
+async def test_db_rejects_second_default_for_same_user(client, db_session):
+    from sqlalchemy import select
+    from sqlalchemy.exc import IntegrityError
+
+    from data.models import CustomerAddressORM, UserORM
+
+    user_id = (
+        await db_session.execute(
+            select(UserORM.id).where(UserORM.email == "customer@example.com")
+        )
+    ).scalar_one()
+    other_id = (
+        await db_session.execute(
+            select(UserORM.id).where(UserORM.email == "other@example.com")
+        )
+    ).scalar_one()
+
+    def _row(address_id: str, owner: str, is_default: bool):
+        return CustomerAddressORM(
+            id=address_id,
+            user_id=owner,
+            street_line_1="Calle 1",
+            is_default=is_default,
+        )
+
+    # Another user's default and non-default rows never collide.
+    db_session.add_all(
+        [
+            _row("a1", user_id, True),
+            _row("a2", user_id, False),
+            _row("a3", user_id, False),
+            _row("b1", other_id, True),
+        ]
+    )
+    await db_session.commit()
+
+    db_session.add(_row("a4", user_id, True))
+    with pytest.raises(IntegrityError):
+        await db_session.flush()
+    await db_session.rollback()
+
+
+async def test_integrity_error_on_default_index_maps_to_409(client, db_session):
+    from sqlalchemy.exc import IntegrityError
+
+    class _ConflictingRepo(SQLCustomerAddressRepository):
+        async def insert(self, address, user_id):
+            raise IntegrityError("INSERT", {}, Exception("unique violation"))
+
+    async def override_repo():
+        yield _ConflictingRepo(db_session)
+
+    app.dependency_overrides[get_customer_address_repository] = override_repo
+    token = await _customer_token(client)
+    response = await client.post(
+        PATH,
+        json={"street_line_1": "Calle Falsa 123"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 409

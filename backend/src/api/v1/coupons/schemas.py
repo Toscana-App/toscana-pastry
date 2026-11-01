@@ -2,7 +2,7 @@
 
 Pydantic v2 con extra="forbid" en todos los esquemas de escritura.
 `value` viaja como decimal crudo (serializado a str, NUNCA float):
-`percent` → 0-100; `fixed` → dinero en unidades. No aplica el
+`percent` -> 0-100; `fixed` -> dinero en unidades. No aplica el
 validador de centavos de Money (x100): el contrato C3 round-trips
 el decimal tal cual (api.v1.money.Qty).
 """

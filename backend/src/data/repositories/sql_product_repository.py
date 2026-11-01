@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from data.accent import accent_fold
 from data.models import ProductORM, RecipeItemORM
 from domain.models import Product, RecipeItem
+from domain.repositories import ProductRepository
 
 
 def _item_to_domain(orm: RecipeItemORM) -> RecipeItem:
@@ -40,7 +41,7 @@ def _not_deleted():
     return [ProductORM.deleted_at.is_(None)]  # type: ignore[misc]
 
 
-class SQLProductRepository:
+class SQLProductRepository(ProductRepository):
     """P3/P4. Montos/cantidades como TEXT (RNF-P4-02). La receta viaja
     junto al producto (lazy="selectin" en el ORM, seguro para async)."""
 

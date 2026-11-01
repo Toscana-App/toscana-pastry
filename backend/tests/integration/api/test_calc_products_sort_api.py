@@ -167,7 +167,7 @@ async def _seed_sort_products(client: AsyncClient, token: str) -> dict:
     material = await _create_material(
         client, token,
         unit_of_measure="kg",
-        purchase_total_price="100", package_quantity="1",
+        purchase_total_price=10000, package_quantity="1",
     )
     lines = [{"material_id": material["id"], "quantity_used": "1"}]
     alpha = await _create_product(
@@ -336,6 +336,32 @@ class TestSortParam:
         body2 = page2.json()
         assert [item["name"] for item in body2["items"]] == ["Gamma"]
 
+    async def test_sort_name_paginates_with_costs_for_page(self, client):
+        """sort=name pagina en SQL; asc/desc, total y costs por item."""
+        token = await _admin(client)
+        await _seed_sort_products(client, token)
+        for direction, p1, p2 in (
+            ("asc", ["Alpha", "Beta"], ["Gamma"]),
+            ("desc", ["Gamma", "Beta"], ["Alpha"]),
+        ):
+            bodies = []
+            for page in (1, 2):
+                response = await client.get(
+                    "/api/v1/calc/products",
+                    params={
+                        "sort": "name",
+                        "dir": direction,
+                        "page": page,
+                        "page_size": 2,
+                    },
+                    headers=_auth(token),
+                )
+                assert response.status_code == 200, response.text
+                bodies.append(response.json())
+            assert [i["name"] for i in bodies[0]["items"]] == p1
+            assert [i["name"] for i in bodies[1]["items"]] == p2
+            assert bodies[0]["total"] == bodies[1]["total"] == 3
+
 
 # ─── Item enriquecido (RF-P3CC-01) ─────────────────────────────────────
 
@@ -349,7 +375,7 @@ class TestEnrichedItem:
         material = await _create_material(
             client, token,
             unit_of_measure="kg",
-            purchase_total_price="100", package_quantity="1",
+            purchase_total_price=10000, package_quantity="1",
         )
         await _create_product(
             client,
