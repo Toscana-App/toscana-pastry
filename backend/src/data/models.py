@@ -443,6 +443,45 @@ class CustomerAddressORM(Base):
     )
 
 
+class CouponORM(Base):
+    """Cupon de descuento (RF-P11-14, C3).
+
+    Unicidad case/accent-insensitive de `code` via `code_key`: columna
+    persistida con accent_fold(code) (la calcula el repositorio) y
+    UNIQUE a nivel DB (migracion 0002). `value` se guarda como str
+    (Money). C4 consumira `uses`/`max_uses` al confirmar pedidos.
+    """
+
+    __tablename__ = "coupons"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    code: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    code_key: Mapped[str] = mapped_column(
+        String, nullable=False, unique=True
+    )
+    type: Mapped[str] = mapped_column(String, nullable=False)
+    value: Mapped[str] = mapped_column(String, nullable=False)
+    valid_from: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    valid_until: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    max_uses: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    uses: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    status: Mapped[str] = mapped_column(String, default="active", nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        onupdate=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+
+
 class CalcDefaultCostORM(Base):
     """Costo por defecto (RF-P5CC-06)."""
 
