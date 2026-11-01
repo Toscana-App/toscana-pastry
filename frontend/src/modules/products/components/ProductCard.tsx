@@ -29,12 +29,12 @@ export function ProductCard({ product }: ProductCardProps) {
         direction="column"
         gap={1}
         borderWidth="1px"
-        borderColor="gray.200"
+        borderColor="border"
         rounded="lg"
         p={4}
         h="full"
         transition="border-color 120ms ease-out"
-        _hover={{ borderColor: "brand.600" }}
+        _hover={{ borderColor: "brand.solid" }}
         _focusWithin={{
           outline: "2px solid var(--chakra-colors-brand-600)",
           outlineOffset: "2px",

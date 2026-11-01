@@ -317,7 +317,7 @@ export function OrdersPage() {
           }
         />
       ) : (
-        <Box overflowX="auto" borderWidth="1px" borderColor="gray.200" rounded="md">
+        <Box overflowX="auto" borderWidth="1px" borderColor="border" rounded="md">
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr>
@@ -336,9 +336,9 @@ export function OrdersPage() {
                     style={{
                       textAlign: "left",
                       padding: "10px 14px",
-                      borderBottom: "1px solid #e5e5e5",
+                      borderBottom: "1px solid var(--chakra-colors-border)",
                       fontWeight: 600,
-                      color: "#525252",
+                      color: "var(--chakra-colors-fg-muted)",
                       whiteSpace: "nowrap",
                     }}
                   >
@@ -349,7 +349,7 @@ export function OrdersPage() {
             </thead>
             <tbody>
               {items.map((order) => (
-                <tr key={order.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                <tr key={order.id} style={{ borderBottom: "1px solid var(--chakra-colors-border-muted)" }}>
                   <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
                     {order.date}
                   </td>

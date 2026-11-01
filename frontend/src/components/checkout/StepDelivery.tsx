@@ -84,12 +84,12 @@ export function StepDelivery({
       {missingAddress && (
         <Box
           borderWidth="1px"
-          borderColor="orange.300"
-          bg="orange.50"
+          borderColor="border.warning"
+          bg="bg.warning"
           rounded="md"
           p={3}
         >
-          <Text fontSize="sm" color="orange.700">
+          <Text fontSize="sm" color="orange.fg">
             Para entrega a domicilio necesitás una dirección: volvé al paso 2
             para elegirla o crearla.
           </Text>

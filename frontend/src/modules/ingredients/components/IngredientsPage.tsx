@@ -134,7 +134,7 @@ export function IngredientsPage() {
                     <Table.Row key={ing.id}>
                       <Table.Cell>
                         <NextLink href={`/admin/ingredients/${ing.id}`}>
-                          <Text fontWeight="500" color="brand.600" textDecoration="none">
+                          <Text fontWeight="500" color="brand.fg" textDecoration="none">
                             {ing.name}
                           </Text>
                         </NextLink>
@@ -163,10 +163,10 @@ export function IngredientsPage() {
                   direction="column"
                   gap={2}
                   borderWidth="1px"
-                  borderColor="gray.200"
+                  borderColor="border"
                   rounded="md"
                   p={4}
-                  _hover={{ borderColor: "brand.600" }}
+                  _hover={{ borderColor: "brand.solid" }}
                 >
                   <Flex justify="space-between" align="center" gap={3}>
                     <Text fontWeight="600">{ing.name}</Text>

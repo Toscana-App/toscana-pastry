@@ -111,7 +111,7 @@ export function ImportDialog({ open, onOpenChange, onImported }: ImportDialogPro
                   {result.errors.length > 0 ? (
                     <Box>
                       {result.errors.map((err) => (
-                        <Text key={err.line} fontSize="sm" color="red.600">
+                        <Text key={err.line} fontSize="sm" color="red.fg">
                           Line {err.line}: {err.message}
                         </Text>
                       ))}

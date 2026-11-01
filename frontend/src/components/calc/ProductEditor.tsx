@@ -434,7 +434,7 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
         <Button variant="outline" onClick={() => router.back()} disabled={saving}>
           Cancelar
         </Button>
-        <Button
+        <Button colorPalette="brand"
           onClick={handleSave}
           loading={saving}
           disabled={!name.trim()}
