@@ -29,7 +29,6 @@ interface MaterialFormProps {
 // Input numérico crudo → number | null (vacío → null; inválido → null).
 // Valor centinela de la opción vacía de categoría/proveedor (→ null en PATCH).
 const NONE = "__none__";
-const ERROR_COLOR = "#e23b4a";
 
 function parseAmount(raw: string): number | null {
   const value = raw.trim();
@@ -240,12 +239,12 @@ export default function MaterialForm({
         onChange={(e) => setNotes(e.target.value)}
       />
       {error && (
-        <Text role="alert" color={ERROR_COLOR} fontSize="sm">
+        <Text role="alert" color="red.fg" fontSize="sm">
           {error}
         </Text>
       )}
       <Flex justify="flex-end">
-        <Button
+        <Button colorPalette="brand"
           type="submit"
           rounded="full"
           loading={busy}

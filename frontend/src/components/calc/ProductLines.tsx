@@ -95,7 +95,7 @@ function MaterialLineForm({
           value={quantity}
           onChange={(e) => setQuantity(e.target.value)}
         />
-        <Button onClick={handleAdd}>Agregar</Button>
+        <Button variant="outline" onClick={handleAdd}>Agregar</Button>
       </Flex>
     </Flex>
   );
@@ -158,7 +158,7 @@ function LaborLineForm({
           value={minutesRequired}
           onChange={(e) => setMinutesRequired(e.target.value)}
         />
-        <Button onClick={handleAdd}>Agregar trabajo</Button>
+        <Button variant="outline" onClick={handleAdd}>Agregar trabajo</Button>
       </Flex>
     </Flex>
   );
@@ -221,7 +221,7 @@ function ExtraCostLineForm({
           value={quantity}
           onChange={(e) => setQuantity(e.target.value)}
         />
-        <Button onClick={handleAdd}>Agregar costo</Button>
+        <Button variant="outline" onClick={handleAdd}>Agregar costo</Button>
       </Flex>
     </Flex>
   );
@@ -351,8 +351,8 @@ function LinesDisplay({
       )}
 
       {materials.length === 0 && labor.length === 0 && extraCosts.length === 0 && (
-        <Flex p={4} bg="gray.50" borderRadius="md" justify="center">
-          <Text color="gray.500">No hay líneas agregadas aún</Text>
+        <Flex p={4} bg="bg.subtle" borderRadius="md" justify="center">
+          <Text color="fg.muted">No hay líneas agregadas aún</Text>
         </Flex>
       )}
     </Flex>

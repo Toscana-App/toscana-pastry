@@ -14,7 +14,7 @@ export default function UnauthorizedPage() {
           Your account does not have permission to view this page.
         </Text>
         <Flex gap={3}>
-          <Button onClick={() => router.push("/")}>Go home</Button>
+          <Button colorPalette="brand" onClick={() => router.push("/")}>Go home</Button>
           <Button variant="outline" onClick={() => router.push("/login")}>
             Sign in with another account
           </Button>

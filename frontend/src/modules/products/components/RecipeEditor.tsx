@@ -31,12 +31,12 @@ const StyledSelect = chakra("select", {
     paddingInline: "0.75rem",
     borderRadius: "md",
     borderWidth: "1px",
-    borderColor: "gray.200",
+    borderColor: "border",
     background: "transparent",
     fontSize: "sm",
     outline: "none",
     _focusVisible: {
-      borderColor: "brand.600",
+      borderColor: "brand.solid",
       boxShadow: "0 0 0 1px var(--chakra-colors-brand-600)",
     },
   },
@@ -80,7 +80,7 @@ export function RecipeEditor({
           Cargando insumos…
         </Text>
       ) : ingredients.length === 0 ? (
-        <Text fontSize="sm" color="orange.600">
+        <Text fontSize="sm" color="orange.fg">
           No hay insumos cargados. Creá al menos uno en Ingredientes para poder
           armar la receta.
         </Text>
@@ -146,7 +146,7 @@ export function RecipeEditor({
                 </IconButton>
               </Flex>
               {rowErrors?.ingredient_id || rowErrors?.qty || rowErrors?.unit ? (
-                <Text fontSize="xs" color="red.500">
+                <Text fontSize="xs" color="red.fg">
                   {rowErrors.ingredient_id?.message ??
                     rowErrors.qty?.message ??
                     rowErrors.unit?.message}
@@ -167,7 +167,7 @@ export function RecipeEditor({
       </Button>
 
       {errors.recipe?.message ? (
-        <Text fontSize="sm" color="red.500">
+        <Text fontSize="sm" color="red.fg">
           {errors.recipe.message}
         </Text>
       ) : null}

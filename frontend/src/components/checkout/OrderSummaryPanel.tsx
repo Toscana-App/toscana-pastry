@@ -35,7 +35,7 @@ export function OrderSummaryPanel({ cart }: { cart: CartResponse }) {
                 Cupón {cart.coupon.code}
               </Badge>
             </Flex>
-            <Text fontSize="sm" color="green.600">
+            <Text fontSize="sm" color="green.fg">
               −${cart.discount_amount}
             </Text>
           </Flex>

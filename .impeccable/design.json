@@ -1,38 +1,251 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-31T00:00:00Z",
+  "generatedAt": "2026-11-01T14:48:15Z",
   "title": "Design System: Toscana Pastry",
   "extensions": {
     "colorMeta": {
-      "brand-indigo": { "role": "primary", "displayName": "Ledger Indigo", "canonical": "#4f46e5", "tonalRamp": ["#1e1b4b", "#312e81", "#3730a3", "#4338ca", "#4f46e5", "#6366f1", "#a5b4fc", "#e0e7ff"] },
-      "brand-indigo-bright": { "role": "primary", "displayName": "Bright Indigo", "canonical": "#6366f1" },
-      "brand-indigo-wash": { "role": "primary", "displayName": "Indigo Wash", "canonical": "#eef2ff" },
-      "brand-indigo-deep": { "role": "primary", "displayName": "Deep Indigo", "canonical": "#3730a3" },
-      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#000000" },
-      "ink-muted": { "role": "neutral", "displayName": "Muted Ink", "canonical": "#52525b", "tonalRamp": ["#111111", "#18181b", "#27272a", "#3f3f46", "#52525b", "#71717a", "#a1a1aa", "#e4e4e7"] },
-      "ink-subtle": { "role": "neutral", "displayName": "Subtle Ink", "canonical": "#a1a1aa" },
-      "paper": { "role": "neutral", "displayName": "Paper", "canonical": "#ffffff" },
-      "paper-subtle": { "role": "neutral", "displayName": "Paper Subtle", "canonical": "#fafafa" },
-      "paper-muted": { "role": "neutral", "displayName": "Paper Muted", "canonical": "#f4f4f5" },
-      "rule": { "role": "neutral", "displayName": "Rule", "canonical": "#e4e4e7" },
-      "rule-muted": { "role": "neutral", "displayName": "Rule Muted", "canonical": "#f4f4f5" },
-      "alert-red": { "role": "semantic", "displayName": "Alert Red", "canonical": "#dc2626", "tonalRamp": ["#1f0808", "#300c0c", "#511111", "#991919", "#dc2626", "#ef4444", "#fca5a5", "#fef2f2"] },
-      "alert-red-wash": { "role": "semantic", "displayName": "Red Wash", "canonical": "#fef2f2" }
+      "brand-indigo": {
+        "role": "primary",
+        "displayName": "Ledger Indigo",
+        "canonical": "#4f46e5",
+        "tonalRamp": [
+          "#1e1b4b",
+          "#312e81",
+          "#3730a3",
+          "#4338ca",
+          "#4f46e5",
+          "#6366f1",
+          "#a5b4fc",
+          "#e0e7ff"
+        ]
+      },
+      "brand-indigo-text": {
+        "role": "primary",
+        "displayName": "Brand Indigo Text",
+        "canonical": "#4338ca"
+      },
+      "brand-indigo-text-dark": {
+        "role": "primary",
+        "displayName": "Brand Indigo Text (dark)",
+        "canonical": "#a5b4fc"
+      },
+      "brand-indigo-wash": {
+        "role": "primary",
+        "displayName": "Brand Indigo Wash",
+        "canonical": "#eef2ff"
+      },
+      "brand-indigo-wash-dark": {
+        "role": "primary",
+        "displayName": "Brand Indigo Wash (dark)",
+        "canonical": "#1e1b4b"
+      },
+      "brand-indigo-muted": {
+        "role": "primary",
+        "displayName": "Brand Indigo Muted",
+        "canonical": "#e0e7ff"
+      },
+      "brand-indigo-muted-dark": {
+        "role": "primary",
+        "displayName": "Brand Indigo Muted (dark)",
+        "canonical": "#312e81"
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Canvas",
+        "canonical": "#fafafa"
+      },
+      "canvas-dark": {
+        "role": "neutral",
+        "displayName": "Canvas (dark)",
+        "canonical": "#0c0c12"
+      },
+      "surface-subtle": {
+        "role": "neutral",
+        "displayName": "Surface Subtle",
+        "canonical": "#f4f4f5"
+      },
+      "surface-subtle-dark": {
+        "role": "neutral",
+        "displayName": "Surface Subtle (dark)",
+        "canonical": "#111119"
+      },
+      "panel": {
+        "role": "neutral",
+        "displayName": "Panel",
+        "canonical": "#ffffff"
+      },
+      "panel-dark": {
+        "role": "neutral",
+        "displayName": "Panel (dark)",
+        "canonical": "#15151d"
+      },
+      "surface-muted": {
+        "role": "neutral",
+        "displayName": "Surface Muted",
+        "canonical": "#efeff1"
+      },
+      "surface-muted-dark": {
+        "role": "neutral",
+        "displayName": "Surface Muted (dark)",
+        "canonical": "#1c1c26"
+      },
+      "surface-emphasized": {
+        "role": "neutral",
+        "displayName": "Surface Emphasized",
+        "canonical": "#e4e4e7"
+      },
+      "surface-emphasized-dark": {
+        "role": "neutral",
+        "displayName": "Surface Emphasized (dark)",
+        "canonical": "#282834"
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#0a0a0f"
+      },
+      "ink-dark": {
+        "role": "neutral",
+        "displayName": "Ink (dark)",
+        "canonical": "#f4f4f7"
+      },
+      "ink-muted": {
+        "role": "neutral",
+        "displayName": "Ink Muted",
+        "canonical": "#52525b"
+      },
+      "ink-muted-dark": {
+        "role": "neutral",
+        "displayName": "Ink Muted (dark)",
+        "canonical": "#a3a3b2"
+      },
+      "ink-subtle": {
+        "role": "neutral",
+        "displayName": "Ink Subtle",
+        "canonical": "#71717a"
+      },
+      "ink-subtle-dark": {
+        "role": "neutral",
+        "displayName": "Ink Subtle (dark)",
+        "canonical": "#75758a"
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Rule",
+        "canonical": "#e4e4e7"
+      },
+      "rule-dark": {
+        "role": "neutral",
+        "displayName": "Rule (dark)",
+        "canonical": "#2a2a37"
+      },
+      "rule-muted": {
+        "role": "neutral",
+        "displayName": "Rule Muted",
+        "canonical": "#efeff1"
+      },
+      "rule-muted-dark": {
+        "role": "neutral",
+        "displayName": "Rule Muted (dark)",
+        "canonical": "#1f1f2a"
+      },
+      "rule-emphasized": {
+        "role": "neutral",
+        "displayName": "Rule Emphasized",
+        "canonical": "#d4d4d8"
+      },
+      "rule-emphasized-dark": {
+        "role": "neutral",
+        "displayName": "Rule Emphasized (dark)",
+        "canonical": "#3c3c4c"
+      },
+      "error-text": {
+        "role": "semantic",
+        "displayName": "Error Text",
+        "canonical": "#991919"
+      },
+      "error-text-dark": {
+        "role": "semantic",
+        "displayName": "Error Text (dark)",
+        "canonical": "#fca5a5"
+      },
+      "success-text": {
+        "role": "semantic",
+        "displayName": "Success Text",
+        "canonical": "#116932"
+      },
+      "success-text-dark": {
+        "role": "semantic",
+        "displayName": "Success Text (dark)",
+        "canonical": "#86efac"
+      },
+      "warning-text": {
+        "role": "semantic",
+        "displayName": "Warning Text",
+        "canonical": "#92310a"
+      },
+      "warning-text-dark": {
+        "role": "semantic",
+        "displayName": "Warning Text (dark)",
+        "canonical": "#fdba74"
+      },
+      "danger-fill": {
+        "role": "semantic",
+        "displayName": "Danger Fill",
+        "canonical": "#dc2626"
+      },
+      "success-fill": {
+        "role": "semantic",
+        "displayName": "Success Fill",
+        "canonical": "#116932"
+      },
+      "warning-fill": {
+        "role": "semantic",
+        "displayName": "Warning Fill",
+        "canonical": "#92310a"
+      }
     },
     "typographyMeta": {
-      "wordmark": { "displayName": "Wordmark", "purpose": "\"Toscana Pastry\" text in the navbar." },
-      "body": { "displayName": "Body", "purpose": "Table cells, form text, descriptions. Set in SN Pro." },
-      "label": { "displayName": "Label", "purpose": "Tabs, badges, small buttons, table headers; bold only for the active nav item." },
-      "mono": { "displayName": "Mono", "purpose": "Chakra default mono stack; rarely used." }
+      "wordmark": {
+        "displayName": "Wordmark",
+        "purpose": "\"Toscana Pastry\" text in the navbar."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Table cells, form text, descriptions. Set in SN Pro."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Tabs, badges, small buttons, table headers; bold only for the active nav item."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Chakra default mono stack; rarely used."
+      }
     },
     "shadows": [],
     "motion": [],
     "breakpoints": [
-      { "name": "sm", "value": "480px" },
-      { "name": "md", "value": "768px" },
-      { "name": "lg", "value": "1024px" },
-      { "name": "xl", "value": "1280px" },
-      { "name": "2xl", "value": "1536px" }
+      {
+        "name": "sm",
+        "value": "480px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      },
+      {
+        "name": "2xl",
+        "value": "1536px"
+      }
     ]
   },
   "components": [
@@ -94,7 +307,7 @@
   ],
   "narrative": {
     "northStar": "The Shop Ledger",
-    "overview": "Toscana Pastry is the shop's ledger: prices, stock, orders, and budgets kept in one honest book. The interface exists to make numbers trustworthy and easy to scan. Tables, clear labels, and plain-sans text carry the work. Ornament stays out of the way of the figures.\n\nToday the system is provisional. It is Chakra UI v3's default theme with one custom color scale (`brand`, an unmodified copy of Tailwind's indigo). There is no logo and no product imagery. The typeface is SN Pro. Layout is light-mode only, on white paper with zinc-gray rules. The admin side is a desktop work surface; the customer portal is a mobile path entered from a WhatsApp link.\n\nThe confirmed intent for components is warm and approachable: friendlier corners and more breathing room than the current defaults, especially on customer-facing screens. The current code does not yet deliver that; new work should move toward it without breaking the ledger's clarity.",
+    "overview": "Toscana Pastry is the shop's ledger: prices, stock, orders, and budgets kept in one honest book. The interface exists to make numbers trustworthy and easy to scan. Tables, clear labels, and plain-sans text carry the work. Ornament stays out of the way of the figures.\n\nToday the system is provisional. It is Chakra UI v3's default theme with one custom color scale (`brand`, an unmodified copy of Tailwind's indigo). There is no logo and no product imagery. The typeface is SN Pro. Light and dark modes: white panels on a #fafafa canvas in light, stepped near-black surfaces in dark. Mode follows the OS until the user toggles it in the navbar (next-themes, `dark` class on `<html>`). The admin side is a desktop work surface; the customer portal is a mobile path entered from a WhatsApp link.\n\nThe confirmed intent for components is **warm and approachable**: friendlier corners and more breathing room than the current defaults, especially on customer-facing screens. The current code does not yet deliver that; new work should move toward it without breaking the ledger's clarity.",
     "keyCharacteristics": [
       "Chakra UI v3 defaults; single accent (indigo `brand`), zinc neutrals.",
       "Light mode only; white background, thin gray rules.",
@@ -103,14 +316,37 @@
       "Toasts via `goey-toast`, Spanish (es-AR) copy, es-AR number formatting."
     ],
     "rules": [
-      { "name": "The One Accent Rule", "body": "Indigo `brand` is the only accent. Status colors (red, green, orange) mean state, never decoration.", "section": "colors" },
-      { "name": "The Semantic Token Rule", "body": "Use Chakra semantic tokens (`bg`, `fg`, `fg.muted`, `border`, `border.muted`) for neutrals, not raw `gray.*` values, so a future theme swap lands in one file (`frontend/src/components/ui/theme.ts`).", "section": "colors" },
-      { "name": "The Weight-Means-State Rule", "body": "Bold in navigation marks the current page. Don't use bold for decoration in nav.", "section": "typography" },
-      { "name": "The Flat Ledger Rule", "body": "Surfaces sit flat on the page. Separate regions with a rule or spacing, not a shadow.", "section": "elevation" }
+      {
+        "name": "The One Accent Rule",
+        "body": "Indigo `brand` is the only accent. Status colors (red, green, orange) mean state, never decoration.",
+        "section": "colors"
+      },
+      {
+        "name": "The Semantic Token Rule",
+        "body": "Use semantic tokens (`bg`, `bg.panel`, `fg`, `fg.muted`, `border`, `<palette>.fg`, `<palette>.solid`) and never raw shades (`gray.200`, `brand.600`, hex). Raw shades do not switch with the mode.",
+        "section": "colors"
+      },
+      {
+        "name": "The Role-Not-Default Rule",
+        "body": "Every `<Button>` declares its role: `colorPalette=\"brand\"` (primary), `variant=\"outline\"` (secondary), `variant=\"ghost\"` (tertiary/nav) or `colorPalette=\"red\"` (destructive). A bare `<Button>` falls back to Chakra's gray solid, which renders white in dark mode.",
+        "section": "colors"
+      },
+      {
+        "name": "The Weight-Means-State Rule",
+        "body": "Bold in navigation marks the current page. Don't use bold for decoration in nav.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Ledger Rule",
+        "body": "Surfaces sit flat on the page. Separate regions with a rule or spacing, not a shadow.",
+        "section": "elevation"
+      }
     ],
     "dos": [
       "Do use `colorPalette=\"brand\"` for the single primary action of a view, and outline for its secondary.",
       "Do use Chakra semantic tokens (`bg`, `fg.muted`, `border.muted`) for neutrals.",
+      "Do color status text with `red.fg`, `green.fg`, `orange.fg` (700 in light, 300 in dark). Chakra's `fg.error` / `fg.success` / `fg.warning` are 500/600 in light mode and fail 4.5:1 on white.",
+      "Do use `variant=\"subtle\"` for green status badges and tags; white on `green.solid` (green.600) is 3.29:1.",
       "Do mark the active nav item with weight + underline + `aria-current`, never color alone.",
       "Do keep portal touch targets at least 44px tall.",
       "Do right-align prices and format them `toLocaleString(\"es-AR\", { minimumFractionDigits: 2 })`.",

@@ -27,12 +27,12 @@ export function TabLink({
         align="center"
         whiteSpace="nowrap"
         borderBottomWidth="2px"
-        borderColor={active ? "brand.500" : "transparent"}
+        borderColor={active ? "brand.solid" : "transparent"}
       >
         <Text
           fontSize="sm"
           fontWeight={active ? "bold" : "normal"}
-          color={active ? "brand.600" : "fg.muted"}
+          color={active ? "brand.fg" : "fg.muted"}
         >
           {label}
         </Text>
