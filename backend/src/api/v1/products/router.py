@@ -41,6 +41,8 @@ router = APIRouter(prefix="/products", tags=["products"])
 logger = logging.getLogger(__name__)
 
 _LIST_PAGE_SIZE = 500
+_DEFAULT_PAGE_SIZE = 50
+_MAX_PAGE_SIZE = 500
 _FORMULA_PREFIXES = ("=", "+", "-", "@", "	")
 
 
@@ -80,12 +82,25 @@ async def _build_audience_rows(
     ingredient_repo: IngredientRepository,
     settings_repo: SettingsRepository,
     resolved: str,
-) -> list[tuple]:
-    """Devuelve ``(ingredient, precio_para_la_audiencia)`` para TODOS los
-    productos; unico lugar donde se aplica ``derive_audience_price``."""
+    page: int | None = None,
+    page_size: int | None = None,
+) -> tuple[list[tuple], int]:
+    """Devuelve ``(filas, total)`` con ``(ingredient, precio_para_la_audiencia)``;
+    unico lugar donde se aplica ``derive_audience_price``.
+
+    Sin ``page``/``page_size`` devuelve TODOS los productos (exports, y el
+    listado por defecto). Con alguno de los dos, devuelve solo esa pagina y
+    ``total`` sigue siendo el total de productos.
+    """
     settings = await GetSettings(settings_repo).execute()
-    products = await _list_all_ingredients(ingredient_repo)
-    return [
+    if page is None and page_size is None:
+        products = await _list_all_ingredients(ingredient_repo)
+        total = len(products)
+    else:
+        products, total = await ingredient_repo.list(
+            q=None, status=None, page=page or 1, page_size=page_size or _DEFAULT_PAGE_SIZE
+        )
+    rows = [
         (
             product,
             derive_audience_price(
@@ -94,6 +109,7 @@ async def _build_audience_rows(
         )
         for product in products
     ]
+    return rows, total
 
 
 def _build_csv(rows: list[dict[str, str]]) -> str:
@@ -170,7 +186,7 @@ async def pricelist_csv(
     - cliente: solo consumidor_final.
     """
     resolved = _resolve_or_403(current_user, audience)
-    priced = await _build_audience_rows(ingredient_repo, settings_repo, resolved)
+    priced, _ = await _build_audience_rows(ingredient_repo, settings_repo, resolved)
 
     rows = []
     for product, price in priced:
@@ -207,6 +223,10 @@ def _stock_status(stock_qty: Decimal, low_stock_threshold: Decimal) -> str:
 @router.get("")
 async def list_products(
     audience: Audience = Query(..., description="Audiencia de precios"),
+    page: int | None = Query(None, ge=1, description="Pagina (opcional)"),
+    page_size: int | None = Query(
+        None, ge=1, le=_MAX_PAGE_SIZE, description="Tamano de pagina (opcional)"
+    ),
     current_user: User = Depends(
         require_role(UserRole.ADMIN, UserRole.NEGOCIO, UserRole.CUSTOMER)
     ),
@@ -226,11 +246,15 @@ async def list_products(
                 {"id": str, "name": str, "unit": str,
                  "price_per_unit": str, "status": str}
             ],
-            "total": int
+            "total": int   # total de productos, no el de la pagina
         }
+
+    ``page`` / ``page_size`` son opcionales; sin ellos se devuelven todos.
     """
     resolved = _resolve_or_403(current_user, audience)
-    priced = await _build_audience_rows(ingredient_repo, settings_repo, resolved)
+    priced, total = await _build_audience_rows(
+        ingredient_repo, settings_repo, resolved, page, page_size
+    )
 
     product_rows = []
     for product, price in priced:
@@ -245,7 +269,7 @@ async def list_products(
     return {
         "audience": resolved,
         "products": product_rows,
-        "total": len(product_rows),
+        "total": total,
     }
 
 
@@ -280,7 +304,7 @@ async def pricelist_pdf(
     Renderiza con WeasyPrint (requiere Pango en Windows).
     """
     resolved = _resolve_or_403(current_user, audience)
-    priced = await _build_audience_rows(ingredient_repo, settings_repo, resolved)
+    priced, _ = await _build_audience_rows(ingredient_repo, settings_repo, resolved)
 
     audience_label = "Revendedores" if resolved == "revendedores" else "Consumidor final"
     product_rows = []

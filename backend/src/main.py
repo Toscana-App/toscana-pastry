@@ -11,6 +11,7 @@ from api.v1.pricing.router import router as pricing_router
 from api.v1.ingredients.router import router as ingredients_router
 from api.v1.calc.router import router as calc_router
 from api.v1.products.router import router as products_router
+from core.config import settings
 from data.db import engine
 from data.models import Base
 
@@ -26,6 +27,7 @@ ALLOWED_ORIGINS = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    settings.validate()
     # create_all es idempotente: crea el esquema si falta y no toca lo existente.
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
