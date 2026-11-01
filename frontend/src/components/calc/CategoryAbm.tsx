@@ -204,9 +204,9 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
       const inUse =
         error instanceof ApiError &&
         error.status === 409 &&
-        typeof error.body === "object" &&
-        error.body !== null &&
-        "in_use_by" in error.body;
+        typeof error.payload === "object" &&
+        error.payload !== null &&
+        "in_use_by" in error.payload;
       toaster.create({
         title: "Error al eliminar",
         description: inUse

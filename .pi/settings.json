@@ -1,0 +1,7 @@
+{
+  "skills": [
+    "../.claude/skills",
+    "!claude-handoff",
+    "!git-guardrails-claude-code"
+  ]
+}

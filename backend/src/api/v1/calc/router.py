@@ -11,7 +11,11 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 
+from api.v1.dependencies import get_current_user, require_admin
+from api.v1.money import cents_to_decimal
+from domain.models import User
 from api.v1.calc.dependencies import (
     get_calc_default_cost_repository,
     get_calc_material_category_repository,
@@ -62,7 +66,6 @@ from api.v1.calc.schemas import (
     SupplierResponse,
     SupplierUpdate,
 )
-from api.v1.dependencies import get_current_user, require_admin
 from data.repositories.calc.sql_calc_default_cost_repository import (
     SQLCalcDefaultCostRepository,
 )
@@ -94,6 +97,8 @@ from domain.calc_product import (
     calc_labor_line_cost,
     calc_material_line_cost,
     compute_costs,
+    recalculate_product as recalculate_product_domain,
+    resolve_material_line,
 )
 from domain.calc_settings import (
     DEFAULT_DISCOUNT_PERCENT,
@@ -106,7 +111,6 @@ from domain.calc_settings import (
     CalcSettings,
     CalcSupplier,
 )
-from domain.models import User
 
 router = APIRouter(prefix="/calc", tags=["calc"])
 
@@ -654,7 +658,9 @@ async def create_default_cost(
         cost = CalcDefaultCost(
             name=payload.name,
             type=payload.type,
-            default_unit_cost_or_rate=payload.default_unit_cost_or_rate,
+            default_unit_cost_or_rate=cents_to_decimal(
+                payload.default_unit_cost_or_rate
+            ),
             default_quantity_or_minutes=payload.default_quantity_or_minutes,
             status=payload.status,
         )
@@ -698,8 +704,10 @@ async def update_default_cost(
             id=existing.id,
             name=updates.get("name", existing.name),
             type=updates.get("type", existing.type),
-            default_unit_cost_or_rate=updates.get(
-                "default_unit_cost_or_rate", existing.default_unit_cost_or_rate
+            default_unit_cost_or_rate=(
+                cents_to_decimal(updates["default_unit_cost_or_rate"])
+                if "default_unit_cost_or_rate" in updates
+                else existing.default_unit_cost_or_rate
             ),
             default_quantity_or_minutes=updates.get(
                 "default_quantity_or_minutes", existing.default_quantity_or_minutes
@@ -787,7 +795,11 @@ async def create_material(
             category_id=payload.category_id,
             supplier_id=payload.supplier_id,
             unit_of_measure=payload.unit_of_measure,
-            purchase_total_price=payload.purchase_total_price,
+            purchase_total_price=(
+                cents_to_decimal(payload.purchase_total_price)
+                if payload.purchase_total_price is not None
+                else None
+            ),
             package_quantity=payload.package_quantity,
             notes=payload.notes,
         )
@@ -897,8 +909,14 @@ async def update_material(
             category_id=updates.get("category_id", existing.category_id),
             supplier_id=updates.get("supplier_id", existing.supplier_id),
             unit_of_measure=updates.get("unit_of_measure", existing.unit_of_measure),
-            purchase_total_price=updates.get(
-                "purchase_total_price", existing.purchase_total_price
+            purchase_total_price=(
+                (
+                    cents_to_decimal(updates["purchase_total_price"])
+                    if updates["purchase_total_price"] is not None
+                    else None
+                )
+                if "purchase_total_price" in updates
+                else existing.purchase_total_price
             ),
             package_quantity=updates.get("package_quantity", existing.package_quantity),
             notes=updates.get("notes", existing.notes),
@@ -929,6 +947,7 @@ async def delete_material(
     """DELETE /calc/materials/{id}: elimina (S4).
 
     Usado en lineas de productos -> 409 + {impacted_products: N}.
+    Con historial de costos -> 409 + {detail: "has_cost_history"}.
     """
     existing = await repo.get(material_id)
     if existing is None:
@@ -941,6 +960,12 @@ async def delete_material(
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,
             content={"impacted_products": in_use},
+        )
+    # El historial de costos es append-only: no se borra ni se deja huerfano.
+    if await repo.count_cost_history(material_id) > 0:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={"detail": "has_cost_history"},
         )
     deleted = await repo.delete(material_id)
     if deleted is None:
@@ -1094,6 +1119,13 @@ def _settings_defaults(
     )
 
 
+# Campos de ProductUpdate que admiten `None` en el schema pero no pueden
+# quedar nulos en el producto: `null` explicito -> 422 (no 500).
+_PRODUCT_NON_NULLABLE_FIELDS = frozenset(
+    {"name", "margin_percent", "discount_percent", "tax_percent", "status"}
+)
+
+
 async def _build_material_lines(
     payload_lines, repo: SQLCalcProductRepository
 ) -> list[CalcProductMaterialLine]:
@@ -1108,23 +1140,8 @@ async def _build_material_lines(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Material no encontrado",
             )
-        unit_cost = (
-            Decimal(material.unit_cost)
-            if material.unit_cost is not None
-            else Decimal("0.00")
-        )
         lines.append(
-            CalcProductMaterialLine(
-                material_id=material.id,
-                material_name=material.name,
-                quantity_used=line.quantity_used,
-                unit_of_measure_snapshot=material.unit_of_measure,
-                unit_cost_snapshot=unit_cost,
-                line_total_cost=calc_material_line_cost(
-                    line.quantity_used, unit_cost
-                ),
-                sort_order=index,
-            )
+            resolve_material_line(material, line.quantity_used, index)
         )
     return lines
 
@@ -1132,13 +1149,14 @@ async def _build_material_lines(
 def _build_labor_lines(payload_lines) -> list[CalcProductLaborLine]:
     lines: list[CalcProductLaborLine] = []
     for index, line in enumerate(payload_lines):
+        hourly_rate = cents_to_decimal(line.hourly_rate)
         lines.append(
             CalcProductLaborLine(
                 activity_name=line.activity_name,
-                hourly_rate=line.hourly_rate,
+                hourly_rate=hourly_rate,
                 minutes_required=line.minutes_required,
                 line_total_cost=calc_labor_line_cost(
-                    line.hourly_rate, line.minutes_required
+                    hourly_rate, line.minutes_required
                 ),
                 sort_order=index,
             )
@@ -1149,13 +1167,14 @@ def _build_labor_lines(payload_lines) -> list[CalcProductLaborLine]:
 def _build_extra_lines(payload_lines) -> list[CalcProductExtraCostLine]:
     lines: list[CalcProductExtraCostLine] = []
     for index, line in enumerate(payload_lines):
+        unit_cost = cents_to_decimal(line.unit_cost)
         lines.append(
             CalcProductExtraCostLine(
                 concept_name=line.concept_name,
-                unit_cost=line.unit_cost,
+                unit_cost=unit_cost,
                 quantity=line.quantity,
                 line_total_cost=calc_extra_line_cost(
-                    line.unit_cost, line.quantity
+                    unit_cost, line.quantity
                 ),
                 sort_order=index,
             )
@@ -1346,6 +1365,13 @@ async def list_price_list(
     )
 
 
+def _csv_safe(value: str) -> str:
+    """Evita que Excel/Sheets interprete la celda como formula."""
+    if value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value
+
+
 @router.get("/products/price-list/export")
 async def export_price_list_csv(
     q: str | None = Query(default=None, min_length=1, max_length=120),
@@ -1362,12 +1388,9 @@ async def export_price_list_csv(
     redondea; filename `lista_precios.csv` (paridad legacy)."""
     settings = await settings_repo.get()
     _, _, _, rounding_mode = _settings_defaults(settings)
-    _rows, total = await repo.list_price_list(q, category_id, 1, 1, rounding_mode)
-    rows: list = []
-    if total:
-        rows, _total = await repo.list_price_list(
-            q, category_id, 1, total, rounding_mode
-        )
+    rows, _total = await repo.list_price_list(
+        q, category_id, 1, None, rounding_mode
+    )
     buffer = StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
     writer.writerow(["id", "name", "category", "cost", "margin_pct", "final_price"])
@@ -1375,8 +1398,8 @@ async def export_price_list_csv(
         writer.writerow(
             [
                 product.id,
-                product.name,
-                category_name if category_name is not None else "",
+                _csv_safe(product.name),
+                _csv_safe(category_name if category_name is not None else ""),
                 str(costs.product_total_cost),
                 str(product.margin_percent),
                 str(costs.final_sale_price),
@@ -1406,12 +1429,47 @@ async def recalculate_all_products(
     del cliente."""
     settings = await settings_repo.get()
     _, _, _, rounding_mode = _settings_defaults(settings)
+    products = await repo.list_active()
+    now = datetime.datetime.now(datetime.UTC)
     try:
-        recalculated = await repo.recalculate_all(rounding_mode)
+        # Mismo cuerpo que el recalculate individual, en UNA sola
+        # transaccion (un unico commit al final).
+        for product in products:
+            material_lines, labor_lines, extra_lines = await repo.get_lines(
+                product.id
+            )
+            materials_by_id = await repo.get_materials(
+                [line.material_id for line in material_lines]
+            )
+            result = recalculate_product_domain(
+                product,
+                material_lines,
+                labor_lines,
+                extra_lines,
+                materials_by_id,
+                rounding_mode,
+            )
+            await repo.save_lines(
+                product.id,
+                result.material_lines,
+                result.labor_lines,
+                result.extra_lines,
+                last_recalculated_at=now,
+            )
+            if result.creates_version:
+                await repo.add_version(product.id, result.new_costs)
+        await repo.commit()
     except ValueError as e:
+        await repo.rollback()
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
         ) from e
+    except IntegrityError as e:
+        await repo.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="version_conflict"
+        ) from e
+    recalculated = len(products)
     return RecalculateAllResponse(recalculated=recalculated)
 
 
@@ -1538,6 +1596,14 @@ async def update_product(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="al menos un campo para actualizar",
+        )
+    null_fields = sorted(
+        k for k in _PRODUCT_NON_NULLABLE_FIELDS if k in updates and updates[k] is None
+    )
+    if null_fields:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"campos no anulables: {null_fields}",
         )
     if updates.get("category_id") is not None:
         category = await product_category_repo.get(updates["category_id"])
@@ -1694,24 +1760,60 @@ async def recalculate_product(
     """POST /calc/products/{id}/recalculate: re-resolve snapshots y
     recalcula lineas (regla 6); crea version solo si el final
     redondeado cambio (regla 5, RF-P4CC-07)."""
-    settings = await settings_repo.get()
-    _, _, _, rounding_mode = _settings_defaults(settings)
-    try:
-        result = await repo.recalculate(product_id, rounding_mode)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
-        ) from e
-    if result is None:
+    product = await repo.get(product_id)
+    if product is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Producto no encontrado",
         )
-    product, (material_lines, labor_lines, extra_lines), costs = result
+    settings = await settings_repo.get()
+    _, _, _, rounding_mode = _settings_defaults(settings)
+    material_lines, labor_lines, extra_lines = await repo.get_lines(product_id)
+    materials_by_id = await repo.get_materials(
+        [line.material_id for line in material_lines]
+    )
+    try:
+        result = recalculate_product_domain(
+            product,
+            material_lines,
+            labor_lines,
+            extra_lines,
+            materials_by_id,
+            rounding_mode,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
+    saved = await repo.save_lines(
+        product_id,
+        result.material_lines,
+        result.labor_lines,
+        result.extra_lines,
+        last_recalculated_at=datetime.datetime.now(datetime.UTC),
+    )
+    if saved is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Producto no encontrado",
+        )
+    try:
+        if result.creates_version:
+            await repo.add_version(product_id, result.new_costs)
+        await repo.commit()
+    except IntegrityError as e:
+        # Recalculo concurrente: otro request ya tomo ese version_number
+        # (uq_calc_product_versions_product_version).
+        await repo.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="version_conflict"
+        ) from e
     return ProductWithLinesResponse(
-        product=_product_response(product),
-        product_lines=_product_lines_out(material_lines, labor_lines, extra_lines),
-        costs=_costs_response(costs),
+        product=_product_response(saved),
+        product_lines=_product_lines_out(
+            result.material_lines, result.labor_lines, result.extra_lines
+        ),
+        costs=_costs_response(result.new_costs),
     )
 
 

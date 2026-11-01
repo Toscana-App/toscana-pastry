@@ -15,6 +15,9 @@ import datetime
 import uuid
 from dataclasses import dataclass, field
 from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
+from typing import Mapping
+
+from domain.calc_material import CalcMaterial
 
 # String length limits (RF-P4CC-01)
 MAX_PRODUCT_NAME = 120
@@ -375,3 +378,111 @@ class CalcProductVersion:
     def __post_init__(self):
         if self.version_number < 1:
             raise ValueError(f"version_number >= 1: {self.version_number}")
+
+
+def resolve_material_line(
+    material: CalcMaterial,
+    quantity_used: Decimal,
+    sort_order: int,
+    line_id: str | None = None,
+) -> CalcProductMaterialLine:
+    """Unica resolucion de snapshot de material (RF-P4CC-02, D4).
+
+    Nombre, unidad y costo unitario salen SIEMPRE del material actual;
+    material incomplete (unit_cost None) -> snapshot 0.00 sin error.
+    Compartida por el router (alta/edicion) y `recalculate_product`.
+    """
+    unit_cost = (
+        Decimal(material.unit_cost)
+        if material.unit_cost is not None
+        else Decimal("0.00")
+    )
+    extra = {} if line_id is None else {"id": line_id}
+    return CalcProductMaterialLine(
+        material_id=material.id,
+        material_name=material.name,
+        quantity_used=quantity_used,
+        unit_of_measure_snapshot=material.unit_of_measure,
+        unit_cost_snapshot=unit_cost,
+        line_total_cost=calc_material_line_cost(quantity_used, unit_cost),
+        sort_order=sort_order,
+        **extra,
+    )
+
+
+@dataclass(frozen=True)
+class RecalculationResult:
+    """Resultado de `recalculate_product` (reglas 5/6, RF-P4CC-07)."""
+
+    material_lines: list[CalcProductMaterialLine]
+    labor_lines: list[CalcProductLaborLine]
+    extra_lines: list[CalcProductExtraCostLine]
+    old_costs: CalcProductCosts
+    new_costs: CalcProductCosts
+
+    @property
+    def creates_version(self) -> bool:
+        """Version SOLO si el final redondeado difiere del calculado
+        ANTES de re-resolver los snapshots."""
+        return self.new_costs.final_sale_price != self.old_costs.final_sale_price
+
+
+def recalculate_product(
+    product: CalcProduct,
+    material_lines: list[CalcProductMaterialLine],
+    labor_lines: list[CalcProductLaborLine],
+    extra_lines: list[CalcProductExtraCostLine],
+    materials_by_id: Mapping[str, CalcMaterial],
+    rounding_mode: str,
+) -> RecalculationResult:
+    """Recalculate (reglas 5/6): re-resuelve los snapshots de material
+    desde los materiales actuales (una linea cuyo material ya no existe
+    se conserva tal cual) y recalcula `line_total_cost` de cada linea.
+    """
+
+    def _costs(materials, labor, extras) -> CalcProductCosts:
+        return compute_costs(
+            materials,
+            labor,
+            extras,
+            product.margin_percent,
+            product.discount_percent,
+            product.tax_percent,
+            rounding_mode,
+        )
+
+    old_costs = _costs(material_lines, labor_lines, extra_lines)
+    new_materials = [
+        resolve_material_line(
+            materials_by_id[line.material_id],
+            line.quantity_used,
+            line.sort_order,
+            line_id=line.id,
+        )
+        if line.material_id in materials_by_id
+        else line
+        for line in material_lines
+    ]
+    new_labor = [
+        dataclasses.replace(
+            line,
+            line_total_cost=calc_labor_line_cost(
+                line.hourly_rate, line.minutes_required
+            ),
+        )
+        for line in labor_lines
+    ]
+    new_extras = [
+        dataclasses.replace(
+            line,
+            line_total_cost=calc_extra_line_cost(line.unit_cost, line.quantity),
+        )
+        for line in extra_lines
+    ]
+    return RecalculationResult(
+        material_lines=new_materials,
+        labor_lines=new_labor,
+        extra_lines=new_extras,
+        old_costs=old_costs,
+        new_costs=_costs(new_materials, new_labor, new_extras),
+    )

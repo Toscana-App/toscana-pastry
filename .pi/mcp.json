@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "chakra-ui": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@chakra-ui/react-mcp@2.1.1"
+      ],
+      "exposure": "direct",
+      "description": "Chakra UI v3 components, props, examples, theme tokens"
+    }
+  }
+}

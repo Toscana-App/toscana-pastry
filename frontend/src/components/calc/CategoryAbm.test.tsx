@@ -175,7 +175,7 @@ describe("CategoryAbm (material-categories)", () => {
   it("keeps the row intact and shows a danger toast when DELETE returns 409 in-use", async () => {
     // El 409 in-use viaja como {"in_use_by": N} sin `detail`.
     vi.mocked(calcSettingsService.deleteCategory).mockRejectedValue(
-      new ApiError("Network error", 409, { in_use_by: 3 })
+      new ApiError(409, "Network error", { in_use_by: 3 })
     );
 
     render(<CategoryAbm endpoint="material-categories" title="Categorías de materiales" />);
