@@ -145,14 +145,16 @@ export function ProductsCatalog() {
 
   return (
     <Flex direction="column" gap={4}>
-      {/* Audience switcher (admin only) + restriction tag of this list */}
-      <Flex align="center" gap={3} wrap="wrap">
-        {canSwitch && (
+      {/* Toolbar: which list (switcher for admin, label for portal roles)
+          + export of that same list. */}
+      <Flex align="center" justify="space-between" gap={3} wrap="wrap">
+        {canSwitch ? (
           <SegmentGroup.Root
             size="sm"
             value={audience}
             onValueChange={(details) => setAudience(details.value as Audience)}
           >
+            <SegmentGroup.Indicator />
             <SegmentGroup.Items
               items={allowedAudiences.map((aud) => ({
                 value: aud,
@@ -160,27 +162,20 @@ export function ProductsCatalog() {
               }))}
             />
           </SegmentGroup.Root>
+        ) : (
+          // Restriction tag: this list is ONLY for the role's audience.
+          <Badge colorPalette="brand" size="lg">{audienceLabel(audience)}</Badge>
         )}
 
-        {/* Restriction tag: this list is ONLY for the role's audience. */}
-        <Badge colorPalette="brand">{audienceLabel(audience)}</Badge>
-      </Flex>
-
-      {/* Export CTAs — only for allowed audiences */}
-      {allowedAudiences.map((aud) => (
-        <Flex key={aud} gap={3} wrap="wrap">
-          <Button colorPalette="brand" size="sm" onClick={() => downloadPricelistCSV(aud)}>
+        <Flex gap={2}>
+          <Button variant="outline" size="sm" onClick={() => downloadPricelistCSV(audience)}>
             Exportar CSV
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => downloadPricelistPDF(aud)}
-          >
+          <Button variant="outline" size="sm" onClick={() => downloadPricelistPDF(audience)}>
             Exportar PDF
           </Button>
         </Flex>
-      ))}
+      </Flex>
 
       {/* Product table */}
       {products.length === 0 ? (
@@ -195,12 +190,12 @@ export function ProductsCatalog() {
         </Box>
       ) : (
         <Table.ScrollArea rounded="md">
-          <Table.Root size="sm" variant="outline" striped>
+          <Table.Root size="md" variant="outline" interactive>
             <Table.Header>
-              <Table.Row>
+              <Table.Row bg="bg.muted">
                 <Table.ColumnHeader>Producto</Table.ColumnHeader>
-                <Table.ColumnHeader>Unidad</Table.ColumnHeader>
-                <Table.ColumnHeader textAlign="end">Precio</Table.ColumnHeader>
+                <Table.ColumnHeader w="8rem">Unidad</Table.ColumnHeader>
+                <Table.ColumnHeader w="9rem" textAlign="end">Precio</Table.ColumnHeader>
                 {showCart && <Table.ColumnHeader srOnly>Agregar</Table.ColumnHeader>}
               </Table.Row>
             </Table.Header>
@@ -222,8 +217,8 @@ export function ProductsCatalog() {
                       )}
                     </Flex>
                   </Table.Cell>
-                  <Table.Cell>{product.unit}</Table.Cell>
-                  <Table.Cell textAlign="end" fontFamily="var(--font-geist-mono)">
+                  <Table.Cell color="fg.muted">{product.unit}</Table.Cell>
+                  <Table.Cell textAlign="end" fontWeight="medium" fontVariantNumeric="tabular-nums">
                     ${formatPrice(product.price_per_unit)}
                   </Table.Cell>
                   {showCart && (
