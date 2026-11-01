@@ -128,9 +128,9 @@ async def _negocio_token(client: AsyncClient) -> str:
 
 
 _BASE_PAYLOAD = {
-    "hourly_rate": "3000",
+    "hourly_rate": 300000,
     "margin_pct": "30",
-    "round_step": "100",
+    "round_step": 10000,
     "include_labor": True,
     "include_gas": True,
     "gas_pct": "3",

@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse
 
 from api.v1.dependencies import get_current_user, require_admin
+from api.v1.money import cents_to_decimal
 from domain.models import User
 from api.v1.calc.dependencies import (
     get_calc_settings_repository,
@@ -565,7 +566,9 @@ async def create_default_cost(
         cost = CalcDefaultCost(
             name=payload.name,
             type=payload.type,
-            default_unit_cost_or_rate=payload.default_unit_cost_or_rate,
+            default_unit_cost_or_rate=cents_to_decimal(
+                payload.default_unit_cost_or_rate
+            ),
             default_quantity_or_minutes=payload.default_quantity_or_minutes,
             status=payload.status,
         )
@@ -607,8 +610,10 @@ async def update_default_cost(
             id=existing.id,
             name=updates.get("name", existing.name),
             type=updates.get("type", existing.type),
-            default_unit_cost_or_rate=updates.get(
-                "default_unit_cost_or_rate", existing.default_unit_cost_or_rate
+            default_unit_cost_or_rate=(
+                cents_to_decimal(updates["default_unit_cost_or_rate"])
+                if "default_unit_cost_or_rate" in updates
+                else existing.default_unit_cost_or_rate
             ),
             default_quantity_or_minutes=updates.get(
                 "default_quantity_or_minutes", existing.default_quantity_or_minutes
