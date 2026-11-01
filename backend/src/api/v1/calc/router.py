@@ -726,7 +726,11 @@ async def create_material(
             category_id=payload.category_id,
             supplier_id=payload.supplier_id,
             unit_of_measure=payload.unit_of_measure,
-            purchase_total_price=payload.purchase_total_price,
+            purchase_total_price=(
+                cents_to_decimal(payload.purchase_total_price)
+                if payload.purchase_total_price is not None
+                else None
+            ),
             package_quantity=payload.package_quantity,
             notes=payload.notes,
         )
@@ -836,8 +840,14 @@ async def update_material(
             category_id=updates.get("category_id", existing.category_id),
             supplier_id=updates.get("supplier_id", existing.supplier_id),
             unit_of_measure=updates.get("unit_of_measure", existing.unit_of_measure),
-            purchase_total_price=updates.get(
-                "purchase_total_price", existing.purchase_total_price
+            purchase_total_price=(
+                (
+                    cents_to_decimal(updates["purchase_total_price"])
+                    if updates["purchase_total_price"] is not None
+                    else None
+                )
+                if "purchase_total_price" in updates
+                else existing.purchase_total_price
             ),
             package_quantity=updates.get("package_quantity", existing.package_quantity),
             notes=updates.get("notes", existing.notes),
