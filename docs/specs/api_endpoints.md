@@ -18,11 +18,11 @@
 | Paginación | `?page` (1-based) + `?page_size` (default 50, max 200). Respuesta envuelta: `{ "items": [...], "total": N, "page": n, "page_size": n }`. |
 | Filtros | Query params (`q`, `status`, `category`, `from`, `to`). Búsqueda `q` case/acento-insensitive (pg_trgm). |
 | Errores | Envelope `application/problem+json`: `{ "type", "title", "status", "detail", "errors": [ {field, msg} ] }`. 422 para validación de schema (FastAPI), 409 para conflictos de negocio. |
-| Idempotencia | Header `Idempotency-Key` obligatorio en: `purchase/redeem`, `orders/{id}/status` (confirmar), `budgets/{id}/send`. Re-intento con misma key = mismo resultado. |
+| Idempotencia | Header `Idempotency-Key` obligatorio en: `purchase/redeem`, `orders/{id}/status` (confirmar), `budgets/{id}/send`, `orders/{id}/payment` (iniciar pago MP). Re-intento con misma key = mismo resultado. |
 | Rate limiting | `slowapi`: `auth/*` y formularios públicos con tope por IP+email (ver §F0/F4). |
 | Anti-spam | hCaptcha en `auth/magic-link` (público) y contacto. Honeypot oculto. |
 | Login Google | Flujo GIS **ID token** (no authorization-code): `sub` → `google_id` (identidad, nunca email); nonce server-issued de un solo uso; `email_verified`; **link solo tras re-auth** (`magic-link` → `verify` con `purpose=google_link`); Google no crea cuentas. `GOOGLE_CLIENT_ID` público; client secret inexistente en la app. (skill `google-signin`) |
-| Decimal | Todo monto con `Decimal` (serializado como string en JSON) + `ROUND_HALF_UP` al paso configurado. |
+| Dinero | El dominio opera con `Decimal` + `ROUND_HALF_UP` al paso configurado. En la API el dinero viaja como **entero de centavos** (310050 = $3.100,50); se rechaza con 422 cualquier string, float o bool. Cantidades (`Qty`) y porcentajes (`Pct`) viajan como string decimal. |
 | OpenAPI | `GET /openapi.json` + docs `/docs` (FastAPI) — **fuente** de los tipos TS de `web/lib`. En producción: cerrados o detrás de auth (security #12). |
 | RLS | Postgres **Row-Level Security** en toda tabla de tenant; `set_config('app.tenant_id')` por transacción. Objeto de otro tenant → 404 (security #4, #7). |
 | Queries | Solo SQLAlchemy con **bind parameters**; prohibido SQL concatenado (security #13). |
@@ -211,7 +211,7 @@ api/presentation/routers/
 | Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
 |---|---|---|---|---|---|
 | GET | `/api/v1/orders` | Lista con filtros. | `?customer,status,paid,from,to,q,page,page_size` → `{items,total,...}` | 200 | Item: `id,customer,status,paid,final_price,date`. |
-| POST | `/api/v1/orders` | Crea pedido. | `{customer_id*, date?, margin_pct?(override), items:[{product_id,qty,portion_note?}]}` → `{order, breakdown}` | 201 / 409 | **No descuenta stock** (descuenta al confirmar). Snapshot de precios. Si `order_window_open=false` → 409 `order_window_closed` + mensaje (RF-P6-09). |
+| POST | `/api/v1/orders` | Crea pedido (dueña o portal). | `{customer_id*, date?, margin_pct?(override), items:[{product_id,qty,portion_note?}], payment_method*(portal; admin: default cash), delivery_address?, pickup?, coupon_code?}` → `{order, breakdown}` | 201 / 409 / 422 | **No descuenta stock** (descuenta al confirmar). `payment_method` es **requerido** desde el portal (422 si falta); `default cash` aplica solo al rol admin (RF-P6-12). Snapshot de precios. Si `order_window_open=false` → 409 `order_window_closed` + mensaje (RF-P6-09). `coupon_code` → valida y snapshotea `discount_amount` (RF-P11-14). |
 | GET | `/api/v1/orders/{id}` | Detalle con desglose. | — → `{order, items, breakdown}` | 200 / 404 | `breakdown`: materiales (por insumo), labor, gas, margin_pct, gain, final, rounded. Inmutable (snapshot). |
 | PATCH | `/api/v1/orders/{id}` | Edita ítems / margen override. | `{items?, margin_pct?}` → `{order, breakdown}` | 200 | Solo si `status=nuevo`. Recalcula. |
 | PATCH | `/api/v1/orders/{id}/status` | Transición de estado. | `{status}` → `{order}` | 200 / 409 | `nuevo→confirmado` = **descuento atómico** de stock (`SELECT…FOR UPDATE`); si falta → 409 + insumo faltante, sin cambios. `→entregado`. `→cancelado` (desde confirmado) = re-pozo de stock. Header `Idempotency-Key` en confirmar. |
@@ -239,7 +239,7 @@ api/presentation/routers/
 | PATCH | `/api/v1/budgets/{id}/items` | Ajusta cantidades/ítems. | `{items:[{product_id,qty,unit_price?}]}` → `{summary}` | 200 | Recalcula < 50 ms. (RF-P8-02) |
 | DELETE | `/api/v1/budgets/{id}` | Elimina. | — → `204` | 204 | **No toca stock ni pedidos**. |
 | POST | `/api/v1/budgets/{id}/recalculate` | Recalcula resumen. | — → `{summary}` | 200 | Modo cost-plus o manual (explícito en UI). |
-| POST | `/api/v1/budgets/{id}/convert-to-order` | Convierte en pedido. | — → `{order}` | 201 | Crea pedido con mismos ítems (F2). |
+| POST | `/api/v1/budgets/{id}/convert-to-order` | Convierte en pedido. | — → `{order_id, seq}` | 201 | Crea pedido con mismos ítems y respeta los precios manuales. Solo presupuestos `enviado` (si no: 409 `budget_not_sent`). Guarda `order_id` en el presupuesto; una segunda conversión responde 409 `already_converted`. (RF-P8-08) |
 | POST | `/api/v1/budgets/{id}/send` | Marca enviado (congela versión). | — → `{budget, sent_at}` | 200 / 409 | `borrador→enviado`; snapshot inmutable por versión (auditoría). Header `Idempotency-Key`. |
 
 ### PDF (P9)
@@ -252,7 +252,7 @@ api/presentation/routers/
 ### WhatsApp (P10)
 | Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
 |---|---|---|---|---|---|
-| GET | `/api/v1/budgets/{id}/whatsapp-link` | Genera + registra `wa.me` (outbound). | — → `{url, sent_at}` | 200 | `wa.me/?text=` (ítems + total). Gratis, sin Cloud API. (CTA "Enviar por WhatsApp"). |
+| POST | `/api/v1/budgets/{id}/whatsapp-link` | Genera + registra `wa.me` (outbound). | — → `{url, sent_at}` | 200 | `wa.me/?text=` (ítems + total). Gratis, sin Cloud API. (CTA "Enviar por WhatsApp"). |
 | POST | `/api/v1/webhooks/whatsapp` | Webhook inbound (Chat SDK, opcional). | payload Cloud API → `200 {"ok":true}` | 200 | **Verifica firma** (X-Hub-Signature / Cloud API). Handler `onNewMention`/`onSubscribedMessage`. State en Redis (`createRedisState`). |
 | GET | `/api/v1/webhooks/whatsapp/verify` | Handshake de verificación Cloud API. | `?hub.mode, hub.verify_token, hub.challenge` → `challenge` (text) | 200 | Solo si se habilita inbound. Confirma ownership del webhook. |
 
@@ -267,13 +267,69 @@ api/presentation/routers/
 |---|---|
 | Seguridad | Cero secrets en bundle frontend (env solo backend, whitelist `NEXT_PUBLIC_*`). Rate limiting reforzado en `auth/*` y formularios. HSTS. |
 | Anti-spam | hCaptcha verificado en `auth/magic-link` (+ contacto si existe). Honeypot. |
-| Idempotencia | Claves obligatorias validadas en `purchase/redeem`, `orders/{id}/status`, `budgets/{id}/send`. |
+| Idempotencia | Claves obligatorias validadas en `purchase/redeem`, `orders/{id}/status`, `budgets/{id}/send`, `orders/{id}/payment`. |
 | Webhook | Verificación de firma estricta + replay (dedupe por `entry.id` / timestamp). |
 | Observabilidad | Request logging estructurado + tracing (Sentry) en todos los endpoints. |
 | Legal | Páginas `privacy`/`terms` = estáticas de Next.js (sin API). |
 | (opcional) Contacto | `POST /api/v1/contact` `{name,email,message,captcha}` → 202, con hCaptcha + rate limit. Solo si hay página de contacto. |
 
 **Criterio de salida F4**: Lighthouse ≥ 90 (4 categorías), checklist de seguridad 100%, legal publicado, sin warnings de build.
+
+---
+
+## FASE 5 — Portal self-service + checkout e2e (P11)
+> Objetivo: el cliente/negocio pide y paga solo. ~25 endpoints. Precondición: roles de 3 vías + precios duales (`odd/tasks/roles-dual-pricing.md`). Especificación completa: `p11_portal_checkout.md` (pagos: `p06_orders.md` RF-P6-12…14).
+
+### Portal: pedidos y carrito (rol `negocio`/`cliente`)
+| Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
+|---|---|---|---|---|---|
+| GET | `/api/v1/orders/mine` | Mis pedidos (portal). | `?page,page_size` → `{items,total,...}` | 200 | Solo pedidos del `customer_id` del usuario; ajeno → 404 anti-sondeo. Item: `code,status,paid,payment_method,final_price,date`. |
+| GET | `/api/v1/orders/mine/{code}` | Detalle de mi pedido. | — → `{order, items}` | 200 / 404 | Ítems con total y tags de restricción; **sin costos internos** (security #17). |
+| GET | `/api/v1/cart` | Carrito del usuario. | — → `{items, total, discount_amount?, coupon?}` | 200 | Máx. 50 líneas; precios derivados del motor según audiencia (RNF-P11-03). |
+| POST | `/api/v1/cart/items` | Agrega/altera línea. | `{product_id, qty}` → `{cart}` | 200 / 422 | `qty` 1–999; fuera de límites del carrito → 422. |
+| DELETE | `/api/v1/cart/items/{product_id}` | Quita línea. | — → `{cart}` | 200 / 404 | |
+| POST | `/api/v1/cart/coupon` | Aplica cupón. | `{code}` → `{cart, coupon}` | 200 / 422 | 1 cupón por carrito; 422 con razón (inactivo / vencido / `max_uses` / inexistente). |
+| DELETE | `/api/v1/cart/coupon` | Quita cupón. | — → `{cart}` | 200 | |
+
+### Pagos (Mercado Pago, contratos safe mode)
+| Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
+|---|---|---|---|---|---|
+| POST | `/api/v1/orders/{id}/payment` | Inicia pago MP. | Header `Idempotency-Key` (obligatorio) → `{reference, checkout_url}` | 200 / 404 / 409 / 422 | Solo `status=nuevo` + `payment_method=mercadopago`. Misma key → misma respuesta guardada (200); otra key con `payment_status=pending` → 409 `payment_in_progress`; estado terminal → 422 `payment_finalized`; `cash` → 422 `payment_method_not_mercadopago`; `status ≠ nuevo` → 409 `order_not_payable`. `CheckoutProvider` (mock: `reference = mock_<order_id>`). (RF-P6-13) |
+| GET | `/api/v1/orders/{id}/payment` | Estado del pago (polling). | — → `{status, paid, payment_reference?, updated_at?}` | 200 / 404 | `status` = `payment_status ∈ {pending, approved, rejected, failed}` (`null` si no se inició pago). 404 anti-sondeo a pedidos ajenos. |
+| POST | `/api/v1/webhooks/mercadopago` | Webhook de pago. | payload MP → `200 {"ok":true}` | 200 / 401 / 422 | Público (solo firma, **sin auth por cookie**). Firma validada **antes de cualquier efecto** (401 si falla; 422 si payload inválido tras verificación); dedupe por id de pago en tabla persistente `payment_event` (replay → 200 sin efecto); estados desordenados por prioridad `approved > rejected = failed > pending`; `approved` → `paid=true` + `paid_at` + `payment_reference` en una transacción con guard `WHERE paid=false`. Con firma válida siempre 200 (RNF-P6-08/10). |
+
+### Direcciones de cliente (libro de direcciones)
+| Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
+|---|---|---|---|---|---|
+| GET | `/api/v1/customers/me/addresses` | Mis direcciones. | — → `{items}` | 200 | Máx. 5; incluye `is_default`. |
+| POST | `/api/v1/customers/me/addresses` | Crea dirección. | `{street_line_1*, street_line_2?, city?, postal_code?, province?, phone?}` → `{address}` | 201 / 422 | La primera creada pasa a default. Exceder el máximo de 5 → 422. |
+| PATCH | `/api/v1/customers/me/addresses/{id}` | Edita / marca default. | `{...campos, is_default?}` → `{address}` | 200 / 404 / 422 | `is_default=true` remueve la anterior (transacción). `is_default=false` sobre la default vigente → 422; cuerpo sin campos o campos inválidos → 422. |
+| DELETE | `/api/v1/customers/me/addresses/{id}` | Elimina. | — → `204` | 204 / 404 / 409 | 409 si es la única; borrar la default pasa la primera a default. |
+
+### Cupones (ABM admin + uso portal)
+| Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
+|---|---|---|---|---|---|
+| GET | `/api/v1/coupons` | Lista (admin). | `?q,status,page,page_size` → `{items,total,...}` | 200 | Item: `code,type,value,valid_from?,valid_until?,max_uses?,uses,status`. |
+| POST | `/api/v1/coupons` | Crea (admin). | `{code*, type, value, valid_from?, valid_until?, max_uses?}` → `{coupon}` | 201 / 409 / 422 | `code` único case-insensitive → 409; `type=percent` → `value` 0–100; `type=fixed` → Money ≥ 0. |
+| PATCH | `/api/v1/coupons/{id}` | Edita / pausa. | `{...campos}` → `{coupon}` | 200 / 404 / 422 | |
+| DELETE | `/api/v1/coupons/{id}` | Elimina (admin). | — → `204` | 204 / 404 / 409 | Usado en pedidos → 409 (se pausa). |
+
+### Leads (contacto público + admin)
+| Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
+|---|---|---|---|---|---|
+| POST | `/api/v1/leads` | Crea lead (público, hCaptcha + rate limit). | `{name*, email*, phone?, customer_type ∈ {consumer,business}*, business_name?, location?, message*}` → `{id}` | 202 / 429 / 403 | 403 si falla hCaptcha. (RF-P11-13) |
+| GET | `/api/v1/leads` | Lista (admin). | `?q,read,customer_type,page,page_size` → `{items,total,...}` | 200 | Item: `id,name,customer_type,business_name?,location?,message,read,created_at`. |
+| PATCH | `/api/v1/leads/{id}/read` | Marca leído/no leído (admin). | `{read}` → `{lead}` | 200 / 404 | |
+| POST | `/api/v1/leads/read-all` | Marca todos leídos (admin). | — → `{updated:N}` | 200 | |
+
+### WhatsApp Business (upgrade opcional, P10 RF-P10-07/08)
+| Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
+|---|---|---|---|---|---|
+| GET | `/api/v1/whatsapp/sends` | Envíos con estados (owner). | `?status,from,to,page,page_size` → `{items,total,...}` | 200 | Item: `id,status ∈ {sent,delivered,read,failed},failed_reason?,delivered_at?,read_at?`. |
+| GET | `/api/v1/whatsapp/sends/stats` | Métricas 30 días (owner). | — → `{total,sent,delivered,read,failed,read_rate}` | 200 | |
+| POST | `/api/v1/whatsapp/sends/{id}/resend` | Reintenta fallido. | — → `{send}` | 200 / 409 | Solo `status=failed` + `provider=business_api`; cuenta contra el budget RNF-P10-06. |
+
+**Criterio de salida F5**: cliente `negocio` o `cliente` entra → ve su lista de precios → carrito → checkout de 5 pasos → paga con mock de MP (webhook marca `paid`) o en efectivo (`paid=false` + badge) → ve su pedido en "Mis pedidos"; la dueña ve el pedido en P6 con el método de pago.
 
 ---
 
@@ -286,15 +342,16 @@ api/presentation/routers/
 | F2 Pedidos y stock | 16 | customers, orders |
 | F3 Presupuestos + PDF + WhatsApp | 15 | budgets, pdf, webhooks |
 | F4 Endurecimiento | 0 nuevos (+1 opcional contacto) | cross-cutting |
-| **Total** | **~61** | 10 routers |
+| F5 Portal + checkout e2e (P11) | 25 | orders(mine), cart, payments+webhook, customers(addresses), coupons, leads, whatsapp(sends) |
+| **Total** | **~86** | 14 routers |
 
 ### Endpoints aún por confirmar con Gaspar
 1. `/tenant/settings/recalculate` (F1): ¿recálculo global síncrono o task asíncrona? (impacta UX si catálogo grande).
 2. `budgets` (F3): ¿el wizard hace 1 `POST /budgets` con todo, o endpoints por paso (crear borrador → añadir ítems → enviar)? Aquí puse 1 POST + `PATCH items`.
 3. `orders/{id}/quote` (F2): ¿se necesita como endpoint separado o basta con `PATCH` + `GET`?
-4. Contacto: ¿existe página de contacto en el producto? (define si entra `POST /contact`).
+4. Contacto: RESUELTO por F5 — `POST /leads` público (hCaptcha + rate limit) captura leads `consumer`/`business` (`p11_portal_checkout.md` RF-P11-13); entra en la allow-list pública de `security.md` #6 si se publica en la landing.
 5. Inbound WhatsApp (F3/F4): ¿se habilita en la v1 o se deja out-of-scope? (define si `webhooks/whatsapp` es obligatorio o opcional de fase).
-6. `tenant/order-window` (F1): GET autenticado (decisión actual: v1 no tiene catálogo público, el banner solo aparece dentro de la app). Si aparece un catálogo público, el GET pasa a la allow-list de `security.md` #6.
+6. `tenant/order-window` (F1): GET autenticado (decisión actual: v1 no tiene catálogo público, el banner solo aparece dentro de la app). El portal de F5 es autenticado por rol (no público), así que el GET sigue autenticado; si aparece un catálogo público, el GET pasa a la allow-list de `security.md` #6.
 
 ---
 
