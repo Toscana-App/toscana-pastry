@@ -37,9 +37,13 @@ const SURFACE_SOFT = "#f4f4f4";
 // page_size fijo (decisión F1 en PREGUNTAS.md): escala admin, sin selector.
 const PAGE_SIZE = 50;
 
+// Valor centinela de la opción "todos" de cada filtro (= sin parámetro).
+const ALL = "__all__";
+
 // Estado (D1 de B8): solo los 2 valores derivados del servidor.
 const STATUS_COLLECTION = createListCollection({
   items: [
+    { value: ALL, label: "Todos" },
     { value: "active", label: "Activo" },
     { value: "incomplete", label: "Incompleto" },
   ],
@@ -183,25 +187,24 @@ export default function MaterialsAbm() {
   );
 
   const categoryCollection = createListCollection({
-    items: categoryOptions.map((c) => ({ value: c.id, label: c.name })),
+    items: [
+      { value: ALL, label: "Todas" },
+      ...categoryOptions.map((c) => ({ value: c.id, label: c.name })),
+    ],
   });
   const supplierCollection = createListCollection({
-    items: supplierOptions.map((s) => ({ value: s.id, label: s.name })),
+    items: [
+      { value: ALL, label: "Todos" },
+      ...supplierOptions.map((s) => ({ value: s.id, label: s.name })),
+    ],
   });
 
   async function handleCreate(payload: MaterialCreatePayload) {
     setCreateBusy(true);
     try {
-      const created = await calcMaterialsService.createMaterial(payload);
-      setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              items: [...prev.items, created],
-              total: prev.total + 1,
-            }
-          : prev
-      );
+      await calcMaterialsService.createMaterial(payload);
+      // Refetch: el servidor decide página, filtros y orden de la lista.
+      setReloadKey((key) => key + 1);
       // Limpia el form (remonte) recién confirmado el 201.
       setCreateFormKey((key) => key + 1);
       toaster.create({ title: "Material creado", type: "success" });
@@ -263,16 +266,11 @@ export default function MaterialsAbm() {
     setDeletingBusy(true);
     try {
       await calcMaterialsService.deleteMaterial(deleting.id);
-      const removedId = deleting.id;
-      setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              items: prev.items.filter((item) => item.id !== removedId),
-              total: Math.max(0, prev.total - 1),
-            }
-          : prev
-      );
+      // Si se vació una página > 1, retrocede una; siempre refetch.
+      if (page > 1 && (data?.items.length ?? 0) <= 1) {
+        setPage(page - 1);
+      }
+      setReloadKey((key) => key + 1);
       setDeleting(null);
       toaster.create({ title: "Material eliminado", type: "success" });
     } catch (error) {
@@ -357,18 +355,22 @@ export default function MaterialsAbm() {
         />
         <Select.Root
           collection={categoryCollection}
-          value={[categoryFilter]}
+          value={[categoryFilter || ALL]}
           onValueChange={(details) => {
-            setCategoryFilter(details.value[0] ?? "");
+            const next = details.value[0];
+            setCategoryFilter(!next || next === ALL ? "" : next);
             // Un cambio de filtro vuelve a la primera página.
             setPage(1);
           }}
         >
           <Select.Trigger aria-label="Filtrar por categoría" minW="10rem">
-            <Select.ValueText placeholder="Todas las categorías" />
+            <Select.ValueText placeholder="Todas" />
           </Select.Trigger>
           <Select.Positioner>
             <Select.Content>
+              <Select.Item item={{ value: ALL, label: "Todas" }}>
+                Todas
+              </Select.Item>
               {categoryOptions.map((c) => (
                 <Select.Item key={c.id} item={{ value: c.id, label: c.name }}>
                   {c.name}
@@ -379,17 +381,21 @@ export default function MaterialsAbm() {
         </Select.Root>
         <Select.Root
           collection={supplierCollection}
-          value={[supplierFilter]}
+          value={[supplierFilter || ALL]}
           onValueChange={(details) => {
-            setSupplierFilter(details.value[0] ?? "");
+            const next = details.value[0];
+            setSupplierFilter(!next || next === ALL ? "" : next);
             setPage(1);
           }}
         >
           <Select.Trigger aria-label="Filtrar por proveedor" minW="10rem">
-            <Select.ValueText placeholder="Todos los proveedores" />
+            <Select.ValueText placeholder="Todos" />
           </Select.Trigger>
           <Select.Positioner>
             <Select.Content>
+              <Select.Item item={{ value: ALL, label: "Todos" }}>
+                Todos
+              </Select.Item>
               {supplierOptions.map((s) => (
                 <Select.Item key={s.id} item={{ value: s.id, label: s.name }}>
                   {s.name}
@@ -400,18 +406,23 @@ export default function MaterialsAbm() {
         </Select.Root>
         <Select.Root
           collection={STATUS_COLLECTION}
-          value={statusFilter ? [statusFilter] : []}
+          value={[statusFilter || ALL]}
           onValueChange={(details) => {
             const next = details.value[0];
-            setStatusFilter(next ? (next as MaterialStatus) : "");
+            setStatusFilter(
+              !next || next === ALL ? "" : (next as MaterialStatus)
+            );
             setPage(1);
           }}
         >
           <Select.Trigger aria-label="Filtrar por estado" minW="10rem">
-            <Select.ValueText placeholder="Todos los estados" />
+            <Select.ValueText placeholder="Todos" />
           </Select.Trigger>
           <Select.Positioner>
             <Select.Content>
+              <Select.Item item={{ value: ALL, label: "Todos" }}>
+                Todos
+              </Select.Item>
               <Select.Item item={{ value: "active", label: "Activo" }}>
                 Activo
               </Select.Item>

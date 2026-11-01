@@ -61,6 +61,9 @@ class BusinessSettings:
     default_prep_minutes: int = 30
     default_servings: int = 6
     default_difficulty: str = "simple"
+    # Fase 8 (P9): branding del PDF (solo texto — sin upload de logo en v1).
+    business_name: str = ""
+    footer_text: str = ""
 
     def __post_init__(self):
         if not Decimal("0.01") <= self.hourly_rate <= Decimal("100000"):
@@ -69,6 +72,10 @@ class BusinessSettings:
             )
         if not Decimal("0") <= self.margin_pct <= Decimal("100"):
             raise ValueError(f"margin_pct fuera de rango 0-100: {self.margin_pct}")
+        if len(self.business_name) > 120:
+            raise ValueError("El nombre del negocio debe tener 120 caracteres o menos")
+        if len(self.footer_text) > 280:
+            raise ValueError("El pie de página debe tener 280 caracteres o menos")
         if not Decimal("0.01") <= self.round_step <= Decimal("1000"):
             raise ValueError(f"round_step fuera de rango 0.01-1000: {self.round_step}")
         if not Decimal("0") <= self.gas_pct <= Decimal("100"):
@@ -192,6 +199,9 @@ class RecipeItem:
             raise ValueError(f"unidad de receta invalida: {self.unit!r}")
 
 
+MAX_RECIPE_LINES = 30
+
+
 @dataclass(frozen=True)
 class Product:
     """Producto de catalogo (P3/P4). El precio NO se persiste: se deriva en
@@ -229,6 +239,8 @@ class Product:
             raise ValueError(f"dificultad invalida: {self.difficulty!r}")
         if len(self.recipe) == 0:
             raise ValueError("la receta requiere al menos un insumo")
+        if len(self.recipe) > MAX_RECIPE_LINES:
+            raise ValueError(f"la receta admite como maximo {MAX_RECIPE_LINES} lineas")
         seen = set()
         for item in self.recipe:
             if item.ingredient_id in seen:

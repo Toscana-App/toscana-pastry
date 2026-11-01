@@ -48,6 +48,10 @@ class TestComputeUnitCost:
         with pytest.raises(ValueError):
             compute_unit_cost(Decimal("10"), Decimal("0"))
 
+    def test_negative_quantity_raises(self):
+        with pytest.raises(ValueError):
+            compute_unit_cost(Decimal("10"), Decimal("-1"))
+
     def test_negative_price_raises(self):
         with pytest.raises(ValueError):
             compute_unit_cost(Decimal("-1"), Decimal("2"))
@@ -119,6 +123,10 @@ class TestCalcMaterialValidation:
     def test_zero_package_quantity_raises(self):
         with pytest.raises(ValueError):
             _material(package_quantity=Decimal("0"))
+
+    def test_negative_package_quantity_raises(self):
+        with pytest.raises(ValueError):
+            _material(package_quantity=Decimal("-1"))
 
 
 # ─── unit_cost / status are server-derived (RF-P2CC-02/03, security #8) ─

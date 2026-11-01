@@ -294,6 +294,17 @@ export function SettingsPage() {
                   valueAsNumber: true,
                 })}
               />
+              <NumberField
+                label="Markup consumidor final"
+                suffix="%"
+                error={
+                  fieldErrors.consumer_markup_pct ??
+                  errors.consumer_markup_pct?.message
+                }
+                registerProps={register("consumer_markup_pct", {
+                  valueAsNumber: true,
+                })}
+              />
             </Grid>
           </Fieldset.Root>
 

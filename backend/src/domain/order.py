@@ -38,6 +38,40 @@ class PaymentStatus(StrEnum):
     FAILED = "failed"
 
 
+# Provider status priority: approved > rejected = failed > pending.
+# A notification only applies when it outranks the order's current status.
+_PAYMENT_STATUS_RANK: dict[PaymentStatus, int] = {
+    PaymentStatus.PENDING: 0,
+    PaymentStatus.REJECTED: 1,
+    PaymentStatus.FAILED: 1,
+    PaymentStatus.APPROVED: 2,
+}
+
+
+def overridable_payment_statuses(new: PaymentStatus) -> frozenset[PaymentStatus]:
+    """Current payment statuses that a provider ``new`` status may replace.
+
+    ``None`` (never initiated) is always replaceable and is not listed.
+    """
+    return frozenset(
+        current
+        for current, rank in _PAYMENT_STATUS_RANK.items()
+        if rank < _PAYMENT_STATUS_RANK[new]
+    )
+
+
+# A pending Mercado Pago payment is cancelled automatically after 24 h.
+PAYMENT_EXPIRY = datetime.timedelta(hours=24)
+
+
+class OrderValidationError(ValueError):
+    """A portal order violates a business rule; ``code`` is the API detail."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
 class OrderStatus(StrEnum):
     NUEVO = "nuevo"
     CONFIRMADO = "confirmado"
@@ -113,6 +147,42 @@ class Order:
     def total(self) -> Decimal:
         return sum((item.total for item in self.items), start=Decimal("0"))
 
+    @classmethod
+    def place_portal(
+        cls,
+        *,
+        customer_id: str,
+        date: datetime.datetime,
+        items: list[OrderItem],
+        payment_method: PaymentMethod,
+        delivery_mode: DeliveryMode,
+        delivery_address: str | None,
+        coupon_code: str | None = None,
+        now: datetime.datetime | None = None,
+    ) -> Order:
+        """Build a new portal order after validating its business rules."""
+        now = now or datetime.datetime.now(datetime.UTC)
+        if not items:
+            raise OrderValidationError("order_requires_items")
+        if delivery_mode == DeliveryMode.DELIVERY and not (
+            delivery_address and delivery_address.strip()
+        ):
+            raise OrderValidationError("delivery_requires_address")
+        order_date = date.replace(tzinfo=None) if date.tzinfo else date
+        today = now.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
+        if order_date < today:
+            raise OrderValidationError("date_must_be_today_or_later")
+        return cls(
+            customer_id=customer_id,
+            date=order_date,
+            items=items,
+            payment_method=payment_method,
+            delivery_mode=delivery_mode,
+            delivery_address=delivery_address or "",
+            coupon_code=coupon_code,
+            created_at=now,
+        )
+
     def confirm_payment(self, reference: str, status: PaymentStatus) -> None:
         """Mark the order as paid (server-managed, monotonic).
 
@@ -139,3 +209,22 @@ class Order:
         if self.status != OrderStatus.NUEVO:
             raise ValueError("payment_method is immutable after order confirmation")
         self.payment_method = PaymentMethod.MERCADOPAGO
+
+
+def is_payment_expired(order: Order, now: datetime.datetime) -> bool:
+    """True when an unpaid order's pending payment outlived ``PAYMENT_EXPIRY``.
+
+    Pure: ``now`` is injected. Measured from ``order.created_at`` (there is no
+    separate "payment started" timestamp).
+    """
+    if (
+        order.payment_method != PaymentMethod.MERCADOPAGO
+        or order.status != OrderStatus.NUEVO
+        or order.paid
+        or order.payment_status != PaymentStatus.PENDING
+    ):
+        return False
+    created_at = order.created_at
+    if created_at.tzinfo is None:  # SQLite returns naive UTC datetimes
+        created_at = created_at.replace(tzinfo=datetime.UTC)
+    return now - created_at >= PAYMENT_EXPIRY

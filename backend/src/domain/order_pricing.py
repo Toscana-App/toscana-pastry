@@ -16,17 +16,20 @@ El motor `calculate_price` no se toca: se le pasa la receta ya escalada.
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Dict, Optional, Tuple
 
 from domain.models import BusinessSettings, Ingredient, Product, PricingSettings
-from domain.orders import OrderItemSnapshot, OrderItemSnapshotLine
+from domain.orders import OrderItem, OrderItemSnapshot, OrderItemSnapshotLine
 from domain.pricing import (
     CostBreakdown,
+    UnitConversionError,
     calculate_price,
     cost_of_quantity,
+    round_to_step,
 )
 
 
-def _has_price(ingredient: Ingredient | None) -> bool:
+def _has_price(ingredient: Optional[Ingredient]) -> bool:
     """Misma regla que Fase 5: no existe, borrado o precio 0 = sin precio
     (0 = sin precio, decision de negocio Fase 5)."""
     return (
@@ -38,11 +41,11 @@ def _has_price(ingredient: Ingredient | None) -> bool:
 
 def price_order_item(
     product: Product,
-    ingredients_by_id: dict[str, Ingredient],
+    ingredients_by_id: Dict[str, Ingredient],
     settings: BusinessSettings,
     qty: int,
     portions: int,
-    margin_override: Decimal | None = None,
+    margin_override: Optional[Decimal] = None,
 ) -> OrderItemSnapshot:
     """Desglose congelado de un item de pedido.
 
@@ -70,7 +73,7 @@ def price_order_item(
     for item in product.recipe:
         ingredient = ingredients_by_id.get(item.ingredient_id)
         qty_unit = Decimal(item.qty) * scale * Decimal(qty)
-        if ingredient is not None and _has_price(ingredient):
+        if _has_price(ingredient):
             line_items.append((qty_unit, item.unit, ingredient.price_per_unit, ingredient.unit))
         else:
             # Insumo sin precio: costo 0 y queda marcado (decisión P6).
@@ -88,11 +91,11 @@ def price_order_item(
         line_items, labor_minutes, pricing
     )
 
-    lines: tuple[OrderItemSnapshotLine, ...] = ()
+    lines: Tuple[OrderItemSnapshotLine, ...] = ()
     for item in product.recipe:
         ingredient = ingredients_by_id.get(item.ingredient_id)
         qty_scaled = Decimal(item.qty) * scale * Decimal(qty)
-        if ingredient is not None and _has_price(ingredient):
+        if _has_price(ingredient):
             line_cost = cost_of_quantity(
                 qty_scaled, item.unit, ingredient.price_per_unit, ingredient.unit
             )
@@ -106,7 +109,7 @@ def price_order_item(
                 qty=qty_scaled,
                 unit=item.unit,
                 cost=line_cost,
-                is_missing=not (ingredient is not None and _has_price(ingredient)),
+                is_missing=not _has_price(ingredient),
             ),
         )
 

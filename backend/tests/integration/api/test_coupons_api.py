@@ -574,6 +574,32 @@ async def test_patch_invalid_validity_window_rejected(client):
 
 
 @pytest.mark.asyncio
+async def test_patch_explicit_null_clears_optional_fields(client):
+    """PATCH con null explicito limpia valid_until y max_uses."""
+    headers = await _admin_headers(client)
+    coupon = await _create(
+        client,
+        await _admin_token(client),
+        code="LIMPIAR",
+        type="percent",
+        value="10",
+        valid_until="2026-12-31T00:00:00Z",
+        max_uses=5,
+    )
+
+    response = await client.patch(
+        f"{PATH}/{coupon['id']}",
+        json={"valid_until": None, "max_uses": None},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()["coupon"]
+    assert body["valid_until"] is None
+    assert body["max_uses"] is None
+    assert body["code"] == "LIMPIAR"
+
+
+@pytest.mark.asyncio
 async def test_patch_empty_body_rejected(client):
     """PATCH sin campos → 422."""
     headers = await _admin_headers(client)
@@ -637,3 +663,73 @@ async def test_delete_not_found(client):
     headers = await _admin_headers(client)
     response = await client.delete(f"{PATH}/no-such-id", headers=headers)
     assert response.status_code == 404
+
+
+# ─── code_key UNIQUE (race-safe duplicate detection) ────────────────────
+
+
+@pytest.mark.asyncio
+async def test_create_duplicate_code_accent_and_case(client):
+    """'CAFE10' vs 'café10' differ only by case/accent -> 409."""
+    headers = await _admin_headers(client)
+    await _create(client, await _admin_token(client), code="CAFE10")
+    response = await client.post(
+        PATH, json={"code": "café10", "type": "percent", "value": "5"}, headers=headers
+    )
+    assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_create_race_hits_db_constraint_returns_409(client, monkeypatch):
+    """Concurrent-style: the app pre-check misses (both requests read before
+    either commits), so the DB UNIQUE on code_key must produce the 409."""
+    headers = await _admin_headers(client)
+    await _create(client, await _admin_token(client), code="CAFE10")
+
+    async def _miss(self, code):
+        return None
+
+    monkeypatch.setattr(SQLCouponRepository, "get_by_code", _miss)
+    response = await client.post(
+        PATH, json={"code": "Café10", "type": "percent", "value": "5"}, headers=headers
+    )
+    assert response.status_code == 409
+    assert "Café10" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_patch_race_hits_db_constraint_returns_409(client, monkeypatch):
+    token = await _admin_token(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    await _create(client, token, code="CAFE10")
+    other = await _create(client, token, code="OTRO")
+
+    async def _miss(self, code):
+        return None
+
+    monkeypatch.setattr(SQLCouponRepository, "get_by_code", _miss)
+    response = await client.patch(
+        f"{PATH}/{other['id']}", json={"code": "café10"}, headers=headers
+    )
+    assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_db_rejects_duplicate_code_key(db_session):
+    """DB level: two rows with the same code_key raise IntegrityError."""
+    from sqlalchemy.exc import IntegrityError
+
+    from data.models import CouponORM
+
+    def _row(i, code):
+        return CouponORM(
+            id=f"id-{i}", code=code, code_key=accent_fold(code),
+            type="percent", value="10",
+        )
+
+    db_session.add(_row(1, "CAFE10"))
+    await db_session.commit()
+    db_session.add(_row(2, "café10"))
+    with pytest.raises(IntegrityError):
+        await db_session.commit()
+    await db_session.rollback()

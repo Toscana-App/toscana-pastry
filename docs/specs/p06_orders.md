@@ -52,8 +52,27 @@ Gestión de pedidos de clientes. Screenshot verificado: "Pedido Sofía Molina" c
   - **Endpoints**: `POST /orders/{id}/payment` (solo `status=nuevo` + `payment_method=mercadopago`; `Idempotency-Key` **requerida**) → `{reference, checkout_url}`: re-intento con la misma key → misma respuesta guardada (200); otra key con `payment_status=pending` → 409 `payment_in_progress`; `payment_status` terminal → 422 `payment_finalized`; `payment_method=cash` → 422 `payment_method_not_mercadopago`; `status ≠ nuevo` → 409 `order_not_payable`; pedido de otro tenant → 404 anti-sondeo. `GET /orders/{id}/payment` → `{status, paid, payment_reference?, updated_at?}` (polling del portal; `status` = `payment_status`, `null` si no se inició pago; 404 anti-sondeo).
   - **Webhook** `POST /webhooks/mercadopago` (público, **sin auth por cookie**: solo firma): (1) validar firma vía `verify_webhook` **ANTES de cualquier efecto** → 401 si falla o payload no parseable tras verificación → 422; (2) dedupe por id de pago del proveedor en tabla persistente `payment_event` (únicos; replay → 200 `{"ok":true}` sin efecto); (3) estados desordenados tolerados por prioridad `approved > rejected = failed > pending`: `pending` nunca sobreescribe terminal; `approved` se aplica como máximo una vez (guard `WHERE paid=false`); `rejected`/`failed` son intercambiables y **nunca revierten** `paid`; (4) `approved` → `paid=true` + `paid_at=now` + `payment_reference` + `payment_status=approved` en **una sola transacción**; (5) con firma válida, responder siempre 200 `{"ok":true}` (incluye dedupe), para no hacer que el proveedor re-intente. (UC-10)
   - **Safe mode** (límites de la skill): sin instalar/importar SDK live, sin variables de entorno `MP_*`, sin creación de sesiones reales, sin procesamiento de callbacks en vivo. El rollout live requiere la sección Security Handoff (RF-P6-14).
+  - **Validación previa a `paid=true` y anti-replay** (se aplica sobre el webhook de arriba): antes de marcar `paid=true`, el backend consulta `get_payment(reference)` (no confía en el payload) y verifica que `external_reference` == id del pedido, `transaction_amount` == total del pedido post-cupón (sin tolerancia) y `currency_id` == moneda del tenant; si no coincide no marca `paid`, registra la discrepancia y responde 200 para evitar reintentos infinitos. La verificación valida firma + `ts` (header `x-signature`) dentro de una tolerancia anti-replay de 5 minutos con `hmac.compare_digest`, y falla cerrado (401) ante secreto ausente.
 - **RF-P6-14**: Efectivo en la entrega: `payment_method=cash` → `payment_status=null`, el pedido permanece `paid=false` con badge "Cobrar en la entrega" (lista y detalle, texto no solo color); la dueña lo marca con el toggle de RF-P6-10 (`PATCH /orders/{id}/paid`); `POST /orders/{id}/payment` sobre un pedido `cash` → 422 `payment_method_not_mercadopago`. **Security Handoff** (requisito de la skill para el rollout live, fuera de esta specs): credenciales `MP_ACCESS_TOKEN`/`MP_WEBHOOK_SECRET` solo en env del backend; firma HMAC del webhook validada antes de cualquier efecto; rate limit en el webhook; validación de montos y auditoría de transacciones; no se prescribe aquí SDK live ni creación de sesiones reales del proveedor.
 - **RF-P6-11**: Resumen semanal: semana natural (Lun–Dom) con pedidos `confirmado`/`entregado` (cliente, ítems, total, pago), totales (`amount`, `paid`, `unpaid`) + export CSV `GET /orders/export` (y `GET /budgets/export` en F3). (UC-08)
+
+**Transiciones de pago permitidas** (estado interno del polling `GET /orders/{id}/payment`):
+
+| Desde | Hacia | Efecto |
+|---|---|---|
+| `pending` | `approved` \| `rejected` \| `failed` | `approved` → `paid=true` (previa validación de RF-P6-13) |
+| `approved` | `refunded` | Alerta a la dueña; no revierte `paid` automáticamente |
+| `approved` \| `rejected` \| `failed` | cualquier otro | No permitido: estados finales inmutables |
+
+**Mapeo de estados de Mercado Pago a estado interno** (aplicado por el webhook y por `get_payment`):
+
+| Estado Mercado Pago | Estado interno |
+|---|---|
+| `pending` \| `in_process` \| `authorized` | `pending` |
+| `approved` | `approved` |
+| `rejected` | `rejected` |
+| `cancelled` | `failed` |
+| `refunded` \| `charged_back` | `refunded` |
 
 ## Requerimientos no funcionales
 - **RNF-P6-01**: Crear pedido con 10 ítems < 1 s (desglose calculado en la misma transacción).
@@ -63,7 +82,7 @@ Gestión de pedidos de clientes. Screenshot verificado: "Pedido Sofía Molina" c
 - **RNF-P6-05**: Mobile: wizard de creación en pasos (Cliente → Productos → Resumen) para no tener scroll infinito.
 - **RNF-P6-06**: Export CSV de hasta 500 pedidos < 5 s (streaming; sin cargar el conjunto completo en memoria).
 - **RNF-P6-07**: Cero credenciales de Mercado Pago en el frontend ni en el repo (`security.md` #1–3, #6); el portal solo consume los endpoints propios de la API.
-- **RNF-P6-08**: Webhook de pago: idempotente (dedupe por id de pago), tolerante a reintentos del proveedor y a estados que llegan desordenados; el efecto sobre `paid` es mono-tónico (`false → true` nunca vuelve atrás por replay).
+- **RNF-P6-08**: Webhook de pago: idempotente (dedupe por id de pago), tolerante a reintentos del proveedor y a estados que llegan desordenados; el efecto sobre `paid` es mono-tónico (`false → true` nunca vuelve atrás por replay). Antes de marcar `paid=true` se aplica la validación de `get_payment` (`external_reference`, `transaction_amount` sin tolerancia, `currency_id`) de RF-P6-13; si no coincide no marca `paid`, registra la discrepancia y responde 200. Casos de test: monto menor, pedido ajeno, moneda distinta.
 - **RNF-P6-09**: Safe mode verificable (checklist de `references/testing.md` de la skill): el repo no importa ningún SDK de pagos (`mercadopago`, `@mercadopago/sdk-js` u otro), no declara ni lee env de credenciales de gateway (`MP_ACCESS_TOKEN`, etc.) y no existe ruta que llame a una API de pago externa; `MockCheckoutProvider` es determinístico (misma entrada → misma salida; verificable por test, sin aleatoriedad/reloj/rede).
 - **RNF-P6-10**: Concurrency de pago: el dedupe del webhook es **persistente** (sobrevive a reinicios; no solo en memoria) y O(1) (índice único sobre el id de pago); el efecto sobre `paid` se aplica con guard de fila (`WHERE paid=false`), de modo que un `approved` concurrente con un marcado manual → ambos consistentes, uno solo escribe `paid_at`; `POST /orders/{id}/payment` concurrente con distintas keys → exactamente un `pending` (el otro → 409).
 

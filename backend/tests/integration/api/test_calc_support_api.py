@@ -10,6 +10,7 @@ search + pagination, and validation (422) for:
 """
 import pytest
 import pytest_asyncio
+from decimal import Decimal
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -45,6 +46,26 @@ from main import app
 
 
 # ─── Fixtures ───────────────────────────────────────────────────────────
+
+@pytest_asyncio.fixture
+async def db_session():
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+
+    # Registrar accent_fold para busquedas con acentos (RF-P2-02).
+    @event.listens_for(engine.sync_engine, "connect")
+    def _register_sqlite_functions(dbapi_connection, connection_record):
+        dbapi_connection.create_function(
+            "accent_fold", 1, accent_fold, deterministic=True
+        )
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
+        engine, expire_on_commit=False, class_=AsyncSession
+    )
+    async with factory() as session:
+        yield session
+
 
 @pytest_asyncio.fixture
 async def client(db_session):
@@ -526,7 +547,7 @@ class TestDefaultCosts:
             json={
                 "name": "Mano de obra",
                 "type": "labor",
-                "default_unit_cost_or_rate": "5000",
+                "default_unit_cost_or_rate": 5000,
                 "default_quantity_or_minutes": "60",
             },
             headers={"Authorization": f"Bearer {token}"},
@@ -534,8 +555,7 @@ class TestDefaultCosts:
         assert response.status_code == 201
         body = response.json()
         assert body["type"] == "labor"
-        # Money viaja en centavos (int); el str legacy "5000" = 50.000 unidades.
-        assert body["default_unit_cost_or_rate"] == 500000
+        assert body["default_unit_cost_or_rate"] == 5000
 
     @pytest.mark.asyncio
     async def test_create_extra_cost(self, client):
@@ -546,7 +566,7 @@ class TestDefaultCosts:
             json={
                 "name": "Gas",
                 "type": "extra_cost",
-                "default_unit_cost_or_rate": "1000",
+                "default_unit_cost_or_rate": 1000,
                 "default_quantity_or_minutes": "0",
             },
             headers={"Authorization": f"Bearer {token}"},
@@ -564,7 +584,7 @@ class TestDefaultCosts:
             json={
                 "name": "Mano de obra",
                 "type": "labor",
-                "default_unit_cost_or_rate": "5000",
+                "default_unit_cost_or_rate": 5000,
                 "default_quantity_or_minutes": "60",
             },
             headers=headers,
@@ -573,11 +593,11 @@ class TestDefaultCosts:
 
         update = await client.patch(
             f"{self._PATH}/{cost_id}",
-            json={"default_unit_cost_or_rate": "6000"},
+            json={"default_unit_cost_or_rate": 6000},
             headers=headers,
         )
         assert update.status_code == 200
-        assert update.json()["default_unit_cost_or_rate"] == 600000
+        assert update.json()["default_unit_cost_or_rate"] == 6000
 
     @pytest.mark.asyncio
     async def test_delete(self, client):
@@ -589,7 +609,7 @@ class TestDefaultCosts:
             json={
                 "name": "Gas",
                 "type": "extra_cost",
-                "default_unit_cost_or_rate": "1000",
+                "default_unit_cost_or_rate": 1000,
                 "default_quantity_or_minutes": "0",
             },
             headers=headers,
@@ -610,7 +630,7 @@ class TestDefaultCosts:
             json={
                 "name": "Mano de obra",
                 "type": "labor",
-                "default_unit_cost_or_rate": "5000",
+                "default_unit_cost_or_rate": 5000,
                 "default_quantity_or_minutes": "60",
             },
             headers=headers,
@@ -620,7 +640,7 @@ class TestDefaultCosts:
             json={
                 "name": "Gas",
                 "type": "extra_cost",
-                "default_unit_cost_or_rate": "1000",
+                "default_unit_cost_or_rate": 1000,
                 "default_quantity_or_minutes": "0",
             },
             headers=headers,
@@ -642,7 +662,7 @@ class TestDefaultCosts:
             json={
                 "name": "Mano de obra principal",
                 "type": "labor",
-                "default_unit_cost_or_rate": "5000",
+                "default_unit_cost_or_rate": 5000,
                 "default_quantity_or_minutes": "60",
             },
             headers=headers,
@@ -652,7 +672,7 @@ class TestDefaultCosts:
             json={
                 "name": "Mano de obra secundaria",
                 "type": "labor",
-                "default_unit_cost_or_rate": "3000",
+                "default_unit_cost_or_rate": 3000,
                 "default_quantity_or_minutes": "30",
             },
             headers=headers,
@@ -671,7 +691,7 @@ class TestDefaultCosts:
             json={
                 "name": "A",
                 "type": "labor",
-                "default_unit_cost_or_rate": "-1",
+                "default_unit_cost_or_rate": -1,
                 "default_quantity_or_minutes": "0",
             },
             headers={"Authorization": f"Bearer {token}"},
@@ -687,7 +707,7 @@ class TestDefaultCosts:
             json={
                 "name": "A",
                 "type": "invalid",
-                "default_unit_cost_or_rate": "0",
+                "default_unit_cost_or_rate": 0,
                 "default_quantity_or_minutes": "0",
             },
             headers={"Authorization": f"Bearer {token}"},
@@ -705,7 +725,7 @@ class TestDefaultCosts:
                 json={
                     "name": f"Costo-{i}",
                     "type": "labor",
-                    "default_unit_cost_or_rate": str(1000 * (i + 1)),
+                    "default_unit_cost_or_rate": 1000 * (i + 1),
                     "default_quantity_or_minutes": "0",
                 },
                 headers=headers,
@@ -840,7 +860,7 @@ class TestUpdatedAtRefreshOnPatch:
             json={
                 "name": "TestUpdate",
                 "type": "labor",
-                "default_unit_cost_or_rate": "1000",
+                "default_unit_cost_or_rate": 1000,
                 "default_quantity_or_minutes": "0",
             },
             headers=headers,

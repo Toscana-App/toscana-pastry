@@ -118,6 +118,15 @@ class TestPatchOrderPaid:
         data = response.json()
         assert data["paid"] is True
 
+    async def test_cash_order_keeps_payment_status_and_reference_null(
+        self, client, db_session, cash_order
+    ):
+        await client.patch(f"/api/v1/orders/{cash_order.id}/paid")
+        stored = await SQLOrderRepository(db_session).get(cash_order.id)
+        assert stored.paid is True
+        assert stored.payment_status is None
+        assert stored.payment_reference is None
+
     async def test_mercadopago_no_terminal_status_marks_paid(
         self, client, mercadopago_order
     ):

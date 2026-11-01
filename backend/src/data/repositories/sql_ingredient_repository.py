@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import List, Optional, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 from sqlalchemy import REAL, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -95,6 +95,17 @@ class SQLIngredientRepository:
         )
         orm = result.scalars().first()
         return _to_domain(orm) if orm else None
+
+    async def get_many(self, ingredient_ids: Sequence[str]) -> List[Ingredient]:
+        if not ingredient_ids:
+            return []
+        result = await self.session.execute(
+            select(IngredientORM).where(
+                IngredientORM.id.in_(set(ingredient_ids)),
+                *(_not_deleted()),
+            )
+        )
+        return [_to_domain(orm) for orm in result.scalars().all()]
 
     async def create(
         self,

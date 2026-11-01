@@ -33,7 +33,7 @@ Paso 2 agrega productos; paso 3 es el resumen (screenshot verificado: "Presupues
 - **RF-P8-05**: Estados: `borrador → enviado` (enviar marca enviado; se puede "reenviar" tras editar, generando nueva versión). (UC-05)
 - **RF-P8-06**: Listado de presupuestos (secuencia, cliente, total, estado, fecha) con búsqueda. (UC-04)
 - **RF-P8-07**: Eliminar presupuesto (borrador o enviado): confirmación; no toca stock. (UC-06)
-- **RF-P8-08**: Conversión presupuesto → pedido (botón "Convertir en pedido") crea el pedido con los mismos ítems. (UC-05)
+- **RF-P8-08**: Conversión presupuesto → pedido (botón "Convertir en pedido") crea el pedido con los mismos ítems. (UC-05) Reglas: (a) los precios manuales del presupuesto se conservan en el pedido; (b) solo se convierten presupuestos en estado `enviado`; (c) el presupuesto guarda el `order_id` del pedido creado y una segunda conversión responde 409 `already_converted`.
 
 ## Requerimientos no funcionales
 - **RNF-P8-01**: Recálculo < 50 ms al cambiar cantidades.

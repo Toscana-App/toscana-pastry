@@ -58,15 +58,32 @@ class InvalidStatusTransitionError(ValueError):
         super().__init__(f"Transicion invalida: {current} -> {target}")
 
 
+class OrderNotEditableError(Exception):
+    """El pedido ya no esta en estado `nuevo` (verificado bajo lock)."""
+
+    def __init__(self, current: str):
+        self.current = current
+        super().__init__("Solo se puede editar un pedido en estado nuevo")
+
+
 class InsufficientOrderStockError(Exception):
     """Stock insuficiente para confirmar un pedido (RNF-P6-02/04).
 
-    `shortage` mapea ingredient_id -> cantidad que falta. La capa de datos
-    lo levanta dentro de la transicion (despues de rollback): ningun
-    movimiento ni cambio de estado queda aplicado."""
+    `shortage` mapea ingredient_id -> cantidad que falta. `available` y
+    `required` (ingredient_id -> cantidad) se capturan bajo lock, en el
+    mismo instante del chequeo. La capa de datos lo levanta dentro de la
+    transicion (despues de rollback): ningun movimiento ni cambio de
+    estado queda aplicado."""
 
-    def __init__(self, shortage: Dict[str, Decimal]):
+    def __init__(
+        self,
+        shortage: Dict[str, Decimal],
+        available: Optional[Dict[str, Decimal]] = None,
+        required: Optional[Dict[str, Decimal]] = None,
+    ):
         self.shortage = shortage
+        self.available = available if available is not None else {}
+        self.required = required if required is not None else {}
         super().__init__(
             f"stock insuficiente en {len(shortage)} insumo(s) para el pedido"
         )

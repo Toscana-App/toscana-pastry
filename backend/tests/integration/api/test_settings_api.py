@@ -256,7 +256,7 @@ async def test_put_settings_rejects_zero_round_step(client):
     token = await _admin_token(client)
     response = await client.put(
         SETTINGS_PATH,
-        json=_valid_payload(round_step="0"),
+        json=_valid_payload(round_step=0),
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 422

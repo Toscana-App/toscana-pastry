@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Flex, Input, Select, Textarea } from "@chakra-ui/react";
+import { Button, Flex, Input, Select, Text, Textarea } from "@chakra-ui/react";
 import { createListCollection } from "@ark-ui/react";
 import type {
   Category,
@@ -27,6 +27,10 @@ interface MaterialFormProps {
 }
 
 // Input numérico crudo → number | null (vacío → null; inválido → null).
+// Valor centinela de la opción vacía de categoría/proveedor (→ null en PATCH).
+const NONE = "__none__";
+const ERROR_COLOR = "#e23b4a";
+
 function parseAmount(raw: string): number | null {
   const value = raw.trim();
   if (value === "") return null;
@@ -52,25 +56,39 @@ export default function MaterialForm({
     initial?.unit_of_measure ?? ""
   );
   const categoryCollection = createListCollection({
-    items: categories.map((c) => ({ value: c.id, label: c.name })),
+    items: [
+      { value: NONE, label: "Sin categoría" },
+      ...categories.map((c) => ({ value: c.id, label: c.name })),
+    ],
   });
   const supplierCollection = createListCollection({
-    items: suppliers.map((s) => ({ value: s.id, label: s.name })),
+    items: [
+      { value: NONE, label: "Sin proveedor" },
+      ...suppliers.map((s) => ({ value: s.id, label: s.name })),
+    ],
   });
 
   const [price, setPrice] = useState(initial?.purchase_total_price ?? "");
   const [quantity, setQuantity] = useState(initial?.package_quantity ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [error, setError] = useState("");
 
   function handleSubmit() {
     const trimmedName = name.trim();
     if (!trimmedName || busy) return;
+    setError("");
 
     const priceValue = parseAmount(price);
     const quantityValue = parseAmount(quantity);
     // Validación client-side: no depender del 422 del backend.
-    if (priceValue !== null && priceValue < 0) return;
-    if (quantityValue !== null && quantityValue <= 0) return;
+    if (priceValue !== null && priceValue < 0) {
+      setError("El precio del paquete no puede ser negativo.");
+      return;
+    }
+    if (quantityValue !== null && quantityValue <= 0) {
+      setError("La cantidad por paquete debe ser mayor a 0.");
+      return;
+    }
 
     if (initial) {
       // Edición: PATCH con solo los campos tocados (el backend usa
@@ -98,7 +116,10 @@ export default function MaterialForm({
         payload.package_quantity = quantityValue;
       }
       // Sin cambios → no enviar (PATCH vacío → 422 en el backend).
-      if (Object.keys(payload).length === 0) return;
+      if (Object.keys(payload).length === 0) {
+        setError("No hay cambios para guardar.");
+        return;
+      }
       onSubmit(payload);
     } else {
       // Alta: payload mínimo; los campos vacíos no se mandan.
@@ -138,10 +159,10 @@ export default function MaterialForm({
       <Flex direction={{ base: "column", sm: "row" }} gap={3}>
         <Select.Root
           collection={categoryCollection}
-          value={[categoryId]}
+          value={[categoryId || NONE]}
           onValueChange={(details) => {
             const next = details.value[0];
-            if (next) setCategoryId(next);
+            setCategoryId(!next || next === NONE ? "" : next);
           }}
         >
           <Select.Trigger aria-label="Categoría" minW="10rem">
@@ -149,6 +170,9 @@ export default function MaterialForm({
           </Select.Trigger>
           <Select.Positioner>
             <Select.Content>
+              <Select.Item item={{ value: NONE, label: "Sin categoría" }}>
+                Sin categoría
+              </Select.Item>
               {categories.map((c) => (
                 <Select.Item key={c.id} item={{ value: c.id, label: c.name }}>
                   {c.name}
@@ -159,10 +183,10 @@ export default function MaterialForm({
         </Select.Root>
         <Select.Root
           collection={supplierCollection}
-          value={[supplierId]}
+          value={[supplierId || NONE]}
           onValueChange={(details) => {
             const next = details.value[0];
-            if (next) setSupplierId(next);
+            setSupplierId(!next || next === NONE ? "" : next);
           }}
         >
           <Select.Trigger aria-label="Proveedor" minW="10rem">
@@ -170,6 +194,9 @@ export default function MaterialForm({
           </Select.Trigger>
           <Select.Positioner>
             <Select.Content>
+              <Select.Item item={{ value: NONE, label: "Sin proveedor" }}>
+                Sin proveedor
+              </Select.Item>
               {suppliers.map((s) => (
                 <Select.Item key={s.id} item={{ value: s.id, label: s.name }}>
                   {s.name}
@@ -192,7 +219,6 @@ export default function MaterialForm({
           placeholder="Precio del paquete (opcional)"
           type="number"
           step="0.01"
-          min={0}
           value={price}
           onChange={(e) => setPrice(e.target.value)}
         />
@@ -201,7 +227,6 @@ export default function MaterialForm({
           placeholder="Cantidad por paquete (opcional)"
           type="number"
           step="0.01"
-          min="0.01"
           value={quantity}
           onChange={(e) => setQuantity(e.target.value)}
         />
@@ -214,6 +239,11 @@ export default function MaterialForm({
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
       />
+      {error && (
+        <Text role="alert" color={ERROR_COLOR} fontSize="sm">
+          {error}
+        </Text>
+      )}
       <Flex justify="flex-end">
         <Button
           type="submit"

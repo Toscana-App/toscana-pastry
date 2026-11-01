@@ -17,12 +17,15 @@ from api.v1.coupons.schemas import (
 )
 from api.v1.dependencies import require_admin
 from data.repositories.sql_coupon_repository import SQLCouponRepository
-from domain.coupon import Coupon
+from domain.coupon import Coupon, DuplicateCouponCodeError
 from domain.models import User
 
 router = APIRouter(prefix="/coupons", tags=["coupons"])
 
 PAGINATION_MAX = 100
+
+# Campos que un PATCH puede volver a None explicitamente.
+NULLABLE_UPDATE_FIELDS = {"valid_from", "valid_until", "max_uses"}
 
 
 def _response(coupon: Coupon) -> CouponResponse:
@@ -89,7 +92,13 @@ async def create_coupon(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(err)
         ) from err
-    created = await repo.create(coupon)
+    try:
+        created = await repo.create(coupon)
+    except DuplicateCouponCodeError as err:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Ya existe un cupon con el codigo {payload.code!r}",
+        ) from err
     return CouponEnvelope(coupon=_response(created))
 
 
@@ -116,7 +125,7 @@ async def update_coupon(
     updates = {
         key: value
         for key, value in payload.model_dump(exclude_unset=True).items()
-        if value is not None
+        if value is not None or key in NULLABLE_UPDATE_FIELDS
     }
     if not updates:
         raise HTTPException(
@@ -152,7 +161,13 @@ async def update_coupon(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(err)
         ) from err
 
-    saved = await repo.update(updated)
+    try:
+        saved = await repo.update(updated)
+    except DuplicateCouponCodeError as err:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Ya existe un cupon con el codigo {updated.code!r}",
+        ) from err
     if saved is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

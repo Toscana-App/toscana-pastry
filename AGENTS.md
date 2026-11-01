@@ -14,7 +14,7 @@ Philosophy: TDD, Clean Code, Security-first, Async-first.
 
 - **TDD Mandatory:** No implementation without a passing test.
 - **Code Style:** Python (PEP8, type hints), TypeScript (strict mode, functional).
-- **Security:** Strict adherence to `specs/security.md`.
+- **Security:** Strict adherence to `docs/specs/security.md`.
 - **Naming:** snake_case for files/dirs, English only.
 - **Exploration:** Explore the project with CodeGraph (`codegraph_explore`, or the `codegraph` CLI). Never use `grep`, `rg`, or the Grep tool.
 - **Gaps:** When something is unclear, check the code and the conversation first. If still unclear, ask the user. Never invent requirements or make changes outside the requested specifications.

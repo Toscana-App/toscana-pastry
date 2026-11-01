@@ -156,11 +156,8 @@ export default function DefaultCostsAbm() {
         status: newStatus,
       };
       const created = await calcSettingsService.createDefaultCost(payload);
-      setData((prev) =>
-        prev
-          ? { ...prev, items: [...prev.items, created], total: prev.total + 1 }
-          : prev
-      );
+      // Refetch de la página actual: respeta filtro, orden y PAGE_SIZE del server.
+      setReloadKey((key) => key + 1);
       setNewName("");
       setNewType("labor");
       setNewCost("");
@@ -256,16 +253,7 @@ export default function DefaultCostsAbm() {
     setDeletingBusy(true);
     try {
       await calcSettingsService.deleteDefaultCost(deleting.id);
-      const removedId = deleting.id;
-      setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              items: prev.items.filter((item) => item.id !== removedId),
-              total: Math.max(0, prev.total - 1),
-            }
-          : prev
-      );
+      setReloadKey((key) => key + 1);
       setDeleting(null);
       toaster.create({ title: "Costo por defecto eliminado", type: "success" });
     } catch (error) {
@@ -281,14 +269,6 @@ export default function DefaultCostsAbm() {
     } finally {
       setDeletingBusy(false);
     }
-  }
-
-  if (loading) {
-    return (
-      <Flex align="center" justify="center" py={16}>
-        <Spinner size="xl" />
-      </Flex>
-    );
   }
 
   if (loadError) {
@@ -428,7 +408,11 @@ export default function DefaultCostsAbm() {
         <Text color="fg.muted">Total: {total}</Text>
       </Flex>
 
-      {items.length === 0 ? (
+      {loading ? (
+        <Flex align="center" justify="center" py={16}>
+          <Spinner size="xl" />
+        </Flex>
+      ) : items.length === 0 ? (
         <EmptyState.Root>
           <EmptyState.Content>
             <EmptyState.Title>Sin costos por defecto</EmptyState.Title>
