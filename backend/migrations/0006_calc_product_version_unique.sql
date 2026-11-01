@@ -1,4 +1,4 @@
--- 0001_calc_product_version_unique
+-- 0006_calc_product_version_unique
 -- Un producto no puede tener dos versiones con el mismo version_number
 -- (RF-P4CC-07, append-only). Protege contra recalculos concurrentes.
 
