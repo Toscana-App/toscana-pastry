@@ -455,6 +455,60 @@ class CouponORM(Base):
     )
 
 
+class CalcMaterialORM(Base):
+    """Material de la calculadora de costos (RF-P2CC-01).
+
+    Montos/cantidades como TEXT (no float): SQLite no tiene tipo decimal
+    y convertir por float pierde precision, que en dinero no se tolera
+    (RNF-P5CC-01). `unit_cost`/`status` son derivados del servidor
+    (RF-P2CC-02/03). None en precio o cantidad = "sin dato" -> `incomplete`.
+    """
+
+    __tablename__ = "calc_materials"
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False, index=True)
+    internal_code = Column(String, nullable=True)
+    unit_of_measure = Column(String, nullable=True)
+    notes = Column(String, nullable=True)
+    material_category_id = Column(
+        String, ForeignKey("calc_material_categories.id"), nullable=True, index=True
+    )
+    supplier_id = Column(
+        String, ForeignKey("calc_suppliers.id"), nullable=True, index=True
+    )
+    purchase_total_price = Column(String, nullable=True)
+    package_quantity = Column(String, nullable=True)
+    unit_cost = Column(String, nullable=True)
+    status = Column(String, nullable=False, default="incomplete")
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        onupdate=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+
+
+class CalcMaterialCostHistoryORM(Base):
+    """Historial append-only de costo unitario por material (RF-P2CC-04).
+
+    Solo INSERT, nunca UPDATE/DELETE (estilo StockMovementORM, RF-P2-04).
+    """
+
+    __tablename__ = "calc_material_cost_history"
+    id = Column(String, primary_key=True)
+    material_id = Column(
+        String, ForeignKey("calc_materials.id"), nullable=False, index=True
+    )
+    previous_unit_cost = Column(String, nullable=True)
+    new_unit_cost = Column(String, nullable=True)
+    changed_at = Column(DateTime(timezone=True), nullable=False)
+
+
 class CalcDefaultCostORM(Base):
     """Costo por defecto (RF-P5CC-06)."""
 

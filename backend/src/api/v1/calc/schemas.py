@@ -243,3 +243,109 @@ class DefaultCostListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# ─── Materials (RF-P2CC-01..05) ────────────────────────────────────────
+
+MAX_MATERIAL_NAME = 120
+MAX_MATERIAL_INTERNAL_CODE = 40
+MAX_MATERIAL_UNIT_OF_MEASURE = 20
+MAX_MATERIAL_NOTES = 500
+
+
+class MaterialCreate(BaseModel):
+    """POST /calc/materials (RF-P2CC-01).
+
+    extra="forbid": unit_cost y status NUNCA aceptan entrada del cliente
+    (RF-P2CC-02/03, security #8).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=MAX_MATERIAL_NAME)
+    internal_code: str | None = Field(default=None, max_length=MAX_MATERIAL_INTERNAL_CODE)
+    category_id: str | None = None
+    supplier_id: str | None = None
+    unit_of_measure: str | None = Field(default=None, max_length=MAX_MATERIAL_UNIT_OF_MEASURE)
+    purchase_total_price: Money | None = Field(default=None, ge=Decimal("0"))
+    package_quantity: Qty | None = Field(default=None, gt=Decimal("0"))
+    notes: str | None = Field(default=None, max_length=MAX_MATERIAL_NOTES)
+
+    @field_validator("name")
+    @classmethod
+    def _name_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("nombre no puede estar vacio")
+        return value.strip()
+
+
+class MaterialUpdate(BaseModel):
+    """PATCH /calc/materials/{id} (RF-P2CC-01).
+
+    Envio explicito de null en purchase_total_price/package_quantity
+    elimina el dato (unit_cost -> None, status -> incomplete, y se
+    registra en el historial si cambio, RF-P2CC-04).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=MAX_MATERIAL_NAME)
+    internal_code: str | None = Field(default=None, max_length=MAX_MATERIAL_INTERNAL_CODE)
+    category_id: str | None = None
+    supplier_id: str | None = None
+    unit_of_measure: str | None = Field(default=None, max_length=MAX_MATERIAL_UNIT_OF_MEASURE)
+    purchase_total_price: Money | None = Field(default=None, ge=Decimal("0"))
+    package_quantity: Qty | None = Field(default=None, gt=Decimal("0"))
+    notes: str | None = Field(default=None, max_length=MAX_MATERIAL_NOTES)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def _name_not_null(cls, value):
+        if value is None:
+            raise ValueError("nombre no puede ser null")
+        return value
+
+    @field_validator("name")
+    @classmethod
+    def _name_not_blank(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("nombre no puede estar vacio")
+        return value.strip() if value is not None else None
+
+
+class MaterialResponse(BaseModel):
+    id: str
+    name: str
+    internal_code: str | None = None
+    category_id: str | None = None
+    supplier_id: str | None = None
+    unit_of_measure: str | None = None
+    purchase_total_price: Money | None = None
+    package_quantity: Qty | None = None
+    unit_cost: Money | None = None
+    notes: str | None = None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class MaterialListResponse(BaseModel):
+    items: list[MaterialResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class CostHistoryResponse(BaseModel):
+    """Fila del historial de costos unitarios (RF-P2CC-04). Montos como str."""
+
+    previous_unit_cost: Money | None = None
+    new_unit_cost: Money | None = None
+    changed_at: datetime
+
+
+class CostHistoryListResponse(BaseModel):
+    items: list[CostHistoryResponse]
+    total: int
+    page: int
+    page_size: int
