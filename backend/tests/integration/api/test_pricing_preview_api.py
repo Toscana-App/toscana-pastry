@@ -1,6 +1,5 @@
 import pytest
 import pytest_asyncio
-from decimal import Decimal
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
@@ -65,9 +64,9 @@ async def _set_settings(client: AsyncClient, headers) -> None:
     response = await client.put(
         "/api/v1/tenant/settings",
         json={
-            "hourly_rate": "150",
+            "hourly_rate": 15000,
             "margin_pct": "100",
-            "round_step": "5",
+            "round_step": 500,
             "include_labor": True,
             "include_gas": False,
             "gas_pct": "0",
@@ -84,9 +83,9 @@ async def _set_settings(client: AsyncClient, headers) -> None:
 
 
 TORTA_ITEMS = [
-    {"qty": "250", "unit": "g", "price_per_purchase_unit": "2800", "purchase_unit": "kg"},
-    {"qty": "4", "unit": "unidad", "price_per_purchase_unit": "90", "purchase_unit": "unidad"},
-    {"qty": "1.5", "unit": "l", "price_per_purchase_unit": "1200", "purchase_unit": "l"},
+    {"qty": "250", "unit": "g", "price_per_purchase_unit": 280000, "purchase_unit": "kg"},
+    {"qty": "4", "unit": "unidad", "price_per_purchase_unit": 9000, "purchase_unit": "unidad"},
+    {"qty": "1.5", "unit": "l", "price_per_purchase_unit": 120000, "purchase_unit": "l"},
 ]
 
 
@@ -112,12 +111,12 @@ async def test_preview_uses_persisted_settings(client):
     )
     assert response.status_code == 200
     body = response.json()
-    # Decimal via str en la respuesta (RNF-P4-02)
-    assert Decimal(body["materials"]) == Decimal("2860.00")
-    assert Decimal(body["labor"]) == Decimal("75.00")
-    assert Decimal(body["base"]) == Decimal("2935.00")
-    assert Decimal(body["final"]) == Decimal("5870.00")
-    assert Decimal(body["rounded"]) == Decimal("5870.00")
+    # Money viaja como int de centavos en la respuesta (RF-P5-01)
+    assert body["materials"] == 286000
+    assert body["labor"] == 7500
+    assert body["base"] == 293500
+    assert body["final"] == 587000
+    assert body["rounded"] == 587000
 
 
 @pytest.mark.asyncio
@@ -143,7 +142,7 @@ async def test_preview_incompatible_units_returns_400(client):
         "/api/v1/pricing/preview",
         json={
             "line_items": [
-                {"qty": "100", "unit": "g", "price_per_purchase_unit": "90", "purchase_unit": "unidad"},
+                {"qty": "100", "unit": "g", "price_per_purchase_unit": 9000, "purchase_unit": "unidad"},
             ],
             "prep_minutes": 30,
         },

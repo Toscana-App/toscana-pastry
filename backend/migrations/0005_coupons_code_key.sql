@@ -1,4 +1,4 @@
--- 0002_coupons_code_key: persisted normalized code with a UNIQUE constraint.
+-- 0005_coupons_code_key: persisted normalized code with a UNIQUE constraint.
 -- Stacked on 0001_customer_addresses_one_default.sql (PR #25).
 
 -- ===== upgrade =====
