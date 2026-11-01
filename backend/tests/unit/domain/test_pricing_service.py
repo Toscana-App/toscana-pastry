@@ -6,7 +6,9 @@ home for the pricing rule.
 """
 from decimal import Decimal
 
-from domain.pricing_service import derive_audience_price
+import pytest
+
+from domain.pricing_service import AudienceForbiddenError, derive_audience_price
 
 
 class TestDeriveAudiencePrice:
@@ -39,3 +41,17 @@ class TestDeriveAudiencePrice:
         """T4-refactor: large markup (e.g. 100% → double)."""
         result = derive_audience_price(Decimal("50.00"), Decimal("100"), "consumidor_final")
         assert result == Decimal("100.00")
+
+
+class TestResolveAudienceError:
+    """The 403 message is user-facing: Spanish, no role/enum leaks."""
+
+    def test_forbidden_message_is_clean_spanish(self):
+        """customer requesting revendedores gets a friendly Spanish message."""
+        from domain.pricing_service import resolve_audience
+
+        with pytest.raises(AudienceForbiddenError) as excinfo:
+            resolve_audience("customer", "revendedores")
+        message = str(excinfo.value)
+        assert message == "Tu rol no tiene acceso a la lista de revendedores"
+        assert "UserRole" not in message

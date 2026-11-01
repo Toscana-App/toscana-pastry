@@ -9,12 +9,6 @@ actives, the empty state, and auth (401, D2).
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import event
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
 from api.v1.auth.dependencies import get_user_repository
 from api.v1.calc.dependencies import (
@@ -25,9 +19,7 @@ from api.v1.calc.dependencies import (
     get_calc_settings_repository,
     get_calc_supplier_repository,
 )
-from data.accent import accent_fold
 from data.db import get_db
-from data.models import Base
 from data.repositories.calc.sql_calc_material_category_repository import (
     SQLCalcMaterialCategoryRepository,
 )
@@ -51,25 +43,6 @@ from domain.models import User, UserRole
 from main import app
 
 # ─── Fixtures ───────────────────────────────────────────────────────────
-
-
-@pytest_asyncio.fixture
-async def db_session():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-
-    @event.listens_for(engine.sync_engine, "connect")
-    def _register_sqlite_functions(dbapi_connection, connection_record):
-        dbapi_connection.create_function(
-            "accent_fold", 1, accent_fold, deterministic=True
-        )
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
-        engine, expire_on_commit=False, class_=AsyncSession
-    )
-    async with factory() as session:
-        yield session
 
 
 @pytest_asyncio.fixture

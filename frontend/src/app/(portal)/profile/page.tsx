@@ -32,7 +32,7 @@ export default function ProfilePage() {
         if (cancelled) return;
         toaster.create({
           title: "Error",
-          description: "Could not load profile information.",
+          description: "No se pudo cargar la información de tu cuenta.",
           type: "error",
         });
         router.push("/login");

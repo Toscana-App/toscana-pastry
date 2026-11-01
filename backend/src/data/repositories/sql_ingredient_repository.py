@@ -11,25 +11,25 @@ from domain.models import Ingredient, StockMovement, StockStatus
 
 
 def _to_domain(orm: IngredientORM) -> Ingredient:
-    return Ingredient(
-        name=orm.name,
-        unit=orm.unit,
-        price_per_unit=Decimal(orm.price_per_unit),
-        stock_qty=Decimal(orm.stock_qty),
-        low_stock_threshold=Decimal(orm.low_stock_threshold),
-        id=orm.id,
-        deleted_at=orm.deleted_at,
+    return Ingredient(  # type: ignore[arg-type]
+        name=orm.name,  # type: ignore[arg-type]
+        unit=orm.unit,  # type: ignore[arg-type]
+        price_per_unit=Decimal(orm.price_per_unit),  # type: ignore[arg-type]
+        stock_qty=Decimal(orm.stock_qty),  # type: ignore[arg-type]
+        low_stock_threshold=Decimal(orm.low_stock_threshold),  # type: ignore[arg-type]
+        id=orm.id,  # type: ignore[arg-type]
+        deleted_at=orm.deleted_at,  # type: ignore[arg-type]
     )
 
 
 def _movement_to_domain(orm: StockMovementORM) -> StockMovement:
-    return StockMovement(
-        qty_delta=Decimal(orm.qty_delta),
-        reason=orm.reason,
-        id=orm.id,
-        ingredient_id=orm.ingredient_id,
-        ref=orm.ref,
-        created_at=orm.created_at,
+    return StockMovement(  # type: ignore[arg-type]
+        qty_delta=Decimal(orm.qty_delta),  # type: ignore[arg-type]
+        reason=orm.reason,  # type: ignore[arg-type]
+        id=orm.id,  # type: ignore[arg-type]
+        ingredient_id=orm.ingredient_id,  # type: ignore[arg-type]
+        ref=orm.ref,  # type: ignore[arg-type]
+        created_at=orm.created_at,  # type: ignore[arg-type]
     )
 
 

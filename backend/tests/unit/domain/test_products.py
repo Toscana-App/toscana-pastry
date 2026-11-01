@@ -9,7 +9,7 @@ from domain.product_price import derive_product_price, line_cost_of_item
 
 
 def _settings(**overrides):
-    base = dict(
+    base: dict[str, Decimal | bool] = dict(
         hourly_rate=Decimal("3000"),
         margin_pct=Decimal("30"),
         round_step=Decimal("100"),

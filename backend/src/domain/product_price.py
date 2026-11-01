@@ -8,9 +8,9 @@ siempre se recalcula en lectura con los datos corrientes (RF-P3-04).
 Un insumo "no tiene precio" cuando: no existe, esta borrado suave, o su
 price_per_unit es 0 (decision de negocio Fase 5: 0 = sin precio).
 """
+from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Dict, Optional, Sequence
 
 from domain.models import BusinessSettings, Ingredient, Product, RecipeItem
 from domain.pricing import CostBreakdown, calculate_price, cost_of_quantity
@@ -18,7 +18,7 @@ from domain.pricing import CostBreakdown, calculate_price, cost_of_quantity
 _CENT = Decimal("0.01")
 
 
-def _has_price(ingredient: Optional[Ingredient]) -> bool:
+def _has_price(ingredient: Ingredient | None) -> bool:
     return (
         ingredient is not None
         and ingredient.deleted_at is None
@@ -37,13 +37,13 @@ class ProductPrice:
 
     complete: bool
     missing: tuple
-    breakdown: Optional[CostBreakdown]
-    per_serving: Optional[Decimal]
+    breakdown: CostBreakdown | None
+    per_serving: Decimal | None
 
 
 def derive_product_price(
     product: Product,
-    ingredients_by_id: Dict[str, Ingredient],
+    ingredients_by_id: dict[str, Ingredient],
     settings: BusinessSettings,
 ) -> ProductPrice:
     missing: list = []
@@ -79,14 +79,14 @@ def derive_product_price(
 
 
 def line_cost_of_item(
-    item: RecipeItem, ingredients_by_id: Dict[str, Ingredient]
-) -> Optional[Decimal]:
+    item: RecipeItem, ingredients_by_id: dict[str, Ingredient]
+) -> Decimal | None:
     """Costo de una linea de receta (tab Ingredientes del P4 §3).
 
     None cuando el insumo no existe, esta borrado o no tiene precio.
     """
     ingredient = ingredients_by_id.get(item.ingredient_id)
-    if not _has_price(ingredient):
+    if ingredient is None or not _has_price(ingredient):
         return None
     return cost_of_quantity(
         item.qty, item.unit, ingredient.price_per_unit, ingredient.unit

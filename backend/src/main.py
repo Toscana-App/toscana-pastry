@@ -3,7 +3,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
 
 from api.v1.admin.router import router as admin_router
 from api.v1.auth.router import router as auth_router
@@ -21,7 +20,7 @@ from api.v1.products.router import router as products_router
 from api.v1.settings.router import router as settings_router
 from api.v1.webhooks.router import router as webhooks_router
 from api.v1.whatsapp.router import router as whatsapp_router
-from data.db import engine
+from data.db import init_db
 from core.config import settings as app_settings
 from data.models import Base
 
@@ -35,40 +34,12 @@ ALLOWED_ORIGINS = [
 ]
 
 
-def _ensure_phase8_columns(sync_conn):
-    """Fase 8: columnas nuevas de business_settings para BDs ya creadas
-    (create_all no hace ALTER). Solo SQLite: es la base de la app hoy."""
-    if sync_conn.dialect.name != "sqlite":
-        return
-    rows = sync_conn.execute(
-        text("PRAGMA table_info(business_settings)")
-    ).fetchall()
-    existing = {row[1] for row in rows}
-    if "business_name" not in existing:
-        sync_conn.execute(
-            text(
-                "ALTER TABLE business_settings "
-                "ADD COLUMN business_name VARCHAR NOT NULL DEFAULT ''"
-            )
-        )
-    if "footer_text" not in existing:
-        sync_conn.execute(
-            text(
-                "ALTER TABLE business_settings "
-                "ADD COLUMN footer_text VARCHAR NOT NULL DEFAULT ''"
-            )
-        )
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Falla rápido si la config no es segura para el entorno.
+    # Fail fast when the config is not safe for the environment.
     app_settings.validate_for_startup()
-    # create_all es idempotente: crea el esquema si falta y no toca lo existente.
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        # Fase 8 (P9): branding del PDF en BDs anteriores (idempotente).
-        await conn.run_sync(_ensure_phase8_columns)
+    # Idempotent: creates accent_fold and the schema if missing.
+    await init_db(Base)
     yield
 
 

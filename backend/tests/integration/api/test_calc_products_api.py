@@ -58,26 +58,6 @@ from main import app
 
 
 @pytest_asyncio.fixture
-async def db_session():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-
-    # Registrar accent_fold para busquedas con acentos (D5/regla 7).
-    @event.listens_for(engine.sync_engine, "connect")
-    def _register_sqlite_functions(dbapi_connection, connection_record):
-        dbapi_connection.create_function(
-            "accent_fold", 1, accent_fold, deterministic=True
-        )
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
-        engine, expire_on_commit=False, class_=AsyncSession
-    )
-    async with factory() as session:
-        yield session
-
-
-@pytest_asyncio.fixture
 async def client(db_session):
     async def override_get_db():
         yield db_session
@@ -1246,7 +1226,20 @@ class TestVersionUniqueness:
 
         from sqlalchemy.exc import IntegrityError
 
-        from data.models import CalcProductVersionORM
+        from data.models import CalcProductORM, CalcProductVersionORM
+
+        # Postgres enforces the FK: the product must exist first.
+        db_session.add(
+            CalcProductORM(
+                id="p1",
+                name="P1",
+                margin_percent="30",
+                discount_percent="0",
+                tax_percent="0",
+                status="active",
+            )
+        )
+        await db_session.flush()
 
         def _version(row_id: str) -> CalcProductVersionORM:
             return CalcProductVersionORM(

@@ -20,6 +20,12 @@ function roleColor(role: string) {
   return role === "admin" ? "red" : "blue";
 }
 
+const ROLE_LABELS: Record<string, string> = {
+  admin: "Admin",
+  negocio: "Negocio",
+  customer: "Cliente",
+};
+
 export function ProfileCard({ user }: ProfileCardProps) {
   return (
     <Box
@@ -37,15 +43,15 @@ export function ProfileCard({ user }: ProfileCardProps) {
           <Avatar.Fallback>{user.email.charAt(0).toUpperCase()}</Avatar.Fallback>
         </Avatar.Root>
         <VStack gap={1}>
-          <Heading fontSize="xl">User Profile</Heading>
+          <Heading fontSize="xl">Perfil de usuario</Heading>
           <Badge colorPalette={roleColor(user.role)}>
-            {user.role.toUpperCase()}
+            {ROLE_LABELS[user.role] ?? user.role}
           </Badge>
         </VStack>
         <Separator />
         <VStack width="full" align="start" gap={3}>
           <HStack justifyContent="space-between" width="full">
-            <Text fontWeight="medium">Email</Text>
+            <Text fontWeight="medium">Correo electrónico</Text>
             <Text color="gray.600" fontWeight="bold">{user.email}</Text>
           </HStack>
           {user.googleId && (
@@ -55,7 +61,7 @@ export function ProfileCard({ user }: ProfileCardProps) {
             </HStack>
           )}
           <HStack justifyContent="space-between" width="full">
-            <Text fontWeight="medium">Account ID</Text>
+            <Text fontWeight="medium">ID de cuenta</Text>
             <Text color="gray.600" fontWeight="bold">{user.id}</Text>
           </HStack>
         </VStack>

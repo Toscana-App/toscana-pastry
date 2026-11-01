@@ -12,12 +12,12 @@ export const REFRESH_TOKEN_COOKIE = "refresh_token";
 export const AUTH_SESSION_CLEARED_EVENT = "auth:session-cleared";
 
 /**
- * Error tipado de la API.
+ * Typed API error.
  *
- * `status` y `payload` son necesarios para los flujos de la Fase 4:
- * - DELETE /ingredients/{id} → 409 con `{"impacted_recipes": N}` (UC-05): el
- *   diálogo de confirmación muestra el impacto antes de eliminar.
- * - 422 del backend: `detail` es un array de issues (FastAPI), no un string.
+ * `status` and `payload` are needed for Phase 4 flows:
+ * - DELETE /ingredients/{id} → 409 with `{"impacted_recipes": N}` (UC-05):
+ *   the confirmation dialog shows the impact before deleting.
+ * - Backend 422: `detail` is an array of issues (FastAPI), not a string.
  */
 export class ApiError extends Error {
   constructor(
@@ -30,8 +30,8 @@ export class ApiError extends Error {
   }
 }
 
-// Una sola promesa de refresh compartida: evita N llamadas a /auth/refresh
-// cuando varias requests fallan con 401 al mismo tiempo.
+// A single shared refresh promise: avoids N calls to /auth/refresh when
+// several requests fail with 401 at the same time.
 let refreshInFlight: Promise<string | null> | null = null;
 
 async function requestNewAccessToken(): Promise<string | null> {
@@ -92,14 +92,19 @@ export async function apiFetch<T>(
       (body as { message?: unknown } | null)?.message ??
       "An error occurred";
     // FastAPI responde 422 con detail: [{loc, msg, type}] — se toma el primer
-    // msg; el cuerpo completo queda en `payload`.
-    const message =
-      typeof candidate === "string"
-        ? candidate
-        : Array.isArray(candidate) &&
-            typeof (candidate[0] as { msg?: unknown } | undefined)?.msg === "string"
-          ? (candidate[0] as { msg: string }).msg
-          : "An error occurred";
+    // msg en vez de serializar el cuerpo completo (el usuario no debe ver
+    // JSON de validación de Pydantic).
+    let message: string;
+    if (typeof candidate === "string") {
+      message = candidate;
+    } else if (Array.isArray(candidate)) {
+      const firstMsg = (candidate as Array<{ msg?: unknown }>).map(
+        (issue) => issue?.msg
+      ).find((m): m is string => typeof m === "string");
+      message = firstMsg ?? "Solicitud inválida";
+    } else {
+      message = JSON.stringify(candidate);
+    }
     throw new ApiError(response.status, message, body);
   }
 

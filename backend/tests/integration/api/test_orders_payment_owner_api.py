@@ -31,25 +31,6 @@ from main import app
 
 
 @pytest_asyncio.fixture
-async def db_session():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-
-    @event.listens_for(engine.sync_engine, "connect")
-    def _register_sqlite_functions(dbapi_connection, connection_record):
-        dbapi_connection.create_function(
-            "accent_fold", 1, lambda x: x, deterministic=True
-        )
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
-        engine, expire_on_commit=False, class_=AsyncSession
-    )
-    async with factory() as session:
-        yield session
-
-
-@pytest_asyncio.fixture
 async def owner(db_session):
     user = User(email="owner@example.com", role=UserRole.CUSTOMER)
     await SQLUserRepository(db_session).save(user)

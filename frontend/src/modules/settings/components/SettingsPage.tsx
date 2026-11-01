@@ -98,11 +98,9 @@ export function SettingsPage() {
   const includeGas = watch("include_gas");
   const includeWaste = watch("include_waste");
 
-  function zeroOnNaN(
-    event: React.ChangeEvent<HTMLInputElement>,
-    field: "gas_pct" | "waste_pct",
-  ) {
-    if (Number.isNaN(event.target.valueAsNumber)) setValue(field, 0);
+  function zeroOnNaN(event: Event, field: "gas_pct" | "waste_pct") {
+    const target = event.target as HTMLInputElement;
+    if (Number.isNaN(target.valueAsNumber)) setValue(field, 0);
   }
 
   async function onSubmit(values: SettingsValues) {
@@ -238,7 +236,7 @@ export function SettingsPage() {
                   error={fieldErrors.gas_pct ?? errors.gas_pct?.message}
                   registerProps={register("gas_pct", {
                     valueAsNumber: true,
-                    onChange: (e) => zeroOnNaN(e, "gas_pct"),
+                    onChange: (e: Event) => zeroOnNaN(e, "gas_pct"),
                   })}
                 />
               </Flex>
@@ -274,7 +272,7 @@ export function SettingsPage() {
                   error={fieldErrors.waste_pct ?? errors.waste_pct?.message}
                   registerProps={register("waste_pct", {
                     valueAsNumber: true,
-                    onChange: (e) => zeroOnNaN(e, "waste_pct"),
+                    onChange: (e: Event) => zeroOnNaN(e, "waste_pct"),
                   })}
                 />
               </Flex>

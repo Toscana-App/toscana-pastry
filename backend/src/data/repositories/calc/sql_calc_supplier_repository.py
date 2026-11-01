@@ -1,5 +1,10 @@
 """Repository para CalcSupplier (RF-P5CC-05)."""
-from typing import List, Optional, Tuple
+
+# pyright: reportArgumentType=false, reportAttributeAccessIssue=false
+# El ORM usa el estilo Column legacy (mismo que B1-B10): pyright tipa los
+# atributos de instancia como Column[T], no como el valor.
+from __future__ import annotations
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,15 +14,15 @@ from domain.calc_settings import CalcSupplier
 
 
 def _to_domain(orm: CalcSupplierORM) -> CalcSupplier:
-    return CalcSupplier(
-        id=orm.id,
-        name=orm.name,
-        contact_name=orm.contact_name,
-        phone=orm.phone,
-        email=orm.email,
-        notes=orm.notes,
-        created_at=orm.created_at,
-        updated_at=orm.updated_at,
+    return CalcSupplier(  # type: ignore[arg-type]
+        id=orm.id,  # type: ignore[arg-type]
+        name=orm.name,  # type: ignore[arg-type]
+        contact_name=orm.contact_name,  # type: ignore[arg-type]
+        phone=orm.phone,  # type: ignore[arg-type]
+        email=orm.email,  # type: ignore[arg-type]
+        notes=orm.notes,  # type: ignore[arg-type]
+        created_at=orm.created_at,  # type: ignore[arg-type]
+        updated_at=orm.updated_at,  # type: ignore[arg-type]
     )
 
 
@@ -40,10 +45,10 @@ class SQLCalcSupplierRepository:
 
     async def list(
         self,
-        q: Optional[str],
+        q: str | None,
         page: int,
         page_size: int,
-    ) -> Tuple[List[CalcSupplier], int]:
+    ) -> tuple[list[CalcSupplier], int]:
         filters = []
         if q and q.strip():
             folded = accent_fold(q) or q
@@ -61,14 +66,14 @@ class SQLCalcSupplierRepository:
         ).scalars().all()
         return [_to_domain(r) for r in rows], total
 
-    async def get(self, supplier_id: str) -> Optional[CalcSupplier]:
+    async def get(self, supplier_id: str) -> CalcSupplier | None:
         result = await self.session.execute(
             select(CalcSupplierORM).where(CalcSupplierORM.id == supplier_id)
         )
         orm = result.scalars().first()
         return _to_domain(orm) if orm else None
 
-    async def get_by_name(self, name: str) -> Optional[CalcSupplier]:
+    async def get_by_name(self, name: str) -> CalcSupplier | None:
         folded = accent_fold(name) or name
         result = await self.session.execute(
             select(CalcSupplierORM).where(
@@ -83,7 +88,7 @@ class SQLCalcSupplierRepository:
         await self.session.commit()
         return supplier
 
-    async def update(self, supplier: CalcSupplier) -> Optional[CalcSupplier]:
+    async def update(self, supplier: CalcSupplier) -> CalcSupplier | None:
         result = await self.session.execute(
             select(CalcSupplierORM).where(CalcSupplierORM.id == supplier.id)
         )
@@ -99,7 +104,7 @@ class SQLCalcSupplierRepository:
         await self.session.commit()
         return _to_domain(orm)
 
-    async def delete(self, supplier_id: str) -> Optional[CalcSupplier]:
+    async def delete(self, supplier_id: str) -> CalcSupplier | None:
         result = await self.session.execute(
             select(CalcSupplierORM).where(CalcSupplierORM.id == supplier_id)
         )

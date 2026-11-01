@@ -57,7 +57,7 @@ class UserORM(Base):
         default="customer",
         nullable=False,
     )
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.UTC))
 
 class BusinessSettingsORM(Base):
     """Parametros de precio. Un solo registro: la app es monotenante.
@@ -84,7 +84,7 @@ class BusinessSettingsORM(Base):
     # Fase 8 (P9): branding del PDF (solo texto; sin upload de logo en v1).
     business_name = Column(String, default="", nullable=False)
     footer_text = Column(String, default="", nullable=False)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.UTC))
 
 
 class IngredientORM(Base):
@@ -312,7 +312,7 @@ class CalcSettingsORM(Base):
     default_discount_percent = Column(String, nullable=False, default="0")
     default_tax_percent = Column(String, nullable=False, default="19")
     rounding_mode = Column(String, nullable=False, default="none")
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.UTC))
 
 
 class CalcMaterialCategoryORM(Base):
@@ -523,7 +523,9 @@ class CalcProductORM(Base):
     name = Column(String, nullable=False, index=True)
     sku = Column(String, nullable=True, index=True)
     product_category_id = Column(
-        String, ForeignKey("calc_product_categories.id"), nullable=True, index=True
+        String, ForeignKey("calc_product_categories.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
     )
     description = Column(String, nullable=True)
     notes = Column(String, nullable=True)
@@ -556,7 +558,7 @@ class CalcProductMaterialORM(Base):
         String, ForeignKey("calc_products.id"), nullable=False, index=True
     )
     material_id = Column(
-        String, ForeignKey("calc_materials.id"), nullable=False, index=True
+        String, ForeignKey("calc_materials.id"), nullable=True, index=True
     )
     material_name = Column(String, nullable=False)
     unit_of_measure_snapshot = Column(String, nullable=True)
@@ -739,7 +741,7 @@ class OrderORM(Base):
     coupon_code = Column(String, nullable=True)
     discount_amount = Column(String, nullable=True)
     payment_reference = Column(String, nullable=True)
-    paid_at = Column(DateTime, nullable=True)
+    paid_at = Column(DateTime(timezone=True), nullable=True)
     payment_status = Column(_PaymentStatusColumn(), nullable=True)
     created_at = Column(
         DateTime(timezone=True),
@@ -762,7 +764,7 @@ class OrderWindowORM(Base):
 
     id = Column(String, primary_key=True, default="singleton")
     open = Column(Boolean, default=True, nullable=False)
-    reopens_at = Column(DateTime, nullable=True)
+    reopens_at = Column(DateTime(timezone=True), nullable=True)
     message = Column(String, default="", nullable=False)
 
 

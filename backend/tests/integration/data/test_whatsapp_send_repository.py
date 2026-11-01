@@ -25,19 +25,6 @@ NOW = datetime.datetime(2026, 10, 26, 12, 0, 0, tzinfo=datetime.UTC)
 
 
 @pytest_asyncio.fixture
-async def db_session():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
-        engine, expire_on_commit=False, class_=AsyncSession
-    )
-    async with factory() as session:
-        yield session
-
-
-@pytest_asyncio.fixture
 async def send_repo(db_session) -> SQLWhatsAppSendRepository:
     return SQLWhatsAppSendRepository(db_session)
 

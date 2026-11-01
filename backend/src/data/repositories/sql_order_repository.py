@@ -156,6 +156,25 @@ def _json_to_snapshot(raw: str) -> OrderItemSnapshot:
 # ---------------------------------------------------------------------------
 
 
+
+def _as_date(value: datetime.date | datetime.datetime) -> datetime.date:
+    """OrderORM.date is a timestamptz (portal orders carry a delivery moment);
+    the P6 aggregate works with a plain delivery date."""
+    if isinstance(value, datetime.datetime):
+        return value.date()
+    return value
+
+
+def _as_datetime(
+    value: datetime.date | datetime.datetime, end_of_day: bool = False
+) -> datetime.datetime:
+    """Plain date -> UTC datetime for the timestamptz column (start of day,
+    or end of day for inclusive upper bounds)."""
+    if isinstance(value, datetime.datetime):
+        return value
+    time = datetime.time.max if end_of_day else datetime.time.min
+    return datetime.datetime.combine(value, time, tzinfo=datetime.UTC)
+
 def _order_to_domain(orm: OrderORM) -> P6Order:
     items = tuple(
         P6OrderItem(
@@ -176,7 +195,7 @@ def _order_to_domain(orm: OrderORM) -> P6Order:
         customer_id=orm.customer_id,
         customer_name=orm.customer_name,
         customer_phone=orm.customer_phone,
-        date=orm.date,
+        date=_as_date(orm.date),
         status=orm.status,
         margin_pct=Decimal(orm.margin_pct) if orm.margin_pct is not None else None,
         created_at=orm.created_at,
@@ -590,9 +609,9 @@ class SQLOrderRepository:
                 func.accent_fold(OrderORM.customer_name).like(f"%{folded}%")
             )
         if date_from is not None:
-            filters.append(OrderORM.date >= date_from)
+            filters.append(OrderORM.date >= _as_datetime(date_from))
         if date_to is not None:
-            filters.append(OrderORM.date <= date_to)
+            filters.append(OrderORM.date <= _as_datetime(date_to, end_of_day=True))
         total = (
             await self.session.execute(
                 select(func.count()).select_from(OrderORM).where(*filters)
@@ -620,7 +639,7 @@ class SQLOrderRepository:
             customer_id=order.customer_id,
             customer_name=order.customer_name,
             customer_phone=order.customer_phone,
-            date=order.date,
+            date=_as_datetime(order.date),
             status=order.status,
             margin_pct=str(order.margin_pct) if order.margin_pct is not None else None,
             created_at=now,
@@ -661,7 +680,7 @@ class SQLOrderRepository:
         orm.customer_id = order.customer_id
         orm.customer_name = order.customer_name
         orm.customer_phone = order.customer_phone
-        orm.date = order.date
+        orm.date = _as_datetime(order.date)
         orm.margin_pct = (
             str(order.margin_pct) if order.margin_pct is not None else None
         )

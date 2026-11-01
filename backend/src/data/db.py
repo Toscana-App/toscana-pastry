@@ -1,20 +1,36 @@
-from sqlalchemy import event
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from data.accent import accent_fold
-from domain.repositories import UserRepository # for type hinting
+import os
 
-DATABASE_URL = "sqlite+aiosqlite:///./test.db"
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+
+# Postgres from docker-compose.yml is the only supported database. Override
+# with DATABASE_URL for staging/production.
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+asyncpg://postgres:password@localhost:5432/toscana_db",
+)
 
 engine = create_async_engine(DATABASE_URL, echo=True)
 
+# Accent/case-insensitive search (RF-P2-02): repositories call
+# func.accent_fold(column). Postgres has no such function, so it is created
+# from the unaccent extension at startup (see init_db).
+_ACCENT_FOLD_DDL = (
+    "CREATE EXTENSION IF NOT EXISTS unaccent",
+    """
+    CREATE OR REPLACE FUNCTION accent_fold(text) RETURNS text
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE
+    AS $$ SELECT lower(public.unaccent('public.unaccent', $1)) $$
+    """,
+)
 
-@event.listens_for(engine.sync_engine, "connect")
-def _register_sqlite_functions(dbapi_connection, connection_record):
-    # Búsqueda insensible a acentos/mayúsculas (RF-P2-02): el repositorio
-    # la usa vía func.accent_fold. En Postgres la reemplaza pg_trgm.
-    dbapi_connection.create_function(
-        "accent_fold", 1, accent_fold, deterministic=True
-    )
+
+async def init_db(base, bind=engine) -> None:
+    """Create the accent_fold SQL function and the schema (idempotent)."""
+    async with bind.begin() as conn:
+        for statement in _ACCENT_FOLD_DDL:
+            await conn.execute(text(statement))
+        await conn.run_sync(base.metadata.create_all)
 
 
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)

@@ -130,3 +130,58 @@ Log de dudas que el orquestador (sesión de pi) no puede resolver solo. El usuar
 - Historial: botón "Historial" por fila → `Dialog` con tabla desc (más recientes primero, como el endpoint): columnas "Anterior" → "Nuevo" + fecha `es-AR`, paginado prev/next; vacío → "Sin cambios de costo registrados.".
 - `unit_cost`/montos se muestran tal cual el `str` del servidor (sin formateo ni aritmética client-side); `incomplete` como chip read-only (`surface-soft` `#f4f4f4`).
 - Página con `maxW="container.xl"` (la tabla tiene ~10 columnas; F1 usó `container.md` porque era forms/categorías).
+
+---
+
+## [ABIERTA] 2026-10-30 — F3 (cost-calculator): rutas del editor y navegación (F3-Q1)
+
+**Contexto**: S7 dice "editor de producto" pero no da URLs; la biblioteca/lista (`GET /calc/products`) es F4 y aún no existe, así que F3 no tiene una página destino para "Volver". El legacy usaba `/products/new?id=...` (query params) + `/products/{id}` (detalle read-only separado).
+
+**Pregunta**: ¿confirmar rutas y navegación de F3?
+
+**Decisión propuesta (lo que voy a hacer, fijado en `odd/briefs/f3-calc-product-editor.md`)**:
+- Rutas: `/admin/calculadora/productos/nuevo` (alta) y `/admin/calculadora/productos/[id]` (edición + detalle: versiones + recalcular + eliminar; el editor precargado IS el detalle — un solo componente `ProductEditor mode="create|edit"`, no dos páginas como el legacy).
+- Tras POST 201 → `router.replace("/admin/calculadora/productos/{id}")` (el producto recién creado, que se recarga desde el servidor). Botón "Volver" y post-delete → `router.back()`. La lista index `/admin/calculadora/productos` la crea F4 (F3 no la crea; `nuevo`/`[id]` no colisionan con ella).
+
+---
+
+## [ABIERTA] 2026-10-30 — F3 (cost-calculator): summary en vivo — ¿preview client-side o solo del servidor? (F3-Q2)
+
+**Contexto**: el título de F3 pide "summary en vivo", pero RF-P4CC-05 dice que los montos derivados son **solo-escritura del servidor** (security #8; `extra="forbid"` → 422 si el cliente los manda), y el endpoint que devuelve `costs` solo existe después de guardar/recalcular. El legacy sí calculaba el resumen en el browser (`calcProductPricing` de `pricing.js`, float) y reaccionaba al instante (RNF-P4-01 < 50 ms en el spec P4 legacy).
+
+**Pregunta**: ¿el summary en vivo es un preview calculado en el cliente, o se muestran solo los costos del servidor (tras guardar/recalcular)?
+
+**Decisión propuesta (lo que voy a hacer, fijado en el brief)**: **preview client-side** con un espillo puro del motor (`frontend/src/lib/calcPricing.ts`, JS number redondeado a centavos) — NUNCA enviado al servidor (los payloads siguen siendo solo `material_id/quantity` etc.; RF-P4CC-05 se mantiene intacto). El panel lleva el label fijo **"Preview — se confirma al guardar"** para distinguir el preview float de los valores Decimal autoritativos (puede diferir un centavo en ties). Los str del servidor (versiones, costos post-recalculate) se muestran tal cual.
+
+---
+
+## [ABIERTA] 2026-10-30 — F3 (cost-calculator): panel de simulación (F3-Q3)
+
+**Contexto**: el spec §P4-CC no menciona "simulación"; pero el título de F3 la pide y la app de origen tiene `SimulationPanel.jsx` (botón "Simular": 3 percents de escenario + precio simulado + diferencia vs. actual, sin mutar el producto). L1: mantener la funcionalidad.
+
+**Pregunta**: ¿se incluye la simulación en F3?
+
+**Decisión propuesta (lo que voy a hacer, fijado en el brief)**: sí, paridad con el origen: botón "Simular" en el header → panel debajo del summary con 3 inputs de percent (estado propio, inicializados con los del form; cerrarlo NO muta el form), precio simulado (mismo espillo + rounding de settings) y "Diferencia vs. actual" (+verde/−rojo).
+
+---
+
+## [ABIERTA] 2026-10-30 — F3 (cost-calculator): select de materiales en las líneas (F3-Q4)
+
+**Contexto**: el editor necesita elegir materiales existentes (`GET /calc/materials` es paginado, `page_size` máx 100; el catálogo puede excederlo). El legacy usaba un list local de 500. Chakra v3 trae `Combobox` (búsqueda + dropdown).
+
+**Pregunta**: ¿cómo se busca/seleciona el material en cada fila?
+
+**Decisión propuesta (lo que voy a hacer, fijado en el brief)**: `Combobox` por fila con búsqueda **asíncrona debounced 300 ms** contra `calcMaterialsService.listMaterials({q, page_size: 50})` (el service F2 existente, sin modificar); opción = nombre + `— unit cost {str}` (o "— incompleto"). Sin cargar todo el catálogo; sin "cargar más".
+
+---
+
+## [ABIERTA] 2026-10-30 — F3 (cost-calculator): semántica de save y CTA de status (F3-Q5)
+
+**Contexto**: `ProductUpdate` soporta tres semánticas de líneas (ausente → no cambia; `[]` → vacía; lista → reemplazo completo) y el spec RF-P4CC-02 dice "el guardado reemplaza el set completo de líneas (transacción única)". El legacy tenía 2 CTA ("Borrador"/"Guardar" activo) y duplicar; el enunciado de la tarea pone `status` como campo del form.
+
+**Pregunta**: ¿confirmar semántica de save y CTA?
+
+**Decisión propuesta (lo que voy a hacer, fijado en el brief)**:
+- El editor **siempre envía las 3 listas de líneas completas** en POST y PATCH (reemplazo, RF-P4CC-02 — la semántica "ausente no cambia" queda disponible para consumidores futuros, no para el editor).
+- **Un solo CTA "Guardar"** + campo `status` en el form (Select draft/active/archived; default `draft` en alta, valor actual en edición) — cubre borrador/activo/archivar sin 3 botones (archivar desde el editor = cambiar status a archived).
+- **Duplicar queda fuera de F3** (no hay endpoint de duplicate — decisión B10 en este mismo archivo; la lista F4 podrá ofrecerlo vía POST si se decide).

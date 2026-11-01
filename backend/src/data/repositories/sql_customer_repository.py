@@ -10,11 +10,11 @@ from domain.orders import Customer
 
 
 def _to_domain(orm: CustomerORM) -> Customer:
-    return Customer(
-        name=orm.name,
-        phone=orm.phone,
-        id=orm.id,
-        created_at=orm.created_at,
+    return Customer(  # type: ignore[arg-type]
+        name=orm.name,  # type: ignore[arg-type]
+        phone=orm.phone,  # type: ignore[arg-type]
+        id=orm.id,  # type: ignore[arg-type]
+        created_at=orm.created_at,  # type: ignore[arg-type]
     )
 
 

@@ -22,9 +22,10 @@ import datetime
 import re
 import unicodedata
 import uuid
+
 from dataclasses import dataclass, field
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Dict, Optional, Tuple
+from typing import Optional, Tuple, Dict
 
 ORDER_STATUSES: Tuple[str, ...] = ("nuevo", "confirmado", "entregado", "cancelado")
 
@@ -165,7 +166,7 @@ class OrderItem:
     portions: int
     note: str = ""
     product_name: str = ""  # snapshot al momento del pedido
-    id: Optional[str] = None
+    id: str | None = None
     position: int = 0
 
     def __post_init__(self):
@@ -178,6 +179,16 @@ class OrderItem:
         if self.id is None:
             # La identidad la genera el dominio (mismo criterio que User, F5).
             object.__setattr__(self, "id", str(uuid.uuid4()))
+            # After __post_init__ sets id, it's no longer None
+            # But the type annotation still allows None for backward compatibility
+            # We'll use a property to ensure id is never None when accessed
+        
+    @property
+    def safe_id(self) -> str:
+        """Return the item's id, ensuring it's not None after initialization."""
+        if self.id is None:
+            raise ValueError("OrderItem.id is None - __post_init__ was not called")
+        return self.id or ""
 
 
 @dataclass(frozen=True)
@@ -199,7 +210,7 @@ class OrderItemSnapshot:
     y no se recalcula: cambios de receta, precios o margen del tenant no
     lo tocan."""
 
-    lines: Tuple[OrderItemSnapshotLine, ...] = ()
+    lines: tuple[OrderItemSnapshotLine, ...] = ()
     materials: Decimal = Decimal("0")
     waste: Decimal = Decimal("0")
     materials_con_merma: Decimal = Decimal("0")
@@ -209,7 +220,7 @@ class OrderItemSnapshot:
     margin_pct: Decimal = Decimal("0")
     final: Decimal = Decimal("0")
     rounded: Decimal = Decimal("0")
-    missing: Tuple[str, ...] = ()
+    missing: tuple[str, ...] = ()
 
     @property
     def complete(self) -> bool:
@@ -227,15 +238,15 @@ class Order:
     customer_phone: str
     date: datetime.date
     status: str = "nuevo"
-    margin_pct: Optional[Decimal] = None  # None = default del tenant
-    created_at: Optional[datetime.datetime] = None
-    updated_at: Optional[datetime.datetime] = None
-    whatsapp_sent_at: Optional[datetime.datetime] = None
-    id: Optional[str] = None
+    margin_pct: Decimal | None = None  # None = default del tenant
+    created_at: datetime.datetime | None = None
+    updated_at: datetime.datetime | None = None
+    whatsapp_sent_at: datetime.datetime | None = None
+    id: str | None = None
 
     # Se setean desde el repositorio al reconstruir (frozen).
-    items: Tuple[OrderItem, ...] = field(default=(), compare=False)
-    snapshots: Dict[str, OrderItemSnapshot] = field(default_factory=dict, compare=False)
+    items: tuple[OrderItem, ...] = field(default=(), compare=False)
+    snapshots: dict[str, OrderItemSnapshot] = field(default_factory=dict, compare=False)
 
     def __post_init__(self):
         if self.status not in ORDER_TRANSITIONS:
@@ -251,6 +262,6 @@ class Order:
         """Total del pedido: suma del precio final redondeado de cada
         item (lo que paga el cliente)."""
         return sum(
-            (self.snapshots[item.id or item.product_id].rounded for item in self.items),
+            (self.snapshots[item.id].rounded for item in self.items),
             Decimal("0"),
         )

@@ -5,6 +5,8 @@ import { Provider } from "@/providers/ChakraProvider"
 import { AuthProvider } from "@/contexts/AuthContext"
 import { Navbar } from "@/components/layout/Navbar"
 import { Toaster } from "@/lib/toaster"
+import { AppGooeyToaster } from "@/components/ui/GoeyToasterClient"
+import "goey-toast/styles.css"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,7 +20,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Toscana Pastry",
-  description: "Delicious pastries at your doorstep.",
+  description: "Toscana Pastry — calculá costos, gestioná pedidos y enviá tus listas de precios.",
 };
 
 export default function RootLayout({
@@ -27,13 +29,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="es" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body className="min-h-screen bg-white antialiased">
         <Provider>
           <AuthProvider>
             <Navbar />
             <main>{children}</main>
             <Toaster />
+            <AppGooeyToaster />
           </AuthProvider>
         </Provider>
       </body>

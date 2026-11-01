@@ -17,19 +17,6 @@ from data.repositories.sql_lead_repository import SQLLeadRepository
 
 
 @pytest_asyncio.fixture
-async def db_session():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    async_session = sessionmaker(
-        engine, expire_on_commit=False, class_=AsyncSession  # type: ignore[arg-type]
-    )
-    async with async_session() as session:
-        yield session
-
-
-@pytest_asyncio.fixture
 async def lead_repo(db_session):
     return SQLLeadRepository(db_session)
 

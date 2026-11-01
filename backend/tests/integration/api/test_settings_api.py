@@ -1,9 +1,8 @@
 import pytest
 import pytest_asyncio
 from decimal import Decimal
-from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from main import app
 from data.models import Base
@@ -15,16 +14,6 @@ from api.v1.settings.dependencies import get_settings_repository
 from domain.models import User, UserRole
 
 SETTINGS_PATH = "/api/v1/tenant/settings"
-
-
-@pytest_asyncio.fixture
-async def db_session():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    factory = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-    async with factory() as session:
-        yield session
 
 
 @pytest_asyncio.fixture

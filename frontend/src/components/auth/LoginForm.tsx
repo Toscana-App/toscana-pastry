@@ -12,16 +12,50 @@ import {
   Separator,
 } from "@chakra-ui/react";
 import { authService } from "@/services/authService";
+import { ApiError } from "@/lib/api";
 import { GoogleIcon } from "@/components/ui/google-icon";
-import { toaster } from "@/lib/toaster";
-import { useRouter, useSearchParams } from "next/navigation";
+import { gooeyToast } from "goey-toast";
+import { useSearchParams } from "next/navigation";
 import { postLoginTarget, safeRedirectTarget } from "@/lib/portalRoutes";
 import { UserRole } from "@/types/auth";
 
+/**
+ * Client-side email validation for the login form (P1, spec line 77):
+ * the error renders inline under the input (Alert danger via Field.Error),
+ * so the native browser bubble is disabled with noValidate.
+ */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const validateEmail = (value: string): string | null => {
+  if (!value.trim()) return "El email es obligatorio.";
+  if (!EMAIL_PATTERN.test(value.trim()))
+    return "¡Ups! El email no es válido.";
+  return null;
+};
+
+/** Server-side failures are never shown verbatim (they can be English). */
+const describeApiError = (error: unknown): string => {
+  if (error instanceof ApiError && error.status >= 500)
+    return "Algo salió mal en el servidor. Intenta de nuevo.";
+  if (error instanceof Error && error.message)
+    return error.message;
+  return "Intenta de nuevo.";
+};
+
+/**
+ * Post-login navigation is a full page load, not router.push: the session
+ * lives in cookies and AuthContext only reads it on mount, so a
+ * client-side navigation to a ProtectedRoute (e.g. /admin) would see a
+ * stale "unauthenticated" state and bounce back to /login.
+ */
+const goPostLogin = (target: string) => {
+  window.location.assign(target);
+};
+
 export default function LoginForm() {
   const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   /**
@@ -34,21 +68,23 @@ export default function LoginForm() {
 
   const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
+    const error = validateEmail(email);
+    if (error) {
+      setEmailError(error);
+      return;
+    }
+    setEmailError(null);
     setLoading(true);
     try {
       // authService persiste access_token y refresh_token en cookies.
       const data = await authService.loginWithMagicLink(email);
-      toaster.create({
-        title: "Magic link sent!",
-        description: "Check your email to log in.",
-        type: "success",
+      gooeyToast.success("¡Link de acceso enviado!", {
+        description: "Revisa tu correo para ingresar.",
       });
-      router.push(resolvePostLogin(data.role));
+      goPostLogin(resolvePostLogin(data.role));
     } catch (error) {
-      toaster.create({
-        title: "Login failed",
-        description: error instanceof Error ? error.message : "Please try again",
-        type: "error",
+      gooeyToast.error("¡Ups! No se pudo iniciar sesión", {
+        description: describeApiError(error),
       });
     } finally {
       setLoading(false);
@@ -59,16 +95,11 @@ export default function LoginForm() {
     setLoading(true);
     try {
       const data = await authService.loginWithGoogle("google_test_id");
-      toaster.create({
-        title: "Logged in!",
-        type: "success",
-      });
-      router.push(resolvePostLogin(data.role));
+      gooeyToast.success("¡Sesión iniciada!");
+      goPostLogin(resolvePostLogin(data.role));
     } catch (error) {
-      toaster.create({
-        title: "Google login failed",
-        description: error instanceof Error ? error.message : "Please try again",
-        type: "error",
+      gooeyToast.error("¡Ups! No se pudo iniciar sesión con Google", {
+        description: describeApiError(error),
       });
     } finally {
       setLoading(false);
@@ -88,26 +119,33 @@ export default function LoginForm() {
     >
       <Stack gap={6} align="center">
         <Heading fontSize="2xl" color="brand.600">
-          Sign In
+          Iniciar sesión
         </Heading>
         <Text color="gray.500" textAlign="center">
-          Choose a method to continue
+          Elige un método para continuar
         </Text>
         <Separator />
 
-        <form onSubmit={handleMagicLink} style={{ width: "100%" }}>
+        <form onSubmit={handleMagicLink} noValidate style={{ width: "100%" }}>
           <Stack gap={4}>
-            <Field.Root required>
+            <Field.Root required invalid={emailError !== null}>
               <Field.Label>
-                Email Address
+                Correo electrónico
                 <Field.RequiredIndicator />
               </Field.Label>
               <Input
                 type="email"
                 placeholder="you@example.com"
+                aria-describedby={emailError ? "email-error" : undefined}
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (emailError) setEmailError(null);
+                }}
               />
+              {emailError && (
+                <Field.ErrorText id="email-error">{emailError}</Field.ErrorText>
+              )}
             </Field.Root>
             <Button
               type="submit"
@@ -115,12 +153,12 @@ export default function LoginForm() {
               loading={loading}
               width="full"
             >
-              Send Magic Link
+              Enviar link de acceso
             </Button>
           </Stack>
         </form>
 
-        <Text fontSize="sm" color="gray.500">or</Text>
+        <Text fontSize="sm" color="gray.500">o</Text>
 
         <Button
           onClick={handleGoogleLogin}
@@ -129,7 +167,7 @@ export default function LoginForm() {
           width="full"
         >
           <GoogleIcon />
-          Continue with Google
+          Continuar con Google
         </Button>
       </Stack>
     </Box>
