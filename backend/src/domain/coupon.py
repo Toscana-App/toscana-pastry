@@ -21,6 +21,10 @@ ALLOWED_COUPON_STATUSES = ("active", "paused")
 # Longitud maxima del code (cortos y legibles: "VERANO10", "CAFÉ10").
 MAX_COUPON_CODE = 32
 
+class DuplicateCouponCodeError(Exception):
+    """El code (case/accent-insensitive) ya existe: viola code_key UNIQUE."""
+
+
 PERCENT_MAX = Decimal("100")
 MONEY_MIN = Decimal("0")
 

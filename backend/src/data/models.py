@@ -215,15 +215,18 @@ class CustomerAddressORM(Base):
 class CouponORM(Base):
     """Cupon de descuento (RF-P11-14, C3).
 
-    Unicidad case-insensitive de `code` a nivel de aplicacion (el repo
-    la resuelve con accent_fold, mismo patron que calc): en SQLite la
-    funcion de usuario no puede ir a un UNIQUE index. `value` se guarda
-    como str (Money). C4 consumira `uses`/`max_uses` al confirmar pedidos.
+    Unicidad case/accent-insensitive de `code` via `code_key`: columna
+    persistida con accent_fold(code) (la calcula el repositorio) y
+    UNIQUE a nivel DB (migracion 0002). `value` se guarda como str
+    (Money). C4 consumira `uses`/`max_uses` al confirmar pedidos.
     """
 
     __tablename__ = "coupons"
     id: Mapped[str] = mapped_column(String, primary_key=True)
     code: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    code_key: Mapped[str] = mapped_column(
+        String, nullable=False, unique=True
+    )
     type: Mapped[str] = mapped_column(String, nullable=False)
     value: Mapped[str] = mapped_column(String, nullable=False)
     valid_from: Mapped[datetime.datetime | None] = mapped_column(
