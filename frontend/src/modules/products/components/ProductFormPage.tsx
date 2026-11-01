@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Alert,
@@ -22,19 +22,22 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { EnumSelect } from "@/components/ui/enum-select";
 import { formatCents } from "@/lib/format";
 import { toaster } from "@/lib/toaster";
-import { ingredientsService } from "@/modules/ingredients/service";
-import type { Ingredient } from "@/modules/ingredients/types";
 import { productFormSchema, type ProductFormValues } from "../schema";
 import { productsService } from "../service";
 import {
   PRODUCT_DIFFICULTIES,
   RECIPE_UNITS,
   type PriceBreakdown,
-  type PreviewLineItem,
   type ProductCreateInput,
   type ProductDifficulty,
   type RecipeUnit,
 } from "../types";
+import { useAllIngredients } from "../hooks/useAllIngredients";
+import { useCostPreview } from "../hooks/useCostPreview";
+import {
+  PRODUCT_CREATE_DEFAULTS as CREATE_DEFAULTS,
+  useProductDraft,
+} from "../hooks/useProductDraft";
 import { RecipeEditor } from "./RecipeEditor";
 
 interface ProductFormPageProps {
@@ -42,19 +45,6 @@ interface ProductFormPageProps {
   /** Solo en modo edit: id del producto a cargar. */
   productId?: string;
 }
-
-const CREATE_DEFAULTS: ProductFormValues = {
-  name: "",
-  category: "",
-  description: "",
-  prep_time_min: 0,
-  servings: 1,
-  difficulty: "simple",
-  recipe: [],
-};
-
-const PREVIEW_DEBOUNCE_MS = 300;
-const DRAFT_DEBOUNCE_MS = 500;
 
 /**
  * Alta y edición de producto (Fase 5, P4) — /productos/new y /productos/{id}/edit.
@@ -78,18 +68,11 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
   const draftKey = `product-draft:${isEdit ? productId : "new"}`;
 
   const [tab, setTab] = useState("info");
-  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
-  const [loadingIngredients, setLoadingIngredients] = useState(true);
   const [loadingInitial, setLoadingInitial] = useState(isEdit);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
-  const [draftRestored, setDraftRestored] = useState(false);
-  const [breakdown, setBreakdown] = useState<PriceBreakdown | null>(null);
-  const [previewError, setPreviewError] = useState<string | null>(null);
-  const [previewing, setPreviewing] = useState(false);
-  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     register,
@@ -103,41 +86,18 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
     defaultValues: CREATE_DEFAULTS,
   });
 
-  // El efecto de draft necesita saber si hay cambios sin mirar el render.
-  const isDirtyRef = useRef(isDirty);
-  useEffect(() => {
-    isDirtyRef.current = isDirty;
-  }, [isDirty]);
-
-  // --- Insumos para el editor de receta (catalogo completo) ---------------
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const all: Ingredient[] = [];
-        let page = 1;
-        for (;;) {
-          const data = await ingredientsService.list({ page, page_size: 100 });
-          all.push(...data.items);
-          if (data.items.length === 0 || all.length >= data.total) break;
-          page += 1;
-        }
-        if (!cancelled) setIngredients(all);
-      } catch {
-        if (!cancelled) {
-          setLoadError("No se pudieron cargar los insumos del catálogo.");
-        }
-      } finally {
-        if (!cancelled) setLoadingIngredients(false);
-      }
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const {
+    ingredients,
+    loading: loadingIngredients,
+    error: ingredientsError,
+  } = useAllIngredients();
+  const { draftRestored, clearDraft, discardDraft } = useProductDraft({
+    draftKey,
+    isEdit,
+    isDirty,
+    reset,
+    watch,
+  });
 
   // --- Carga inicial en edicion -------------------------------------------
   useEffect(() => {
@@ -184,40 +144,6 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
     };
   }, [isEdit, productId, reset]);
 
-  // --- Draft local (solo alta): sesion interrumpida no pierde datos -------
-  useEffect(() => {
-    if (isEdit) return;
-    try {
-      const raw = sessionStorage.getItem(draftKey);
-      if (!raw) return;
-      const parsed = productFormSchema.safeParse(JSON.parse(raw));
-      if (parsed.success) {
-        reset(parsed.data);
-        setDraftRestored(true);
-      }
-    } catch {
-      // Draft corrupto: se ignora y el formulario arranca vacio.
-    }
-  }, [isEdit, draftKey, reset]);
-
-  useEffect(() => {
-    const subscription = watch((values) => {
-      if (!isDirtyRef.current) return;
-      if (draftTimer.current) clearTimeout(draftTimer.current);
-      draftTimer.current = setTimeout(() => {
-        try {
-          sessionStorage.setItem(draftKey, JSON.stringify(values));
-        } catch {
-          // sessionStorage lleno o bloqueado: el draft es best-effort.
-        }
-      }, DRAFT_DEBOUNCE_MS);
-    });
-    return () => {
-      subscription.unsubscribe();
-      if (draftTimer.current) clearTimeout(draftTimer.current);
-    };
-  }, [watch, draftKey]);
-
   // --- Salida con cambios sin guardar -------------------------------------
   useEffect(() => {
     if (!isDirty) return;
@@ -238,6 +164,12 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
     [ingredients],
   );
 
+  const {
+    breakdown,
+    error: previewError,
+    loading: previewing,
+  } = useCostPreview(recipeValues, prepMinutes, ingredientById);
+
   const missingPrices = useMemo(() => {
     const names = new Set<string>();
     for (const row of recipeValues ?? []) {
@@ -248,56 +180,6 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
     }
     return Array.from(names);
   }, [recipeValues, ingredientById]);
-
-  useEffect(() => {
-    const lines: PreviewLineItem[] = [];
-    for (const row of recipeValues ?? []) {
-      const ingredient = ingredientById.get(row.ingredient_id);
-      if (!ingredient) continue;
-      if (!Number.isFinite(row.qty) || row.qty <= 0) continue;
-      lines.push({
-        qty: row.qty,
-        unit: row.unit,
-        price_per_purchase_unit: ingredient.price_per_unit,
-        purchase_unit: ingredient.unit,
-      });
-    }
-
-    if (lines.length === 0) {
-      setBreakdown(null);
-      setPreviewError(null);
-      setPreviewing(false);
-      return;
-    }
-
-    const prep = Number.isFinite(prepMinutes)
-      ? Math.min(Math.max(prepMinutes, 0), 1440)
-      : 0;
-    let cancelled = false;
-    setPreviewing(true);
-
-    const timer = setTimeout(async () => {
-      try {
-        const result = await productsService.preview(lines, prep);
-        if (cancelled) return;
-        setBreakdown(result);
-        setPreviewError(null);
-      } catch (e) {
-        if (cancelled) return;
-        setBreakdown(null);
-        setPreviewError(
-          e instanceof Error ? e.message : "No se pudo calcular el costo",
-        );
-      } finally {
-        if (!cancelled) setPreviewing(false);
-      }
-    }, PREVIEW_DEBOUNCE_MS);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [recipeValues, prepMinutes, ingredientById]);
 
   async function onSubmit(values: ProductFormValues) {
     setSaving(true);
@@ -319,12 +201,12 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
     try {
       if (isEdit && productId) {
         await productsService.update(productId, payload);
-        sessionStorage.removeItem(draftKey);
+        clearDraft();
         toaster.create({ title: "Cambios guardados", type: "success" });
         router.push(`/productos/${productId}`);
       } else {
         const created = await productsService.create(payload);
-        sessionStorage.removeItem(draftKey);
+        clearDraft();
         toaster.create({ title: "Producto creado", type: "success" });
         router.push(`/productos/${created.id}`);
       }
@@ -352,12 +234,6 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
     else router.push(backHref);
   }
 
-  function discardDraft() {
-    sessionStorage.removeItem(draftKey);
-    reset(CREATE_DEFAULTS);
-    setDraftRestored(false);
-  }
-
   if (loadingInitial) {
     return (
       <Center py={16}>
@@ -383,11 +259,11 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
         </Button>
       </Flex>
 
-      {loadError ? (
+      {loadError || ingredientsError ? (
         <Alert.Root status="error">
           <Alert.Content>
             <Alert.Title>No se pudo cargar</Alert.Title>
-            <Alert.Description>{loadError}</Alert.Description>
+            <Alert.Description>{loadError ?? ingredientsError}</Alert.Description>
           </Alert.Content>
         </Alert.Root>
       ) : null}

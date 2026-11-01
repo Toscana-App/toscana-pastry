@@ -92,8 +92,14 @@ export async function apiFetch<T>(
       (body as { message?: unknown } | null)?.message ??
       "An error occurred";
     // FastAPI responde 422 con detail: [{loc, msg, type}] — se toma el primer
-    // msg cuando es string; si no, se serializa el cuerpo completo.
-    const message = typeof candidate === "string" ? candidate : JSON.stringify(candidate);
+    // msg; el cuerpo completo queda en `payload`.
+    const message =
+      typeof candidate === "string"
+        ? candidate
+        : Array.isArray(candidate) &&
+            typeof (candidate[0] as { msg?: unknown } | undefined)?.msg === "string"
+          ? (candidate[0] as { msg: string }).msg
+          : "An error occurred";
     throw new ApiError(response.status, message, body);
   }
 

@@ -57,3 +57,28 @@ Lista de insumos con unidad, precio de compra y stock. La app original muestra b
 - Layout: encabezado "Ingredientes" + búsqueda + botón "Nuevo" (ghost con +). Lista de cards.
 - CTA único de la pantalla: **Nuevo ingrediente**.
 - Tokens: `paper-50` fondo, cards `surface` con outline; badge EMPTY = danger soft; LOW = warning soft; OK = success soft.
+
+---
+
+# P2-CC — Materiales de la calculadora de costos (rol administrador)
+
+> Módulo de la calculadora refactorizada desde `E:/toscana/calculadora-costos-toscana`. **Alcance exclusivo del rol administrador.** No reemplaza el módulo legacy P2 (stock/inventario): el material de la calculadora es un **catálogo de costos** (sin tracking de stock).
+
+## Contexto
+En la app de origen, cada material entra con **precio del paquete** y **cantidad por paquete**; el costo por unidad es derivado: `unit_cost = purchase_total_price / package_quantity`. Estados: `active` / `inactive` / `incomplete` (automático cuando falta precio o cantidad por paquete).
+
+## User story
+> Como **administrador**, quiero **mantener mi catálogo de materiales con su costo por unidad real**, para **que el costo de cada producto sea el costo que pago de verdad**.
+
+## Requerimientos funcionales
+- **RF-P2CC-01**: CRUD de `calc_material`: `name*` (1–120), `internal_code?` (≤40), `category_id?` (FK material-category), `supplier_id?` (FK supplier), `unit_of_measure?` (string ≤20, ej. kg, litro, unidad), `purchase_total_price` (Money ≥ 0), `package_quantity` (Qty > 0), `notes?` (≤500), `status` (`active` | `inactive` | `incomplete`).
+- **RF-P2CC-02**: `unit_cost` es **solo-escritura del servidor**: `purchase_total_price / package_quantity` con `Decimal` + `ROUND_HALF_UP` a centavos. Nunca llega del cliente (security #8). `package_quantity` = 0 → 422.
+- **RF-P2CC-03**: Si falta `purchase_total_price` o `package_quantity` el material queda `incomplete` (computado por el servidor, no aceptado del cliente).
+- **RF-P2CC-04**: **Historial de costos**: cada cambio de `purchase_total_price` que altere `unit_cost` registra `{previous_unit_cost, new_unit_cost, changed_at}`; `GET /calc/materials/{id}/cost-history` paginado.
+- **RF-P2CC-05**: Búsqueda `?q` por nombre/código; filtros `?category_id`, `?supplier_id`, `?status`; paginación (default 50, max 100). Delete de material usado en productos → 409 + `{impacted_products}`.
+
+## API — ver `api_endpoints.md` §FASE CC
+- `GET|POST /api/v1/calc/materials`, `GET|PATCH|DELETE /api/v1/calc/materials/{id}`, `GET /api/v1/calc/materials/{id}/cost-history`
+
+## Tareas
+- [ ] Ver `odd/tasks/cost-calculator.md` (tareas atómicas B7–B9, F2–F3).
