@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Optional, List
+from typing import Optional, List, Sequence
 from decimal import Decimal
-from domain.models import User, UserRole, BusinessSettings, Ingredient, StockMovement, StockStatus
+from domain.models import User, UserRole, BusinessSettings, Ingredient, Product, StockMovement, StockStatus
 
 class UserRepository(ABC):
     @abstractmethod
@@ -54,6 +54,11 @@ class IngredientRepository(ABC):
         pass
 
     @abstractmethod
+    async def get_many(self, ingredient_ids: Sequence[str]) -> List[Ingredient]:
+        """Insumos activos cuyo id esta en `ingredient_ids` (una consulta)."""
+        pass
+
+    @abstractmethod
     async def create(
         self,
         ingredient: Ingredient,
@@ -86,4 +91,45 @@ class IngredientRepository(ABC):
     async def list_movements(
         self, ingredient_id: str, page: int, page_size: int
     ) -> tuple[List[StockMovement], int]:
+        pass
+
+
+class ProductRepository(ABC):
+    """P3/P4 productos. Borrado suave: lo eliminado queda en la tabla pero
+    es invisible a list/get (UC-07). `count_orders` alimenta el 409 de
+    UC-07 cuando existan pedidos (Fase 6); hasta entonces siempre 0,
+    como `count_active_recipes` pre-Fase 5."""
+
+    @abstractmethod
+    async def list(
+        self,
+        q: Optional[str],
+        category: Optional[str],
+        page: int,
+        page_size: int,
+    ) -> tuple[List[Product], int]:
+        pass
+
+    @abstractmethod
+    async def get(self, product_id: str) -> Optional[Product]:
+        pass
+
+    @abstractmethod
+    async def create(self, product: Product) -> Product:
+        pass
+
+    @abstractmethod
+    async def update(self, product: Product) -> Optional[Product]:
+        pass
+
+    @abstractmethod
+    async def soft_delete(self, product_id: str) -> Optional[Product]:
+        pass
+
+    @abstractmethod
+    async def count_orders(self, product_id: str) -> int:
+        pass
+
+    @abstractmethod
+    async def distinct_categories(self) -> List[str]:
         pass

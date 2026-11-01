@@ -22,7 +22,7 @@ El cliente final recibe un documento profesional con el branding de la repostera
 | UC-03 Regenerar tras edición | Repostera | Editar → PDF nuevo (versión) |
 
 ## Requerimientos funcionales
-- **RF-P9-01**: Generación server-side (ReportLab/WeasyPrint) desde snapshot del presupuesto: branding (nombre + logo opcional + colores), fecha en es-AR, cliente, entrega, ítems, subtotal, total, notas, footer. (UC-01)
+- **RF-P9-01**: El PDF es server-side (ReportLab o WeasyPrint): incluye branding del tenant (nombre, logo opcional, colores), fecha en es-AR, cliente, entrega (fecha + **dirección si está presente**), ítems (con **tags de restricción** por ítem), subtotal, total, notas, footer. (UC-01)
 - **RF-P9-02**: El PDF **excluye** datos internos (costos, ganancia, margen). (UC-01)
 - **RF-P9-03**: Cache: el PDF se genera una vez por versión; `GET /budgets/{id}/pdf` sirve el archivo; `ETag` por hash de contenido. (UC-03)
 - **RF-P9-04**: Link temporal público (token firmado, TTL 72 h) para compartir sin app. (UC-02)

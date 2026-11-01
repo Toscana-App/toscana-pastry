@@ -11,6 +11,7 @@ Inicio del wizard de presupuesto (screenshot verificado): "Nuevo presupuesto" co
 - [ ] Lleno: nombre (requerido), teléfono, email, fecha de entrega, notas.
 - [ ] Si el cliente ya existe (mismo nombre+teléfono), el sistema me lo ofrece para reusarlo (sin duplicar).
 - [ ] Con solo nombre completo, puedo avanzar (email/teléfono opcionales para avanzar, requeridos solo para enviar por WhatsApp).
+- [ ] La dirección de entrega es opcional; si está presente aparece en el resumen (P8), en el PDF (P9) y en el mensaje de WhatsApp (P10).
 - [ ] Al volver al paso no pierdo lo escrito.
 
 ## Casos de uso
@@ -21,7 +22,7 @@ Inicio del wizard de presupuesto (screenshot verificado): "Nuevo presupuesto" co
 | UC-03 Volver/avanzar | Repostera | Navega el wizard sin perder datos |
 
 ## Requerimientos funcionales
-- **RF-P7-01**: Campos: `name*`, `phone`, `email`, `delivery_date` (fecha, sugerido hoy+3 días), `notes`. (UC-01)
+- **RF-P7-01**: Paso 1 captura: `name*`, `phone`, `email`, `delivery_date` (fecha, sugerido hoy+3 días), `delivery_address` (dirección de entrega, opcional, ≤ 200 chars), `notes`. (UC-01)
 - **RF-P7-02**: Validación: nombre ≥ 3 chars; teléfono y email validados **solo si se ingresan**; email/teléfono requeridos para el envío por WhatsApp (se avisa antes de llegar a ese CTA). (UC-01)
 - **RF-P7-03**: Detección de cliente duplicado: mismo `name+phone` (normalizado) → sugerencia "¿Es {nombre}? Usar datos guardados". (UC-02)
 - **RF-P7-04**: Persistencia del draft del wizard entre pasos (sin crear presupuesto en la DB hasta el paso 3). (UC-03)
