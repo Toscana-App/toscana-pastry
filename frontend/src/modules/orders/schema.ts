@@ -15,10 +15,8 @@ export const orderItemInputSchema = z.object({
     .int("Debe ser un entero")
     .min(1, "Mínimo 1")
     .max(99, "Máximo 99"),
-  /** Vacío = porciones del producto. */
-  portions: z
-    .union([z.literal(""), z.number().int().min(1).max(999)])
-    .transform((v) => (v === "" ? null : v)),
+  /** null = porciones del producto (misma forma que el payload enviado). */
+  portions: z.number().int().min(1, "Mínimo 1").max(999, "Máximo 999").nullable(),
   note: z.string().max(200, "Máximo 200 caracteres"),
 });
 
@@ -30,8 +28,12 @@ export const orderCreateSchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida")
     .refine((d) => !Number.isNaN(Date.parse(d)), "Fecha inválida"),
-  /** Vacío = margen del tenant. */
-  margin_pct: z.union([z.literal(""), z.number().min(0, "0% o más").max(200, "Máximo 200%")]),
+  /** null = margen del tenant; string numérico (porcentaje) = override. */
+  margin_pct: z
+    .string()
+    .regex(/^\d+(\.\d+)?$/, "Margen inválido")
+    .refine((v) => Number(v) <= 200, "Máximo 200%")
+    .nullable(),
   items: z
     .array(orderItemInputSchema)
     .min(1, "Al menos un ítem"),

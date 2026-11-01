@@ -189,8 +189,8 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
             </tr>
           </thead>
           <tbody>
-            {order.items.map((item) => (
-              <tr key={item.product_id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+            {order.items.map((item, idx) => (
+              <tr key={`${item.product_id}-${idx}`} style={{ borderBottom: "1px solid #f0f0f0" }}>
                 <td style={{ padding: "10px 14px", fontWeight: 500 }}>{item.product_name}</td>
                 <td style={{ padding: "10px 14px" }}>{item.qty}</td>
                 <td style={{ padding: "10px 14px" }}>{item.portions}</td>
@@ -215,10 +215,10 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
       </Box>
 
       {/* Líneas de costo + faltantes del snapshot */}
-      {order.items.map((item) =>
+      {order.items.map((item, idx) =>
         item.lines.length > 0 || item.missing_ingredients.length > 0 ? (
           <Box
-            key={`lines-${item.product_id}`}
+            key={`lines-${item.product_id}-${idx}`}
             borderWidth="1px"
             borderColor="gray.100"
             rounded="md"

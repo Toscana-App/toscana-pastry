@@ -212,6 +212,18 @@
 
 ---
 
+## 21. Anti-patterns observados en producto de referencia (no aplicar)
+
+> Recon de `elclubdelosaludable.ar` (2026-10-23, skill `web-product-recon`; Angular/MERN/JWT, operativo en producción). Padece los tres anti-patterns abajo. Documentado para justificar las premisas de este doc (ítems 9–10, RNF-P1-03) y para no retroceder por imitar a la referencia.
+
+| Anti-pattern (observado en el bundle) | Riesgo | Postura Toscana |
+|---|---|---|
+| Access token JWT en `localStorage` (`access_token`) | Cualquier XSS lee el token → sesión robada | Sesión solo en cookie `HttpOnly` (ítem 9, RNF-P1-03); cero datos de sesión en storage del navegador |
+| JWT sin `exp` tratado como válido (el código lo acepta para rol admin) | Token vivo indefinido; sin revocación por vencimiento | `exp` obligatoria en todo token (interceptor + `verify`); logout invalida server-side (ítem 9) |
+| Rol (`admin`/`client`) derivado y expuesto en `localStorage` | La UI decide seguridad con datos del cliente | Roles/permisos siempre desde el servidor (`GET /me`); la UI nunca decide por storage local |
+
+---
+
 ## Matriz de trazabilidad (ítem → fase → verificación)
 
 | # | Ítem | F0 | F1 | F2 | F3 | F4 |

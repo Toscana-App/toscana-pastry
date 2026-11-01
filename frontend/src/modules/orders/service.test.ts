@@ -259,6 +259,25 @@ describe("ordersService — PATCH", () => {
     });
   });
 
+  it("update con margin_pct null lo envía (limpia el override)", async () => {
+    const fetchMock = mockFetch(200, {
+      id: "o1",
+      customer: { id: "c1", name: "María", phone: "11" },
+      date: "2026-10-03",
+      status: "nuevo",
+      margin_pct: null,
+      items: [],
+      total: 0,
+      whatsapp_sent_at: null,
+      created_at: "2026-10-01T12:00:00Z",
+      updated_at: "2026-10-03T09:00:00Z",
+    });
+
+    await ordersService.update("o1", { margin_pct: null });
+
+    expect(JSON.parse(lastCall(fetchMock).init.body as string)).toEqual({ margin_pct: null });
+  });
+
   it("changeStatus manda el nuevo estado a /status", async () => {
     const fetchMock = mockFetch(200, {
       id: "o1",

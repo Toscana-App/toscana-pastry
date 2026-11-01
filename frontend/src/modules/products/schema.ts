@@ -66,3 +66,28 @@ export const productFormSchema = z
   .strict();
 
 export type ProductFormValues = z.infer<typeof productFormSchema>;
+
+/**
+ * Esquema laxo para restaurar borradores (RNF-P4-02): un borrador interrumpido
+ * a mitad de carga tiene campos en blanco, receta vacía o `prep_time_min: 0`,
+ * así que no se valida con las reglas de negocio de `productFormSchema`, solo
+ * con la forma/tipos. Todos los campos son opcionales y se mezclan sobre los
+ * defaults del alta.
+ */
+export const productDraftSchema = z
+  .object({
+    name: z.string(),
+    category: z.string(),
+    description: z.string(),
+    prep_time_min: z.number(),
+    servings: z.number(),
+    difficulty: z.enum(PRODUCT_DIFFICULTIES),
+    recipe: z.array(
+      z.object({
+        ingredient_id: z.string(),
+        qty: z.number(),
+        unit: z.enum(RECIPE_UNITS),
+      }),
+    ),
+  })
+  .partial();

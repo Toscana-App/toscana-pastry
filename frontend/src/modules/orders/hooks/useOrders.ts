@@ -42,10 +42,13 @@ export function useOrders(): UseOrdersResult {
   const [reloadToken, setReloadToken] = useState(0);
   const [items, setItems] = useState<OrderListItem[]>([]);
   const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const debouncedQuery = useDebounce(query, 250);
   const searchTerm = debouncedQuery.trim();
+  // Clave de la petición vigente; loading se deriva comparándola con la última respondida.
+  const requestKey = JSON.stringify([searchTerm, status, dateFrom, dateTo, page, reloadToken]);
+  const loading = loadedKey !== requestKey;
 
   useEffect(() => {
     let cancelled = false;
@@ -68,7 +71,7 @@ export function useOrders(): UseOrdersResult {
         if (cancelled) return;
         setError(e instanceof Error ? e.message : "No se pudo cargar la lista");
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setLoadedKey(requestKey);
       }
     }
 
@@ -76,39 +79,33 @@ export function useOrders(): UseOrdersResult {
     return () => {
       cancelled = true;
     };
-  }, [searchTerm, status, dateFrom, dateTo, page, reloadToken]);
+  }, [searchTerm, status, dateFrom, dateTo, page, reloadToken, requestKey]);
 
   const setQuery = useCallback((q: string) => {
     setQueryState(q);
     setPage(1);
-    setLoading(true);
   }, []);
 
   const setStatus = useCallback((next: OrderStatus | null) => {
     setStatusState(next);
     setPage(1);
-    setLoading(true);
   }, []);
 
   const setDateFrom = useCallback((date: string) => {
     setDateFromState(date);
     setPage(1);
-    setLoading(true);
   }, []);
 
   const setDateTo = useCallback((date: string) => {
     setDateToState(date);
     setPage(1);
-    setLoading(true);
   }, []);
 
   const goToPage = useCallback((p: number) => {
     setPage(p);
-    setLoading(true);
   }, []);
 
   const reload = useCallback(() => {
-    setLoading(true);
     setReloadToken((token) => token + 1);
   }, []);
 
