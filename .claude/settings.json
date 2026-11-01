@@ -1,7 +1,8 @@
 {
-  "theme": "dark",
-  "auto_install_skills": true,
   "enabledPlugins": {
-    "mercadopago@mercadopago-claude-marketplace": true
-  }
+    "mercadopago@mercadopago-claude-marketplace": true,
+    "impeccable@impeccable": true
+  },
+  "theme": "dark",
+  "auto_install_skills": true
 }
