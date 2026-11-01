@@ -5,6 +5,10 @@ authors = ["Gaspar"]
 
 [tool.poetry.dependencies]
 python = "^3.12"
+reportlab = ">=5.1,<6"
+
+[tool.poetry.group.dev.dependencies]
+pypdf = ">=6.21,<7"
 
 [build-system]
 requires = ["poetry-core"]
