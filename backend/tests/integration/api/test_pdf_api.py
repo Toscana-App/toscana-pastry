@@ -6,7 +6,7 @@ Cubre:
 - POST /budgets/{id}/pdf: link firmado 72 h; admin-only.
 - GET /pdf/{token}: público; token inválido/alterado/vencido → 404.
 - Seguridad: el PDF no contiene costo/ganancia/margen.
-- GET /budgets/{id}/whatsapp-link: wa.me E.164, plantilla con ítems y
+- POST /budgets/{id}/whatsapp-link: wa.me E.164, plantilla con ítems y
   total, registro auditado (teléfono enmascarado), 400 con teléfono
   inválido, 429 al pasar el límite de 30/día.
 """
@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 from main import app
+from api.v1.pdf.router import public_pdf_limiter
 from data.models import Base, BudgetEventORM
 from data.accent import accent_fold
 from data.db import get_db
@@ -98,6 +99,7 @@ async def client(db_session):
     async def override_get_document_repository():
         yield SQLDocumentRepository(db_session)
 
+    public_pdf_limiter.reset()
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_user_repository] = override_get_user_repository
     app.dependency_overrides[get_settings_repository] = override_get_settings_repository
@@ -393,6 +395,13 @@ class TestShareLink:
         b64 = lambda d: base64.urlsafe_b64encode(d).decode().rstrip("=")
         assert verify_share_token(f"{b64(payload)}.{b64(sig)}", "secreto") is None
 
+    async def test_endpoint_publico_tiene_rate_limit_por_ip(self, client):
+        for _ in range(public_pdf_limiter.max_requests):
+            response = await client.get("/api/v1/pdf/token-sin-punto")
+            assert response.status_code == 404
+        response = await client.get("/api/v1/pdf/token-sin-punto")
+        assert response.status_code == 429
+
     async def test_token_vencido_es_404(self, client):
         expired, _ = make_share_token(
             "cualquier-id", app_settings.SECRET_KEY, ttl_seconds=-10
@@ -426,7 +435,7 @@ class TestWhatsAppLink:
         )
         budget_id = await _make_budget(client, token, customer_id, product_id)
 
-        response = await client.get(
+        response = await client.post(
             f"/api/v1/budgets/{budget_id}/whatsapp-link",
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -452,7 +461,7 @@ class TestWhatsAppLink:
             client, token, "Corto", "123456"
         )
         budget_id = await _make_budget(client, token, customer_id, product_id)
-        response = await client.get(
+        response = await client.post(
             f"/api/v1/budgets/{budget_id}/whatsapp-link",
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -469,7 +478,7 @@ class TestWhatsAppLink:
             client, token, "María", "5493571234567"
         )
         budget_id = await _make_budget(client, token, customer_id, product_id)
-        response = await client.get(
+        response = await client.post(
             f"/api/v1/budgets/{budget_id}/whatsapp-link",
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -514,7 +523,7 @@ class TestWhatsAppLink:
             )
         await db_session.commit()
 
-        response = await client.get(
+        response = await client.post(
             f"/api/v1/budgets/{budget_id}/whatsapp-link",
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -546,8 +555,8 @@ class TestWhatsAppLink:
         headers = {"Authorization": f"Bearer {token}"}
         url = f"/api/v1/budgets/{budget_id}/whatsapp-link"
 
-        assert (await client.get(url, headers=headers)).status_code == 200
-        assert (await client.get(url, headers=headers)).status_code == 429
+        assert (await client.post(url, headers=headers)).status_code == 200
+        assert (await client.post(url, headers=headers)).status_code == 429
         total = (
             await db_session.execute(
                 select(func.count())

@@ -16,6 +16,7 @@ from api.v1.orders.router import router as orders_router
 from api.v1.budgets.router import router as budgets_router
 from api.v1.pdf.router import router as pdf_router
 from data.db import engine
+from core.config import settings as app_settings
 from data.models import Base
 
 # El frontend llama a la API desde otro origen (puerto distinto), así que el
@@ -55,6 +56,8 @@ def _ensure_phase8_columns(sync_conn):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Falla rápido si la config no es segura para el entorno.
+    app_settings.validate_for_startup()
     # create_all es idempotente: crea el esquema si falta y no toca lo existente.
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

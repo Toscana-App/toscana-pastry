@@ -12,11 +12,8 @@ from decimal import Decimal
 import pytest
 
 from domain.budgets import Budget, derive_budget_items
-from domain.pdf import (
-    budget_content_hash,
-    build_budget_pdf,
-    format_money_peso,
-)
+from data.pdf.reportlab_renderer import build_budget_pdf
+from domain.pdf import budget_content_hash, format_money_peso
 
 
 def extract_pdf_text(pdf_bytes: bytes) -> str:

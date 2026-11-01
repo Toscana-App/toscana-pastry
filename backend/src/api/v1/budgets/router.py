@@ -602,7 +602,7 @@ async def send_budget(
     return _detail_response(saved)
 
 
-@router.get("/{budget_id}/whatsapp-link", response_model=WhatsAppLinkResponse)
+@router.post("/{budget_id}/whatsapp-link", response_model=WhatsAppLinkResponse)
 async def budget_whatsapp_link(
     budget_id: str,
     budget_repo: BudgetRepository = Depends(get_budget_repository),

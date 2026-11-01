@@ -262,22 +262,12 @@ class BudgetRepository(ABC):
     # -------------------------------------------------------------- WhatsApp
 
     @abstractmethod
-    async def record_whatsapp_sent(self, budget_id: str, masked_phone: str) -> datetime:
-        """Evento de auditoría (RF-P10-02, P10): el teléfono se
-        almacena ENMASCARADO (RNF-P10-05). Retorna el momento del envío."""
-        pass
-
-    @abstractmethod
     async def record_whatsapp_sent_within_limit(
         self, budget_id: str, masked_phone: str, since: datetime, limit: int
     ) -> Optional[datetime]:
         """Conteo + registro ATÓMICOS (un solo INSERT ... SELECT): None
-        si ya hay `limit` envíos desde `since` (RF-P10-06)."""
-        pass
-
-    @abstractmethod
-    async def count_whatsapp_sent_since(self, since: datetime) -> int:
-        """Límite de envío (RF-P10-06): 30 links/día (ventana de 24 h)."""
+        si ya hay `limit` envíos desde `since` (RF-P10-06). El teléfono
+        se almacena ENMASCARADO (RNF-P10-05)."""
         pass
 
 

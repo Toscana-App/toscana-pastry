@@ -191,7 +191,7 @@ api/presentation/routers/
 ### WhatsApp (P10)
 | Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
 |---|---|---|---|---|---|
-| GET | `/api/v1/budgets/{id}/whatsapp-link` | Genera + registra `wa.me` (outbound). | — → `{url, sent_at}` | 200 | `wa.me/?text=` (ítems + total). Gratis, sin Cloud API. (CTA "Enviar por WhatsApp"). |
+| POST | `/api/v1/budgets/{id}/whatsapp-link` | Genera + registra `wa.me` (outbound). | — → `{url, sent_at}` | 200 | `wa.me/?text=` (ítems + total). Gratis, sin Cloud API. (CTA "Enviar por WhatsApp"). |
 | POST | `/api/v1/webhooks/whatsapp` | Webhook inbound (Chat SDK, opcional). | payload Cloud API → `200 {"ok":true}` | 200 | **Verifica firma** (X-Hub-Signature / Cloud API). Handler `onNewMention`/`onSubscribedMessage`. State en Redis (`createRedisState`). |
 | GET | `/api/v1/webhooks/whatsapp/verify` | Handshake de verificación Cloud API. | `?hub.mode, hub.verify_token, hub.challenge` → `challenge` (text) | 200 | Solo si se habilita inbound. Confirma ownership del webhook. |
 

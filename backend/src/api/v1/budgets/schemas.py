@@ -132,7 +132,7 @@ class ConvertToOrderResponse(BaseModel):
 
 
 class WhatsAppLinkResponse(BaseModel):
-    """GET /budgets/{id}/whatsapp-link (P10): link wa.me prellenado.
+    """POST /budgets/{id}/whatsapp-link (P10): link wa.me prellenado.
 
     `sent_at` es el momento del registro de auditoría (RF-P10-02)."""
 

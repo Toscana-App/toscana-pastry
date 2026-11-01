@@ -7,7 +7,7 @@
 - GET  /pdf/{token}       : acceso público con token (sin sesión).
 
 Seguridad: el documento renderizado no contiene costos ni margen — el
-builder (domain/pdf.py) solo toca el snapshot del cliente, y la suite de
+renderer (data/pdf/reportlab_renderer.py) solo toca el snapshot del cliente, y la suite de
 tests lo verifica contra el PDF real.
 """
 import asyncio
@@ -17,14 +17,15 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from api.v1.budgets.dependencies import get_budget_repository
 from api.v1.dependencies import get_current_user, require_admin
-from api.v1.pdf.dependencies import get_document_repository
+from api.v1.pdf.dependencies import get_document_repository, get_pdf_renderer
 from api.v1.pdf.schemas import PdfShareResponse
+from api.v1.rate_limit import SlidingWindowRateLimiter
 from api.v1.pdf.signing import make_share_token, verify_share_token
 from api.v1.settings.dependencies import get_settings_repository
 from core.config import settings as app_settings
 from domain.budgets import Budget
 from domain.models import User
-from domain.pdf import budget_content_hash, build_budget_pdf
+from domain.pdf import PdfRenderer, budget_content_hash
 from domain.repositories import BudgetRepository, DocumentRepository, SettingsRepository
 from domain.use_cases import GetSettings
 
@@ -32,11 +33,15 @@ router = APIRouter(tags=["pdf"])
 
 PDF_MEDIA_TYPE = "application/pdf"
 
+# Endpoint público (sin sesión): 30 requests/min por IP.
+public_pdf_limiter = SlidingWindowRateLimiter(max_requests=30, window_seconds=60)
+
 
 async def _pdf_for_budget(
     budget_repo: BudgetRepository,
     document_repo: DocumentRepository,
     settings_repo: SettingsRepository,
+    renderer: PdfRenderer,
     budget_id: str,
 ) -> tuple[bytes, str, Budget]:
     """Obtén o genera el PDF con cache por hash de contenido (P9)."""
@@ -53,7 +58,7 @@ async def _pdf_for_budget(
     cached = await document_repo.get(budget_id, content_hash)
     if cached is not None:
         return cached, content_hash, budget
-    pdf = await asyncio.to_thread(build_budget_pdf, budget, business, footer)
+    pdf = await asyncio.to_thread(renderer.render, budget, business, footer)
     await document_repo.save(budget_id, content_hash, pdf)
     return pdf, content_hash, budget
 
@@ -79,12 +84,13 @@ async def get_budget_pdf(
     budget_repo: BudgetRepository = Depends(get_budget_repository),
     document_repo: DocumentRepository = Depends(get_document_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
+    renderer: PdfRenderer = Depends(get_pdf_renderer),
     current_user: User = Depends(get_current_user),
 ):
     """PDF server-side (P9): application/pdf con ETag por hash de
     contenido (304 si no cambió)."""
     pdf, content_hash, budget = await _pdf_for_budget(
-        budget_repo, document_repo, settings_repo, budget_id
+        budget_repo, document_repo, settings_repo, renderer, budget_id
     )
     etag = f'"{content_hash}"'
     if request.headers.get("if-none-match") == etag:
@@ -114,12 +120,13 @@ async def share_budget_pdf(
     )
 
 
-@router.get("/pdf/{token}")
+@router.get("/pdf/{token}", dependencies=[Depends(public_pdf_limiter.dependency())])
 async def get_shared_pdf(
     token: str,
     budget_repo: BudgetRepository = Depends(get_budget_repository),
     document_repo: DocumentRepository = Depends(get_document_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
+    renderer: PdfRenderer = Depends(get_pdf_renderer),
 ):
     """Acceso público con token firmado (sin autenticación). Token
     vencido o alterado → 404 genérico (no se revela el motivo: evita
@@ -131,6 +138,6 @@ async def get_shared_pdf(
             detail="Link inválido o expirado",
         )
     pdf, content_hash, budget = await _pdf_for_budget(
-        budget_repo, document_repo, settings_repo, budget_id
+        budget_repo, document_repo, settings_repo, renderer, budget_id
     )
     return _pdf_response(pdf, content_hash, budget.seq, disposition="inline")
