@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 from typing import TYPE_CHECKING, Sequence
 
+from domain.models import UserRole
+
 if TYPE_CHECKING:
     from domain.models import BusinessSettings
 
@@ -55,7 +57,7 @@ class AudienceForbiddenError(ValueError):
     """El rol del usuario no tiene acceso a la audiencia solicitada."""
 
 
-def _resolve_audience(user_role: str, requested: str | None) -> str:
+def resolve_audience(user_role: UserRole | str, requested: str | None) -> str:
     """Resuelve la audiencia según el rol del usuario.
 
     - admin: usa requested si se especifica; por defecto ``revendedores``.
@@ -66,13 +68,15 @@ def _resolve_audience(user_role: str, requested: str | None) -> str:
         AudienceForbiddenError: si el rol no tiene acceso a la audiencia
         solicitada.
     """
-    role_audiences: dict[str, str | None] = {
-        "admin": None,
-        "negocio": "revendedores",
-        "customer": "consumidor_final",
+    role_audiences: dict[UserRole, str | None] = {
+        UserRole.ADMIN: None,
+        UserRole.NEGOCIO: "revendedores",
+        UserRole.CUSTOMER: "consumidor_final",
     }
 
-    default = role_audiences.get(user_role)
+    if user_role not in role_audiences:
+        raise AudienceForbiddenError(f"Rol {user_role} sin audiencia asignada")
+    default = role_audiences[user_role]
     if default is None:
         # admin: usa requested o default
         return requested if requested else "revendedores"
@@ -89,7 +93,7 @@ def compute_dual_pricing(
     line_items: Sequence[tuple[Decimal, str, Decimal, str]],
     prep_minutes: int,
     settings: "BusinessSettings",
-    user_role: str,
+    user_role: UserRole | str,
     requested_audience: str | None = None,
 ) -> PricingBreakdown:
     """Calcula el breakdown de precios para la audiencia del rol.
@@ -100,7 +104,7 @@ def compute_dual_pricing(
     """
     from domain.pricing import calculate_price
 
-    audience = _resolve_audience(user_role, requested_audience)
+    audience = resolve_audience(user_role, requested_audience)
 
     # Precio base (revendedores)
     base_breakdown = calculate_price(
