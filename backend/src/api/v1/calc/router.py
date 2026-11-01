@@ -3,9 +3,11 @@
 Todos los endpoints son admin-only (RF-P5CC-08).
 Namespace: /api/v1/calc.
 """
+import csv
 import datetime
 from decimal import Decimal
-from typing import Optional
+from io import StringIO
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse
@@ -15,84 +17,100 @@ from api.v1.dependencies import get_current_user, require_admin
 from api.v1.money import cents_to_decimal
 from domain.models import User
 from api.v1.calc.dependencies import (
-    get_calc_settings_repository,
-    get_calc_material_category_repository,
-    get_calc_product_category_repository,
-    get_calc_supplier_repository,
     get_calc_default_cost_repository,
+    get_calc_material_category_repository,
     get_calc_material_repository,
+    get_calc_product_category_repository,
     get_calc_product_repository,
+    get_calc_settings_repository,
+    get_calc_supplier_repository,
 )
 from api.v1.calc.schemas import (
     CalcSettingsRequest,
     CalcSettingsResponse,
     CategoryCreate,
-    CategoryUpdate,
     CategoryListResponse,
     CategoryResponse,
-    SupplierCreate,
-    SupplierUpdate,
-    SupplierListResponse,
-    SupplierResponse,
+    CategoryUpdate,
+    CostHistoryListResponse,
+    CostHistoryResponse,
+    DashboardBottomItem,
+    DashboardResponse,
+    DashboardTopItem,
     DefaultCostCreate,
-    DefaultCostUpdate,
     DefaultCostListResponse,
     DefaultCostResponse,
+    DefaultCostUpdate,
     MaterialCreate,
-    MaterialUpdate,
     MaterialListResponse,
     MaterialResponse,
-    CostHistoryResponse,
-    CostHistoryListResponse,
-    ProductCreate,
-    ProductUpdate,
-    ProductResponse,
-    ProductListResponse,
+    MaterialUpdate,
+    PriceListItem,
+    PriceListResponse,
     ProductCostsResponse,
-    ProductLinesOut,
-    ProductLineMaterialOut,
-    ProductLineLaborOut,
+    ProductCreate,
     ProductLineExtraCostOut,
-    ProductWithLinesResponse,
-    ProductVersionResponse,
+    ProductLineLaborOut,
+    ProductLineMaterialOut,
+    ProductLinesOut,
+    ProductListItem,
+    ProductListResponse,
+    ProductResponse,
+    ProductUpdate,
     ProductVersionListResponse,
+    ProductVersionResponse,
+    ProductWithLinesResponse,
+    RecalculateAllResponse,
+    SupplierCreate,
+    SupplierListResponse,
+    SupplierResponse,
+    SupplierUpdate,
 )
-from data.repositories.calc.sql_calc_settings_repository import SQLCalcSettingsRepository
+from data.repositories.calc.sql_calc_default_cost_repository import (
+    SQLCalcDefaultCostRepository,
+)
 from data.repositories.calc.sql_calc_material_category_repository import (
     SQLCalcMaterialCategoryRepository,
+)
+from data.repositories.calc.sql_calc_material_repository import (
+    SQLCalcMaterialRepository,
 )
 from data.repositories.calc.sql_calc_product_category_repository import (
     SQLCalcProductCategoryRepository,
 )
-from data.repositories.calc.sql_calc_supplier_repository import SQLCalcSupplierRepository
-from data.repositories.calc.sql_calc_default_cost_repository import SQLCalcDefaultCostRepository
-from data.repositories.calc.sql_calc_material_repository import SQLCalcMaterialRepository
 from data.repositories.calc.sql_calc_product_repository import SQLCalcProductRepository
-from domain.calc_settings import (
-    CalcSettings,
-    CalcMaterialCategory,
-    CalcProductCategory,
-    CalcSupplier,
-    CalcDefaultCost,
-    DEFAULT_MARGIN_PERCENT,
-    DEFAULT_DISCOUNT_PERCENT,
-    DEFAULT_TAX_PERCENT,
-    DEFAULT_ROUNDING_MODE,
+from data.repositories.calc.sql_calc_settings_repository import (
+    SQLCalcSettingsRepository,
 )
+from data.repositories.calc.sql_calc_supplier_repository import (
+    SQLCalcSupplierRepository,
+)
+from domain.calc_dashboard import build_dashboard_stats
+from domain.calc_material import CalcMaterial
 from domain.calc_product import (
     CalcProduct,
     CalcProductCosts,
-    CalcProductMaterialLine,
-    CalcProductLaborLine,
     CalcProductExtraCostLine,
-    calc_material_line_cost,
-    calc_labor_line_cost,
+    CalcProductLaborLine,
+    CalcProductMaterialLine,
     calc_extra_line_cost,
+    calc_labor_line_cost,
+    calc_material_line_cost,
     compute_costs,
     recalculate_product as recalculate_product_domain,
     resolve_material_line,
 )
-from domain.calc_material import CalcMaterial
+from domain.calc_settings import (
+    DEFAULT_DISCOUNT_PERCENT,
+    DEFAULT_MARGIN_PERCENT,
+    DEFAULT_ROUNDING_MODE,
+    DEFAULT_TAX_PERCENT,
+    CalcDefaultCost,
+    CalcMaterialCategory,
+    CalcProductCategory,
+    CalcSettings,
+    CalcSupplier,
+)
 
 router = APIRouter(prefix="/calc", tags=["calc"])
 
@@ -196,7 +214,9 @@ async def update_calc_settings(
             rounding_mode=payload.rounding_mode,
         )
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
     saved = await repo.save(settings)
     return CalcSettingsResponse(
         business_name=saved.business_name,
@@ -216,7 +236,7 @@ async def update_calc_settings(
     response_model=CategoryListResponse,
 )
 async def list_material_categories(
-    q: Optional[str] = Query(default=None, min_length=1, max_length=120),
+    q: str | None = Query(default=None, min_length=1, max_length=120),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=PAGINATION_MAX),
     repo: SQLCalcMaterialCategoryRepository = Depends(get_calc_material_category_repository),
@@ -253,7 +273,9 @@ async def create_material_category(
     try:
         category = CalcMaterialCategory(name=payload.name, description=payload.description)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
     saved = await repo.create(category)
     return _category_response(saved)
 
@@ -294,7 +316,9 @@ async def update_material_category(
             created_at=existing.created_at,
         )
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
     saved = await repo.update(updated)
     if saved is None:
         raise HTTPException(
@@ -343,7 +367,7 @@ async def delete_material_category(
     response_model=CategoryListResponse,
 )
 async def list_product_categories(
-    q: Optional[str] = Query(default=None, min_length=1, max_length=120),
+    q: str | None = Query(default=None, min_length=1, max_length=120),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=PAGINATION_MAX),
     repo: SQLCalcProductCategoryRepository = Depends(get_calc_product_category_repository),
@@ -379,7 +403,9 @@ async def create_product_category(
     try:
         category = CalcProductCategory(name=payload.name, description=payload.description)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
     saved = await repo.create(category)
     return _category_response(saved)
 
@@ -419,7 +445,9 @@ async def update_product_category(
             created_at=existing.created_at,
         )
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
     saved = await repo.update(updated)
     if saved is None:
         raise HTTPException(
@@ -467,7 +495,7 @@ async def delete_product_category(
     response_model=SupplierListResponse,
 )
 async def list_suppliers(
-    q: Optional[str] = Query(default=None, min_length=1, max_length=120),
+    q: str | None = Query(default=None, min_length=1, max_length=120),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=PAGINATION_MAX),
     repo: SQLCalcSupplierRepository = Depends(get_calc_supplier_repository),
@@ -503,7 +531,9 @@ async def create_supplier(
             notes=payload.notes,
         )
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
     saved = await repo.create(supplier)
     return _supplier_response(saved)
 
@@ -546,7 +576,9 @@ async def update_supplier(
             created_at=existing.created_at,
         )
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
     saved = await repo.update(updated)
     if saved is None:
         raise HTTPException(
@@ -594,8 +626,8 @@ async def delete_supplier(
     response_model=DefaultCostListResponse,
 )
 async def list_default_costs(
-    q: Optional[str] = Query(default=None, min_length=1, max_length=120),
-    type_filter: Optional[str] = Query(default=None, alias="type"),
+    q: str | None = Query(default=None, min_length=1, max_length=120),
+    type_filter: str | None = Query(default=None, alias="type"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=PAGINATION_MAX),
     repo: SQLCalcDefaultCostRepository = Depends(get_calc_default_cost_repository),
@@ -633,7 +665,9 @@ async def create_default_cost(
             status=payload.status,
         )
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
     saved = await repo.create(cost)
     return _default_cost_response(saved)
 
@@ -682,7 +716,9 @@ async def update_default_cost(
             created_at=existing.created_at,
         )
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
     saved = await repo.update(updated)
     if saved is None:
         raise HTTPException(
@@ -780,10 +816,10 @@ async def create_material(
     response_model=MaterialListResponse,
 )
 async def list_materials(
-    q: Optional[str] = Query(default=None, min_length=1, max_length=120),
-    category_id: Optional[str] = Query(default=None),
-    supplier_id: Optional[str] = Query(default=None),
-    status_filter: Optional[str] = Query(default=None, alias="status"),
+    q: str | None = Query(default=None, min_length=1, max_length=120),
+    category_id: str | None = Query(default=None),
+    supplier_id: str | None = Query(default=None),
+    status_filter: str | None = Query(default=None, alias="status"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=PAGINATION_MAX),
     repo: SQLCalcMaterialRepository = Depends(get_calc_material_repository),
@@ -992,6 +1028,24 @@ def _product_response(p: CalcProduct) -> ProductResponse:
         last_recalculated_at=p.last_recalculated_at,
         created_at=p.created_at,
         updated_at=p.updated_at,
+    )
+
+
+def _product_list_item(
+    product: CalcProduct, costs: CalcProductCosts, category_name: str | None
+) -> ProductListItem:
+    """Item enriquecido del listado (RF-P3CC-01): montos siempre del
+    motor (cost pre-redondeo, final con el rounding_mode de settings)."""
+    return ProductListItem(
+        id=product.id,
+        name=product.name,
+        sku=product.sku,
+        category_name=category_name,
+        status=product.status,
+        product_total_cost=costs.product_total_cost,
+        final_sale_price=costs.final_sale_price,
+        margin_percent=product.margin_percent,
+        last_recalculated_at=product.last_recalculated_at,
     )
 
 
@@ -1231,23 +1285,192 @@ async def create_product(
     response_model=ProductListResponse,
 )
 async def list_products(
-    q: Optional[str] = Query(default=None, min_length=1, max_length=120),
-    category_id: Optional[str] = Query(default=None),
-    status_filter: Optional[str] = Query(default=None, alias="status"),
+    q: str | None = Query(default=None, min_length=1, max_length=120),
+    category_id: str | None = Query(default=None),
+    status_filter: str | None = Query(default=None, alias="status"),
+    sort: Literal["name", "cost", "price", "margin"] = Query(default="name"),
+    dir: Literal["asc", "desc"] = Query(default="asc"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=PAGINATION_MAX),
     repo: SQLCalcProductRepository = Depends(get_calc_product_repository),
+    settings_repo: SQLCalcSettingsRepository = Depends(
+        get_calc_settings_repository
+    ),
     current_user: User = Depends(get_current_user),
 ):
     """GET /calc/products: lista con busqueda por nombre Y SKU (D5),
-    filtros, paginacion y orden fijo por nombre. Solo no-eliminados."""
-    items, total = await repo.list(q, category_id, status_filter, page, page_size)
+    filtros, sort (name/cost/price/margin + dir) y paginacion
+    (RF-P3CC-01). Item enriquecido con `category_name` y montos
+    siempre calculados por el motor (nunca del cliente)."""
+    settings = await settings_repo.get()
+    _, _, _, rounding_mode = _settings_defaults(settings)
+    items, total = await repo.list(
+        q, category_id, status_filter, page, page_size, sort, dir, rounding_mode
+    )
     return ProductListResponse(
-        items=[_product_response(item) for item in items],
+        items=[
+            _product_list_item(product, costs, category_name)
+            for product, costs, category_name in items
+        ],
         total=total,
         page=page,
         page_size=page_size,
     )
+
+
+# OJO route-order (prohibicion 6): price-list, price-list/export y
+# recalculate-all se registran ANTES de GET /products/{product_id},
+# sino FastAPI resuelve `price-list` como product_id -> 404.
+
+@router.get(
+    "/products/price-list",
+    response_model=PriceListResponse,
+)
+async def list_price_list(
+    q: str | None = Query(default=None, min_length=1, max_length=120),
+    category_id: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=PAGINATION_MAX),
+    repo: SQLCalcProductRepository = Depends(get_calc_product_repository),
+    settings_repo: SQLCalcSettingsRepository = Depends(
+        get_calc_settings_repository
+    ),
+    current_user: User = Depends(get_current_user),
+):
+    """GET /calc/products/price-list: solo activos no eliminados,
+    misma busqueda/filtro que el listado, orden fijo por nombre (D5);
+    montos del motor con el redondeo de settings (RF-P3CC-04)."""
+    settings = await settings_repo.get()
+    _, _, _, rounding_mode = _settings_defaults(settings)
+    items, total = await repo.list_price_list(
+        q, category_id, page, page_size, rounding_mode
+    )
+    return PriceListResponse(
+        items=[
+            PriceListItem(
+                id=product.id,
+                name=product.name,
+                sku=product.sku,
+                category_id=product.category_id,
+                category_name=category_name,
+                product_total_cost=costs.product_total_cost,
+                final_sale_price=costs.final_sale_price,
+                margin_percent=product.margin_percent,
+            )
+            for product, costs, category_name in items
+        ],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+def _csv_safe(value: str) -> str:
+    """Evita que Excel/Sheets interprete la celda como formula."""
+    if value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value
+
+
+@router.get("/products/price-list/export")
+async def export_price_list_csv(
+    q: str | None = Query(default=None, min_length=1, max_length=120),
+    category_id: str | None = Query(default=None),
+    repo: SQLCalcProductRepository = Depends(get_calc_product_repository),
+    settings_repo: SQLCalcSettingsRepository = Depends(
+        get_calc_settings_repository
+    ),
+    current_user: User = Depends(get_current_user),
+):
+    """GET /calc/products/price-list/export: CSV del set completo
+    filtrado (sin paginacion) (RF-P3CC-04). Header exacto de la spec:
+    id,name,category,cost,margin_pct,final_price; `cost` NUNCA se
+    redondea; filename `lista_precios.csv` (paridad legacy)."""
+    settings = await settings_repo.get()
+    _, _, _, rounding_mode = _settings_defaults(settings)
+    rows, _total = await repo.list_price_list(
+        q, category_id, 1, None, rounding_mode
+    )
+    buffer = StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(["id", "name", "category", "cost", "margin_pct", "final_price"])
+    for product, costs, category_name in rows:
+        writer.writerow(
+            [
+                product.id,
+                _csv_safe(product.name),
+                _csv_safe(category_name if category_name is not None else ""),
+                str(costs.product_total_cost),
+                str(product.margin_percent),
+                str(costs.final_sale_price),
+            ]
+        )
+    return Response(
+        content=buffer.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="lista_precios.csv"'},
+    )
+
+
+@router.post(
+    "/products/recalculate-all",
+    response_model=RecalculateAllResponse,
+)
+async def recalculate_all_products(
+    repo: SQLCalcProductRepository = Depends(get_calc_product_repository),
+    settings_repo: SQLCalcSettingsRepository = Depends(
+        get_calc_settings_repository
+    ),
+    _admin: User = Depends(require_admin),
+):
+    """POST /calc/products/recalculate-all: recalcula todos los
+    productos activos en una transaccion unica y devuelve
+    {recalculated: N} (RF-P3CC-03); `rounding_mode` de settings, nunca
+    del cliente."""
+    settings = await settings_repo.get()
+    _, _, _, rounding_mode = _settings_defaults(settings)
+    products = await repo.list_active()
+    now = datetime.datetime.now(datetime.UTC)
+    try:
+        # Mismo cuerpo que el recalculate individual, en UNA sola
+        # transaccion (un unico commit al final).
+        for product in products:
+            material_lines, labor_lines, extra_lines = await repo.get_lines(
+                product.id
+            )
+            materials_by_id = await repo.get_materials(
+                [line.material_id for line in material_lines]
+            )
+            result = recalculate_product_domain(
+                product,
+                material_lines,
+                labor_lines,
+                extra_lines,
+                materials_by_id,
+                rounding_mode,
+            )
+            await repo.save_lines(
+                product.id,
+                result.material_lines,
+                result.labor_lines,
+                result.extra_lines,
+                last_recalculated_at=now,
+            )
+            if result.creates_version:
+                await repo.add_version(product.id, result.new_costs)
+        await repo.commit()
+    except ValueError as e:
+        await repo.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
+    except IntegrityError as e:
+        await repo.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="version_conflict"
+        ) from e
+    recalculated = len(products)
+    return RecalculateAllResponse(recalculated=recalculated)
 
 
 @router.get("/products/{product_id}")
@@ -1448,6 +1671,57 @@ async def update_product(
         product=_product_response(saved),
         product_lines=_product_lines_out(kept_material, kept_labor, kept_extra),
         costs=_costs_response(costs),
+    )
+
+
+# ─── Dashboard (RF-P3CC-05) ────────────────────────────────────────────
+
+@router.get("/dashboard", response_model=DashboardResponse)
+async def get_dashboard(
+    product_repo: SQLCalcProductRepository = Depends(get_calc_product_repository),
+    material_repo: SQLCalcMaterialRepository = Depends(get_calc_material_repository),
+    settings_repo: SQLCalcSettingsRepository = Depends(
+        get_calc_settings_repository
+    ),
+    current_user: User = Depends(get_current_user),
+):
+    """GET /calc/dashboard: stats del admin (RF-P3CC-05). Los repos
+    aportan los datos crudos (counts por status + activos con costs
+    del motor) y la funcion pura del dominio arma las metricas."""
+    settings = await settings_repo.get()
+    _, _, _, rounding_mode = _settings_defaults(settings)
+    product_counts, active_with_costs = await product_repo.dashboard_data(
+        rounding_mode
+    )
+    material_counts = await material_repo.count_by_status()
+    stats = build_dashboard_stats(
+        material_counts, product_counts, active_with_costs
+    )
+    return DashboardResponse(
+        active_materials=stats.active_materials,
+        active_products=stats.active_products,
+        draft_products=stats.draft_products,
+        incomplete_materials=stats.incomplete_materials,
+        avg_product_cost=stats.avg_product_cost,
+        avg_final_price=stats.avg_final_price,
+        top_by_price=[
+            DashboardTopItem(
+                id=item.id,
+                name=item.name,
+                final_sale_price=item.final_sale_price,
+                margin_percent=item.margin_percent,
+            )
+            for item in stats.top_by_price
+        ],
+        bottom_by_margin=[
+            DashboardBottomItem(
+                id=item.id,
+                name=item.name,
+                product_total_cost=item.product_total_cost,
+                margin_percent=item.margin_percent,
+            )
+            for item in stats.bottom_by_margin
+        ],
     )
 
 

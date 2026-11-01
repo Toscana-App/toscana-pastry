@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from data.accent import accent_fold
 from data.models import (
     CalcMaterialORM,
+    CalcProductCategoryORM,
     CalcProductExtraCostORM,
     CalcProductLaborORM,
     CalcProductMaterialORM,
@@ -35,7 +36,12 @@ from domain.calc_product import (
     CalcProductLaborLine,
     CalcProductMaterialLine,
     CalcProductVersion,
+    compute_costs,
 )
+
+# Item enriquecido del listado/price-list (RF-P3CC-01/04):
+# (producto, costs del motor, nombre de categoria o None).
+ListRow = tuple[CalcProduct, CalcProductCosts, str | None]
 
 _ZERO = Decimal("0")
 
@@ -151,6 +157,22 @@ def _extra_line_to_domain(orm: CalcProductExtraCostORM) -> CalcProductExtraCostL
     )
 
 
+def _list_sort_key(sort: str):
+    """Clave de orden del listado (RF-P3CC-01, D5): `name` es texto
+    (mismo criterio que el orden SQL B9); `margin` el percent
+    almacenado (columna String -> Decimal); `cost`/`price` los montos
+    calculados por el motor (los montos no estan persistidos)."""
+    if sort == "name":
+        return lambda row: row[0].name.lower()
+    if sort == "margin":
+        return lambda row: row[0].margin_percent
+    if sort == "cost":
+        return lambda row: row[1].product_total_cost
+    if sort == "price":
+        return lambda row: row[1].final_sale_price
+    raise ValueError(f"sort invalido: {sort!r}")
+
+
 def _material_to_domain(orm: CalcMaterialORM) -> CalcMaterial:
     return CalcMaterial(
         id=orm.id,
@@ -201,9 +223,136 @@ class SQLCalcProductRepository:
         status_filter: str | None,
         page: int,
         page_size: int,
-    ) -> tuple[list[CalcProduct], int]:
+        sort: str = "name",
+        dir: str = "asc",
+        rounding_mode: str = "none",
+    ) -> tuple[list[ListRow], int]:
         """Lista solo no-eliminados con busqueda por nombre Y SKU
-        (accent-fold, D5), filtros y paginacion; orden fijo por nombre."""
+        (accent-fold, D5), filtros y paginacion (RF-P3CC-01).
+
+        Cada item va enriquecido: (producto, costs del motor con el
+        `rounding_mode` dado, nombre de categoria o None). `sort` =
+        name (comportamiento B9 por defecto) | cost | price | margin;
+        cost/price/margin se ordenan en Python sobre el set completo
+        (los montos no estan persistidos) y la paginacion tambien es
+        en Python (escala admin). Ties -> name asc; `dir` invierte
+        solo el campo primario."""
+        if sort == "name":
+            # B9 por defecto: orden y paginacion en SQL; los costs se
+            # calculan solo para la pagina pedida.
+            filters = self._filters(q, category_id, status_filter)
+            total = (
+                await self.session.execute(
+                    select(func.count()).select_from(CalcProductORM).where(*filters)
+                )
+            ).scalar_one()
+            name_order = func.lower(CalcProductORM.name)
+            orms = (
+                (
+                    await self.session.execute(
+                        select(CalcProductORM)
+                        .where(*filters)
+                        .order_by(
+                            name_order.desc() if dir == "desc" else name_order
+                        )
+                        .limit(page_size)
+                        .offset((page - 1) * page_size)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            return await self._enrich(orms, rounding_mode), total
+        rows, total = await self._matched_rows(
+            q, category_id, status_filter, rounding_mode
+        )
+        key = _list_sort_key(sort)
+        ordered = sorted(rows, key=lambda row: row[0].name.lower())
+        ordered = sorted(ordered, key=key, reverse=(dir == "desc"))
+        start = (page - 1) * page_size
+        return ordered[start : start + page_size], total
+
+    async def list_price_list(
+        self,
+        q: str | None,
+        category_id: str | None,
+        page: int,
+        page_size: int | None,
+        rounding_mode: str,
+    ) -> tuple[list[ListRow], int]:
+        """Price list (RF-P3CC-04): solo productos activos no
+        eliminados, con la misma busqueda/filtro de `list`, orden fijo
+        por nombre (D5). `page_size=None` devuelve el set completo."""
+        rows, total = await self._matched_rows(q, category_id, "active", rounding_mode)
+        if page_size is None:
+            return rows, total
+        start = (page - 1) * page_size
+        return rows[start : start + page_size], total
+
+    async def dashboard_data(
+        self, rounding_mode: str
+    ) -> tuple[dict[str, int], list[tuple[CalcProduct, CalcProductCosts]]]:
+        """Datos crudos del dashboard (RF-P3CC-05): counts de
+        productos no eliminados por status + los activos con sus costs
+        ya calculados por el motor con el `rounding_mode` dado."""
+        base = CalcProductORM.deleted_at.is_(None)
+        count_rows = await self.session.execute(
+            select(CalcProductORM.status, func.count())
+            .where(base)
+            .group_by(CalcProductORM.status)
+        )
+        counts = {str(status): int(n) for status, n in count_rows.all()}
+        orms = (
+            (
+                await self.session.execute(
+                    select(CalcProductORM)
+                    .where(base, CalcProductORM.status == "active")
+                    .order_by(func.lower(CalcProductORM.name))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        active = [
+            (product, costs)
+            for product, costs, _category in await self._enrich(
+                orms, rounding_mode
+            )
+        ]
+        return counts, active
+
+    async def _matched_rows(
+        self,
+        q: str | None,
+        category_id: str | None,
+        status_filter: str | None,
+        rounding_mode: str,
+    ) -> tuple[list[ListRow], int]:
+        """Todas las filas que matchean los filtros (sin paginacion),
+        cada una con sus costs del motor y el nombre de su categoria;
+        orden base por nombre (func.lower), igual que B9."""
+        filters = self._filters(q, category_id, status_filter)
+        count_stmt = (
+            select(func.count()).select_from(CalcProductORM).where(*filters)
+        )
+        total = (await self.session.execute(count_stmt)).scalar_one()
+        rows = (
+            (
+                await self.session.execute(
+                    select(CalcProductORM)
+                    .where(*filters)
+                    .order_by(func.lower(CalcProductORM.name))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return await self._enrich(rows, rounding_mode), total
+
+    @staticmethod
+    def _filters(
+        q: str | None, category_id: str | None, status_filter: str | None
+    ) -> list:
         filters = [CalcProductORM.deleted_at.is_(None)]
         if q and q.strip():
             folded = accent_fold(q) or q
@@ -218,24 +367,69 @@ class SQLCalcProductRepository:
             filters.append(CalcProductORM.product_category_id == category_id.strip())
         if status_filter and status_filter.strip():
             filters.append(CalcProductORM.status == status_filter.strip())
-        count_stmt = (
-            select(func.count()).select_from(CalcProductORM).where(*filters)
-        )
-        total = (await self.session.execute(count_stmt)).scalar_one()
-        rows = (
-            (
-                await self.session.execute(
-                    select(CalcProductORM)
-                    .where(*filters)
-                    .order_by(func.lower(CalcProductORM.name))
-                    .offset((page - 1) * page_size)
-                    .limit(page_size)
-                )
+        return filters
+
+    async def _enrich(
+        self, orms: list[CalcProductORM], rounding_mode: str
+    ) -> list[ListRow]:
+        """Producto + costs del motor + categoria, conservando el orden
+        recibido; las lineas se cargan con IN (...) (3 consultas)."""
+        category_names = await self._category_names()
+        lines = await self._lines_for([str(o.id) for o in orms])
+        enriched: list[ListRow] = []
+        for row in orms:
+            product = _product_to_domain(row)
+            material_lines, labor_lines, extra_lines = lines[str(row.id)]
+            costs = compute_costs(
+                material_lines,
+                labor_lines,
+                extra_lines,
+                product.margin_percent,
+                product.discount_percent,
+                product.tax_percent,
+                rounding_mode,
             )
+            enriched.append(
+                (product, costs, category_names.get(row.product_category_id))
+            )
+        return enriched
+
+    async def _lines_for(self, product_ids: list[str]) -> dict[str, tuple]:
+        """Lineas de varios productos (una consulta por tipo, por
+        lotes), ordenadas por sort_order, agrupadas por producto."""
+        result: dict[str, tuple] = {pid: ([], [], []) for pid in product_ids}
+        specs = (
+            (CalcProductMaterialORM, _material_line_to_domain, 0),
+            (CalcProductLaborORM, _labor_line_to_domain, 1),
+            (CalcProductExtraCostORM, _extra_line_to_domain, 2),
+        )
+        for start in range(0, len(product_ids), 500):
+            chunk = product_ids[start : start + 500]
+            for orm_cls, to_domain, idx in specs:
+                found = (
+                    (
+                        await self.session.execute(
+                            select(orm_cls)
+                            .where(orm_cls.product_id.in_(chunk))
+                            .order_by(orm_cls.sort_order)
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                for line in found:
+                    result[str(line.product_id)][idx].append(to_domain(line))
+        return result
+
+    async def _category_names(self) -> dict[str, str]:
+        """Id -> nombre de las categorias de producto (una sola
+        consulta, para enriquecer el item del listado/price-list)."""
+        rows = (
+            (await self.session.execute(select(CalcProductCategoryORM)))
             .scalars()
             .all()
         )
-        return [_product_to_domain(r) for r in rows], total
+        return {str(row.id): str(row.name) for row in rows}
 
     async def get(self, product_id: str) -> CalcProduct | None:
         """Detalle; eliminados -> None (regla 8)."""
@@ -458,6 +652,22 @@ class SQLCalcProductRepository:
         orm.deleted_at = datetime.now(UTC)
         await self.session.commit()
         return _product_to_domain(orm)
+
+    async def list_active(self) -> list[CalcProduct]:
+        """Productos `active` no eliminados (recalculate-all, RF-P3CC-03)."""
+        orms = (
+            (
+                await self.session.execute(
+                    select(CalcProductORM).where(
+                        CalcProductORM.status == "active",
+                        CalcProductORM.deleted_at.is_(None),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return [_product_to_domain(orm) for orm in orms]
 
     async def save_lines(
         self,

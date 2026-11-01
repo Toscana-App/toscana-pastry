@@ -246,6 +246,19 @@ class SQLCalcMaterialRepository:
         )
         return result.scalar_one()
 
+    async def count_by_status(self) -> dict[str, int]:
+        """Counts de materiales por status derivado persistido (B8):
+        {"active": N, "incomplete": M}; para el dashboard
+        (RF-P3CC-05)."""
+        rows = (
+            await self.session.execute(
+                select(CalcMaterialORM.status, func.count()).group_by(
+                    CalcMaterialORM.status
+                )
+            )
+        ).all()
+        return {str(status_value): count for status_value, count in rows}
+
     async def count_cost_history(self, material_id: str) -> int:
         """Filas de historial de costo (append-only) del material."""
         result = await self.session.execute(
