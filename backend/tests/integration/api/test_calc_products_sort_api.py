@@ -186,7 +186,7 @@ async def _seed_sort_products(client: AsyncClient, token: str) -> dict:
     material = await _create_material(
         client, token,
         unit_of_measure="kg",
-        purchase_total_price="100", package_quantity="1",
+        purchase_total_price=10000, package_quantity="1",
     )
     lines = [{"material_id": material["id"], "quantity_used": "1"}]
     alpha = await _create_product(
@@ -394,7 +394,7 @@ class TestEnrichedItem:
         material = await _create_material(
             client, token,
             unit_of_measure="kg",
-            purchase_total_price="100", package_quantity="1",
+            purchase_total_price=10000, package_quantity="1",
         )
         await _create_product(
             client,
@@ -427,8 +427,8 @@ class TestEnrichedItem:
         assert item["category_name"] == "Postres"
         assert item["status"] == "active"
         # cost 100.00, margin 50 / discount 0 / tax 19: final 238.00.
-        assert item["product_total_cost"] == "100.00"
-        assert item["final_sale_price"] == "238.00"
+        assert item["product_total_cost"] == 10000
+        assert item["final_sale_price"] == 23800
         assert float(item["margin_percent"]) == 50.0
         assert item["last_recalculated_at"] is None
 

@@ -174,11 +174,11 @@ async def _seed_dashboard(client: AsyncClient, token: str) -> None:
     """
     await _create_material(
         client, token, name="Mantequilla",
-        purchase_total_price="100", package_quantity="1",
+        purchase_total_price=10000, package_quantity="1",
     )
     await _create_material(
         client, token, name="Harina",
-        purchase_total_price="50", package_quantity="1",
+        purchase_total_price=5000, package_quantity="1",
     )
     await _create_material(client, token, name="Azucar")  # incomplete
     await _create_material(client, token, name="Huevo")  # incomplete
@@ -273,8 +273,8 @@ class TestDashboard:
         assert body["active_products"] == 3  # el eliminado no cuenta
         assert body["draft_products"] == 1
         # archived NO va en la respuesta (no hay ese campo).
-        assert body["avg_product_cost"] == "200.00"
-        assert body["avg_final_price"] == "324.88"
+        assert body["avg_product_cost"] == 20000
+        assert body["avg_final_price"] == 32488
 
     async def test_top_by_price_desc(self, client):
         token = await _admin(client)
@@ -282,7 +282,7 @@ class TestDashboard:
         body = await _dashboard(client, token)
         top = body["top_by_price"]
         assert [item["name"] for item in top] == ["Gamma", "Beta", "Alpha"]
-        assert top[0]["final_sale_price"] == "396.66"
+        assert top[0]["final_sale_price"] == 39666
         assert float(top[0]["margin_percent"]) == 10.0
         assert set(top[0].keys()) == {
             "id",
@@ -290,7 +290,7 @@ class TestDashboard:
             "final_sale_price",
             "margin_percent",
         }
-        assert top[2]["final_sale_price"] == "238.00"
+        assert top[2]["final_sale_price"] == 23800
 
     async def test_bottom_by_margin_asc(self, client):
         token = await _admin(client)
@@ -298,7 +298,7 @@ class TestDashboard:
         body = await _dashboard(client, token)
         bottom = body["bottom_by_margin"]
         assert [item["name"] for item in bottom] == ["Gamma", "Beta", "Alpha"]
-        assert bottom[0]["product_total_cost"] == "300.00"
+        assert bottom[0]["product_total_cost"] == 30000
         assert float(bottom[0]["margin_percent"]) == 10.0
         assert set(bottom[0].keys()) == {
             "id",
@@ -306,13 +306,13 @@ class TestDashboard:
             "product_total_cost",
             "margin_percent",
         }
-        assert bottom[2]["product_total_cost"] == "100.00"
+        assert bottom[2]["product_total_cost"] == 10000
 
     async def test_truncates_at_five_with_more_actives(self, client):
         token = await _admin(client)
         material = await _create_material(
             client, token, name="Base",
-            purchase_total_price="100", package_quantity="1",
+            purchase_total_price=10000, package_quantity="1",
         )
         for index in range(6):
             await _create_product(
@@ -345,8 +345,8 @@ class TestDashboard:
             "active_products": 0,
             "draft_products": 0,
             "incomplete_materials": 0,
-            "avg_product_cost": "0.00",
-            "avg_final_price": "0.00",
+            "avg_product_cost": 0,
+            "avg_final_price": 0,
             "top_by_price": [],
             "bottom_by_margin": [],
         }

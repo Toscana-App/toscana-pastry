@@ -209,7 +209,7 @@ async def _seed_price_list(client: AsyncClient, token: str) -> dict:
     material = await _create_material(
         client, token,
         unit_of_measure="kg",
-        purchase_total_price="100", package_quantity="1",
+        purchase_total_price=10000, package_quantity="1",
     )
     cat = await _create_product_category(client, token, name="Postres")
     await _create_product(
@@ -336,17 +336,17 @@ class TestPriceList:
         assert alpha["sku"] == "AL-1"
         assert alpha["category_id"] == seed["cat"]["id"]
         assert alpha["category_name"] == "Postres"
-        assert alpha["product_total_cost"] == "100.00"
-        assert alpha["final_sale_price"] == "238.00"
+        assert alpha["product_total_cost"] == 10000
+        assert alpha["final_sale_price"] == 23800
         assert float(alpha["margin_percent"]) == 50.0
         beta = by_name["Beta"]
         assert beta["category_id"] is None
         assert beta["category_name"] is None
-        assert beta["product_total_cost"] == "200.00"
-        assert beta["final_sale_price"] == "339.99"
+        assert beta["product_total_cost"] == 20000
+        assert beta["final_sale_price"] == 33999
         gamma = by_name["Gamma"]
-        assert gamma["product_total_cost"] == "300.00"
-        assert gamma["final_sale_price"] == "396.66"
+        assert gamma["product_total_cost"] == 30000
+        assert gamma["final_sale_price"] == 39666
 
     async def test_final_price_uses_settings_rounding(self, client):
         """final_sale_price con el redondeo del rounding_mode de
@@ -360,7 +360,7 @@ class TestPriceList:
             )
         ).json()
         finals = {item["name"]: item["final_sale_price"] for item in body["items"]}
-        assert finals == {"Alpha": "238", "Beta": "340", "Gamma": "397"}
+        assert finals == {"Alpha": 23800, "Beta": 34000, "Gamma": 39700}
 
     async def test_q_searches_name_and_sku_accent_insensitive(self, client):
         token = await _admin(client)
