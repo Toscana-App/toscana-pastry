@@ -1,4 +1,4 @@
--- 0001_customer_addresses_one_default
+-- 0004_customer_addresses_one_default
 -- Enforce at most one default address per user at the DB level.
 
 -- upgrade

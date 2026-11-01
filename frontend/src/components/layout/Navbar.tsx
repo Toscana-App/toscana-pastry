@@ -36,7 +36,16 @@ export function Navbar() {
             {isAuthenticated ? (
               <>
                 <Button variant="ghost" asChild>
-                  <NextLink href="/products">Products</NextLink>
+                  <NextLink href="/productos">Productos</NextLink>
+                </Button>
+                <Button variant="ghost" asChild>
+                  <NextLink href="/pedidos">Pedidos</NextLink>
+                </Button>
+                <Button variant="ghost" asChild>
+                  <NextLink href="/presupuestos">Presupuestos</NextLink>
+                </Button>
+                <Button variant="ghost" asChild>
+                  <NextLink href="/products">Catálogo</NextLink>
                 </Button>
                 {user?.role === "admin" && (
                   <>
