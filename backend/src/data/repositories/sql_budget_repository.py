@@ -12,12 +12,14 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import List, Optional, Tuple
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import func, insert, literal, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from data.models import (
+    BudgetDocumentORM,
+    BudgetEventORM,
     BudgetItemORM,
     BudgetORM,
     BudgetVersionORM,
@@ -305,6 +307,25 @@ class SQLBudgetRepository:
             ).scalars().all()
             for version in versions:
                 await self.session.delete(version)
+            # Fase 8: PDF generado y eventos de WhatsApp (P9/P10).
+            documents = (
+                await self.session.execute(
+                    select(BudgetDocumentORM).where(
+                        BudgetDocumentORM.budget_id == budget_id
+                    )
+                )
+            ).scalars().all()
+            for document in documents:
+                await self.session.delete(document)
+            events = (
+                await self.session.execute(
+                    select(BudgetEventORM).where(
+                        BudgetEventORM.budget_id == budget_id
+                    )
+                )
+            ).scalars().all()
+            for event in events:
+                await self.session.delete(event)
             await self.session.commit()
             return True
         except Exception:
@@ -364,6 +385,41 @@ class SQLBudgetRepository:
                 sent_at=budget.sent_at,
                 updated_at=budget.updated_at,
             )
+        except Exception:
+            await self.session.rollback()
+            raise
+
+    # ------------------------------------------------------------- WhatsApp
+
+    async def record_whatsapp_sent_within_limit(
+        self, budget_id: str, masked_phone: str, since: datetime, limit: int
+    ) -> Optional[datetime]:
+        """Conteo + inserción en UN statement: no hay ventana entre el
+        chequeo del límite y el registro (requests concurrentes)."""
+        try:
+            now = datetime.now(timezone.utc)
+            sent_count = (
+                select(func.count())
+                .select_from(BudgetEventORM)
+                .where(
+                    BudgetEventORM.type == "whatsapp_sent",
+                    BudgetEventORM.created_at >= since,
+                )
+                .scalar_subquery()
+            )
+            stmt = insert(BudgetEventORM).from_select(
+                ["id", "budget_id", "type", "payload", "created_at"],
+                select(
+                    literal(str(uuid.uuid4())),
+                    literal(budget_id),
+                    literal("whatsapp_sent"),
+                    literal(masked_phone),
+                    literal(now, type_=BudgetEventORM.created_at.type),
+                ).where(sent_count < limit),
+            )
+            result = await self.session.execute(stmt)
+            await self.session.commit()
+            return now if result.rowcount == 1 else None
         except Exception:
             await self.session.rollback()
             raise

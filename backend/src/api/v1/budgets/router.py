@@ -17,7 +17,8 @@ Reglas clave:
 """
 import datetime
 from decimal import Decimal
-from typing import List, Optional, Tuple, cast
+from typing import Dict, List, Optional, Tuple, cast
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
@@ -36,6 +37,7 @@ from api.v1.budgets.schemas import (
     CalculationMode,
     ConvertToOrderResponse,
     RecalculateResponse,
+    WhatsAppLinkResponse,
 )
 from api.v1.dependencies import get_current_user, require_admin
 from api.v1.ingredients.dependencies import get_ingredient_repository
@@ -45,7 +47,13 @@ from api.v1.orders.dependencies import (
     get_order_repository,
     get_product_repository,
 )
+from api.v1.orders.schemas import OrderItemInput
+from api.v1.pdf.signing import make_share_token
 from api.v1.settings.dependencies import get_settings_repository
+from core.config import settings as app_settings
+from data.repositories.sql_ingredient_repository import SQLIngredientRepository
+from data.repositories.sql_product_repository import SQLProductRepository
+from domain.budget_pricing import unit_product_cost
 from domain.budgets import (
     Budget,
     BudgetAlreadyConvertedError,
@@ -71,6 +79,12 @@ from domain.use_cases import (
     DeriveBudgetItems,
     GetSettings,
     UnknownProductError,
+)
+from domain.whatsapp import (
+    WHATSAPP_DAILY_LIMIT,
+    budget_whatsapp_message,
+    mask_phone,
+    normalize_e164_ar,
 )
 
 router = APIRouter(prefix="/budgets", tags=["budgets"])
@@ -525,3 +539,49 @@ async def send_budget(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     saved = await budget_repo.mark_sent(sent)
     return _detail_response(saved)
+
+
+@router.post("/{budget_id}/whatsapp-link", response_model=WhatsAppLinkResponse)
+async def budget_whatsapp_link(
+    budget_id: str,
+    budget_repo: BudgetRepository = Depends(get_budget_repository),
+    settings_repo: SettingsRepository = Depends(get_settings_repository),
+    _admin: User = Depends(require_admin),
+):
+    """P10 (UC-01): wa.me prellenado con la plantilla (saludo, ítems,
+    total, firma) y el link firmado al PDF (72 h). Registra el envío con
+    el teléfono enmascarado (RNF-P10-05) y aplica el límite de 30 links/
+    día (RF-P10-06). El cliente solo presiona 'enviar' en WhatsApp."""
+    budget = await budget_repo.get(budget_id)
+    if budget is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Presupuesto no encontrado",
+        )
+    try:
+        e164 = normalize_e164_ar(budget.customer_phone)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    settings = await GetSettings(settings_repo).execute()
+    token, _expires = make_share_token(budget.id, app_settings.SECRET_KEY)
+    share_url = f"{app_settings.PUBLIC_BASE_URL}/api/v1/pdf/{token}"
+    message = budget_whatsapp_message(
+        budget, settings.business_name or "", share_url
+    )
+    url = f"https://wa.me/{e164}?text={quote(message)}"
+    # Conteo + registro atómicos (RF-P10-06): sin carrera entre el chequeo
+    # del límite y el INSERT.
+    sent_at = await budget_repo.record_whatsapp_sent_within_limit(
+        budget.id,
+        mask_phone(e164),
+        now - datetime.timedelta(days=1),
+        WHATSAPP_DAILY_LIMIT,
+    )
+    if sent_at is None:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Límite diario de links de WhatsApp alcanzado (30/día)",
+        )
+    return WhatsAppLinkResponse(url=url, sent_at=sent_at.isoformat())

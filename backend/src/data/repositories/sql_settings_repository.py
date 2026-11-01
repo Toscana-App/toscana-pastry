@@ -21,6 +21,8 @@ def _to_domain(orm: BusinessSettingsORM) -> BusinessSettings:
         default_prep_minutes=orm.default_prep_minutes,
         default_servings=orm.default_servings,
         default_difficulty=orm.default_difficulty,
+        business_name=orm.business_name or "",
+        footer_text=orm.footer_text or "",
     )
 
 class SQLSettingsRepository:
@@ -48,6 +50,8 @@ class SQLSettingsRepository:
             default_prep_minutes=settings.default_prep_minutes,
             default_servings=settings.default_servings,
             default_difficulty=settings.default_difficulty,
+            business_name=settings.business_name,
+            footer_text=settings.footer_text,
         )
         if orm is None:
             orm = BusinessSettingsORM(**values)

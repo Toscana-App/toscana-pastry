@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Date, Integer, Boolean, Enum as SQLAlchemyEnum, ForeignKey, Text
+from sqlalchemy import Column, String, DateTime, Date, Integer, Boolean, Enum as SQLAlchemyEnum, ForeignKey, Text, LargeBinary
 from sqlalchemy.orm import declarative_base, relationship
 import datetime
 import enum
@@ -38,6 +38,9 @@ class BusinessSettingsORM(Base):
     default_prep_minutes = Column(Integer, default=30, nullable=False)
     default_servings = Column(Integer, default=6, nullable=False)
     default_difficulty = Column(String, default="simple", nullable=False)
+    # Fase 8 (P9): branding del PDF (solo texto; sin upload de logo en v1).
+    business_name = Column(String, default="", nullable=False)
+    footer_text = Column(String, default="", nullable=False)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 
@@ -257,6 +260,40 @@ class BudgetVersionORM(Base):
     budget_id = Column(String, ForeignKey("budgets.id"), nullable=False, index=True)
     version = Column(Integer, nullable=False)
     snapshot = Column(Text, nullable=False)  # JSON (customer, items, totals)
+    created_at = Column(DateTime(timezone=True), nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Fase 8 (P9/P10): PDF de presupuesto + auditoría WhatsApp
+# ---------------------------------------------------------------------------
+
+
+class BudgetDocumentORM(Base):
+    """PDF generado de un presupuesto (P9). Clave (budget_id, content_hash):
+    una fila vigente por presupuesto; editado el contenido → hash nuevo →
+    la fila se reemplaza (no se conservan versiones del documento)."""
+
+    __tablename__ = "budget_documents"
+    id = Column(String, primary_key=True)
+    budget_id = Column(
+        String, ForeignKey("budgets.id"), nullable=False, unique=True, index=True
+    )
+    content_hash = Column(String, nullable=False)
+    pdf_data = Column(LargeBinary, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False)
+    updated_at = Column(DateTime(timezone=True), nullable=False)
+
+
+class BudgetEventORM(Base):
+    """Evento de auditoría de presupuesto (whatsapp, ...). Solo INSERT:
+    historial (misma política que order_events, Fase 6). El teléfono se
+    guarda ENMASCARADO (RNF-P10-05)."""
+
+    __tablename__ = "budget_events"
+    id = Column(String, primary_key=True)
+    budget_id = Column(String, ForeignKey("budgets.id"), nullable=False, index=True)
+    type = Column(String, nullable=False)
+    payload = Column(Text, nullable=False, default="")
     created_at = Column(DateTime(timezone=True), nullable=False)
 
 class CalcSettingsORM(Base):

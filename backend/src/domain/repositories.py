@@ -287,3 +287,30 @@ class OrderTransitionStore(ABC):
     @abstractmethod
     async def rollback(self) -> None:
         pass
+
+    # -------------------------------------------------------------- WhatsApp
+
+    @abstractmethod
+    async def record_whatsapp_sent_within_limit(
+        self, budget_id: str, masked_phone: str, since: datetime, limit: int
+    ) -> Optional[datetime]:
+        """Conteo + registro ATÓMICOS (un solo INSERT ... SELECT): None
+        si ya hay `limit` envíos desde `since` (RF-P10-06). El teléfono
+        se almacena ENMASCARADO (RNF-P10-05)."""
+        pass
+
+
+class DocumentRepository(ABC):
+    """P9 (Fase 8): PDFs de presupuesto generados.
+
+    Clave: (budget_id, content_hash). Presupuesto editado → hash nuevo →
+    el documento se regenera (invalidación de cache por edición, P9).
+    """
+
+    @abstractmethod
+    async def get(self, budget_id: str, content_hash: str) -> Optional[bytes]:
+        pass
+
+    @abstractmethod
+    async def save(self, budget_id: str, content_hash: str, pdf: bytes) -> None:
+        pass

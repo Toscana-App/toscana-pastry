@@ -129,3 +129,12 @@ class RecalculateResponse(BaseModel):
 class ConvertToOrderResponse(BaseModel):
     order_id: str
     seq: str  # del presupuesto, para el log del frontend
+
+
+class WhatsAppLinkResponse(BaseModel):
+    """POST /budgets/{id}/whatsapp-link (P10): link wa.me prellenado.
+
+    `sent_at` es el momento del registro de auditoría (RF-P10-02)."""
+
+    url: str
+    sent_at: str  # ISO 8601 UTC

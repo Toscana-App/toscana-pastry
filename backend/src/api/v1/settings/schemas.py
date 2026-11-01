@@ -34,6 +34,9 @@ class SettingsUpdate(BaseModel):
     default_prep_minutes: int = Field(default=30, ge=0, le=1440)
     default_servings: int = Field(default=6, ge=1, le=999)
     default_difficulty: Literal["simple", "intermedio", "complejo"] = "simple"
+    # Fase 8 (P9): branding del PDF (solo texto; sin upload de logo en v1).
+    business_name: str = Field(default="", max_length=120)
+    footer_text: str = Field(default="", max_length=280)
 
     @model_validator(mode="after")
     def _check_toggle_dependencies(self) -> "SettingsUpdate":
@@ -60,3 +63,6 @@ class SettingsResponse(BaseModel):
     default_prep_minutes: int
     default_servings: int
     default_difficulty: str
+    # Fase 8 (P9): branding del PDF.
+    business_name: str
+    footer_text: str
