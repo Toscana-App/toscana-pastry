@@ -42,10 +42,11 @@ const E2E_DATABASE_URL =
 // so each step could run with the wrong role. Set E2E_ROLE_SELECTION_READY=1 only
 // once role selection is implemented in the steps below.
 if (process.env.E2E_ROLE_SELECTION_READY !== "1") {
-  console.log(
-    "SKIPPED roles-no-leak: Google login cannot select the admin/negocio/cliente user yet."
+  console.error(
+    "roles-no-leak NOT RUN (exit 2): Google login cannot select the admin/negocio/cliente user yet. " +
+      "Set E2E_ROLE_SELECTION_READY=1 once role selection is implemented. This is not a pass."
   );
-  process.exit(0);
+  process.exit(2);
 }
 
 // ─── Seed users via backend test client ───────────────────────────────────
