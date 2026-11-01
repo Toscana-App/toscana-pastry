@@ -140,9 +140,9 @@ async def _token_for(client: AsyncClient, email: str) -> str:
 # ─── Settings payload ───────────────────────────────────────────────────────
 
 _SETTINGS_PAYLOAD = {
-    "hourly_rate": "150",
+    "hourly_rate": 15000,
     "margin_pct": "100",
-    "round_step": "5",
+    "round_step": 500,
     "include_labor": True,
     "include_gas": False,
     "gas_pct": "0",
@@ -186,7 +186,7 @@ def _parse_pricelist(csv_text: str) -> dict[str, Decimal]:
 
 _PREVIEW_BODY = {
     "line_items": [
-        {"qty": "250", "unit": "g", "price_per_purchase_unit": "2800", "purchase_unit": "kg"}
+        {"qty": "250", "unit": "g", "price_per_purchase_unit": 280000, "purchase_unit": "kg"}
     ],
     "prep_minutes": 30,
 }
@@ -360,7 +360,7 @@ async def test_case9_negocio_pricing_preview_dual_403(client):
         "/api/v1/pricing/preview/dual",
         json={
             "line_items": [
-                {"qty": "250", "unit": "g", "price_per_purchase_unit": "2800", "purchase_unit": "kg"}
+                {"qty": "250", "unit": "g", "price_per_purchase_unit": 280000, "purchase_unit": "kg"}
             ],
             "prep_minutes": 30,
             "audience": "consumidor_final",
@@ -568,9 +568,11 @@ async def test_case19_negocio_preview_dual_amounts_no_leak(client):
     assert r.status_code == 200
     body = r.json()
     assert body["audience"] == "revendedores"
-    assert Decimal(body["rounded"]) == Decimal(admin_r.json()["rounded"])
-    assert Decimal(body["rounded"]) != Decimal(admin_cons.json()["rounded"])
-    assert Decimal(body["final"]) == Decimal(admin_r.json()["final"])
+    # PR #23 review fix: non-admin roles only get {audience, price} (no cost
+    # breakdown, no base price).
+    assert set(body) == {"audience", "price"}
+    assert Decimal(body["price"]) == Decimal(admin_r.json()["rounded"])
+    assert Decimal(body["price"]) != Decimal(admin_cons.json()["rounded"])
 
 
 @pytest.mark.asyncio
