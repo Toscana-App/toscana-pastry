@@ -86,7 +86,7 @@ export class AccessibilityTester {
 
   async runFullAccessibilityAudit(url: string): Promise<AccessibilityReport> {
     const page = await this.browser.newPage();
-    await page.goto(url, { waitUntil: 'networkidle' });
+    await page.goto(url, { waitUntil: 'networkidle0' });
 
     // Ejecutar axe-core audit
     const axeResults = await this.runAxeCoreAudit(page);
@@ -95,9 +95,9 @@ export class AccessibilityTester {
     const lighthouseResults = await this.runLighthouseAccessibilityAudit(page);
 
     const report: AccessibilityReport = {
-      violations: [...axeResults.violations, ...lighthouseResults.violations],
-      passes: [...axeResults.passes, ...lighthouseResults.passes],
-      incomplete: [...axeResults.incomplete, ...lighthouseResults.incomplete],
+      violations: [...(axeResults.violations ?? []), ...(lighthouseResults.violations ?? [])],
+      passes: [...(axeResults.passes ?? []), ...(lighthouseResults.passes ?? [])],
+      incomplete: [...(axeResults.incomplete ?? []), ...(lighthouseResults.incomplete ?? [])],
       timestamp: new Date().toISOString(),
       wcagVersion: '2.1 AA',
       url: url
@@ -395,7 +395,7 @@ export class AccessibilityTester {
 
   private async waitForPageLoad(page: Page): Promise<void> {
     await page.waitForSelector('.loading, .loaded, [role="main"]', { timeout: 5000 });
-    await page.waitForLoadState('networkidle');
+    await page.waitForNetworkIdle();
   }
 
   async testInteractionAccessibility(page: Page): Promise<void> {
