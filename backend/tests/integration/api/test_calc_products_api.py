@@ -1233,3 +1233,91 @@ class TestCountInUse:
             f"/api/v1/calc/product-categories/{cat['id']}", headers=_auth(token)
         )
         assert response.status_code == 204
+
+
+# ─── Unique (product_id, version_number) + 409 version_conflict ────────
+
+
+class TestVersionUniqueness:
+    async def test_duplicate_version_number_raises_integrity_error(
+        self, db_session
+    ):
+        import datetime
+
+        from sqlalchemy.exc import IntegrityError
+
+        from data.models import CalcProductVersionORM
+
+        def _version(row_id: str) -> CalcProductVersionORM:
+            return CalcProductVersionORM(
+                id=row_id,
+                product_id="p1",
+                version_number=1,
+                product_total_cost="1",
+                profit_amount="1",
+                discount_amount="0",
+                adjusted_profit_amount="1",
+                tax_amount="0",
+                final_sale_price="2",
+                changed_at=datetime.datetime.now(datetime.UTC),
+            )
+
+        db_session.add(_version("v1"))
+        await db_session.flush()
+        db_session.add(_version("v2"))
+        with pytest.raises(IntegrityError):
+            await db_session.flush()
+        await db_session.rollback()
+
+    async def test_recalculate_returns_409_on_version_conflict(
+        self, client, monkeypatch
+    ):
+        token = await _admin(client)
+        material = await _parity_material(client, token)
+        created = await _create_product(
+            client, token, **_parity_payload(material["id"])
+        )
+        product_id = created["product"]["id"]
+
+        async def _bump_price():
+            await client.patch(
+                f"/api/v1/calc/materials/{material['id']}",
+                json={"purchase_total_price": "10000", "package_quantity": "10"},
+                headers=_auth(token),
+            )
+
+        await _bump_price()
+        first = await client.post(
+            f"/api/v1/calc/products/{product_id}/recalculate",
+            headers=_auth(token),
+        )
+        assert first.status_code == 200
+
+        # Segundo cambio de precio -> nueva version; forzamos que el
+        # siguiente numero choque con la version 1 ya existente.
+        await client.patch(
+            f"/api/v1/calc/materials/{material['id']}",
+            json={"purchase_total_price": "20000", "package_quantity": "10"},
+            headers=_auth(token),
+        )
+
+        async def _existing_number(self, product_id):
+            return 1
+
+        monkeypatch.setattr(
+            SQLCalcProductRepository, "_next_version_number", _existing_number
+        )
+        response = await client.post(
+            f"/api/v1/calc/products/{product_id}/recalculate",
+            headers=_auth(token),
+        )
+        assert response.status_code == 409
+        assert response.json()["detail"] == "version_conflict"
+        monkeypatch.undo()
+        versions = (
+            await client.get(
+                f"/api/v1/calc/products/{product_id}/versions",
+                headers=_auth(token),
+            )
+        ).json()
+        assert versions["total"] == 1

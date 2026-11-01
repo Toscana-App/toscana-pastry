@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Integer, Boolean, Enum as SQLAlchemyEnum, ForeignKey
+from sqlalchemy import Column, String, DateTime, Integer, Boolean, Enum as SQLAlchemyEnum, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import declarative_base
 import datetime
 import enum
@@ -303,6 +303,13 @@ class CalcProductVersionORM(Base):
     """
 
     __tablename__ = "calc_product_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "product_id",
+            "version_number",
+            name="uq_calc_product_versions_product_version",
+        ),
+    )
     id = Column(String, primary_key=True)
     product_id = Column(
         String, ForeignKey("calc_products.id"), nullable=False, index=True

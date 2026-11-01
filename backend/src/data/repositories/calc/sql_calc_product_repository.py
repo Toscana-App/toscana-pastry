@@ -522,6 +522,9 @@ class SQLCalcProductRepository:
     async def commit(self) -> None:
         await self.session.commit()
 
+    async def rollback(self) -> None:
+        await self.session.rollback()
+
     async def _next_version_number(self, product_id: str) -> int:
         result = await self.session.execute(
             select(func.max(CalcProductVersionORM.version_number)).where(

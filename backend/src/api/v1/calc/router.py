@@ -9,6 +9,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 
 from api.v1.dependencies import get_current_user, require_admin
 from domain.models import User
@@ -1498,9 +1499,17 @@ async def recalculate_product(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Producto no encontrado",
         )
-    if result.creates_version:
-        await repo.add_version(product_id, result.new_costs)
-    await repo.commit()
+    try:
+        if result.creates_version:
+            await repo.add_version(product_id, result.new_costs)
+        await repo.commit()
+    except IntegrityError as e:
+        # Recalculo concurrente: otro request ya tomo ese version_number
+        # (uq_calc_product_versions_product_version).
+        await repo.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="version_conflict"
+        ) from e
     return ProductWithLinesResponse(
         product=_product_response(saved),
         product_lines=_product_lines_out(
