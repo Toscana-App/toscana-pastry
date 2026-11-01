@@ -5,6 +5,8 @@ authors = ["Gaspar"]
 
 [tool.poetry.dependencies]
 python = "^3.12"
+weasyprint = "^70.0"
+
 reportlab = ">=5.1,<6"
 
 [tool.poetry.group.dev.dependencies]

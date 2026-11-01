@@ -19,6 +19,7 @@ from api.v1.pdf.router import router as pdf_router
 
 
 from api.v1.calc.router import router as calc_router
+from api.v1.products.router import router as products_router
 from data.db import engine
 from core.config import settings as app_settings
 from data.models import Base
@@ -93,6 +94,7 @@ app.include_router(budgets_router, prefix="/api/v1")
 app.include_router(pdf_router, prefix="/api/v1")
 
 app.include_router(calc_router, prefix="/api/v1")
+app.include_router(products_router, prefix="/api/v1")
 
 
 @app.get("/health")

@@ -1,5 +1,6 @@
 from sqlalchemy import Column, String, DateTime, Date, Integer, Boolean, Enum as SQLAlchemyEnum, ForeignKey, Text, LargeBinary
 from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy import TypeDecorator
 import datetime
 import enum
 
@@ -8,13 +9,38 @@ Base = declarative_base()
 class UserRoleEnum(str, enum.Enum):
     ADMIN = "admin"
     CUSTOMER = "customer"
+    NEGOCIO = "negocio"
+
+
+class _UserRoleColumn(TypeDecorator):
+    """Stores the user role as a lowercase string.
+
+    Replaces SQLAlchemyEnum to avoid the footgun where legacy uppercase
+    values (e.g. "ADMIN" from old backups or hand-edited rows) raise
+    LookupError during ORM loading.  The column stores plain TEXT in the
+    database and normalises every value to lowercase on read, so
+    _to_domain can safely do ``UserRole(raw_value)``.
+    """
+
+    impl = String(50)
+    cache_ok = True
+
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            return str(value).lower()
+        return value
+
 
 class UserORM(Base):
     __tablename__ = "users"
     id = Column(String, primary_key=True)
     email = Column(String, unique=True, nullable=False)
     google_id = Column(String, unique=True, nullable=True)
-    role = Column(SQLAlchemyEnum(UserRoleEnum), default=UserRoleEnum.CUSTOMER, nullable=False)
+    role = Column(
+        _UserRoleColumn(),
+        default="customer",
+        nullable=False,
+    )
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 class BusinessSettingsORM(Base):
@@ -32,6 +58,7 @@ class BusinessSettingsORM(Base):
     gas_pct = Column(String, default="0", nullable=False)
     waste_pct = Column(String, default="0", nullable=False)
     urgent_surcharge_pct = Column(String, default="20", nullable=False)
+    consumer_markup_pct = Column(String, default="40", nullable=False)
     include_labor = Column(Boolean, default=True, nullable=False)
     include_gas = Column(Boolean, default=False, nullable=False)
     include_waste = Column(Boolean, default=False, nullable=False)
