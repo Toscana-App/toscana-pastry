@@ -1,5 +1,7 @@
 """Order API dependencies (C1)."""
 
+import datetime
+
 from fastapi import Depends, HTTPException
 from fastapi import status as http_status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,3 +32,8 @@ def get_checkout_provider() -> CheckoutProvider:
         notification_url=settings.MP_NOTIFICATION_URL or None,
         back_url=settings.MP_BACK_URL or None,
     )
+
+
+def get_now() -> datetime.datetime:
+    """Current UTC time; overridable in tests (no sleeps)."""
+    return datetime.datetime.now(datetime.UTC)

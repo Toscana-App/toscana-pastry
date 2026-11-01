@@ -18,6 +18,7 @@ import datetime
 import hashlib
 import hmac
 import json
+import time
 import uuid
 from decimal import Decimal
 
@@ -48,7 +49,6 @@ from main import app
 
 WEBHOOK_SECRET = "test-webhook-secret"
 REQUEST_ID = "req-1"
-TS = "1704908010"
 
 # Mercado Pago payments served by the mocked API: id -> payment JSON.
 _MP_PAYMENTS: dict[str, dict] = {}
@@ -74,10 +74,11 @@ def _provider() -> MercadoPagoCheckoutProvider:
     )
 
 
-def _signature(data_id: str, request_id: str = REQUEST_ID) -> str:
-    manifest = f"id:{data_id};request-id:{request_id};ts:{TS};"
+def _signature(data_id: str, request_id: str = REQUEST_ID, ts: int | None = None) -> str:
+    ts = int(time.time()) if ts is None else ts
+    manifest = f"id:{data_id};request-id:{request_id};ts:{ts};"
     v1 = hmac.new(WEBHOOK_SECRET.encode(), manifest.encode(), hashlib.sha256).hexdigest()
-    return f"ts={TS},v1={v1}"
+    return f"ts={ts},v1={v1}"
 
 
 @pytest_asyncio.fixture
@@ -150,7 +151,7 @@ async def mercadopago_order(db_session):
         payment_method=PaymentMethod.MERCADOPAGO,
     )
     repo = SQLOrderRepository(db_session)
-    await repo.create(order)
+    await repo.add(order)  # header + line items: the amount check needs the total
 
     async def refresh():
         return await repo.get(order.id)
@@ -187,11 +188,19 @@ async def cash_order(db_session):
 # ─── Helpers ──────────────────────────────────────────────────────────
 
 
-def _set_payment(payment_id: str, status: str, order_id: str | None) -> None:
+def _set_payment(
+    payment_id: str,
+    status: str,
+    order_id: str | None,
+    amount: float = 1000,
+    currency: str = "ARS",
+) -> None:
     _MP_PAYMENTS[payment_id] = {
         "id": int(payment_id) if payment_id.isdigit() else payment_id,
         "status": status,
         "external_reference": order_id,
+        "transaction_amount": amount,
+        "currency_id": currency,
     }
 
 
@@ -234,7 +243,7 @@ class TestWebhookSignature:
 
     async def test_invalid_signature_returns_401(self, client, mercadopago_order):
         _set_payment("1001", "approved", mercadopago_order.id)
-        response = await _notify(client, "1001", signature=f"ts={TS},v1={'0' * 64}")
+        response = await _notify(client, "1001", signature=f"ts={int(time.time())},v1={'0' * 64}")
         assert response.status_code == 401
         assert (await mercadopago_order._refresh()).paid is False
 
@@ -450,3 +459,55 @@ class TestWebhookCash:
         refreshed = await cash_order._refresh()
         assert refreshed.paid is False
         assert refreshed.payment_status is None
+
+
+class TestWebhookAntiReplayAndAmount:
+    async def test_stale_ts_returns_401_and_does_not_mark_paid(self, client, mercadopago_order):
+        _set_payment("1001", "approved", mercadopago_order.id)
+        stale = _signature("1001", ts=int(time.time()) - 6 * 60)
+        response = await _notify(client, "1001", signature=stale)
+        assert response.status_code == 401
+        assert (await mercadopago_order._refresh()).paid is False
+
+    async def test_ts_within_5_minutes_is_accepted(self, client, mercadopago_order):
+        _set_payment("1001", "approved", mercadopago_order.id)
+        recent = _signature("1001", ts=int(time.time()) - 4 * 60)
+        assert (await _notify(client, "1001", signature=recent)).status_code == 200
+        assert (await mercadopago_order._refresh()).paid is True
+
+    async def test_lower_amount_is_not_marked_paid(self, client, mercadopago_order):
+        _set_payment("1001", "approved", mercadopago_order.id, amount=1)
+        response = await _notify(client, "1001")
+        assert response.status_code == 200
+        refreshed = await mercadopago_order._refresh()
+        assert refreshed.paid is False
+        assert refreshed.payment_status is None
+
+    async def test_other_currency_is_not_marked_paid(self, client, mercadopago_order):
+        _set_payment("1001", "approved", mercadopago_order.id, currency="USD")
+        response = await _notify(client, "1001")
+        assert response.status_code == 200
+        assert (await mercadopago_order._refresh()).paid is False
+
+    async def test_missing_amount_is_not_marked_paid(self, client, mercadopago_order):
+        _set_payment("1001", "approved", mercadopago_order.id)
+        del _MP_PAYMENTS["1001"]["transaction_amount"]
+        assert (await _notify(client, "1001")).status_code == 200
+        assert (await mercadopago_order._refresh()).paid is False
+
+    async def test_amount_is_compared_after_discount(self, client, db_session):
+        order = Order(
+            customer_id=str(uuid.uuid4()),
+            date=datetime.datetime.now(datetime.UTC),
+            items=[OrderItem("p1", "Torta", 1, Decimal(1000))],
+            payment_method=PaymentMethod.MERCADOPAGO,
+            discount_amount=Decimal(100),
+        )
+        repo = SQLOrderRepository(db_session)
+        await repo.add(order)
+        _set_payment("1001", "approved", order.id, amount=1000)  # ignores discount
+        await _notify(client, "1001")
+        assert (await repo.get(order.id)).paid is False
+        _set_payment("1002", "approved", order.id, amount=900)
+        await _notify(client, "1002")
+        assert (await repo.get(order.id)).paid is True

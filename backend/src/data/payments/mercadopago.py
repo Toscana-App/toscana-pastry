@@ -9,6 +9,9 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import time
+from collections.abc import Callable
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import httpx
@@ -22,6 +25,8 @@ from domain.checkout_provider import (
 MP_API_URL = "https://api.mercadopago.com"
 _HTTP_TIMEOUT_SECONDS = 10.0
 _ITEM_TITLE = "Toscana Pastry order"
+# Anti-replay: a webhook whose signed ``ts`` is further than this from now is stale.
+SIGNATURE_TOLERANCE_SECONDS = 5 * 60
 
 # Mercado Pago payment status -> CheckoutProvider status.
 _STATUS_MAP = {
@@ -47,7 +52,9 @@ class MercadoPagoCheckoutProvider:
         notification_url: str | None = None,
         back_url: str | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
+        clock: Callable[[], float] = time.time,
     ) -> None:
+        self._clock = clock
         self._access_token = access_token
         self._webhook_secret = webhook_secret
         self._notification_url = notification_url
@@ -104,7 +111,12 @@ class MercadoPagoCheckoutProvider:
         # Unknown statuses stay non-terminal: they can never mark an order paid.
         status = _STATUS_MAP.get(str(data.get("status")), "pending")
         order_id = data.get("external_reference") or None
-        return PaymentStatusResult(status=status, order_id=order_id)
+        return PaymentStatusResult(
+            status=status,
+            order_id=order_id,
+            amount=_parse_amount(data.get("transaction_amount")),
+            currency=data.get("currency_id") or None,
+        )
 
     def verify_webhook(
         self, payload: bytes, signature: str | None, request_id: str | None
@@ -113,8 +125,19 @@ class MercadoPagoCheckoutProvider:
             data_id = str(json.loads(payload)["data"]["id"])
         except (ValueError, KeyError, TypeError):
             return None
-        if verify_mp_signature(self._webhook_secret, data_id, request_id, signature):
+        if verify_mp_signature(
+            self._webhook_secret, data_id, request_id, signature, now=self._clock()
+        ):
             return payload
+        return None
+
+
+def _parse_amount(raw: Any) -> Decimal | None:
+    if raw is None or isinstance(raw, bool):
+        return None
+    try:
+        return Decimal(str(raw))
+    except InvalidOperation:
         return None
 
 
@@ -123,12 +146,14 @@ def verify_mp_signature(
     data_id: str,
     request_id: str | None,
     x_signature: str | None,
+    now: float | None = None,
 ) -> bool:
     """Validate the ``x-signature`` header of a Mercado Pago webhook.
 
     ``x-signature`` is ``ts=<ts>,v1=<hex>`` where ``v1`` is the HMAC-SHA256
     of ``id:<data.id>;request-id:<x-request-id>;ts:<ts>;`` keyed with the
-    webhook secret.
+    webhook secret. ``ts`` must be within ``SIGNATURE_TOLERANCE_SECONDS`` of
+    ``now`` (epoch seconds; default: current time) to block replays.
     """
     if not secret or not data_id or not request_id or not x_signature:
         return False
@@ -144,4 +169,13 @@ def verify_mp_signature(
     manifest = f"id:{data_id};request-id:{request_id};ts:{ts};"
     expected = hmac.new(secret.encode(), manifest.encode(), hashlib.sha256).hexdigest()
     # Compare bytes: compare_digest raises TypeError on non-ASCII str.
-    return hmac.compare_digest(expected.encode(), v1.encode("utf-8", "surrogateescape"))
+    if not hmac.compare_digest(expected.encode(), v1.encode("utf-8", "surrogateescape")):
+        return False
+    try:
+        signed_at = float(ts)
+    except ValueError:
+        return False
+    if signed_at > 1e11:  # milliseconds epoch
+        signed_at /= 1000
+    current = time.time() if now is None else now
+    return abs(current - signed_at) <= SIGNATURE_TOLERANCE_SECONDS

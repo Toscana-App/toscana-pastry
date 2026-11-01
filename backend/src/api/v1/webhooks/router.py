@@ -8,6 +8,7 @@ from __future__ import annotations
 import datetime
 import json
 import logging
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi import status as http_status
@@ -19,6 +20,8 @@ from api.v1.orders.schemas import WebhookNotification, WebhookResponse
 from data.repositories.sql_order_repository import SQLOrderRepository
 from domain.checkout_provider import CheckoutProvider, PaymentProviderError
 from domain.order import PaymentStatus
+
+_PAYMENT_CURRENCY = "ARS"
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 logger = logging.getLogger(__name__)
@@ -89,6 +92,22 @@ async def mercadopago_webhook(
             payment_id,
         )
         return WebhookResponse()
+
+    if payment_status == PaymentStatus.APPROVED:
+        expected = order.total - (order.discount_amount or Decimal("0"))
+        if payment.amount != expected or payment.currency != _PAYMENT_CURRENCY:
+            # Never mark paid on a mismatch; 200 so MP does not retry.
+            logger.error(
+                "mercadopago payment %s discrepancy for order %s: "
+                "amount %s %s, expected %s %s; not marked paid",
+                payment_id,
+                order.id,
+                payment.amount,
+                payment.currency,
+                expected,
+                _PAYMENT_CURRENCY,
+            )
+            return WebhookResponse()
 
     # One transaction: event insert (dedupe) + guarded, priority-aware update.
     # Cash orders ignore MP webhooks (payment_status stays None, paid false).

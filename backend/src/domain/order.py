@@ -60,6 +60,10 @@ def overridable_payment_statuses(new: PaymentStatus) -> frozenset[PaymentStatus]
     )
 
 
+# A pending Mercado Pago payment is cancelled automatically after 24 h.
+PAYMENT_EXPIRY = datetime.timedelta(hours=24)
+
+
 class OrderValidationError(ValueError):
     """A portal order violates a business rule; ``code`` is the API detail."""
 
@@ -205,3 +209,22 @@ class Order:
         if self.status != OrderStatus.NUEVO:
             raise ValueError("payment_method is immutable after order confirmation")
         self.payment_method = PaymentMethod.MERCADOPAGO
+
+
+def is_payment_expired(order: Order, now: datetime.datetime) -> bool:
+    """True when an unpaid order's pending payment outlived ``PAYMENT_EXPIRY``.
+
+    Pure: ``now`` is injected. Measured from ``order.created_at`` (there is no
+    separate "payment started" timestamp).
+    """
+    if (
+        order.payment_method != PaymentMethod.MERCADOPAGO
+        or order.status != OrderStatus.NUEVO
+        or order.paid
+        or order.payment_status != PaymentStatus.PENDING
+    ):
+        return False
+    created_at = order.created_at
+    if created_at.tzinfo is None:  # SQLite returns naive UTC datetimes
+        created_at = created_at.replace(tzinfo=datetime.UTC)
+    return now - created_at >= PAYMENT_EXPIRY

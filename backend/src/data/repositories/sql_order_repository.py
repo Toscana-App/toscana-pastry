@@ -10,11 +10,13 @@ import uuid
 from collections.abc import Sequence
 from decimal import Decimal
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from data.accent import accent_fold
 from data.models import (
+    CouponORM,
     OrderItemORM,
     OrderORM,
     OrderWindowORM,
@@ -277,6 +279,45 @@ class SQLOrderRepository:
             .values(payment_status=None)
         )
         await self.session.commit()
+
+    async def expire_pending_payment(self, order_id: str) -> bool:
+        """Cancel an unpaid order whose payment is still pending and release its coupon use.
+
+        The caller decides expiry (``domain.order.is_payment_expired``). The
+        update is row-guarded (nuevo + pending + unpaid) so a concurrent
+        webhook that already approved the payment wins. Returns True when this
+        call cancelled the order.
+        """
+        coupon_code = (
+            await self.session.execute(
+                select(OrderORM.coupon_code).where(OrderORM.id == order_id)
+            )
+        ).scalar_one_or_none()
+        result = await self.session.execute(
+            update(OrderORM)
+            .where(
+                OrderORM.id == order_id,
+                OrderORM.status == OrderStatus.NUEVO.value,
+                OrderORM.paid_at.is_(None),
+                OrderORM.payment_status == PaymentStatus.PENDING.value,
+            )
+            .values(
+                status=OrderStatus.CANCELADO.value,
+                payment_status=PaymentStatus.FAILED.value,
+            )
+        )
+        cancelled = result.rowcount == 1  # type: ignore[attr-defined]
+        if cancelled and coupon_code:
+            await self.session.execute(
+                update(CouponORM)
+                .where(
+                    func.accent_fold(CouponORM.code) == accent_fold(coupon_code),
+                    CouponORM.uses > 0,
+                )
+                .values(uses=CouponORM.uses - 1)
+            )
+        await self.session.commit()
+        return cancelled
 
     async def apply_payment_event(
         self,

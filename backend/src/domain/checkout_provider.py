@@ -7,6 +7,7 @@ Zero SDK imports, zero external I/O. Adapters (Mercado Pago) live in the
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Protocol, runtime_checkable
 
 
@@ -56,3 +57,5 @@ class PaymentStatusResult:
 
     status: str  # "pending" | "approved" | "rejected" | "failed"
     order_id: str | None = None
+    amount: Decimal | None = None  # provider-reported transaction amount
+    currency: str | None = None  # ISO currency code, e.g. "ARS"

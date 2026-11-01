@@ -5,12 +5,18 @@ from __future__ import annotations
 import hashlib
 import hmac
 
-from data.payments.mercadopago import verify_mp_signature
+from data.payments import mercadopago
+from data.payments.mercadopago import SIGNATURE_TOLERANCE_SECONDS
 
 SECRET = "webhook-secret"
 DATA_ID = "123456"
 REQUEST_ID = "req-abc"
 TS = "1704908010"
+NOW = float(TS)  # fixed clock: the signed ts is "now"
+
+
+def verify_mp_signature(secret, data_id, request_id, header, now=NOW):
+    return mercadopago.verify_mp_signature(secret, data_id, request_id, header, now=now)
 
 
 def _v1(data_id: str = DATA_ID, request_id: str = REQUEST_ID, ts: str = TS) -> str:
@@ -66,3 +72,16 @@ def test_missing_request_id_or_secret_is_rejected() -> None:
     header = f"ts={TS},v1={_v1()}"
     assert verify_mp_signature(SECRET, DATA_ID, None, header) is False
     assert verify_mp_signature("", DATA_ID, REQUEST_ID, header) is False
+
+
+def test_stale_or_future_ts_is_rejected_but_5_minutes_is_accepted() -> None:
+    header = f"ts={TS},v1={_v1()}"
+    edge = SIGNATURE_TOLERANCE_SECONDS
+    assert verify_mp_signature(SECRET, DATA_ID, REQUEST_ID, header, now=NOW + edge) is True
+    assert verify_mp_signature(SECRET, DATA_ID, REQUEST_ID, header, now=NOW + edge + 1) is False
+    assert verify_mp_signature(SECRET, DATA_ID, REQUEST_ID, header, now=NOW - edge - 1) is False
+
+
+def test_non_numeric_ts_is_rejected() -> None:
+    header = f"ts=abc,v1={_v1(ts='abc')}"
+    assert verify_mp_signature(SECRET, DATA_ID, REQUEST_ID, header) is False

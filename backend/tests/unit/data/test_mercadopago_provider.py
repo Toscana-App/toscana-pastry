@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import time
 
 import httpx
 import pytest
@@ -167,7 +168,8 @@ async def test_network_error_raises_provider_error() -> None:
 # ─── verify_webhook ──────────────────────────────────────────────────
 
 
-def _signed(data_id: str, request_id: str, ts: str = "1704908010") -> str:
+def _signed(data_id: str, request_id: str, ts: str | None = None) -> str:
+    ts = ts or str(int(time.time()))
     manifest = f"id:{data_id};request-id:{request_id};ts:{ts};"
     v1 = hmac.new(SECRET.encode(), manifest.encode(), hashlib.sha256).hexdigest()
     return f"ts={ts},v1={v1}"

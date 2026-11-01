@@ -12,7 +12,11 @@ from fastapi import status as http_status
 
 from api.v1.dependencies import require_admin, get_current_user
 from api.v1.ingredients.dependencies import get_ingredient_repository
-from api.v1.orders.dependencies import get_checkout_provider, get_order_repository
+from api.v1.orders.dependencies import (
+    get_checkout_provider,
+    get_now,
+    get_order_repository,
+)
 from api.v1.settings.dependencies import get_settings_repository
 from api.v1.orders.schemas import (
     OrderDetailSchema,
@@ -34,6 +38,7 @@ from domain.order import (
     OrderValidationError,
     PaymentMethod,
     PaymentStatus,
+    is_payment_expired,
 )
 from domain.pricing_service import _resolve_audience, derive_audience_price
 from domain.repositories import IngredientRepository
@@ -128,6 +133,15 @@ async def _get_own_order(repo: SQLOrderRepository, order_id: str, user: User) ->
     return order
 
 
+async def _expire_if_due(
+    repo: SQLOrderRepository, order: Order, now: datetime.datetime
+) -> Order:
+    """Lazy 24 h expiry: cancel the order and release its coupon use."""
+    if is_payment_expired(order, now) and await repo.expire_pending_payment(order.id):
+        return await repo.get(order.id) or order
+    return order
+
+
 # ─── POST /orders/{id}/payment (C1.4) ───────────────────────────────
 
 @router.post("/{id}/payment", response_model=PaymentInitResponse)
@@ -137,6 +151,7 @@ async def initiate_payment(
     repo: SQLOrderRepository = Depends(get_order_repository),
     user: User = Depends(get_current_user),
     provider: CheckoutProvider = Depends(get_checkout_provider),
+    now: datetime.datetime = Depends(get_now),
 ):
     """POST /orders/{id}/payment: inicia pago Mercado Pago (Checkout Pro).
 
@@ -144,6 +159,7 @@ async def initiate_payment(
     payment_method=mercadopago. Idempotencia por Idempotency-Key.
     """
     order = await _get_own_order(repo, id, user)
+    order = await _expire_if_due(repo, order, now)
 
     # Same key → same saved response.
     saved = await repo.get_payment_attempt(order.id, idempotency_key)
@@ -220,12 +236,14 @@ async def get_payment_status(
     id: str,
     repo: SQLOrderRepository = Depends(get_order_repository),
     user: User = Depends(get_current_user),
+    now: datetime.datetime = Depends(get_now),
 ):
     """GET /orders/{id}/payment: estado del pago (polling del portal).
 
     Dueño del pedido o admin; pedidos ajenos → 404.
     """
     order = await _get_own_order(repo, id, user)
+    order = await _expire_if_due(repo, order, now)
 
     return PaymentStatusResponse(
         status=order.payment_status.value if order.payment_status else None,
