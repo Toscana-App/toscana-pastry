@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from api.v1.dependencies import get_current_user, require_admin
+from api.v1.money import cents_to_decimal
 from api.v1.settings.dependencies import get_settings_repository
 from api.v1.settings.schemas import (
     AdminSettingsResponse,
@@ -37,7 +38,11 @@ async def put_settings(
     _admin: User = Depends(require_admin),
 ):
     try:
-        settings = BusinessSettings(**payload.model_dump())
+        data = payload.model_dump()
+        # Money llega en centavos (long); el dominio trabaja en Decimal.
+        data["hourly_rate"] = cents_to_decimal(data["hourly_rate"])
+        data["round_step"] = cents_to_decimal(data["round_step"])
+        settings = BusinessSettings(**data)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     saved = await UpdateSettings(settings_repo).execute(settings)

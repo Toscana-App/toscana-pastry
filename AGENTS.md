@@ -1,6 +1,23 @@
 # Agent Guide
 
-Toscana Pastry agent rules. Project context and stack live in `CLAUDE.md` and `.claude/rules/`.
+Toscana Pastry agent context and rules. Single source of truth for every agent: Pi reads this file directly, Claude Code imports it from `CLAUDE.md`.
+
+## Project
+
+Project: Toscana Pastry (SaaS para reposteras)
+Architecture: Domain-Driven Design (DDD) with Hexagonal influence.
+Layers: `domain`, `data`, `presentation`, `web/modules`.
+Tech Stack: Next.js 15 (App Router), Chakra UI v3, FastAPI, SQLAlchemy (Async), PostgreSQL, Redis (rate limiting).
+Philosophy: TDD, Clean Code, Security-first, Async-first.
+
+## Core rules
+
+- **TDD Mandatory:** No implementation without a passing test.
+- **Code Style:** Python (PEP8, type hints), TypeScript (strict mode, functional).
+- **Security:** Strict adherence to `docs/specs/security.md`.
+- **Naming:** snake_case for files/dirs, English only.
+- **Exploration:** Explore the project with CodeGraph (`codegraph_explore`, or the `codegraph` CLI). Never use `grep`, `rg`, or the Grep tool.
+- **Gaps:** When something is unclear, check the code and the conversation first. If still unclear, ask the user. Never invent requirements or make changes outside the requested specifications.
 
 ## Working rules
 
@@ -19,6 +36,56 @@ A request rarely carries every detail: part is in the message, part in the code,
 
 The more work is delegated, the more this boundary matters.
 
+## Code style
+
+### General
+- Use English for all code (variables, functions, classes, comments).
+- Directory/File names: snake_case.
+
+### Python (Backend)
+- Follow PEP8.
+- **Strict Typing:** Use type hints for every function signature.
+- **Async/Await:** All I/O operations (DB, API, File System) MUST be `async/await`.
+- No magic numbers; use constants or configuration.
+
+### TypeScript (Frontend)
+- Use strict typing. Avoid `any`.
+- Functional components with hooks.
+- Tailwind/Chakra UI patterns.
+
+### Architecture enforcement
+- Domain models MUST NOT depend on the database layer.
+- Repositories in `data` layer handle SQL/ORM details.
+- Services in `domain` handle business rules.
+
+## API conventions
+
+### General
+- **Protocol:** RESTful.
+- **Version:** `/api/v1/...`
+- **Format:** `application/json`.
+- **Error Handling:** Use `problem+json` (RFC 7807).
+
+### Standards
+- **Pagination:** `?page={number}&page_size={size}` (Default 50, Max 200).
+- **Rate Limiting:** Enforced via middleware (headers: `X-RateLimit-*`).
+- **Authentication:** JWT in `HttpOnly`, `Secure`, `SameSite=Strict` cookies.
+- **Concurrency:** All endpoints must be `async`.
+
+## Testing (TDD)
+
+### Core philosophy
+- **Red-Green-Refactor:** Write the failing test first, then the minimum code to pass, then refactor.
+
+### Frameworks
+- **Backend:** `pytest` + `pytest-asyncio` + `httpx` (for integration).
+- **Frontend:** `Vitest` + `React Testing Library`.
+
+### Requirements
+- **Unit Tests:** Every logic in the `domain` layer must have >90% coverage.
+- **Integration Tests:** All API endpoints in `web/modules/*` must be tested against an async DB session.
+- **Mocks:** Use `unittest.mock` or `pytest-mock` for external services (WhatsApp, Email) in tests.
+
 ## Personas
 
 - **Code Reviewer:** Expert in DDD and Clean Code.
@@ -26,69 +93,4 @@ The more work is delegated, the more this boundary matters.
 
 ## Skills
 
-Installed in `.claude/skills/<name>/SKILL.md`. Load the matching skill before starting a task it covers. Unsure which fits? Use `ask-matt`.
-
-### Planning and specs
-- `grill-me` / `grilling`: relentless interview to stress-test a plan or idea.
-- `grill-with-docs`: grilling that also writes ADRs and glossary.
-- `loop-me`: grill the user about specs for workflows to build.
-- `to-spec`: turn the conversation into a spec on the issue tracker.
-- `to-tickets`: break a plan or spec into tracer-bullet tickets with blocking edges.
-- `to-questionnaire`: turn an open decision into a questionnaire for someone else.
-- `wayfinder`: plan work larger than one session as a map of decision tickets.
-- `technical-project-kickoff`: technical plan from specs, stack, TDD and skills.
-- `triage`: move issues and external PRs through triage roles into agent-ready briefs.
-- `setup-matt-pocock-skills`: configure issue tracker, triage labels and domain docs; run once before the engineering skills.
-
-### Implementation
-- `implement` / `implement-spec`: build from a spec or tickets (`implement-spec` follows `to-spec` + `to-tickets`).
-- `tdd`: red-green-refactor for features and bug fixes.
-- `prototype`: throwaway prototype to answer a design question.
-- `senior-backend`: API design, DB optimization, auth, backend business logic.
-- `nextjs-app-router-patterns`: App Router, Server Components, streaming, data fetching.
-- `vercel-react-best-practices`: React/Next.js performance patterns.
-- `design-by-contract`: preconditions, postconditions and invariants.
-- `pick-ui-library`: pick a frontend library from a curated list (explicit invocation only).
-
-### Architecture and domain
-- `codebase-design`: deep-module vocabulary, interfaces, seams, testability.
-- `improve-codebase-architecture`: scan for deepening opportunities, HTML report, then grill one.
-- `domain-modeling`: domain terminology, `GLOSSARY.md`, ADRs.
-- `setup-ts-deep-modules`: dependency-cruiser deep-module boundaries for TypeScript (user-invoked).
-
-### Debugging, testing and review
-- `diagnosing-bugs`: diagnosis loop for hard bugs and performance regressions.
-- `code-review`: two-axis review (standards + spec) of the diff since a fixed point.
-- `e2e-testing-patterns`: Playwright/Cypress E2E suites, flaky tests.
-- `webapp-testing`: drive the local web app with Playwright, screenshots, browser logs.
-- `break-ui`: stress-test UI with worst-case data and report breakage.
-- `migrate-to-shoehorn`: replace `as` assertions in tests with shoehorn.
-
-### UI and motion
-- `emil-design-eng`: UI polish and component design details.
-- `animate`: build an animation from scratch.
-- `animation-performance`: fix janky animations, frame budget.
-- `animation-vocabulary`: name a described motion effect.
-- `find-animation-opportunities`: propose where motion belongs (read-only).
-- `improve-animations`: audit motion code into a prioritized plan (read-only).
-
-### Delivery and tooling
-- `pr`: write a PR body.
-- `setup-pre-commit`: Husky + lint-staged, typecheck and tests on commit.
-- `git-guardrails-claude-code`: hooks that block destructive git commands.
-- `wizard`: interactive bash wizard for steps only a human can perform.
-- `find-skills`: discover and install new skills.
-
-### Research, writing and docs
-- `research`: investigate primary sources, save findings as Markdown.
-- `writing-for-agents`: write skills, `AGENTS.md` or `CLAUDE.md`.
-- `writing-fragments` / `writing-shape` / `writing-beats`: article writing (explore, shape, beats).
-- `teach`: teach the user a concept within this workspace.
-
-### Session flow
-- `handoff`: compact the conversation into a handoff doc.
-- `claude-handoff`: hand the conversation to a fresh background agent.
-- `chief-of-staff`: pursue a long goal in one session by coordinating subagents.
-- `retro`: retrospective on a coding session.
-- `wait-what`: re-pitch a message that did not land.
-- `scaffold-exercises`: exercise directory structures for courses.
+Project skills live in `.claude/skills/<name>/SKILL.md` (Claude Code reads it natively; Pi loads it through `.pi/settings.json`). Load the matching skill before starting a task it covers. Unsure which fits? Use `ask-matt`.

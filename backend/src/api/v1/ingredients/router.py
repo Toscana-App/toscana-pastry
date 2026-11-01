@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 
 from api.v1.dependencies import get_current_user, require_admin
 from api.v1.ingredients.dependencies import get_ingredient_repository
+from api.v1.money import cents_to_decimal
 from api.v1.ingredients.schemas import (
     ImportRequest,
     ImportResponse,
@@ -79,7 +80,10 @@ async def create_ingredient(
     _admin: User = Depends(require_admin),
 ):
     try:
-        ingredient = Ingredient(**payload.model_dump())
+        data = payload.model_dump()
+        # Money llega en centavos (long); el dominio trabaja en Decimal.
+        data["price_per_unit"] = cents_to_decimal(data["price_per_unit"])
+        ingredient = Ingredient(**data)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     initial_movement = None
@@ -167,6 +171,8 @@ async def update_ingredient(
         for key, value in payload.model_dump(exclude_unset=True).items()
         if value is not None
     }
+    if "price_per_unit" in updates:
+        updates["price_per_unit"] = cents_to_decimal(updates["price_per_unit"])
     try:
         updated = Ingredient(
             name=updates.get("name", existing.name),

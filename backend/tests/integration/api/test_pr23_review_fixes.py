@@ -32,7 +32,7 @@ PDF = "/api/v1/products/pricelist/pdf"
 PRODUCTS = "/api/v1/products"
 
 ITEMS = [
-    {"qty": "250", "unit": "g", "price_per_purchase_unit": "2800", "purchase_unit": "kg"},
+    {"qty": "250", "unit": "g", "price_per_purchase_unit": 280000, "purchase_unit": "kg"},
 ]
 LEAKY = {"base", "materials", "labor", "gas", "margin_pct", "waste", "materials_con_merma"}
 
