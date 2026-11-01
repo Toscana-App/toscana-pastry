@@ -25,7 +25,7 @@ Flujo verificado: "Con un toque se arma el mensaje solo, detallando cada product
 | UC-05 Reply automático | Bot | Cliente escribe → bot responde con el último presupuesto enviado (template) |
 
 ## Requerimientos funcionales
-- **RF-P10-01**: Template de mensaje (outbound): saludo con nombre, ítems (qty × producto — precio), total, firma del negocio; URL-encode correcto (es-AR, $, ñ). (UC-01/02)
+- **RF-P10-01**: Genera un link `wa.me/{phone}?text={mensaje}` con template: saludo con nombre, ítems (qty × producto — precio, + **tags de restricción** si existen), **dirección de entrega** (si está presente), total, firma del negocio; URL-encode correcto (es-AR, $, ñ). (UC-01/02)
 - **RF-P10-02**: Generación de link `https://wa.me/{phone}?text=...` (teléfono normalizado a E.164, +54 default si formato local) + registro del evento (`whatsapp_sent`). (UC-01/02)
 - **RF-P10-03**: Chat SDK: `new Chat({ adapters: { whatsapp: createWhatsAppAdapter() }, state: createRedisState() })`; webhook verificado (signature); handler `onSubscribedMessage` → notificación in-app al owner. (UC-04)
 - **RF-P10-04**: Reply automático opcional (toggle por tenant): al recibir mensaje en un thread con presupuesto asociado, responde con el resumen de ese presupuesto. (UC-05)

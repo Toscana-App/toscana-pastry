@@ -109,3 +109,107 @@ class RecipeItemORM(Base):
     qty = Column(Text, nullable=False)
     unit = Column(String, nullable=False)
     position = Column(Integer, nullable=False, default=0)
+
+
+class CalcSettingsORM(Base):
+    """Configuracion de la calculadora de costos (singleton, RF-P5CC-01/02).
+
+    Montos como TEXT (no float): SQLite no tiene decimal y float pierde precision.
+    """
+
+    __tablename__ = "calc_settings"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    business_name = Column(String, nullable=False, default="Mi Negocio")
+    main_currency_name = Column(String, nullable=False, default="Peso")
+    main_currency_symbol = Column(String, nullable=False, default="$")
+    default_margin_percent = Column(String, nullable=False, default="30")
+    default_discount_percent = Column(String, nullable=False, default="0")
+    default_tax_percent = Column(String, nullable=False, default="19")
+    rounding_mode = Column(String, nullable=False, default="none")
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
+class CalcMaterialCategoryORM(Base):
+    """Categoria de materiales (RF-P5CC-03)."""
+
+    __tablename__ = "calc_material_categories"
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False, index=True)
+    description = Column(String, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+        nullable=False,
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+        onupdate=lambda: datetime.datetime.now(datetime.timezone.utc),
+        nullable=False,
+    )
+
+
+class CalcProductCategoryORM(Base):
+    """Categoria de productos (RF-P5CC-04)."""
+
+    __tablename__ = "calc_product_categories"
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False, index=True)
+    description = Column(String, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+        nullable=False,
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+        onupdate=lambda: datetime.datetime.now(datetime.timezone.utc),
+        nullable=False,
+    )
+
+
+class CalcSupplierORM(Base):
+    """Proveedor (RF-P5CC-05)."""
+
+    __tablename__ = "calc_suppliers"
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False, index=True)
+    contact_name = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    notes = Column(String, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+        nullable=False,
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+        onupdate=lambda: datetime.datetime.now(datetime.timezone.utc),
+        nullable=False,
+    )
+
+
+class CalcDefaultCostORM(Base):
+    """Costo por defecto (RF-P5CC-06)."""
+
+    __tablename__ = "calc_default_costs"
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False, index=True)
+    type = Column(String, nullable=False)
+    default_unit_cost_or_rate = Column(String, nullable=False)
+    default_quantity_or_minutes = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="active")
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+        nullable=False,
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+        onupdate=lambda: datetime.datetime.now(datetime.timezone.utc),
+        nullable=False,
+    )
