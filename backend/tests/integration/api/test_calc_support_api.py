@@ -547,7 +547,7 @@ class TestDefaultCosts:
             json={
                 "name": "Mano de obra",
                 "type": "labor",
-                "default_unit_cost_or_rate": "5000",
+                "default_unit_cost_or_rate": 5000,
                 "default_quantity_or_minutes": "60",
             },
             headers={"Authorization": f"Bearer {token}"},
@@ -555,7 +555,7 @@ class TestDefaultCosts:
         assert response.status_code == 201
         body = response.json()
         assert body["type"] == "labor"
-        assert Decimal(body["default_unit_cost_or_rate"]) == Decimal("5000")
+        assert body["default_unit_cost_or_rate"] == 5000
 
     @pytest.mark.asyncio
     async def test_create_extra_cost(self, client):
@@ -566,7 +566,7 @@ class TestDefaultCosts:
             json={
                 "name": "Gas",
                 "type": "extra_cost",
-                "default_unit_cost_or_rate": "1000",
+                "default_unit_cost_or_rate": 1000,
                 "default_quantity_or_minutes": "0",
             },
             headers={"Authorization": f"Bearer {token}"},
@@ -584,7 +584,7 @@ class TestDefaultCosts:
             json={
                 "name": "Mano de obra",
                 "type": "labor",
-                "default_unit_cost_or_rate": "5000",
+                "default_unit_cost_or_rate": 5000,
                 "default_quantity_or_minutes": "60",
             },
             headers=headers,
@@ -593,11 +593,11 @@ class TestDefaultCosts:
 
         update = await client.patch(
             f"{self._PATH}/{cost_id}",
-            json={"default_unit_cost_or_rate": "6000"},
+            json={"default_unit_cost_or_rate": 6000},
             headers=headers,
         )
         assert update.status_code == 200
-        assert Decimal(update.json()["default_unit_cost_or_rate"]) == Decimal("6000")
+        assert update.json()["default_unit_cost_or_rate"] == 6000
 
     @pytest.mark.asyncio
     async def test_delete(self, client):
@@ -609,7 +609,7 @@ class TestDefaultCosts:
             json={
                 "name": "Gas",
                 "type": "extra_cost",
-                "default_unit_cost_or_rate": "1000",
+                "default_unit_cost_or_rate": 1000,
                 "default_quantity_or_minutes": "0",
             },
             headers=headers,
@@ -630,7 +630,7 @@ class TestDefaultCosts:
             json={
                 "name": "Mano de obra",
                 "type": "labor",
-                "default_unit_cost_or_rate": "5000",
+                "default_unit_cost_or_rate": 5000,
                 "default_quantity_or_minutes": "60",
             },
             headers=headers,
@@ -640,7 +640,7 @@ class TestDefaultCosts:
             json={
                 "name": "Gas",
                 "type": "extra_cost",
-                "default_unit_cost_or_rate": "1000",
+                "default_unit_cost_or_rate": 1000,
                 "default_quantity_or_minutes": "0",
             },
             headers=headers,
@@ -662,7 +662,7 @@ class TestDefaultCosts:
             json={
                 "name": "Mano de obra principal",
                 "type": "labor",
-                "default_unit_cost_or_rate": "5000",
+                "default_unit_cost_or_rate": 5000,
                 "default_quantity_or_minutes": "60",
             },
             headers=headers,
@@ -672,7 +672,7 @@ class TestDefaultCosts:
             json={
                 "name": "Mano de obra secundaria",
                 "type": "labor",
-                "default_unit_cost_or_rate": "3000",
+                "default_unit_cost_or_rate": 3000,
                 "default_quantity_or_minutes": "30",
             },
             headers=headers,
@@ -691,7 +691,7 @@ class TestDefaultCosts:
             json={
                 "name": "A",
                 "type": "labor",
-                "default_unit_cost_or_rate": "-1",
+                "default_unit_cost_or_rate": -1,
                 "default_quantity_or_minutes": "0",
             },
             headers={"Authorization": f"Bearer {token}"},
@@ -707,7 +707,7 @@ class TestDefaultCosts:
             json={
                 "name": "A",
                 "type": "invalid",
-                "default_unit_cost_or_rate": "0",
+                "default_unit_cost_or_rate": 0,
                 "default_quantity_or_minutes": "0",
             },
             headers={"Authorization": f"Bearer {token}"},
@@ -725,7 +725,7 @@ class TestDefaultCosts:
                 json={
                     "name": f"Costo-{i}",
                     "type": "labor",
-                    "default_unit_cost_or_rate": str(1000 * (i + 1)),
+                    "default_unit_cost_or_rate": 1000 * (i + 1),
                     "default_quantity_or_minutes": "0",
                 },
                 headers=headers,
@@ -860,7 +860,7 @@ class TestUpdatedAtRefreshOnPatch:
             json={
                 "name": "TestUpdate",
                 "type": "labor",
-                "default_unit_cost_or_rate": "1000",
+                "default_unit_cost_or_rate": 1000,
                 "default_quantity_or_minutes": "0",
             },
             headers=headers,
