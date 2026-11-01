@@ -19,11 +19,13 @@ from sqlalchemy.ext.asyncio import (
 
 from api.v1.auth.dependencies import get_user_repository
 from api.v1.dependencies import get_current_user
+from api.v1.orders.dependencies import get_checkout_provider
 from data.db import get_db as get_db_orig
 from data.models import Base
 from data.repositories.sql_order_repository import SQLOrderRepository
 from data.repositories.sql_user_repository import SQLUserRepository
 from domain.models import User, UserRole
+from domain.checkout_provider import PaymentResult
 from domain.order import Order, OrderItem, PaymentMethod
 from main import app
 
@@ -61,6 +63,15 @@ async def stranger(db_session):
     return user
 
 
+class _FakeProvider:
+    """In-memory provider: no network, deterministic reference."""
+
+    async def create_payment(self, order_id, amount, currency):
+        return PaymentResult(
+            reference=f"mock_{order_id}", checkout_url=f"https://pay.test/{order_id}"
+        )
+
+
 def _client_for(user: User, db_session: AsyncSession):
     async def override_get_db():
         yield db_session
@@ -78,6 +89,7 @@ def _client_for(user: User, db_session: AsyncSession):
     app.dependency_overrides[get_user_repository] = override_get_user_repository
     app.dependency_overrides[SQLOrderRepository] = override_get_order_repo
     app.dependency_overrides[get_current_user] = override_current_user
+    app.dependency_overrides[get_checkout_provider] = lambda: _FakeProvider()
     return override_current_user
 
 
