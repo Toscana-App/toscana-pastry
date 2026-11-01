@@ -13,7 +13,7 @@ import {
 } from "@chakra-ui/react";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
-import { toaster } from "@/lib/toaster";
+import { gooeyToast } from "goey-toast";
 import { Audience, Product } from "@/types/pricing";
 import { isPortalRole } from "@/lib/portalRoutes";
 import { addCartItem } from "@/services/cartService";
@@ -32,6 +32,16 @@ interface ProductListResponse {
 /** Audience label for display. */
 function audienceLabel(audience: Audience): string {
   return audience === "revendedores" ? "Revendedores" : "Consumidor final";
+}
+
+/** Prices arrive as decimal strings ("4.34"); render with locale grouping. */
+function formatPrice(value: string): string {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return value;
+  return parsed.toLocaleString("es-AR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 /**
@@ -64,17 +74,11 @@ export function ProductsCatalog() {
       setAddingId(productId);
       try {
         await addCartItem(productId, 1);
-        toaster.create({
-          title: "Agregado al carrito",
-          description: name,
-          type: "success",
-        });
+        gooeyToast.success("¡Agregado al carrito!", { description: name });
       } catch (error) {
-        toaster.create({
-          title: "No se pudo agregar al carrito",
+        gooeyToast.error("¡Ups! No se pudo agregar al carrito", {
           description:
-            error instanceof Error ? error.message : "Intentá de nuevo",
-          type: "error",
+            error instanceof Error ? error.message : "Intenta de nuevo",
         });
       } finally {
         setAddingId(null);
@@ -116,11 +120,9 @@ export function ProductsCatalog() {
         if (!cancelled) setProducts(response.products ?? []);
       } catch (error) {
         if (cancelled) return;
-        toaster.create({
-          title: "Error",
+        gooeyToast.error("¡Ups! No se pudieron cargar los productos", {
           description:
-            error instanceof Error ? error.message : "No se pudieron cargar los productos.",
-          type: "error",
+            error instanceof Error ? error.message : "Intenta de nuevo.",
         });
       } finally {
         if (!cancelled) setLoading(false);
@@ -222,12 +224,12 @@ export function ProductsCatalog() {
                   </Table.Cell>
                   <Table.Cell>{product.unit}</Table.Cell>
                   <Table.Cell textAlign="end" fontFamily="var(--font-geist-mono)">
-                    ${product.price_per_unit}
+                    ${formatPrice(product.price_per_unit)}
                   </Table.Cell>
                   {showCart && (
                     <Table.Cell textAlign="end">
                       <Button
-                        size="xs"
+                        size="sm"
                         variant="outline"
                         colorPalette="brand"
                         disabled={addingId !== null}
