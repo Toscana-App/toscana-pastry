@@ -863,6 +863,7 @@ async def delete_material(
     """DELETE /calc/materials/{id}: elimina (S4).
 
     Usado en lineas de productos -> 409 + {impacted_products: N}.
+    Con historial de costos -> 409 + {detail: "has_cost_history"}.
     """
     existing = await repo.get(material_id)
     if existing is None:
@@ -875,6 +876,12 @@ async def delete_material(
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,
             content={"impacted_products": in_use},
+        )
+    # El historial de costos es append-only: no se borra ni se deja huerfano.
+    if await repo.count_cost_history(material_id) > 0:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={"detail": "has_cost_history"},
         )
     deleted = await repo.delete(material_id)
     if deleted is None:

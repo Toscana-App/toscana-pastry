@@ -633,6 +633,50 @@ class TestDeleteMaterial:
         )
         assert again.status_code == 404
 
+    async def test_delete_with_cost_history_returns_409_and_keeps_rows(
+        self, client, db_session
+    ):
+        from sqlalchemy import func, select, text
+
+        from data.models import CalcMaterialCostHistoryORM
+
+        # FK enforcement on this test's connection: proves no orphan history.
+        await db_session.execute(text("PRAGMA foreign_keys=ON"))
+        token = await _admin(client)
+        created = await _create_material(
+            client, token, purchase_total_price="100", package_quantity="2"
+        )
+        assert (await _history(client, token, created["id"]))["total"] == 1
+        response = await client.delete(
+            f"/api/v1/calc/materials/{created['id']}", headers=_auth(token)
+        )
+        assert response.status_code == 409
+        assert response.json() == {"detail": "has_cost_history"}
+        still = await client.get(
+            f"/api/v1/calc/materials/{created['id']}", headers=_auth(token)
+        )
+        assert still.status_code == 200
+        rows = await db_session.scalar(
+            select(func.count())
+            .select_from(CalcMaterialCostHistoryORM)
+            .where(CalcMaterialCostHistoryORM.material_id == created["id"])
+        )
+        assert rows >= 1
+
+    async def test_delete_without_history_returns_204_with_fk_on(
+        self, client, db_session
+    ):
+        from sqlalchemy import text
+
+        await db_session.execute(text("PRAGMA foreign_keys=ON"))
+        token = await _admin(client)
+        created = await _create_material(client, token)
+        assert (await _history(client, token, created["id"]))["total"] == 0
+        response = await client.delete(
+            f"/api/v1/calc/materials/{created['id']}", headers=_auth(token)
+        )
+        assert response.status_code == 204
+
     async def test_delete_unknown_returns_404(self, client):
         token = await _admin(client)
         response = await client.delete(
