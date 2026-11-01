@@ -62,10 +62,16 @@ class SettingsResponse(BaseModel):
     include_waste: bool
     waste_pct: Pct
     urgent_surcharge_pct: Pct
-    consumer_markup_pct: Pct
     default_prep_minutes: int
     default_servings: int
     default_difficulty: str
     # Fase 8 (P9): branding del PDF.
     business_name: str
     footer_text: str
+
+
+class AdminSettingsResponse(SettingsResponse):
+    """Solo admin: agrega el markup de consumidor final, que un revendedor
+    o cliente no debe poder leer."""
+
+    consumer_markup_pct: Pct

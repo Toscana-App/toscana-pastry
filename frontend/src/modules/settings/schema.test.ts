@@ -16,6 +16,8 @@ describe("settingsSchema (RF-P5-01/06)", () => {
     expect(settingsSchema.safeParse({ ...valid, round_step: 0 }).success).toBe(false);
     expect(settingsSchema.safeParse({ ...valid, round_step: 1001 }).success).toBe(false);
     expect(settingsSchema.safeParse({ ...valid, urgent_surcharge_pct: -1 }).success).toBe(false);
+    expect(settingsSchema.safeParse({ ...valid, consumer_markup_pct: 101 }).success).toBe(false);
+    expect(settingsSchema.safeParse({ ...valid, consumer_markup_pct: -1 }).success).toBe(false);
     expect(settingsSchema.safeParse({ ...valid, default_prep_minutes: 1441 }).success).toBe(false);
     expect(settingsSchema.safeParse({ ...valid, default_servings: 0 }).success).toBe(false);
   });
@@ -63,6 +65,7 @@ describe("toFormValues", () => {
       include_waste: false,
       waste_pct: "0",
       urgent_surcharge_pct: "20",
+      consumer_markup_pct: "25",
       default_prep_minutes: 30,
       default_servings: 6,
       default_difficulty: "simple",
@@ -72,6 +75,7 @@ describe("toFormValues", () => {
     expect(form.margin_pct).toBe(30);
     expect(form.round_step).toBe(100);
     expect(form.gas_pct).toBe(3);
+    expect(form.consumer_markup_pct).toBe(25);
     expect(form.include_waste).toBe(false);
     expect(form.default_difficulty).toBe("simple");
   });

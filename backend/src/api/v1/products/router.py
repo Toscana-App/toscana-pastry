@@ -23,10 +23,12 @@ Role gate:
   - cliente: solo consumidor_final (revendedores -> 403)
 
 El precio por audiencia delega en ``derive_audience_price`` /
-``_resolve_audience`` de ``domain.pricing_service`` — la regla de negocio
+``resolve_audience`` de ``domain.pricing_service`` — la regla de negocio
 tiene un unico hogar.
 """
+import asyncio
 import csv as csv_module
+import logging
 from decimal import Decimal
 from html import escape
 from io import StringIO
@@ -60,8 +62,8 @@ from domain.models import (
 from domain.pricing import CostBreakdown
 from domain.pricing_service import (
     AudienceForbiddenError,
-    _resolve_audience,
     derive_audience_price,
+    resolve_audience,
 )
 from domain.product_price import ProductPrice, derive_product_price, line_cost_of_item
 from domain.repositories import (
@@ -77,6 +79,80 @@ from domain.use_cases import (
 )
 
 router = APIRouter(prefix="/products", tags=["products"])
+logger = logging.getLogger(__name__)
+
+_LIST_PAGE_SIZE = 500
+_DEFAULT_PAGE_SIZE = 50
+_MAX_PAGE_SIZE = 500
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "	")
+
+
+def _csv_safe(value: str) -> str:
+    """Neutraliza formula injection: un texto que empieza con ``= + - @`` o
+    tab se prefija con ``'`` para que Excel/Sheets no lo ejecuten."""
+    if value.startswith(_FORMULA_PREFIXES):
+        return "'" + value
+    return value
+
+
+async def _list_all_ingredients(ingredient_repo: IngredientRepository) -> list:
+    """Recorre todas las paginas del repositorio: sin truncado silencioso."""
+    products: list = []
+    page = 1
+    while True:
+        batch, total = await ingredient_repo.list(
+            q=None, status=None, page=page, page_size=_LIST_PAGE_SIZE
+        )
+        products.extend(batch)
+        if not batch or len(products) >= total:
+            return products
+        page += 1
+
+
+def _resolve_or_403(user: User, audience: str) -> str:
+    try:
+        return resolve_audience(user.role, audience)
+    except AudienceForbiddenError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e),
+        ) from e
+
+
+async def _build_audience_rows(
+    ingredient_repo: IngredientRepository,
+    settings_repo: SettingsRepository,
+    resolved: str,
+    page: int | None = None,
+    page_size: int | None = None,
+) -> tuple[list[tuple], int]:
+    """Devuelve ``(filas, total)`` con ``(ingredient, precio_para_la_audiencia)``;
+    unico lugar donde se aplica ``derive_audience_price``.
+
+    Sin ``page``/``page_size`` devuelve TODOS los productos (exports, y el
+    listado por defecto). Con alguno de los dos, devuelve solo esa pagina y
+    ``total`` sigue siendo el total de productos.
+    """
+    settings = await GetSettings(settings_repo).execute()
+    if page is None and page_size is None:
+        products = await _list_all_ingredients(ingredient_repo)
+        total = len(products)
+    else:
+        products, total = await ingredient_repo.list(
+            q=None, status=None, page=page or 1, page_size=page_size or _DEFAULT_PAGE_SIZE
+        )
+    rows = [
+        (
+            product,
+            derive_audience_price(
+                product.price_per_unit, settings.consumer_markup_pct, resolved
+            ),
+        )
+        for product in products
+    ]
+    return rows, total
+
+
 
 
 async def _load_ingredients(
@@ -179,7 +255,7 @@ def _build_csv(rows: list[dict[str, str]]) -> str:
     writer = csv_module.writer(output, lineterminator="\n")
     writer.writerow(header)
     for row in rows:
-        writer.writerow([row[h] for h in header])
+        writer.writerow([_csv_safe(row[h]) for h in header])
     return output.getvalue()
 
 
@@ -246,8 +322,10 @@ def _stock_status(stock_qty: Decimal, low_stock_threshold: Decimal) -> str:
 async def list_products(
     q: Optional[str] = Query(default=None, min_length=1, max_length=120),
     category: Optional[str] = Query(default=None, min_length=1, max_length=60),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
+    page: Optional[int] = Query(default=None, ge=1, description="Pagina (opcional)"),
+    page_size: Optional[int] = Query(
+        default=None, ge=1, le=_MAX_PAGE_SIZE, description="Tamano de pagina (opcional)"
+    ),
     audience: Optional[Audience] = Query(
         default=None, description="Audiencia de precios (S3)"
     ),
@@ -260,28 +338,21 @@ async def list_products(
 
     - Sin `audience`: listado P3 (busqueda insensible a acentos RF-P3-01,
       filtro por categoria y categorias derivadas) con PriceBreakdown de
-      cada producto.
+      cada producto. `page` por defecto 1, `page_size` por defecto 20 (max 100).
     - Con `audience`: catalogo S3 para el portal — insumos con precio
       derivado para la audiencia del rol. Guard: admin ambas audiencias,
       negocio solo revendedores, cliente solo consumidor_final (403 si no).
+      `page` / `page_size` opcionales; sin ellos se devuelven todos;
+      `total` es el total de productos, no el de la pagina.
     """
     if audience is not None:
-        try:
-            resolved = _resolve_audience(current_user.role, audience)
-        except AudienceForbiddenError as e:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail=str(e)
-            ) from e
-        settings = await GetSettings(settings_repo).execute()
-        ingredients, _ = await ingredient_repo.list(
-            q=None, status=None, page=1, page_size=1000
+        resolved = _resolve_or_403(current_user, audience)
+        priced, total = await _build_audience_rows(
+            ingredient_repo, settings_repo, resolved, page, page_size
         )
-        product_rows = []
-        for ingredient in ingredients:
-            price = derive_audience_price(
-                ingredient.price_per_unit, settings.consumer_markup_pct, resolved
-            )
-            product_rows.append(
+        return {
+            "audience": resolved,
+            "products": [
                 {
                     "id": ingredient.id,
                     "name": ingredient.name,
@@ -291,12 +362,17 @@ async def list_products(
                         ingredient.stock_qty, ingredient.low_stock_threshold
                     ),
                 }
-            )
-        return {
-            "audience": resolved,
-            "products": product_rows,
-            "total": len(product_rows),
+                for ingredient, price in priced
+            ],
+            "total": total,
         }
+    page = page or 1
+    page_size = page_size or 20
+    if page_size > 100:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="page_size must be <= 100",
+        )
     settings = await GetSettings(settings_repo).execute()
     items, total = await repo.list(q, category, page, page_size)
     categories = await repo.distinct_categories()
@@ -444,28 +520,11 @@ async def pricelist_csv(
     - negocio: solo revendedores.
     - cliente: solo consumidor_final.
     """
-    # Resolve audience via domain service (S3 — T4)
-    try:
-        resolved = _resolve_audience(current_user.role, audience)
-    except AudienceForbiddenError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e),
-        ) from e
+    resolved = _resolve_or_403(current_user, audience)
+    priced, _ = await _build_audience_rows(ingredient_repo, settings_repo, resolved)
 
-    settings = await GetSettings(settings_repo).execute()
-
-    # Get all products (ingredients)
-    products, _ = await ingredient_repo.list(q=None, status=None, page=1, page_size=1000)
-
-    # Build CSV rows using domain price computation
     rows = []
-    for product in products:
-        price = derive_audience_price(
-            product.price_per_unit,
-            settings.consumer_markup_pct,
-            resolved,
-        )
+    for product, price in priced:
         rows.append({
             "name": product.name,
             "unit": product.unit,
@@ -478,6 +537,19 @@ async def pricelist_csv(
         media_type="text/csv; charset=utf-8",
         headers={
             "Content-Disposition": f'attachment; filename="pricelist_{resolved}.csv"'
+        },
+    )
+
+
+def _pdf_unavailable() -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        media_type="application/problem+json",
+        content={
+            "type": "about:blank",
+            "title": "Service Unavailable",
+            "status": status.HTTP_503_SERVICE_UNAVAILABLE,
+            "detail": "PDF generation is temporarily unavailable.",
         },
     )
 
@@ -499,29 +571,12 @@ async def pricelist_pdf(
 
     Renderiza con WeasyPrint (requiere Pango en Windows).
     """
-    # Resolve audience via domain service (S3 — T4)
-    try:
-        resolved = _resolve_audience(current_user.role, audience)
-    except AudienceForbiddenError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e),
-        ) from e
+    resolved = _resolve_or_403(current_user, audience)
+    priced, _ = await _build_audience_rows(ingredient_repo, settings_repo, resolved)
 
-    settings = await GetSettings(settings_repo).execute()
-
-    # Get all products (ingredients)
-    products, _ = await ingredient_repo.list(q=None, status=None, page=1, page_size=1000)
-
-    # Build PDF rows using domain price computation
     audience_label = "Revendedores" if resolved == "revendedores" else "Consumidor final"
     product_rows = []
-    for product in products:
-        price = derive_audience_price(
-            product.price_per_unit,
-            settings.consumer_markup_pct,
-            resolved,
-        )
+    for product, price in priced:
         product_rows.append({
             "name": product.name,
             "unit": product.unit,
@@ -530,17 +585,18 @@ async def pricelist_pdf(
         })
 
     html_content = _build_pdf_html(product_rows)
-    # Lazy import: WeasyPrint requires Pango/GObject on Windows.
-    # If unavailable, the error surfaces here with the exact OS message.
+    # Lazy import: WeasyPrint requires Pango/GObject on Windows. El detalle
+    # del error va solo al log; el cliente recibe un problema generico.
     try:
         from weasyprint import HTML
-    except OSError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"WeasyPrint no puede renderizar: {e}",
-        ) from e
 
-    pdf_bytes = HTML(string=html_content).render().write_pdf()
+        # Render CPU-bound: fuera del event loop.
+        pdf_bytes = await asyncio.to_thread(
+            lambda: HTML(string=html_content).render().write_pdf()
+        )
+    except OSError as e:
+        logger.error("PDF render failed: %s", e)
+        return _pdf_unavailable()
 
     return Response(
         content=pdf_bytes,
