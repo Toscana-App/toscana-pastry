@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 from datetime import datetime, date
 from decimal import Decimal
 from domain.models import User, UserRole, BusinessSettings, Ingredient, Product, StockMovement, StockStatus
@@ -53,6 +53,11 @@ class IngredientRepository(ABC):
 
     @abstractmethod
     async def get(self, ingredient_id: str) -> Optional[Ingredient]:
+        pass
+
+    @abstractmethod
+    async def get_many(self, ingredient_ids: Sequence[str]) -> List[Ingredient]:
+        """Insumos activos cuyo id esta en `ingredient_ids` (una consulta)."""
         pass
 
     @abstractmethod
