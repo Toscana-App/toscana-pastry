@@ -4,7 +4,10 @@ Namespace: /api/v1/customers/me/addresses.
 Roles permitidos: CUSTOMER y NEGOCIO (admin no tiene "mis direcciones" → 403).
 Anti-sondeo: direcciones ajenas devuelven 404, nunca 403.
 """
+from contextlib import contextmanager
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from sqlalchemy.exc import IntegrityError
 
 from api.v1.customers.dependencies import get_customer_address_repository
 from api.v1.customers.schemas import (
@@ -30,6 +33,18 @@ router = APIRouter(prefix="/customers", tags=["customers"])
 
 _ADDRESS_GUARD = require_role(UserRole.CUSTOMER, UserRole.NEGOCIO)
 _NON_NULLABLE_FIELDS = {"street_line_1", "is_default"}
+
+
+@contextmanager
+def _default_conflict_as_409():
+    """Map a violation of the one-default-per-user unique index to 409."""
+    try:
+        yield
+    except IntegrityError as err:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Conflicto: ya existe una direccion por defecto",
+        ) from err
 
 
 def _response(address: CustomerAddress) -> AddressResponse:
@@ -89,8 +104,9 @@ async def create_my_address(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(err)
         ) from err
-    await repo.insert(address, current_user.id)
-    await repo.commit()
+    with _default_conflict_as_409():
+        await repo.insert(address, current_user.id)
+        await repo.commit()
     return AddressEnvelope(address=_response(address))
 
 
@@ -139,14 +155,15 @@ async def update_my_address(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(err)
         ) from err
 
-    if new_default is True and not existing.is_default:
-        addresses = await repo.list_by_user(current_user.id)
-        for demoted_id in default_to_demote(addresses, existing.id):
-            await repo.set_default_flag(
-                demoted_id, current_user.id, is_default=False
-            )
-    await repo.set_fields(updated, current_user.id)
-    await repo.commit()
+    with _default_conflict_as_409():
+        if new_default is True and not existing.is_default:
+            addresses = await repo.list_by_user(current_user.id)
+            for demoted_id in default_to_demote(addresses, existing.id):
+                await repo.set_default_flag(
+                    demoted_id, current_user.id, is_default=False
+                )
+        await repo.set_fields(updated, current_user.id)
+        await repo.commit()
     return AddressEnvelope(address=_response(updated))
 
 
@@ -180,8 +197,11 @@ async def delete_my_address(
             status_code=status.HTTP_409_CONFLICT, detail=str(err)
         ) from err
 
-    await repo.remove(address_id, current_user.id)
-    if heir_id is not None:
-        await repo.set_default_flag(heir_id, current_user.id, is_default=True)
-    await repo.commit()
+    with _default_conflict_as_409():
+        await repo.remove(address_id, current_user.id)
+        if heir_id is not None:
+            await repo.set_default_flag(
+                heir_id, current_user.id, is_default=True
+            )
+        await repo.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

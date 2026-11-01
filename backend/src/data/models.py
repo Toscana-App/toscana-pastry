@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Integer, Boolean, Enum as SQLAlchemyEnum, ForeignKey
+from sqlalchemy import Column, String, DateTime, Integer, Boolean, Enum as SQLAlchemyEnum, ForeignKey, Index, text
 from sqlalchemy.orm import Mapped, mapped_column, declarative_base
 from sqlalchemy import TypeDecorator
 import datetime
@@ -188,6 +188,16 @@ class CustomerAddressORM(Base):
     is_default=True por user_id (invariant a nivel de dominio)."""
 
     __tablename__ = "customer_addresses"
+    # At most one default per user, enforced by the DB (partial unique index).
+    __table_args__ = (
+        Index(
+            "uq_customer_addresses_one_default_per_user",
+            "user_id",
+            unique=True,
+            postgresql_where=text("is_default"),
+            sqlite_where=text("is_default"),
+        ),
+    )
     id: Mapped[str] = mapped_column(String, primary_key=True)
     user_id: Mapped[str] = mapped_column(
         String, ForeignKey("users.id"), nullable=False, index=True
