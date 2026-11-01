@@ -113,15 +113,15 @@ export default function LoginForm() {
       p={8}
       borderRadius="lg"
       borderWidth="1px"
-      borderColor="gray.200"
+      borderColor="border"
       boxShadow="lg"
-      bg="white"
+      bg="bg.panel"
     >
       <Stack gap={6} align="center">
-        <Heading fontSize="2xl" color="brand.600">
+        <Heading fontSize="2xl" color="brand.fg">
           Iniciar sesión
         </Heading>
-        <Text color="gray.500" textAlign="center">
+        <Text color="fg.muted" textAlign="center">
           Elige un método para continuar
         </Text>
         <Separator />
@@ -158,7 +158,7 @@ export default function LoginForm() {
           </Stack>
         </form>
 
-        <Text fontSize="sm" color="gray.500">o</Text>
+        <Text fontSize="sm" color="fg.muted">o</Text>
 
         <Button
           onClick={handleGoogleLogin}

@@ -34,12 +34,12 @@ const StyledOptionSelect = chakra("select", {
     paddingInline: "0.75rem",
     borderRadius: "md",
     borderWidth: "1px",
-    borderColor: "gray.200",
+    borderColor: "border",
     background: "transparent",
     fontSize: "sm",
     outline: "none",
     _focusVisible: {
-      borderColor: "brand.600",
+      borderColor: "brand.solid",
       boxShadow: "0 0 0 1px var(--chakra-colors-brand-600)",
     },
   },
@@ -135,7 +135,7 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
 
       <Stack gap={6} maxW="960px">
         {/* Cliente */}
-        <Box borderWidth="1px" borderColor="gray.200" rounded="md" p={4}>
+        <Box borderWidth="1px" borderColor="border" rounded="md" p={4}>
           <Heading size="sm" mb={3}>
             Cliente
           </Heading>
@@ -241,7 +241,7 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
         </HStack>
 
         {/* Líneas */}
-        <Box borderWidth="1px" borderColor="gray.200" rounded="md" p={4}>
+        <Box borderWidth="1px" borderColor="border" rounded="md" p={4}>
           <HStack mb={3}>
             <Heading size="sm">Ítems</Heading>
           </HStack>
@@ -316,7 +316,7 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
 
         {/* Preview en vivo */}
         {isAdmin ? (
-          <Box borderWidth="1px" borderColor="gray.200" rounded="md" p={4}>
+          <Box borderWidth="1px" borderColor="border" rounded="md" p={4}>
             <Heading size="sm" mb={3}>
               Cotización
             </Heading>
@@ -336,7 +336,7 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
             {preview.status === "done" && preview.data ? (
               <Stack gap={3}>
                 {preview.data.items.map((item, idx) => (
-                  <Box key={`${item.product_id}-${idx}`} px={3} py={2} bg="gray.50" rounded="sm">
+                  <Box key={`${item.product_id}-${idx}`} px={3} py={2} bg="bg.subtle" rounded="sm">
                     <HStack justify="space-between" wrap="wrap">
                       <Text fontWeight="600">
                         {item.product_name} × {item.qty}

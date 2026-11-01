@@ -3,19 +3,43 @@ name: Toscana Pastry
 description: Provisional design system for the Toscana Pastry shop tool (admin + customer portal), built on Chakra UI v3 defaults.
 colors:
   brand-indigo: "#4f46e5"
-  brand-indigo-bright: "#6366f1"
+  brand-indigo-text: "#4338ca"
+  brand-indigo-text-dark: "#a5b4fc"
   brand-indigo-wash: "#eef2ff"
-  brand-indigo-deep: "#3730a3"
-  ink: "#000000"
+  brand-indigo-wash-dark: "#1e1b4b"
+  brand-indigo-muted: "#e0e7ff"
+  brand-indigo-muted-dark: "#312e81"
+  canvas: "#fafafa"
+  canvas-dark: "#0c0c12"
+  surface-subtle: "#f4f4f5"
+  surface-subtle-dark: "#111119"
+  panel: "#ffffff"
+  panel-dark: "#15151d"
+  surface-muted: "#efeff1"
+  surface-muted-dark: "#1c1c26"
+  surface-emphasized: "#e4e4e7"
+  surface-emphasized-dark: "#282834"
+  ink: "#0a0a0f"
+  ink-dark: "#f4f4f7"
   ink-muted: "#52525b"
-  ink-subtle: "#a1a1aa"
-  paper: "#ffffff"
-  paper-subtle: "#fafafa"
-  paper-muted: "#f4f4f5"
+  ink-muted-dark: "#a3a3b2"
+  ink-subtle: "#71717a"
+  ink-subtle-dark: "#75758a"
   rule: "#e4e4e7"
-  rule-muted: "#f4f4f5"
-  alert-red: "#dc2626"
-  alert-red-wash: "#fef2f2"
+  rule-dark: "#2a2a37"
+  rule-muted: "#efeff1"
+  rule-muted-dark: "#1f1f2a"
+  rule-emphasized: "#d4d4d8"
+  rule-emphasized-dark: "#3c3c4c"
+  error-text: "#991919"
+  error-text-dark: "#fca5a5"
+  success-text: "#116932"
+  success-text-dark: "#86efac"
+  warning-text: "#92310a"
+  warning-text-dark: "#fdba74"
+  danger-fill: "#dc2626"
+  success-fill: "#116932"
+  warning-fill: "#92310a"
 typography:
   wordmark:
     fontFamily: "SN Pro, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Helvetica, Arial, sans-serif"
@@ -51,11 +75,11 @@ spacing:
 components:
   button-primary:
     backgroundColor: "{colors.brand-indigo}"
-    textColor: "{colors.paper}"
+    textColor: "#ffffff"
     rounded: "{rounded.sm}"
     height: "40px"
   button-outline:
-    backgroundColor: "{colors.paper}"
+    backgroundColor: "{colors.panel}"
     textColor: "{colors.ink}"
     rounded: "{rounded.sm}"
     height: "32px"
@@ -66,20 +90,20 @@ components:
     height: "40px"
   button-danger-outline:
     backgroundColor: "transparent"
-    textColor: "{colors.alert-red}"
+    textColor: "{colors.error-text}"
     rounded: "{rounded.sm}"
     height: "32px"
   badge-audience:
     backgroundColor: "{colors.brand-indigo-wash}"
-    textColor: "{colors.brand-indigo-deep}"
+    textColor: "{colors.brand-indigo-text}"
     rounded: "{rounded.xs}"
     typography: "{typography.label}"
   badge-tag:
-    backgroundColor: "{colors.paper-muted}"
+    backgroundColor: "{colors.surface-muted}"
     textColor: "{colors.ink-muted}"
     rounded: "{rounded.xs}"
   tab-active:
-    textColor: "{colors.brand-indigo}"
+    textColor: "{colors.brand-indigo-text}"
     typography: "{typography.label}"
     height: "44px"
   tab-idle:
@@ -98,42 +122,61 @@ components:
 
 Toscana Pastry is the shop's ledger: prices, stock, orders, and budgets kept in one honest book. The interface exists to make numbers trustworthy and easy to scan. Tables, clear labels, and plain-sans text carry the work. Ornament stays out of the way of the figures.
 
-Today the system is provisional. It is Chakra UI v3's default theme with one custom color scale (`brand`, an unmodified copy of Tailwind's indigo). There is no logo and no product imagery. The typeface is SN Pro. Layout is light-mode only, on white paper with zinc-gray rules. The admin side is a desktop work surface; the customer portal is a mobile path entered from a WhatsApp link.
+Today the system is provisional. It is Chakra UI v3's default theme with one custom color scale (`brand`, an unmodified copy of Tailwind's indigo). There is no logo and no product imagery. The typeface is SN Pro. Light and dark modes: white panels on a #fafafa canvas in light, stepped near-black surfaces in dark. Mode follows the OS until the user toggles it in the navbar (next-themes, `dark` class on `<html>`). The admin side is a desktop work surface; the customer portal is a mobile path entered from a WhatsApp link.
 
 The confirmed intent for components is **warm and approachable**: friendlier corners and more breathing room than the current defaults, especially on customer-facing screens. The current code does not yet deliver that; new work should move toward it without breaking the ledger's clarity.
 
 **Key Characteristics:**
 - Chakra UI v3 defaults; single accent (indigo `brand`), zinc neutrals.
-- Light mode only; white background, thin gray rules.
+- Light and dark modes via Chakra semantic tokens; thin gray rules in both.
 - Tables are the primary data surface (catalog, orders, ingredients).
 - Active state never relies on color alone (bold weight + underline), per WCAG 2.1 AA.
 - Toasts via `goey-toast`, Spanish (es-AR) copy, es-AR number formatting.
 
 ## Colors
 
-One borrowed accent on white paper and zinc neutrals; functional, not yet branded.
+One indigo accent over zinc neutrals. Every role has a composed light and dark value: dark is designed, not inverted. Source of truth: semantic tokens in `frontend/src/components/ui/theme.ts`; `theme.test.ts` pins every text pair below to WCAG AA (4.5:1) in both modes.
 
 ### Primary
-- **Ledger Indigo** (#4f46e5): wordmark, active tab text and underline in admin nav, primary buttons (`colorPalette="brand"`).
-- **Bright Indigo** (#6366f1): active tab underline in the portal tab bar.
-- **Indigo Wash** (#eef2ff) / **Deep Indigo** (#3730a3): subtle badge pair, such as the audience badge ("Revendedores" / "Consumidor final") and role badge.
+| Role (token) | Light | Dark | Use |
+|---|---|---|---|
+| **Ledger Indigo** fill (`brand.solid`) | #4f46e5 | #4f46e5 | Primary buttons. White text on it is 6.3:1; 500 (#6366f1) would fail. |
+| Indigo text (`brand.fg`) | #4338ca | #a5b4fc | Wordmark, active tab, links, spinners. |
+| Indigo wash (`brand.subtle`) | #eef2ff | #1e1b4b | Subtle badges (audience, role). |
+| Indigo muted (`brand.muted`) | #e0e7ff | #312e81 | Hover and selected washes. |
+| Focus ring (`brand.focusRing`) | #6366f1 | #818cf8 | Keyboard focus. |
 
 ### Neutral
-- **Ink** (#000000): default text (Chakra `fg`).
-- **Muted Ink** (#52525b): idle tabs, secondary text, empty-state copy (`fg.muted`).
-- **Subtle Ink** (#a1a1aa): tertiary text (`fg.subtle`).
-- **Paper** (#ffffff): page and navbar background (`bg`).
-- **Paper Subtle / Muted** (#fafafa / #f4f4f5): striped table rows, tag badges.
-- **Rule** (#e4e4e7): navbar bottom border and default borders (`border`).
-- **Rule Muted** (#f4f4f5): portal header border and empty-state boxes (`border.muted`).
+| Role (token) | Light | Dark | Use |
+|---|---|---|---|
+| **Canvas** (`bg`) | #fafafa | #0c0c12 | Page and navbar. Dark is near-black with a faint indigo cast, never pure black. |
+| Subtle surface (`bg.subtle`) | #f4f4f5 | #111119 | Quiet bands, table zebra. |
+| **Panel** (`bg.panel`) | #ffffff | #15151d | Cards, forms, dialogs: lifted one step above the canvas. |
+| Muted surface (`bg.muted`) | #efeff1 | #1c1c26 | Table headers, neutral chips. |
+| Emphasized surface (`bg.emphasized`) | #e4e4e7 | #282834 | Pressed and inactive step markers. |
+| **Ink** (`fg`) | #0a0a0f | #f4f4f7 | Body text. |
+| Muted ink (`fg.muted`) | #52525b | #a3a3b2 | Secondary text, idle tabs, units. |
+| Subtle ink (`fg.subtle`) | #71717a | #75758a | Placeholders and disabled only; never body copy. |
+| Rule (`border`) | #e4e4e7 | #2a2a37 | Default borders and inputs. |
+| Muted rule (`border.muted`) | #efeff1 | #1f1f2a | Row separators, quiet dividers. |
+| Emphasized rule (`border.emphasized`) | #d4d4d8 | #3c3c4c | Hovered inputs. |
 
 ### Semantic
-- **Alert Red** (#dc2626) / **Red Wash** (#fef2f2): logout button, admin role badge, errors.
+| Role (token) | Light | Dark | Use |
+|---|---|---|---|
+| Error text (`fg.error`, `red.fg`) | #991919 | #fca5a5 | Error messages, negative values. |
+| Success text (`fg.success`, `green.fg`) | #116932 | #86efac | Positive values, confirmations. |
+| Warning text (`fg.warning`, `orange.fg`) | #92310a | #fdba74 | Warnings. |
+| Danger fill (`red.solid`) | #dc2626 | #dc2626 | Destructive buttons (`colorPalette="red"`). |
+| Success fill (`green.solid`) | #116932 | #116932 | Solid success tags; prefer `variant="subtle"`. |
+| Warning fill (`orange.solid`) | #92310a | #92310a | Solid warning tags. |
 
 ### Named Rules
 **The One Accent Rule.** Indigo `brand` is the only accent. Status colors (red, green, orange) mean state, never decoration.
 
-**The Semantic Token Rule.** Use Chakra semantic tokens (`bg`, `fg`, `fg.muted`, `border`, `border.muted`) for neutrals, not raw `gray.*` values, so a future theme swap lands in one file (`frontend/src/components/ui/theme.ts`).
+**The Semantic Token Rule.** Use semantic tokens (`bg`, `bg.panel`, `fg`, `fg.muted`, `border`, `<palette>.fg`, `<palette>.solid`) and never raw shades (`gray.200`, `brand.600`, hex). Raw shades do not switch with the mode.
+
+**The Role-Not-Default Rule.** Every `<Button>` declares its role: `colorPalette="brand"` (primary), `variant="outline"` (secondary), `variant="ghost"` (tertiary/nav) or `colorPalette="red"` (destructive). A bare `<Button>` falls back to Chakra's gray solid, which renders white in dark mode.
 
 ## Typography
 
@@ -197,6 +240,8 @@ Chakra default radii: small corners (4–6px) on buttons, inputs, and table scro
 ### Do:
 - **Do** use `colorPalette="brand"` for the single primary action of a view, and outline for its secondary.
 - **Do** use Chakra semantic tokens (`bg`, `fg.muted`, `border.muted`) for neutrals.
+- **Do** color status text with `red.fg`, `green.fg`, `orange.fg` (700 in light, 300 in dark). Chakra's `fg.error` / `fg.success` / `fg.warning` are 500/600 in light mode and fail 4.5:1 on white.
+- **Do** use `variant="subtle"` for green status badges and tags; white on `green.solid` (green.600) is 3.29:1.
 - **Do** mark the active nav item with weight + underline + `aria-current`, never color alone.
 - **Do** keep portal touch targets at least 44px tall.
 - **Do** right-align prices and format them `toLocaleString("es-AR", { minimumFractionDigits: 2 })`.

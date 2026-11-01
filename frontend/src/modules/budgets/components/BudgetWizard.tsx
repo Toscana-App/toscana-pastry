@@ -41,12 +41,12 @@ const StyledOptionSelect = chakra("select", {
     paddingInline: "0.75rem",
     borderRadius: "md",
     borderWidth: "1px",
-    borderColor: "gray.200",
+    borderColor: "border",
     background: "transparent",
     fontSize: "sm",
     outline: "none",
     _focusVisible: {
-      borderColor: "brand.600",
+      borderColor: "brand.solid",
       boxShadow: "0 0 0 1px var(--chakra-colors-brand-600)",
     },
   },
@@ -145,8 +145,8 @@ function StepIndicator({ current, labels }: { current: number; labels: string[] 
                 justifyContent="center"
                 fontSize="sm"
                 fontWeight={700}
-                bg={active ? "brand.500" : done ? "green.400" : "gray.200"}
-                color={active || done ? "white" : "gray.600"}
+                bg={active ? "brand.solid" : done ? "green.solid" : "bg.emphasized"}
+                color={active || done ? "white" : "fg.muted"}
                 flexShrink={0}
                 aria-hidden={active ? undefined : true}
               >
@@ -162,7 +162,7 @@ function StepIndicator({ current, labels }: { current: number; labels: string[] 
               </Text>
             </HStack>
             {n < labels.length ? (
-              <Box as="hr" flex="1" border="none" h="1px" bg={done ? "green.300" : "gray.200"} mx={3} />
+              <Box as="hr" flex="1" border="none" h="1px" bg={done ? "border.success" : "border"} mx={3} />
             ) : null}
           </Flex>
         );
@@ -389,7 +389,7 @@ export function BudgetWizard() {
       ) : null}
 
       {step === 1 ? (
-        <Box borderWidth="1px" borderColor="gray.200" rounded="md" p={5}>
+        <Box borderWidth="1px" borderColor="border" rounded="md" p={5}>
           <Stack gap={4}>
             <Text fontSize="sm" color="fg.muted">
               Si el cliente ya existe (mismo nombre y teléfono) se adopta automáticamente, sin
@@ -425,7 +425,7 @@ export function BudgetWizard() {
       ) : null}
 
       {step === 2 ? (
-        <Box borderWidth="1px" borderColor="gray.200" rounded="md" p={5}>
+        <Box borderWidth="1px" borderColor="border" rounded="md" p={5}>
           <Stack gap={4}>
             <Text fontSize="sm" color="fg.muted">
               Cliente: <b>{draft.customer?.name}</b> · {draft.customer?.phone}
@@ -481,7 +481,7 @@ export function BudgetWizard() {
               </Text>
               {productsLoading ? (
                 <HStack gap={2} py={2}>
-                  <Spinner size="sm" color="brand.400" />
+                  <Spinner size="sm" color="brand.fg" />
                   <Text fontSize="sm" color="fg.muted">
                     Cargando catálogo…
                   </Text>
@@ -573,13 +573,13 @@ export function BudgetWizard() {
       ) : null}
 
       {step === 3 ? (
-        <Box borderWidth="1px" borderColor="gray.200" rounded="md" p={5}>
+        <Box borderWidth="1px" borderColor="border" rounded="md" p={5}>
           <Stack gap={4}>
             <Text fontSize="sm" color="fg.muted">
               Cliente: <b>{draft.customer?.name}</b> · {draft.customer?.phone}
             </Text>
 
-            <Box w="full" overflowX="auto" borderWidth="1px" borderColor="gray.200" rounded="md">
+            <Box w="full" overflowX="auto" borderWidth="1px" borderColor="border" rounded="md">
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
                 <thead>
                   <tr>
@@ -589,9 +589,9 @@ export function BudgetWizard() {
                         style={{
                           textAlign: "left",
                           padding: "10px 14px",
-                          borderBottom: "1px solid #e5e5e5",
+                          borderBottom: "1px solid var(--chakra-colors-border)",
                           fontWeight: 600,
-                          color: "#525252",
+                          color: "var(--chakra-colors-fg-muted)",
                           whiteSpace: "nowrap",
                         }}
                       >
@@ -607,7 +607,7 @@ export function BudgetWizard() {
                     const price =
                       draft.mode === "manual" ? manualPrice : priceByProduct.get(row.product_id) ?? null;
                     return (
-                      <tr key={row.key} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                      <tr key={row.key} style={{ borderBottom: "1px solid var(--chakra-colors-border-muted)" }}>
                         <td style={{ padding: "10px 14px", fontWeight: 500 }}>
                           {product?.name ?? "—"}
                         </td>

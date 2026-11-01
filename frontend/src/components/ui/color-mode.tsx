@@ -1,0 +1,64 @@
+"use client"
+
+import { IconButton } from "@chakra-ui/react"
+import { ThemeProvider, useTheme } from "next-themes"
+import { useEffect, useState } from "react"
+
+/**
+ * Light/dark mode via next-themes: toggles the `dark` class on <html>,
+ * which Chakra's `_dark` condition reads. Follows the OS preference until
+ * the user picks a mode; the choice is persisted in localStorage.
+ */
+export function ColorModeProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+      {children}
+    </ThemeProvider>
+  )
+}
+
+/** Resolved mode; `undefined` until mounted (the server cannot know it). */
+export function useColorMode() {
+  const { resolvedTheme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  // Mount flag: the theme lives in localStorage/matchMedia, unknown on the server.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setMounted(true), [])
+  const colorMode = mounted ? (resolvedTheme as "light" | "dark" | undefined) : undefined
+  return { colorMode, setColorMode: setTheme }
+}
+
+export function ColorModeButton() {
+  const { colorMode, setColorMode } = useColorMode()
+  const isDark = colorMode === "dark"
+
+  return (
+    <IconButton
+      variant="ghost"
+      size="sm"
+      aria-label={isDark ? "Activar modo claro" : "Activar modo oscuro"}
+      onClick={() => setColorMode(isDark ? "light" : "dark")}
+      // Hidden until mounted so the icon never flashes the wrong mode.
+      visibility={colorMode ? "visible" : "hidden"}
+    >
+      {isDark ? <SunIcon /> : <MoonIcon />}
+    </IconButton>
+  )
+}
+
+function SunIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+    </svg>
+  )
+}
+
+function MoonIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  )
+}

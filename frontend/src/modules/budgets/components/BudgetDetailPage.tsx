@@ -181,7 +181,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
       </Flex>
 
       {/* Cliente + parámetros */}
-      <Box borderWidth="1px" borderColor="gray.200" rounded="md" p={4}>
+      <Box borderWidth="1px" borderColor="border" rounded="md" p={4}>
         <VStack align="start" gap={2}>
           <Text fontWeight="600">{budget.customer.name}</Text>
           <Text color="fg.muted" fontSize="sm">
@@ -198,7 +198,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
       </Box>
 
       {/* Ítems — precios guardados al escribir (RF-P8-04) */}
-      <Box borderWidth="1px" borderColor="gray.200" rounded="md" overflowX="auto">
+      <Box borderWidth="1px" borderColor="border" rounded="md" overflowX="auto">
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
           <thead>
             <tr>
@@ -209,9 +209,9 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
                   style={{
                     textAlign: "left",
                     padding: "10px 14px",
-                    borderBottom: "1px solid #e5e5e5",
+                    borderBottom: "1px solid var(--chakra-colors-border)",
                     fontWeight: 600,
-                    color: "#525252",
+                    color: "var(--chakra-colors-fg-muted)",
                     whiteSpace: "nowrap",
                   }}
                 >
@@ -222,7 +222,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
           </thead>
           <tbody>
             {budget.items.map((item) => (
-              <tr key={item.product_id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+              <tr key={item.product_id} style={{ borderBottom: "1px solid var(--chakra-colors-border-muted)" }}>
                 <td style={{ padding: "10px 14px", fontWeight: 500 }}>{item.product_name}</td>
                 <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
                   {item.qty}
@@ -252,7 +252,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
       {/* Bloques de cálculo (RF-P8-02): ticket de fila, total destacado */}
       <Box
         borderWidth="1px"
-        borderColor="gray.200"
+        borderColor="border"
         rounded="md"
         p={4}
         maxW="420px"
@@ -275,12 +275,12 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
             </Text>
             <Text
               fontVariantNumeric="tabular-nums"
-              color={budget.summary.ganancia < 0 ? "red.600" : undefined}
+              color={budget.summary.ganancia < 0 ? "red.fg" : undefined}
             >
               {formatCents(budget.summary.ganancia)}
             </Text>
           </HStack>
-          <Box as="hr" border="none" h="1px" bg="gray.200" />
+          <Box as="hr" border="none" h="1px" bg="bg.emphasized" />
           <HStack justify="space-between">
             <Text fontWeight="600">Total venta (IVA 21%)</Text>
             <Text

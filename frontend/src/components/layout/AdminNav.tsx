@@ -32,9 +32,9 @@ export function AdminNav() {
               px={3}
               py={2}
               fontWeight={active ? "600" : "400"}
-              color={active ? "brand.600" : "fg.muted"}
+              color={active ? "brand.fg" : "fg.muted"}
               borderBottomWidth="2px"
-              borderColor={active ? "brand.600" : "transparent"}
+              borderColor={active ? "brand.solid" : "transparent"}
               whiteSpace="nowrap"
             >
               {section.label}

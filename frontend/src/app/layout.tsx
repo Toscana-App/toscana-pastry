@@ -25,8 +25,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" className={snPro.variable}>
-      <body className="min-h-screen bg-white antialiased">
+    <html lang="es" className={snPro.variable} suppressHydrationWarning>
+      <body className="min-h-screen antialiased">
         <Provider>
           <AuthProvider>
             <Navbar />
