@@ -23,16 +23,15 @@ from data.models import (
     OrderORM,
     StockMovementORM,
 )
-from domain.models import StockMovement
-from domain.order_pricing import plan_order_deductions
+from domain.models import Ingredient, StockMovement
 from domain.orders import (
-    InsufficientOrderStockError,
     Order,
+    OrderNotEditableError,
     OrderItem,
     OrderItemSnapshot,
     OrderItemSnapshotLine,
 )
-from domain.stock import apply_movement
+from domain.use_cases.transition_order_status import TransitionOrderStatus
 
 
 # ---------------------------------------------------------------------------
@@ -130,7 +129,7 @@ def _order_to_domain(orm: OrderORM) -> Order:
     )
 
 
-class SQLOrderRepository:
+class SQLOrderRepository:  # implementa OrderRepository y OrderTransitionStore
     def __init__(self, session: AsyncSession):
         self.session = session
 
@@ -225,14 +224,15 @@ class SQLOrderRepository:
         """Reemplazo de lineas + snapshots (solo estado `nuevo`; el router
         valida antes). Los snapshots antiguos se borran: un pedido nuevo no
         tiene historico de precio que conservar."""
-        result = await self.session.execute(
-            select(OrderORM)
-            .where(OrderORM.id == order.id)
-            .options(selectinload(OrderORM.items))
-        )
-        orm = result.scalars().first()
+        orm = await self._lock_order(order.id)
         if orm is None:
             return None
+        if orm.status != "nuevo":
+            # Revalidado bajo lock: un confirm concurrente no puede quedar
+            # con snapshots reemplazados (RNF-P6-03).
+            current = orm.status
+            await self.session.rollback()
+            raise OrderNotEditableError(current)
         orm.customer_id = order.customer_id
         orm.customer_name = order.customer_name
         orm.customer_phone = order.customer_phone
@@ -261,137 +261,60 @@ class SQLOrderRepository:
         return order
 
     # ------------------------------------------------- stock + estado atomico
+    # Las reglas (transicion valida, stock suficiente) las decide el caso de
+    # uso TransitionOrderStatus; estos metodos solo delegan.
 
     async def confirm(self, order: Order) -> Order:
-        """nuevo -> confirmado. Descuento de stock ATOMICO (RNF-P6-02/04):
-        lock de filas, chequeo, movimientos y estado en un solo commit.
-        Si falta stock, rollback total + InsufficientOrderStockError."""
-        deductions = plan_order_deductions(order.snapshots)
-        try:
-            ingredient_rows: Dict[str, IngredientORM] = {}
-            if deductions:
-                rows = (
-                    await self.session.execute(
-                        select(IngredientORM)
-                        .where(
-                            IngredientORM.id.in_(list(deductions.keys())),
-                            IngredientORM.deleted_at.is_(None),
-                        )
-                        .with_for_update()
-                    )
-                ).scalars().all()
-                ingredient_rows = {row.id: row for row in rows}
-
-            shortage: Dict[str, Decimal] = {}
-            for ingredient_id, needed in deductions.items():
-                row = ingredient_rows.get(ingredient_id)
-                available = (
-                    Decimal(row.stock_qty) if row is not None else Decimal("0")
-                )
-                if available < needed:
-                    shortage[ingredient_id] = needed - available
-            if shortage:
-                await self.session.rollback()
-                raise InsufficientOrderStockError(shortage)
-
-            for ingredient_id, needed in deductions.items():
-                row = ingredient_rows[ingredient_id]
-                ingredient = _ingredient_to_domain(row)
-                updated, movement = apply_movement(
-                    ingredient,
-                    -needed,
-                    reason="pedido",
-                    ref=order.id,
-                )
-                row.stock_qty = str(updated.stock_qty)
-                self.session.add(
-                    StockMovementORM(
-                        id=movement.id,
-                        ingredient_id=ingredient_id,
-                        qty_delta=str(movement.qty_delta),
-                        reason=movement.reason,
-                        ref=movement.ref,
-                        created_at=movement.created_at,
-                    )
-                )
-
-            orm = await self._load_orm(order.id)
-            orm.status = "confirmado"
-            orm.updated_at = datetime.now(timezone.utc)
-            order = dataclasses.replace(order, status="confirmado")
-            await self.session.commit()
-            return order
-        except InsufficientOrderStockError:
-            raise
-        except Exception:
-            await self.session.rollback()
-            raise
+        """nuevo -> confirmado con descuento de stock atomico (RNF-P6-02/04)."""
+        return await TransitionOrderStatus(self).execute(order.id, "confirmado")
 
     async def cancel(self, order: Order) -> Order:
         """confirmado -> cancelado con reposicion de stock (RNF-P6-01)."""
-        deductions = plan_order_deductions(order.snapshots)
-        try:
-            ingredient_rows: Dict[str, IngredientORM] = {}
-            if deductions:
-                rows = (
-                    await self.session.execute(
-                        select(IngredientORM)
-                        .where(
-                            IngredientORM.id.in_(list(deductions.keys())),
-                            IngredientORM.deleted_at.is_(None),
-                        )
-                        .with_for_update()
-                    )
-                ).scalars().all()
-                ingredient_rows = {row.id: row for row in rows}
-
-            for ingredient_id, needed in deductions.items():
-                row = ingredient_rows.get(ingredient_id)
-                if row is None:
-                    # Insumo borrado despues de confirmar: no hay saldo que
-                    # reponer (la decision de negocio lo permite).
-                    continue
-                ingredient = _ingredient_to_domain(row)
-                updated, movement = apply_movement(
-                    ingredient,
-                    needed,
-                    reason="anulacion",
-                    ref=order.id,
-                )
-                row.stock_qty = str(updated.stock_qty)
-                self.session.add(
-                    StockMovementORM(
-                        id=movement.id,
-                        ingredient_id=ingredient_id,
-                        qty_delta=str(movement.qty_delta),
-                        reason=movement.reason,
-                        ref=movement.ref,
-                        created_at=movement.created_at,
-                    )
-                )
-
-            orm = await self._load_orm(order.id)
-            orm.status = "cancelado"
-            orm.updated_at = datetime.now(timezone.utc)
-            order = dataclasses.replace(order, status="cancelado")
-            await self.session.commit()
-            return order
-        except Exception:
-            await self.session.rollback()
-            raise
+        return await TransitionOrderStatus(self).execute(order.id, "cancelado")
 
     async def mark_delivered(self, order: Order) -> Order:
         """confirmado -> entregado (RNF-P6-01): sin efecto sobre stock."""
-        try:
-            orm = await self._load_orm(order.id)
-            orm.status = "entregado"
-            orm.updated_at = datetime.now(timezone.utc)
-            order = dataclasses.replace(order, status="entregado")
-            await self.session.commit()
-            return order
-        except Exception:
-            await self.session.rollback()
-            raise
+        return await TransitionOrderStatus(self).execute(order.id, "entregado")
+
+    # ------------------------------------------- primitivas transaccionales
+
+    async def lock_order(self, order_id: str) -> Optional[Order]:
+        orm = await self._lock_order(order_id)
+        return _order_to_domain(orm) if orm is not None else None
+
+    async def lock_ingredients(
+        self, ingredient_ids: List[str]
+    ) -> Dict[str, Ingredient]:
+        rows = await self._lock_ingredients(ingredient_ids)
+        return {i: _ingredient_to_domain(row) for i, row in rows.items()}
+
+    async def apply_movements(
+        self, changes: List[Tuple[Ingredient, StockMovement]]
+    ) -> None:
+        for updated, movement in changes:
+            row = await self.session.get(IngredientORM, updated.id)
+            row.stock_qty = str(updated.stock_qty)
+            self.session.add(
+                StockMovementORM(
+                    id=movement.id,
+                    ingredient_id=movement.ingredient_id,
+                    qty_delta=str(movement.qty_delta),
+                    reason=movement.reason,
+                    ref=movement.ref,
+                    created_at=movement.created_at,
+                )
+            )
+
+    async def set_status(self, order_id: str, status: str) -> None:
+        orm = await self.session.get(OrderORM, order_id)
+        orm.status = status
+        orm.updated_at = datetime.now(timezone.utc)
+
+    async def commit(self) -> None:
+        await self.session.commit()
+
+    async def rollback(self) -> None:
+        await self.session.rollback()
 
     # ------------------------------------------------------------- whatsapp
 
@@ -414,6 +337,39 @@ class SQLOrderRepository:
         await self.session.commit()
 
     # ---------------------------------------------------------------- utils
+
+    async def _lock_order(self, order_id: str) -> Optional[OrderORM]:
+        """Lee la fila del pedido con FOR UPDATE (primer lock de la
+        transaccion; despues los insumos, siempre en ese orden) y refresca
+        el estado desde la base, no desde el identity map."""
+        result = await self.session.execute(
+            select(OrderORM)
+            .where(OrderORM.id == order_id)
+            .options(selectinload(OrderORM.items))
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        return result.scalars().first()
+
+    async def _lock_ingredients(
+        self, ingredient_ids: List[str]
+    ) -> Dict[str, IngredientORM]:
+        """FOR UPDATE de insumos en orden determinista por id (evita
+        deadlocks entre pedidos que comparten insumos)."""
+        if not ingredient_ids:
+            return {}
+        rows = (
+            await self.session.execute(
+                select(IngredientORM)
+                .where(
+                    IngredientORM.id.in_(ingredient_ids),
+                    IngredientORM.deleted_at.is_(None),
+                )
+                .order_by(IngredientORM.id)
+                .with_for_update()
+            )
+        ).scalars().all()
+        return {row.id: row for row in rows}
 
     async def _load_orm(self, order_id: str) -> Optional[OrderORM]:
         result = await self.session.execute(

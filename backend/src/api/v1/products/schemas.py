@@ -38,7 +38,7 @@ class ProductCreate(BaseModel):
     prep_time_min: Optional[int] = Field(default=None, ge=0, le=1440)
     servings: Optional[int] = Field(default=None, ge=1, le=999)
     difficulty: Optional[ProductDifficulty] = None
-    recipe: List[RecipeItemInput] = Field(min_length=1)
+    recipe: List[RecipeItemInput] = Field(min_length=1, max_length=30)
 
 
 class ProductUpdate(BaseModel):
@@ -53,7 +53,9 @@ class ProductUpdate(BaseModel):
     prep_time_min: Optional[int] = Field(default=None, ge=0, le=1440)
     servings: Optional[int] = Field(default=None, ge=1, le=999)
     difficulty: Optional[ProductDifficulty] = None
-    recipe: Optional[List[RecipeItemInput]] = Field(default=None, min_length=1)
+    recipe: Optional[List[RecipeItemInput]] = Field(
+        default=None, min_length=1, max_length=30
+    )
 
 
 class ProductListItem(BaseModel):

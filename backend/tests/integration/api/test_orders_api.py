@@ -5,6 +5,7 @@ encendida), harina 2.800/kg y torta de limón (250g de harina, 30 min,
 6 porciones). Precio base de una torta: 700 (harina) + 75 (mano) = 775;
 con margen 100% -> 1.550.
 """
+import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy import event
@@ -31,6 +32,7 @@ from api.v1.orders.dependencies import (
     get_product_repository,
 )
 from domain.models import User, UserRole
+from domain.orders import InvalidStatusTransitionError, OrderNotEditableError
 
 
 @pytest_asyncio.fixture
@@ -591,6 +593,56 @@ class TestOrderStatus:
         assert await _stock_qty(client, token, flour_id) == "10000"
         reasons = [m["reason"] for m in await _movements(client, token, flour_id)]
         assert "anulacion" in reasons
+
+    async def test_segundo_confirm_con_orden_vieja_es_rechazado(
+        self, client: AsyncClient, db_session
+    ):
+        """Repo-level: dos confirm sobre el mismo Order leido antes (lo que
+        pasa con dos PATCH concurrentes). SQLite no soporta FOR UPDATE, asi
+        que se prueba la revalidacion de estado secuencialmente."""
+        token, flour_id, torta_id, customer_id = await _setup(client)
+        order = await _create_order(client, token, customer_id, torta_id, qty=2)
+        repo = SQLOrderRepository(db_session)
+        stale = await repo.get(order["id"])
+
+        confirmed = await repo.confirm(stale)
+        assert confirmed.status == "confirmado"
+        with pytest.raises(InvalidStatusTransitionError):
+            await repo.confirm(stale)
+
+        assert await _stock_qty(client, token, flour_id) == "9500"
+        movements = await _movements(client, token, flour_id)
+        assert [m["reason"] for m in movements].count("pedido") == 1
+
+    async def test_segundo_cancel_con_orden_vieja_es_rechazado(
+        self, client: AsyncClient, db_session
+    ):
+        token, flour_id, torta_id, customer_id = await _setup(client)
+        order = await _create_order(client, token, customer_id, torta_id, qty=2)
+        repo = SQLOrderRepository(db_session)
+        confirmed = await repo.confirm(await repo.get(order["id"]))
+
+        await repo.cancel(confirmed)
+        with pytest.raises(InvalidStatusTransitionError):
+            await repo.cancel(confirmed)
+        with pytest.raises(InvalidStatusTransitionError):
+            await repo.mark_delivered(confirmed)
+
+        assert await _stock_qty(client, token, flour_id) == "10000"
+        movements = await _movements(client, token, flour_id)
+        assert [m["reason"] for m in movements].count("anulacion") == 1
+
+    async def test_update_sobre_pedido_confirmado_es_rechazado(
+        self, client: AsyncClient, db_session
+    ):
+        token, flour_id, torta_id, customer_id = await _setup(client)
+        order = await _create_order(client, token, customer_id, torta_id, qty=2)
+        repo = SQLOrderRepository(db_session)
+        stale = await repo.get(order["id"])
+        await repo.confirm(stale)
+
+        with pytest.raises(OrderNotEditableError):
+            await repo.update(stale)
 
     async def test_incompleto_no_desuenta_stock(self, client: AsyncClient):
         token, flour_id, torta_id, customer_id = await _setup(client)

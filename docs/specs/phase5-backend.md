@@ -14,8 +14,8 @@ referencia: `p03_products_list.md` y `p4_product_detail.md`.
 | DELETE | `/api/v1/products/{id}` | admin | Soft delete (`deleted_at`) SIEMPRE (RF-P4-08): el producto sale del catálogo y los pedidos históricos quedan intactos. Sin pedidos: 204. Con pedidos históricos (Fase 6): 200 con `{impacted_orders}`. Nunca 409 — a diferencia de un insumo en recetas activas, un producto discontinuado debe poder retirarse. |
 
 Contratos de error como Fase 4: 400 con mensaje de dominio, 404 inexistente,
-403 rol insuficiente, 422 validación de schema. Money sale como entero de centavos y Qty como string en
-las responses (RNF-P4-02).
+403 rol insuficiente, 422 validación de schema. Money viaja como entero de centavos (int; str/float/bool -> 422) y Qty sale como string
+en las responses (RNF-P4-02).
 
 ## Decisión: precio derivado en lectura (RF-P3-04)
 
