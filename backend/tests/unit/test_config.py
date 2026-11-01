@@ -4,6 +4,7 @@ from core.config import DEFAULT_DEV_SECRET_KEY, Settings
 
 
 def _settings(monkeypatch, environment, secret=None):
+    monkeypatch.setattr(Settings, "MP_WEBHOOK_SECRET", "whsec")
     monkeypatch.setattr(Settings, "ENVIRONMENT", environment)
     monkeypatch.setattr(Settings, "SECRET_KEY", secret or DEFAULT_DEV_SECRET_KEY)
     return Settings()

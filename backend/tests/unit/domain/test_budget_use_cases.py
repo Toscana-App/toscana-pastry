@@ -70,7 +70,7 @@ class FakeOrders:
     def __init__(self):
         self.created = []
 
-    async def create(self, order):
+    async def create_full(self, order):
         self.created.append(order)
         return dataclasses.replace(order, id=f"order-{len(self.created)}")
 

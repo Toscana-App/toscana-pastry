@@ -603,7 +603,7 @@ class TestOrderStatus:
         token, flour_id, torta_id, customer_id = await _setup(client)
         order = await _create_order(client, token, customer_id, torta_id, qty=2)
         repo = SQLOrderRepository(db_session)
-        stale = await repo.get(order["id"])
+        stale = await repo.get_full(order["id"])
 
         confirmed = await repo.confirm(stale)
         assert confirmed.status == "confirmado"
@@ -620,7 +620,7 @@ class TestOrderStatus:
         token, flour_id, torta_id, customer_id = await _setup(client)
         order = await _create_order(client, token, customer_id, torta_id, qty=2)
         repo = SQLOrderRepository(db_session)
-        confirmed = await repo.confirm(await repo.get(order["id"]))
+        confirmed = await repo.confirm(await repo.get_full(order["id"]))
 
         await repo.cancel(confirmed)
         with pytest.raises(InvalidStatusTransitionError):
@@ -638,11 +638,11 @@ class TestOrderStatus:
         token, flour_id, torta_id, customer_id = await _setup(client)
         order = await _create_order(client, token, customer_id, torta_id, qty=2)
         repo = SQLOrderRepository(db_session)
-        stale = await repo.get(order["id"])
+        stale = await repo.get_full(order["id"])
         await repo.confirm(stale)
 
         with pytest.raises(OrderNotEditableError):
-            await repo.update(stale)
+            await repo.update_full(stale)
 
     async def test_incompleto_no_desuenta_stock(self, client: AsyncClient):
         token, flour_id, torta_id, customer_id = await _setup(client)

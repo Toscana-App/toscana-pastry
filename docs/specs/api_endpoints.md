@@ -18,7 +18,7 @@
 | Paginación | `?page` (1-based) + `?page_size` (default 50, max 200). Respuesta envuelta: `{ "items": [...], "total": N, "page": n, "page_size": n }`. |
 | Filtros | Query params (`q`, `status`, `category`, `from`, `to`). Búsqueda `q` case/acento-insensitive (pg_trgm). |
 | Errores | Envelope `application/problem+json`: `{ "type", "title", "status", "detail", "errors": [ {field, msg} ] }`. 422 para validación de schema (FastAPI), 409 para conflictos de negocio. |
-| Idempotencia | Header `Idempotency-Key` obligatorio en: `purchase/redeem`, `orders/{id}/status` (confirmar), `budgets/{id}/send`. Re-intento con misma key = mismo resultado. |
+| Idempotencia | Header `Idempotency-Key` obligatorio en: `purchase/redeem`, `orders/{id}/status` (confirmar), `budgets/{id}/send`, `orders/{id}/payment` (iniciar pago MP). Re-intento con misma key = mismo resultado. |
 | Rate limiting | `slowapi`: `auth/*` y formularios públicos con tope por IP+email (ver §F0/F4). |
 | Anti-spam | hCaptcha en `auth/magic-link` (público) y contacto. Honeypot oculto. |
 | Login Google | Flujo GIS **ID token** (no authorization-code): `sub` → `google_id` (identidad, nunca email); nonce server-issued de un solo uso; `email_verified`; **link solo tras re-auth** (`magic-link` → `verify` con `purpose=google_link`); Google no crea cuentas. `GOOGLE_CLIENT_ID` público; client secret inexistente en la app. (skill `google-signin`) |
@@ -267,7 +267,7 @@ api/presentation/routers/
 |---|---|
 | Seguridad | Cero secrets en bundle frontend (env solo backend, whitelist `NEXT_PUBLIC_*`). Rate limiting reforzado en `auth/*` y formularios. HSTS. |
 | Anti-spam | hCaptcha verificado en `auth/magic-link` (+ contacto si existe). Honeypot. |
-| Idempotencia | Claves obligatorias validadas en `purchase/redeem`, `orders/{id}/status`, `budgets/{id}/send`. |
+| Idempotencia | Claves obligatorias validadas en `purchase/redeem`, `orders/{id}/status`, `budgets/{id}/send`, `orders/{id}/payment`. |
 | Webhook | Verificación de firma estricta + replay (dedupe por `entry.id` / timestamp). |
 | Observabilidad | Request logging estructurado + tracing (Sentry) en todos los endpoints. |
 | Legal | Páginas `privacy`/`terms` = estáticas de Next.js (sin API). |
@@ -294,9 +294,9 @@ api/presentation/routers/
 ### Pagos (Mercado Pago, contratos safe mode)
 | Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
 |---|---|---|---|---|---|
-| POST | `/api/v1/orders/{id}/payment` | Inicia pago MP. | — → `{reference, checkout_url}` | 200 / 409 / 422 | Solo `status=nuevo` + `payment_method=mercadopago`; idempotente por `Idempotency-Key`. `CheckoutProvider` (mock de referencia). (RF-P6-13) |
-| GET | `/api/v1/orders/{id}/payment` | Estado del pago (polling). | — → `{status, paid, payment_reference?, updated_at?}` | 200 / 404 | `status ∈ {pending, approved, rejected, failed}`. |
-| POST | `/api/v1/webhooks/mercadopago` | Webhook de pago. | payload MP → `200 {"ok":true}` | 200 / 401 | **Verifica firma** antes de cualquier efecto; dedupe por id de pago; `approved` → `paid=true` (transacción). Idempotente + estados desordenados tolerados (RNF-P6-08). |
+| POST | `/api/v1/orders/{id}/payment` | Inicia pago MP. | Header `Idempotency-Key` (obligatorio) → `{reference, checkout_url}` | 200 / 404 / 409 / 422 | Solo `status=nuevo` + `payment_method=mercadopago`. Misma key → misma respuesta guardada (200); otra key con `payment_status=pending` → 409 `payment_in_progress`; estado terminal → 422 `payment_finalized`; `cash` → 422 `payment_method_not_mercadopago`; `status ≠ nuevo` → 409 `order_not_payable`. `CheckoutProvider` (mock: `reference = mock_<order_id>`). (RF-P6-13) |
+| GET | `/api/v1/orders/{id}/payment` | Estado del pago (polling). | — → `{status, paid, payment_reference?, updated_at?}` | 200 / 404 | `status` = `payment_status ∈ {pending, approved, rejected, failed}` (`null` si no se inició pago). 404 anti-sondeo a pedidos ajenos. |
+| POST | `/api/v1/webhooks/mercadopago` | Webhook de pago. | payload MP → `200 {"ok":true}` | 200 / 401 / 422 | Público (solo firma, **sin auth por cookie**). Firma validada **antes de cualquier efecto** (401 si falla; 422 si payload inválido tras verificación); dedupe por id de pago en tabla persistente `payment_event` (replay → 200 sin efecto); estados desordenados por prioridad `approved > rejected = failed > pending`; `approved` → `paid=true` + `paid_at` + `payment_reference` en una transacción con guard `WHERE paid=false`. Con firma válida siempre 200 (RNF-P6-08/10). |
 
 ### Direcciones de cliente (libro de direcciones)
 | Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |

@@ -1,17 +1,25 @@
-[tool.poetry]
+[project]
 name = "toscana-pastry-backend"
 version = "0.1.0"
-authors = ["Gaspar"]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "sqlalchemy[asyncio]>=2.0",
+    "aiosqlite>=0.20",
+    "pydantic[email]>=2.7",
+    "pyjwt>=2.8",
+    "httpx>=0.27",
+    "weasyprint>=62",
+    "reportlab>=5.1,<6",
+]
 
-[tool.poetry.dependencies]
-python = "^3.12"
-weasyprint = "^70.0"
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+    "pypdf>=6.21,<7",
+]
 
-reportlab = ">=5.1,<6"
-
-[tool.poetry.group.dev.dependencies]
-pypdf = ">=6.21,<7"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.uv]
+package = false

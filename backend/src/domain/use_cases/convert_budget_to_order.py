@@ -96,7 +96,7 @@ class ConvertBudgetToOrder:
             items=tuple(order_items),
             snapshots=snapshots,
         )
-        created = await self._orders.create(order)
+        created = await self._orders.create_full(order)
         # ponytail: si dos conversiones compiten, el UPDATE condicional deja
         # una sola ganadora; la perdedora ya creo un pedido huerfano (el
         # create del pedido hace commit propio). Ceiling: conversion

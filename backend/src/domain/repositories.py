@@ -210,7 +210,7 @@ class OrderRepository(ABC):
     estado en una sola transaccion (RNF-P6-02/04)."""
 
     @abstractmethod
-    async def list(
+    async def list_orders(
         self,
         status: Optional[str],
         customer_id: Optional[str],
@@ -223,15 +223,15 @@ class OrderRepository(ABC):
         pass
 
     @abstractmethod
-    async def get(self, order_id: str) -> Optional["Order"]:
+    async def get_full(self, order_id: str) -> Optional["Order"]:
         pass
 
     @abstractmethod
-    async def create(self, order: "Order") -> "Order":
+    async def create_full(self, order: "Order") -> "Order":
         pass
 
     @abstractmethod
-    async def update(self, order: "Order") -> Optional["Order"]:
+    async def update_full(self, order: "Order") -> Optional["Order"]:
         """Reemplaza lineas/snapshot en pedidos estado `nuevo` (el router
         valida el estado antes de llamar)."""
         pass

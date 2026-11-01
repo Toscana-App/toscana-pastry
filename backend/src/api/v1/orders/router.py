@@ -1,34 +1,28 @@
-"""Pedidos (Fase 6, P6).
+"""Router de pagos para pedidos (RF-P6-12/13/14, C1.0-C1.5 / RF-P11-06/08, C6).
 
-Flujo de negocio:
-  crear (nuevo) -> confirmar (descuento de stock atomico) -> entregar
-                     \\-> cancelar (reposicion de stock)
-
-Reglas clave:
-- El desglose se congela al crear (RNF-P6-03): las lecturas nunca
-  recalculan contra el catalogo; los cambios de receta/precios no tocan
-  el historial.
-- Confirmar descuenta stock en una sola transaccion (RNF-P6-02); si no
-  alcanza, 409 con el detalle y NINGUN cambio queda aplicado (RNF-P6-04).
-- Cancelar solo desde confirmado, y reposiciona (RNF-P6-01).
-- CTA de WhatsApp (RF-P6-06): el link wa.me se genera aca y el evento se
-  registra (auditoria).
+Namespace: /api/v1/orders.
 """
+
 import datetime
 from decimal import Decimal
+from email.utils import format_datetime
 from typing import Dict, List, Optional, Tuple, cast
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import JSONResponse
+from fastapi import status as http_status
 
-from api.v1.dependencies import get_current_user, require_admin
+from api.v1.dependencies import require_admin, get_current_user
 from api.v1.ingredients.dependencies import get_ingredient_repository
 from api.v1.orders.dependencies import (
+    get_checkout_provider,
     get_customer_repository,
+    get_now,
     get_order_repository,
     get_product_repository,
 )
+from api.v1.settings.dependencies import get_settings_repository
 from api.v1.orders.schemas import (
     InsufficientStockItem,
     OrderCustomerResponse,
@@ -43,37 +37,485 @@ from api.v1.orders.schemas import (
     OrderPreviewRequest,
     OrderPreviewResponse,
     OrderStatusPatch,
-    OrderStatus,
     OrderUpdate,
     SnapshotLineResponse,
     WhatsAppLinkResponse,
 )
-from api.v1.settings.dependencies import get_settings_repository
-from domain.use_cases import GetSettings
-from domain.use_cases.transition_order_status import TransitionOrderStatus
-from data.repositories.sql_ingredient_repository import SQLIngredientRepository
+from api.v1.orders.schemas import OrderStatus as P6OrderStatus
+from api.v1.orders.schemas import (
+    OrderDetailSchema,
+    OrderItemSchema,
+    OrderListSchema,
+    PaidResponse,
+    PaymentInitResponse,
+    PaymentStatusResponse,
+    PortalOrderCreateRequest,
+)
 from data.repositories.sql_order_repository import SQLOrderRepository
-from data.repositories.sql_product_repository import SQLProductRepository
-from domain.models import BusinessSettings, Ingredient, Product, User
+from domain.checkout_provider import CheckoutProvider, PaymentProviderError
+from domain.models import User, UserRole
+from domain.order import (
+    DeliveryMode,
+    Order,
+    OrderItem,
+    OrderStatus,
+    OrderValidationError,
+    PaymentMethod,
+    PaymentStatus,
+    is_payment_expired,
+)
+from domain.pricing_service import resolve_audience, derive_audience_price
+from data.repositories.sql_ingredient_repository import SQLIngredientRepository
+from domain.models import BusinessSettings, Ingredient, Product
 from domain.order_pricing import price_order_item
 from domain.orders import (
     InsufficientOrderStockError,
     InvalidStatusTransitionError,
-    Order,
-    OrderItem,
     OrderItemSnapshot,
     OrderNotEditableError,
     transition_status,
 )
+from domain.orders import Order as P6Order
+from domain.orders import OrderItem as P6OrderItem
 from domain.pricing import UnitConversionError
 from domain.repositories import (
     CustomerRepository,
+    IngredientRepository,
     OrderRepository,
     ProductRepository,
     SettingsRepository,
 )
+from domain.use_cases.transition_order_status import TransitionOrderStatus
+from domain.use_cases import GetSettings
 
 router = APIRouter(prefix="/orders", tags=["orders"])
+
+# Mercado Pago app is MLA (Argentina): orders are charged in ARS.
+_PAYMENT_CURRENCY = "ARS"
+
+
+# ─── PATCH /orders/{id}/paid (C1.0) ─────────────────────────────────
+
+@router.patch("/{id}/paid", response_model=PaidResponse)
+async def mark_order_paid(
+    id: str,
+    repo: SQLOrderRepository = Depends(get_order_repository),
+    _admin: User = Depends(require_admin),
+):
+    """PATCH /orders/{id}/paid: marca el pedido como pagado (manual, admin only).
+
+    Monotonic: paid only transitions false → true.
+    Cash orders: OK.
+    MercadoPago orders: only if not already approved (409 if pending/approved).
+    """
+    order = await repo.get(id)
+    if order is None:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND, detail="Order not found"
+        )
+
+    # Already paid
+    if order.paid:
+        raise HTTPException(
+            status_code=http_status.HTTP_409_CONFLICT,
+            detail="order_already_paid",
+        )
+
+    # MercadoPago with pending/approved status → let webhook handle it
+    if (
+        order.payment_method == PaymentMethod.MERCADOPAGO
+        and order.payment_status is not None
+        and order.payment_status != PaymentStatus.PENDING
+    ):
+        raise HTTPException(
+            status_code=http_status.HTTP_409_CONFLICT,
+            detail="payment_in_progress",
+        )
+
+    # Apply payment
+    if order.payment_method == PaymentMethod.CASH:
+        order.mark_cash_payment()
+        # Cash orders: only paid_at changes (payment_status stays None)
+        marked = await repo.mark_paid_at(order.id, order.paid_at)
+        if not marked:
+            raise HTTPException(
+                status_code=http_status.HTTP_409_CONFLICT,
+                detail="order_already_paid",
+            )
+        return PaidResponse(paid=True)
+    else:
+        order.confirm_payment(reference="manual", status=PaymentStatus.APPROVED)
+        result = await repo.update_payment_status(
+            order_id=order.id,
+            reference=order.payment_reference,
+            status=order.payment_status,
+            paid_at=order.paid_at,
+        )
+
+    if result is None:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND, detail="Order not found"
+        )
+
+    return PaidResponse(paid=True)
+
+
+_FINAL_PAYMENT_STATUSES = (
+    PaymentStatus.APPROVED,
+    PaymentStatus.REJECTED,
+    PaymentStatus.FAILED,
+)
+
+
+async def _get_own_order(repo: SQLOrderRepository, order_id: str, user: User) -> Order:
+    """Order visible to ``user`` (owner or admin); 404 otherwise (anti-probing)."""
+    order = await repo.get(order_id)
+    if order is None or (user.role != UserRole.ADMIN and order.customer_id != user.id):
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND, detail="Order not found"
+        )
+    return order
+
+
+async def _expire_if_due(
+    repo: SQLOrderRepository, order: Order, now: datetime.datetime
+) -> Order:
+    """Lazy 24 h expiry: cancel the order and release its coupon use."""
+    if is_payment_expired(order, now) and await repo.expire_pending_payment(order.id):
+        return await repo.get(order.id) or order
+    return order
+
+
+# ─── POST /orders/{id}/payment (C1.4) ───────────────────────────────
+
+@router.post("/{id}/payment", response_model=PaymentInitResponse)
+async def initiate_payment(
+    id: str,
+    idempotency_key: str = Header(..., alias="Idempotency-Key"),
+    repo: SQLOrderRepository = Depends(get_order_repository),
+    user: User = Depends(get_current_user),
+    provider: CheckoutProvider = Depends(get_checkout_provider),
+    now: datetime.datetime = Depends(get_now),
+):
+    """POST /orders/{id}/payment: inicia pago Mercado Pago (Checkout Pro).
+
+    Dueño del pedido o admin. Solo pedidos status=nuevo +
+    payment_method=mercadopago. Idempotencia por Idempotency-Key.
+    """
+    order = await _get_own_order(repo, id, user)
+    order = await _expire_if_due(repo, order, now)
+
+    # Same key → same saved response.
+    saved = await repo.get_payment_attempt(order.id, idempotency_key)
+    if saved is not None:
+        return PaymentInitResponse(
+            reference=saved.reference, checkout_url=saved.checkout_url
+        )
+
+    # payment_method=cash → 422
+    if order.payment_method == PaymentMethod.CASH:
+        raise HTTPException(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="payment_method_not_mercadopago",
+        )
+
+    # status≠nuevo → 409
+    if order.status != OrderStatus.NUEVO:
+        raise HTTPException(
+            status_code=http_status.HTTP_409_CONFLICT,
+            detail="order_not_payable",
+        )
+
+    if order.paid or order.payment_status in _FINAL_PAYMENT_STATUSES:
+        raise HTTPException(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="payment_finalized",
+        )
+    if order.payment_status == PaymentStatus.PENDING:
+        raise HTTPException(
+            status_code=http_status.HTTP_409_CONFLICT,
+            detail="payment_in_progress",
+        )
+
+    # Row-guarded claim: exactly one concurrent initiation moves the order
+    # to ``pending`` (RF-P6-12, RNF-P6-10); the others see 409/422.
+    if not await repo.claim_payment_pending(order.id):
+        current = await repo.get(order.id)
+        if current is not None and (
+            current.paid or current.payment_status in _FINAL_PAYMENT_STATUSES
+        ):
+            raise HTTPException(
+                status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="payment_finalized",
+            )
+        raise HTTPException(
+            status_code=http_status.HTTP_409_CONFLICT,
+            detail="payment_in_progress",
+        )
+
+    amount = order.total - (order.discount_amount or Decimal("0"))
+    try:
+        result = await provider.create_payment(order.id, float(amount), _PAYMENT_CURRENCY)
+    except PaymentProviderError as err:
+        await repo.release_payment_pending(order.id)
+        raise HTTPException(
+            status_code=http_status.HTTP_502_BAD_GATEWAY,
+            detail="payment_provider_error",
+        ) from err
+    except Exception:
+        await repo.release_payment_pending(order.id)
+        raise
+
+    result = await repo.save_payment_attempt(order.id, idempotency_key, result)
+    return PaymentInitResponse(
+        reference=result.reference,
+        checkout_url=result.checkout_url,
+    )
+
+
+# ─── GET /orders/{id}/payment (C1.5) ────────────────────────────────
+
+@router.get("/{id}/payment", response_model=PaymentStatusResponse)
+async def get_payment_status(
+    id: str,
+    repo: SQLOrderRepository = Depends(get_order_repository),
+    user: User = Depends(get_current_user),
+    now: datetime.datetime = Depends(get_now),
+):
+    """GET /orders/{id}/payment: estado del pago (polling del portal).
+
+    Dueño del pedido o admin; pedidos ajenos → 404.
+    """
+    order = await _get_own_order(repo, id, user)
+    order = await _expire_if_due(repo, order, now)
+
+    return PaymentStatusResponse(
+        status=order.payment_status.value if order.payment_status else None,
+        paid=order.paid,
+        payment_reference=order.payment_reference,
+        updated_at=order.created_at,
+    )
+
+
+def _retry_after_header(reopens_at: datetime.datetime | None) -> dict[str, str] | None:
+    """``Retry-After`` (HTTP-date) when the window has a reopening time."""
+    if reopens_at is None:
+        return None
+    if reopens_at.tzinfo is None:
+        reopens_at = reopens_at.replace(tzinfo=datetime.UTC)
+    return {"Retry-After": format_datetime(reopens_at, usegmt=True)}
+
+
+# ─── C6 Portal endpoints: POST /orders, GET /orders/mine ────────────
+
+@router.post("/", response_model=OrderDetailSchema)
+async def create_order_portal(
+    body: PortalOrderCreateRequest,
+    user: User = Depends(get_current_user),
+    repo: SQLOrderRepository = Depends(get_order_repository),
+    ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
+    settings_repo=Depends(get_settings_repository),
+):
+    """POST /orders: crea un pedido desde el portal (C6, RF-P11-06/08).
+
+    Checks:
+        - order_window.open → 409 if closed
+        - delivery_mode=delivery requires non-empty delivery_address → 422
+        - date >= today
+        - payment_method ∈ {mercadopago, cash}
+    """
+    # Check order window
+    window = await repo.get_order_window()
+    if not window.open:
+        raise HTTPException(
+            status_code=http_status.HTTP_409_CONFLICT,
+            detail="order_window_closed",
+            headers=_retry_after_header(window.reopens_at),
+        )
+
+    # Validate payment_method
+    try:
+        payment_method = PaymentMethod(body.payment_method)
+    except ValueError:
+        raise HTTPException(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="invalid_payment_method",
+        )
+
+    try:
+        delivery_mode = DeliveryMode(body.delivery_mode)
+    except ValueError:
+        delivery_mode = DeliveryMode.DELIVERY
+
+    # Price and name come from the catalog, never from the request.
+    audience = resolve_audience(user.role, None)
+    business = await GetSettings(settings_repo).execute()
+    items: list[OrderItem] = []
+    for item_data in body.items:
+        product = await ingredient_repo.get(item_data.product_id)
+        if product is None:
+            raise HTTPException(
+                status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="product_not_found",
+            )
+        items.append(
+            OrderItem(
+                product_id=item_data.product_id,
+                product_name=product.name,
+                quantity=item_data.quantity,
+                unit_price=derive_audience_price(
+                    product.price_per_unit, business.consumer_markup_pct, audience
+                ),
+                portion_note=item_data.portion_note,
+            )
+        )
+
+    try:
+        new_order = Order.place_portal(
+            customer_id=user.id,
+            date=body.date,
+            items=items,
+            payment_method=payment_method,
+            delivery_mode=delivery_mode,
+            delivery_address=body.delivery_address,
+            coupon_code=body.coupon_code,
+        )
+    except OrderValidationError as err:
+        raise HTTPException(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=err.code,
+        ) from err
+    await repo.add(new_order)
+
+    # Fetch back and return
+    result = await repo.get(new_order.id)
+    if result is None:
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="order_creation_failed",
+        )
+
+    return OrderDetailSchema(
+        id=result.id,
+        code=result.code,
+        customer_id=result.customer_id,
+        status=result.status.value,
+        date=result.date,
+        payment_method=result.payment_method.value,
+        delivery_mode=result.delivery_mode if isinstance(result.delivery_mode, str) else result.delivery_mode.value,
+        delivery_address=result.delivery_address or None,
+        coupon_code=result.coupon_code,
+        discount_amount=result.discount_amount,
+        paid=result.paid,
+        payment_status=result.payment_status.value if result.payment_status else None,
+        total=result.total,
+        items=[
+            OrderItemSchema(
+                product_id=item.product_id,
+                product_name=item.product_name,
+                quantity=item.quantity,
+                unit_price=item.unit_price,
+                portion_note=item.portion_note,
+                total=item.total,
+            )
+            for item in result.items
+        ],
+        created_at=result.created_at,
+    )
+
+
+@router.get("/mine", response_model=OrderListSchema)
+async def list_my_orders(
+    page: int = 1,
+    page_size: int = 20,
+    user: User = Depends(get_current_user),
+    repo: SQLOrderRepository = Depends(get_order_repository),
+):
+    """GET /orders/mine: lista de pedidos del usuario (RF-P11-08)."""
+    orders, total = await repo.list_by_customer(
+        user.id, page=page, page_size=page_size
+    )
+    return OrderListSchema(
+        orders=[
+            OrderDetailSchema(
+                id=o.id,
+                code=o.code,
+                customer_id=o.customer_id,
+                status=o.status.value,
+                date=o.date,
+                payment_method=o.payment_method.value,
+                delivery_mode=o.delivery_mode if isinstance(o.delivery_mode, str) else o.delivery_mode.value,
+                delivery_address=o.delivery_address or None,
+                coupon_code=o.coupon_code,
+                discount_amount=o.discount_amount,
+                paid=o.paid,
+                payment_status=o.payment_status.value if o.payment_status else None,
+                total=o.total,
+                items=[
+                    OrderItemSchema(
+                        product_id=item.product_id,
+                        product_name=item.product_name,
+                        quantity=item.quantity,
+                        unit_price=item.unit_price,
+                        portion_note=item.portion_note,
+                        total=item.total,
+                    )
+                    for item in o.items
+                ],
+                created_at=o.created_at,
+            )
+            for o in orders
+        ],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get("/mine/{code}", response_model=OrderDetailSchema)
+async def get_my_order(
+    code: str,
+    user: User = Depends(get_current_user),
+    repo: SQLOrderRepository = Depends(get_order_repository),
+):
+    """GET /orders/mine/{code}: detalle de un pedido por su código (RF-P11-08).
+
+    Anti-spoofing: 404 if the order does not belong to the user.
+    """
+    order = await repo.get_by_code(code)
+    if order is None or order.customer_id != user.id:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail="Order not found",
+        )
+
+    return OrderDetailSchema(
+        id=order.id,
+        code=order.code,
+        customer_id=order.customer_id,
+        status=order.status.value,
+        date=order.date,
+        payment_method=order.payment_method.value,
+        delivery_mode=order.delivery_mode if isinstance(order.delivery_mode, str) else order.delivery_mode.value,
+        delivery_address=order.delivery_address or None,
+        coupon_code=order.coupon_code,
+        discount_amount=order.discount_amount,
+        paid=order.paid,
+        payment_status=order.payment_status.value if order.payment_status else None,
+        total=order.total,
+        items=[
+            OrderItemSchema(
+                product_id=item.product_id,
+                product_name=item.product_name,
+                quantity=item.quantity,
+                unit_price=item.unit_price,
+                portion_note=item.portion_note,
+                total=item.total,
+            )
+            for item in order.items
+        ],
+        created_at=order.created_at,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +567,7 @@ def _lines_response(snapshot: OrderItemSnapshot) -> List[SnapshotLineResponse]:
     ]
 
 
-def _item_response(item: OrderItem, snapshot: OrderItemSnapshot) -> OrderItemResponse:
+def _item_response(item: P6OrderItem, snapshot: OrderItemSnapshot) -> OrderItemResponse:
     return OrderItemResponse(
         product_id=item.product_id,
         product_name=item.product_name,
@@ -141,7 +583,7 @@ def _item_response(item: OrderItem, snapshot: OrderItemSnapshot) -> OrderItemRes
 
 
 def _detail_response(
-    order: Order, whatsapp_sent_at: Optional[datetime.datetime]
+    order: P6Order, whatsapp_sent_at: Optional[datetime.datetime]
 ) -> OrderDetailResponse:
     return OrderDetailResponse(
         id=order.id or "",
@@ -151,7 +593,7 @@ def _detail_response(
             phone=order.customer_phone,
         ),
         date=order.date,
-        status=cast(OrderStatus, order.status),
+        status=cast(P6OrderStatus, order.status),
         margin_pct=order.margin_pct,
         items=[
             _item_response(item, order.snapshots[item.id or ""])
@@ -200,9 +642,9 @@ def _price_items(
     settings: BusinessSettings,
     inputs: List[OrderItemInput],
     margin_override: Optional[Decimal],
-) -> Tuple[List[OrderItem], Dict[str, OrderItemSnapshot]]:
+) -> Tuple[List[P6OrderItem], Dict[str, OrderItemSnapshot]]:
     """Congela los snapshots de cada linea (RNF-P6-03)."""
-    items: List[OrderItem] = []
+    items: List[P6OrderItem] = []
     snapshots: Dict[str, OrderItemSnapshot] = {}
     for entry in inputs:
         product = products[entry.product_id]
@@ -217,7 +659,7 @@ def _price_items(
             portions=portions,
             margin_override=margin_override,
         )
-        item = OrderItem(
+        item = P6OrderItem(
             product_id=product.id or "",
             qty=entry.qty,
             portions=portions,
@@ -229,7 +671,7 @@ def _price_items(
     return items, snapshots
 
 
-def _whatsapp_message(order: Order) -> str:
+def _whatsapp_message(order: P6Order) -> str:
     lines = [f"Hola {order.customer_name}:", ""]
     lines.append("Tu pedido:")
     for item in order.items:
@@ -268,7 +710,7 @@ async def list_orders(
 ):
     """Listado con filtros combinables: estado, cliente, nombre (sin
     acentos, RF-P2-02) y rango de fechas (RF-P6-05)."""
-    orders, total = await repo.list(
+    orders, total = await repo.list_orders(
         status=status_,
         customer_id=customer_id,
         q=q,
@@ -284,7 +726,7 @@ async def list_orders(
                 customer_name=o.customer_name,
                 customer_phone=o.customer_phone,
                 date=o.date,
-                status=cast(OrderStatus, o.status),
+                status=cast(P6OrderStatus, o.status),
                 item_count=len(o.items),
                 total=o.total,
                 created_at=_iso(o.created_at),
@@ -330,7 +772,7 @@ async def create_order(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
         )
-    order = Order(
+    order = P6Order(
         customer_id=customer.id or "",
         customer_name=customer.name,
         customer_phone=customer.phone,
@@ -339,7 +781,7 @@ async def create_order(
         items=tuple(items),
         snapshots=snapshots,
     )
-    created = await order_repo.create(order)
+    created = await order_repo.create_full(order)
     return _detail_response(created, None)
 
 
@@ -398,7 +840,7 @@ async def get_order(
 ):
     """UC-03/UC-05: el desglose viene del snapshot congelado
     (RNF-P6-03), nunca recalculado contra el catalogo."""
-    order = await repo.get(order_id)
+    order = await repo.get_full(order_id)
     if order is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Pedido no encontrado"
@@ -420,7 +862,7 @@ async def update_order(
     """UC-02: edicion parcial, solo estado `nuevo` (confirmado ya
     compromete stock y snapshot). Cambios de items o margin re-congelan
     los snapshots."""
-    existing = await order_repo.get(order_id)
+    existing = await order_repo.get_full(order_id)
     if existing is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Pedido no encontrado"
@@ -473,7 +915,7 @@ async def update_order(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
         )
 
-    order = Order(
+    order = P6Order(
         customer_id=customer.id or "",
         customer_name=customer.name,
         customer_phone=customer.phone,
@@ -488,7 +930,7 @@ async def update_order(
         snapshots=snapshots,
     )
     try:
-        saved = await order_repo.update(order)
+        saved = await order_repo.update_full(order)
     except OrderNotEditableError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     if saved is None:
@@ -510,7 +952,7 @@ async def patch_order_status(
     confirmado. Confirmar descuenta stock atomicamente (RNF-P6-02): si no
     alcanza, 409 con el detalle y cero cambios (RNF-P6-04). Cancelar
     reposiciona."""
-    order = await order_repo.get(order_id)
+    order = await order_repo.get_full(order_id)
     if order is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Pedido no encontrado"
@@ -528,7 +970,7 @@ async def patch_order_status(
 
 
 async def _apply_status(
-    order: Order,
+    order: P6Order,
     target: str,
     order_repo: SQLOrderRepository,
     ingredient_repo: SQLIngredientRepository,
@@ -580,7 +1022,7 @@ async def whatsapp_link(
 ):
     """UC-03 CTA (RF-P6-06): link wa.me con el resumen del pedido; se
     registra el evento de auditoria."""
-    order = await repo.get(order_id)
+    order = await repo.get_full(order_id)
     if order is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Pedido no encontrado"
