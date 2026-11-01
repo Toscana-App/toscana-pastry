@@ -1,4 +1,5 @@
 import { apiFetch } from "@/lib/api";
+import { pesosToCents } from "@/lib/format";
 import type {
   CalcSettingsPayload,
   CalcSettingsResponse,
@@ -44,6 +45,28 @@ function jsonOptions(method: string, body: unknown): RequestInit {
 async function deleteViaApiFetch(endpoint: string): Promise<void> {
   await apiFetch<void>(endpoint, { method: "DELETE" });
 }
+
+// Centavos (API) ↔ pesos (UI) para default_unit_cost_or_rate.
+function defaultCostFromApi(cost: DefaultCost): DefaultCost {
+  return {
+    ...cost,
+    default_unit_cost_or_rate: (
+      Number(cost.default_unit_cost_or_rate) / 100
+    ).toFixed(2),
+  };
+}
+
+function defaultCostToApi<
+  T extends { default_unit_cost_or_rate?: string },
+>(payload: T): Omit<T, "default_unit_cost_or_rate"> & {
+  default_unit_cost_or_rate?: number;
+} {
+  const { default_unit_cost_or_rate, ...rest } = payload;
+  return default_unit_cost_or_rate === undefined
+    ? rest
+    : { ...rest, default_unit_cost_or_rate: pesosToCents(default_unit_cost_or_rate) };
+}
+
 
 export const calcSettingsService = {
   // ─── Settings (S1) ──────────────────────────────────────────────────────
@@ -119,28 +142,35 @@ export const calcSettingsService = {
   },
 
   // ─── Default costs ──────────────────────────────────────────────────────
-  listDefaultCosts(
+  // La API habla centavos enteros en default_unit_cost_or_rate; la UI usa
+  // pesos (string). Conversión solo en este borde.
+  async listDefaultCosts(
     query: ListQuery & { type?: DefaultCostType } = {}
   ): Promise<DefaultCostListResponse> {
-    return apiFetch<DefaultCostListResponse>(
+    const res = await apiFetch<DefaultCostListResponse>(
       `/calc/default-costs${buildQuery({ ...query })}`
     );
+    return { ...res, items: res.items.map(defaultCostFromApi) };
   },
 
-  createDefaultCost(payload: DefaultCostCreatePayload): Promise<DefaultCost> {
-    return apiFetch<DefaultCost>(
-      "/calc/default-costs",
-      jsonOptions("POST", payload)
+  async createDefaultCost(payload: DefaultCostCreatePayload): Promise<DefaultCost> {
+    return defaultCostFromApi(
+      await apiFetch<DefaultCost>(
+        "/calc/default-costs",
+        jsonOptions("POST", defaultCostToApi(payload))
+      )
     );
   },
 
-  updateDefaultCost(
+  async updateDefaultCost(
     id: string,
     payload: DefaultCostUpdatePayload
   ): Promise<DefaultCost> {
-    return apiFetch<DefaultCost>(
-      `/calc/default-costs/${id}`,
-      jsonOptions("PATCH", payload)
+    return defaultCostFromApi(
+      await apiFetch<DefaultCost>(
+        `/calc/default-costs/${id}`,
+        jsonOptions("PATCH", defaultCostToApi(payload))
+      )
     );
   },
 
