@@ -48,6 +48,14 @@ class InvalidBudgetTransitionError(ValueError):
     pass
 
 
+class BudgetNotConvertibleError(ValueError):
+    """Solo los presupuestos `enviado` se convierten en pedido (RF-P8-08)."""
+
+
+class BudgetAlreadyConvertedError(ValueError):
+    """El presupuesto ya tiene un pedido asociado (RF-P8-08)."""
+
+
 class NoBudgetChangesError(ValueError):
     pass
 
@@ -175,6 +183,7 @@ class Budget:
         default_factory=lambda: datetime.datetime.now(datetime.timezone.utc)
     )
     sent_at: Optional[datetime.datetime] = None
+    order_id: Optional[str] = None  # pedido creado al convertir (RF-P8-08)
 
     def __post_init__(self):
         if self.status not in BUDGET_STATUSES:

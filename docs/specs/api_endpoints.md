@@ -22,7 +22,7 @@
 | Rate limiting | `slowapi`: `auth/*` y formularios públicos con tope por IP+email (ver §F0/F4). |
 | Anti-spam | hCaptcha en `auth/magic-link` (público) y contacto. Honeypot oculto. |
 | Login Google | Flujo GIS **ID token** (no authorization-code): `sub` → `google_id` (identidad, nunca email); nonce server-issued de un solo uso; `email_verified`; **link solo tras re-auth** (`magic-link` → `verify` con `purpose=google_link`); Google no crea cuentas. `GOOGLE_CLIENT_ID` público; client secret inexistente en la app. (skill `google-signin`) |
-| Decimal | Todo monto con `Decimal` (serializado como string en JSON) + `ROUND_HALF_UP` al paso configurado. |
+| Dinero | El dominio opera con `Decimal` + `ROUND_HALF_UP` al paso configurado. En la API el dinero viaja como **entero de centavos** (310050 = $3.100,50); se rechaza con 422 cualquier string, float o bool. Cantidades (`Qty`) y porcentajes (`Pct`) viajan como string decimal. |
 | OpenAPI | `GET /openapi.json` + docs `/docs` (FastAPI) — **fuente** de los tipos TS de `web/lib`. En producción: cerrados o detrás de auth (security #12). |
 | RLS | Postgres **Row-Level Security** en toda tabla de tenant; `set_config('app.tenant_id')` por transacción. Objeto de otro tenant → 404 (security #4, #7). |
 | Queries | Solo SQLAlchemy con **bind parameters**; prohibido SQL concatenado (security #13). |
@@ -110,6 +110,8 @@ api/presentation/routers/
 | GET | `/api/v1/tenant/settings` | Config de costos por defecto. | — → `{hourly_rate, margin_pct, round_step, include_labor, include_gas, gas_pct, include_waste, waste_pct, urgent_surcharge_pct}` | 200 | Defaults del motor de precio. |
 | PUT | `/api/v1/tenant/settings` | Actualiza config. | `{...settings}` → `{settings, affected_products: N}` | 200 | Dispara **recálculo global** (derivado). `affected_products` = precios re-derivados. |
 | POST | `/api/v1/tenant/settings/recalculate` | Fuerza recálculo global (idempotente). | — → `{recalculated: N}` | 200 | (opcional) Task asíncrona si catálogo grande. |
+| GET | `/api/v1/tenant/order-window` | Ventana de pedidos (corte). | — → `{open, reopens_at?, message?}` | 200 | Auth. Alimenta el banner de P6. (RF-P5-07) |
+| PATCH | `/api/v1/tenant/order-window` | Abre/cierra pedidos. | `{open*, reopens_at?, message?}` → `{order_window}` | 200 / 422 | Cerrar sin `reopens_at` → 422 con sugerencia. `message` ≤ 200 chars. (RF-P5-07) |
 
 ### Ingredientes (P2)
 | Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
@@ -126,15 +128,70 @@ api/presentation/routers/
 ### Productos (P3 listado + P4 detalle)
 | Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
 |---|---|---|---|---|---|
-| GET | `/api/v1/products` | Listado con filtros. | `?q,category,page,page_size` → `{items,total,...}` | 200 | Item: `id,name,category,price(final, derived)`. Precios del motor. |
+| GET | `/api/v1/products` | Listado con filtros. | `?q,category,tags,page,page_size` → `{items,total,...}` | 200 | Item: `id,name,category,tags[],price(final, derived)`. `tags` = lista (AND). Precios del motor. |
 | GET | `/api/v1/products/categories` | Chips de categoría. | — → `{categories:[{name,count}]}` | 200 | Distinct por tenant. |
-| POST | `/api/v1/products` | Crea producto + receta. | `{name*,description?,category*,type?,storage?,prep_time_min*,servings?,difficulty?,labor_hours*,recipe_items:[{ingredient_id,qty,unit}]}` → `{product, costs}` | 201 | Validación ≥1 insumo. Devuelve desglose del motor. |
+| GET | `/api/v1/products/tags` | Chips de tags (restricciones). | — → `{tags:[{name,count}]}` | 200 | Distinct por tenant (allow-list sugerida + libres). |
+| POST | `/api/v1/products` | Crea producto + receta. | `{name*,description?,category*,type?,storage?,prep_time_min*,servings?,difficulty?,labor_hours*,tags[]?,recipe_items:[{ingredient_id,qty,unit}]}` → `{product, costs}` | 201 | Validación ≥1 insumo; `tags[]` 0–10, ≤ 30 chars c/u. Devuelve desglose del motor. |
 | GET | `/api/v1/products/{id}` | Detalle con receta + costos. | — → `{product, recipe_items, costs_breakdown}` | 200 / 404 | `costs_breakdown`: materials, labor, gas, waste, base, margin_pct, final, rounded. |
-| PATCH | `/api/v1/products/{id}` | Edita (cualquier tab). | `{...campos, recipe_items?}` → `{product, costs}` | 200 | Receta editada → recálculo automático. |
+| PATCH | `/api/v1/products/{id}` | Edita (cualquier tab). | `{...campos, tags[], recipe_items?}` → `{product, costs}` | 200 | Receta editada → recálculo automático. |
 | DELETE | `/api/v1/products/{id}` | Elimina. | — → `204` | 204 / 409 | Soft delete si tiene pedidos históricos. |
 | POST | `/api/v1/products/{id}/recalculate` | Recalcula desglose (en vivo). | — → `{costs_breakdown}` | 200 | < 50 ms hasta 50 insumos. (RF-P4-04) |
 
 **Criterio de salida F1**: 20 insumos + 5 productos → cada producto muestra costo y precio final correctos (verificados contra la fórmula).
+
+---
+
+## FASE CC — Calculadora de costos (rol administrador)
+> Refactor de `E:/toscana/calculadora-costos-toscana` manteniendo funcionalidad. **Todos los endpoints requieren auth Y rol administrador** (`403` para no-admin; `401` sin sesión). Conviven con F1: otro namespace, otra fórmula de precio, sin tocar los módulos legacy. Specs: P2-CC, P3-CC, P4-CC, P5-CC.
+
+### CC Settings / configuración (P5-CC)
+| Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
+|---|---|---|---|---|---|
+| GET | `/api/v1/calc/settings` | Config general de la calculadora. | — → `{business_name, main_currency_name, main_currency_symbol, default_margin_percent, default_discount_percent, default_tax_percent, rounding_mode}` | 200 | Devuelve defaults del sistema si no hay fila persistida (nunca 404). |
+| PUT | `/api/v1/calc/settings` | Reemplazo completo atómico. | `{...config}` → `{config}` | 200 / 422 | `extra="forbid"`; rangos: percents 0–100, `rounding_mode ∈ {none, integer, multiple_10, commercial_99}`. Upsert singleton. |
+| GET | `/api/v1/calc/material-categories` | Lista categorías de materiales. | `?q,page,page_size` → `{items,total,page,page_size}` | 200 | Item: `id,name,description?`. |
+| POST | `/api/v1/calc/material-categories` | Crea categoría. | `{name*,description?}` → `{category}` | 201 / 409 | Nombre único (case-insensitive) → 409. |
+| PATCH | `/api/v1/calc/material-categories/{id}` | Edita. | `{name?,description?}` → `{category}` | 200 / 404 / 409 | Requiere ≥1 campo. |
+| DELETE | `/api/v1/calc/material-categories/{id}` | Elimina. | — → `204` | 204 / 404 / 409 | Con materiales que la referencian → 409 + `{in_use_by:N}`. |
+| GET | `/api/v1/calc/product-categories` | Lista categorías de productos. | `?q,page,page_size` → `{items,total,page,page_size}` | 200 | Mismas reglas que material-categories. |
+| POST | `/api/v1/calc/product-categories` | Crea. | `{name*,description?}` → `{category}` | 201 / 409 | |
+| PATCH | `/api/v1/calc/product-categories/{id}` | Edita. | `{name?,description?}` → `{category}` | 200 / 404 / 409 | |
+| DELETE | `/api/v1/calc/product-categories/{id}` | Elimina. | — → `204` | 204 / 404 / 409 | |
+| GET | `/api/v1/calc/suppliers` | Lista proveedores. | `?q,page,page_size` → `{items,total,page,page_size}` | 200 | Item: `id,name,contact_name?,phone?,email?,notes?`. |
+| POST | `/api/v1/calc/suppliers` | Crea. | `{name*,contact_name?,phone?,email?,notes?}` → `{supplier}` | 201 / 422 | `email` validado; longitudes máximas por P5-CC RF. |
+| PATCH | `/api/v1/calc/suppliers/{id}` | Edita. | `{...}` → `{supplier}` | 200 / 404 / 422 | Requiere ≥1 campo. |
+| DELETE | `/api/v1/calc/suppliers/{id}` | Elimina. | — → `204` | 204 / 404 / 409 | Con materiales que lo referencian → 409. |
+| GET | `/api/v1/calc/default-costs` | Lista costos por defecto. | `?q,type?,page,page_size` → `{items,total,page,page_size}` | 200 | Item: `id,name,type,default_unit_cost_or_rate,default_quantity_or_minutes,status`. |
+| POST | `/api/v1/calc/default-costs` | Crea. | `{name*,type,default_unit_cost_or_rate*,default_quantity_or_minutes*,status?}` → `{default_cost}` | 201 / 422 | `type ∈ {labor, extra_cost}`; money Qty/Money. |
+| PATCH | `/api/v1/calc/default-costs/{id}` | Edita. | `{...}` → `{default_cost}` | 200 / 404 / 422 | |
+| DELETE | `/api/v1/calc/default-costs/{id}` | Elimina. | — → `204` | 204 / 404 | |
+
+### CC Materiales (P2-CC)
+| Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
+|---|---|---|---|---|---|
+| GET | `/api/v1/calc/materials` | Listado. | `?q,category_id?,supplier_id?,status?,page,page_size` → `{items,total,page,page_size}` | 200 | Item incluye `unit_cost` (derivado, string) y `status` (derivado: `incomplete` si falta precio o cantidad). |
+| POST | `/api/v1/calc/materials` | Crea. | `{name*,internal_code?,category_id?,supplier_id?,unit_of_measure?,purchase_total_price?,package_quantity?,notes?}` → `{material}` | 201 / 422 | FK inválidas → 404. `package_quantity` > 0 si se envía. |
+| GET | `/api/v1/calc/materials/{id}` | Detalle. | — → `{material}` | 200 / 404 | |
+| PATCH | `/api/v1/calc/materials/{id}` | Edita. | `{...}` → `{material}` | 200 / 404 / 422 | Cambio de precio que altere `unit_cost` → registra `material_cost_history`. |
+| DELETE | `/api/v1/calc/materials/{id}` | Elimina. | — → `204` | 204 / 404 / 409 | Usado en productos → 409 + `{impacted_products:N}`. |
+| GET | `/api/v1/calc/materials/{id}/cost-history` | Historial de costos. | `?page,page_size` → `{items,total,page,page_size}` | 200 | `{previous_unit_cost, new_unit_cost, changed_at}`. |
+
+### CC Productos (P4-CC + P3-CC)
+| Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
+|---|---|---|---|---|---|
+| GET | `/api/v1/calc/products` | Listado. | `?q,category_id?,status?,sort?,dir?,page,page_size` → `{items,total,page,page_size}` | 200 | `sort ∈ {name, cost, price, margin}`. |
+| POST | `/api/v1/calc/products` | Crea producto + líneas. | `{name*,sku?,category_id?,description?,notes?,margin_percent?,discount_percent?,tax_percent?,status?,materials:[{material_id*,quantity_used}],labor:[{activity_name*,hourly_rate*,minutes_required*}],extra_costs:[{concept_name*,unit_cost*,quantity*}]}` → `{product, costs}` | 201 / 404 / 422 | Snapshots de `unit_cost` al guardar. `costs` = desglose (P4-CC RF-03). |
+| GET | `/api/v1/calc/products/{id}` | Detalle. | `?include_versions?` → `{product, materials, labor, extra_costs, costs, versions?}` | 200 / 404 | |
+| PATCH | `/api/v1/calc/products/{id}` | Edita cualquier parte. | `{...campos, materials?,labor?,extra_costs?}` → `{product, costs}` | 200 / 404 / 422 | Líneas enviadas = reemplazo completo del set (transacción única). |
+| DELETE | `/api/v1/calc/products/{id}` | Elimina (soft delete). | — → `204` | 204 / 404 | `deleted_at` set; versiones históricas preservadas. |
+| POST | `/api/v1/calc/products/{id}/recalculate` | Recalcula desglose. | — → `{product, costs}` | 200 / 404 | Si `final_sale_price` cambió → nueva versión en histórico. |
+| GET | `/api/v1/calc/products/{id}/versions` | Historial de versiones. | `?page,page_size` → `{items,total,page,page_size}` | 200 | `{version_number, product_total_cost, profit_amount, discount_amount, adjusted_profit_amount, tax_amount, final_sale_price, changed_at}`. |
+| POST | `/api/v1/calc/products/recalculate-all` | Recálculo global. | — → `{recalculated:N}` | 200 | Solo productos `active`. |
+| GET | `/api/v1/calc/products/price-list` | Lista de precios (activos). | `?q,category_id?,page,page_size` → `{items,total,page,page_size}` | 200 | Solo `status=active`; incluye categoría y precio final redondeado. |
+| GET | `/api/v1/calc/products/price-list/export` | Export CSV. | `?q,category_id?` → `text/csv` | 200 | Columnas: id, name, category, cost, margin_pct, final_price. |
+| GET | `/api/v1/calc/dashboard` | Stats del admin. | — → `{active_materials, active_products, draft_products, incomplete_materials, avg_product_cost, avg_final_price, top_by_price, bottom_by_margin}` | 200 | `top_by_price[5]`, `bottom_by_margin[5]`.
+
+**Criterio de salida FASE CC**: con settings persistidas, un material con paquete y un producto con 2 materiales + 1 labor + 1 extra → `final_sale_price` coincide con la fórmula de `src/lib/pricing.js` de la app de origen (paridad verificada en tests).
 
 ---
 
@@ -145,7 +202,7 @@ api/presentation/routers/
 | Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
 |---|---|---|---|---|---|
 | GET | `/api/v1/customers` | Lista de clientes. | `?q,page,page_size` → `{items,total,...}` | 200 | `{id,name,phone,email}`. |
-| POST | `/api/v1/customers` | Crea cliente. | `{name*, phone?, email?}` → `{customer}` | 201 / 409 | **Sin duplicados exactos** por (name+phone) → 409. (RF-P6-08) |
+| POST | `/api/v1/customers` | Crea cliente. | `{name*, phone?, email?, delivery_address?}` → `{customer}` | 201 / 409 | **Sin duplicados exactos** por (name+phone) → 409. (RF-P6-08) |
 | GET | `/api/v1/customers/{id}` | Detalle. | — → `{customer, orders?}` | 200 / 404 | |
 | PATCH | `/api/v1/customers/{id}` | Edita. | `{...}` → `{customer}` | 200 | |
 | DELETE | `/api/v1/customers/{id}` | Elimina. | — → `204` | 204 / 409 | 409 si tiene pedidos. |
@@ -153,13 +210,16 @@ api/presentation/routers/
 ### Pedidos (P6)
 | Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
 |---|---|---|---|---|---|
-| GET | `/api/v1/orders` | Lista con filtros. | `?customer,status,from,to,q,page,page_size` → `{items,total,...}` | 200 | Item: `id,customer,status,final_price,date`. |
-| POST | `/api/v1/orders` | Crea pedido. | `{customer_id*, date?, margin_pct?(override), items:[{product_id,qty,portion_note?}]}` → `{order, breakdown}` | 201 | **No descuenta stock** (descuenta al confirmar). Snapshot de precios. |
+| GET | `/api/v1/orders` | Lista con filtros. | `?customer,status,paid,from,to,q,page,page_size` → `{items,total,...}` | 200 | Item: `id,customer,status,paid,final_price,date`. |
+| POST | `/api/v1/orders` | Crea pedido. | `{customer_id*, date?, margin_pct?(override), items:[{product_id,qty,portion_note?}]}` → `{order, breakdown}` | 201 / 409 | **No descuenta stock** (descuenta al confirmar). Snapshot de precios. Si `order_window_open=false` → 409 `order_window_closed` + mensaje (RF-P6-09). |
 | GET | `/api/v1/orders/{id}` | Detalle con desglose. | — → `{order, items, breakdown}` | 200 / 404 | `breakdown`: materiales (por insumo), labor, gas, margin_pct, gain, final, rounded. Inmutable (snapshot). |
 | PATCH | `/api/v1/orders/{id}` | Edita ítems / margen override. | `{items?, margin_pct?}` → `{order, breakdown}` | 200 | Solo si `status=nuevo`. Recalcula. |
 | PATCH | `/api/v1/orders/{id}/status` | Transición de estado. | `{status}` → `{order}` | 200 / 409 | `nuevo→confirmado` = **descuento atómico** de stock (`SELECT…FOR UPDATE`); si falta → 409 + insumo faltante, sin cambios. `→entregado`. `→cancelado` (desde confirmado) = re-pozo de stock. Header `Idempotency-Key` en confirmar. |
 | DELETE | `/api/v1/orders/{id}` | Elimina. | — → `204` | 204 / 409 | Solo `nuevo` (o `cancelado`). |
 | POST | `/api/v1/orders/{id}/whatsapp-link` | Genera + registra `wa.me`. | — → `{url, sent_at}` | 200 | Template: saludo + ítems con precios + total. (CTA "Le paso $X"). |
+| PATCH | `/api/v1/orders/{id}/paid` | Marca pago (independiente del estado). | `{paid: bool}` → `{order}` | 200 / 404 | Campo server-managed; no toca estado ni stock. (RF-P6-10) |
+| GET | `/api/v1/orders/weekly` | Resumen de la semana. | `?week?` → `{week:{from,to}, items, totals:{amount,paid,unpaid}}` | 200 | Semana natural Lun–Dom; pedidos `confirmado`/`entregado`. (RF-P6-11) |
+| GET | `/api/v1/orders/export` | Export CSV. | `?from,to,status,paid` → `text/csv` | 200 | Columnas: id, cliente, fecha, ítems, total, estado, pago. Streaming. (RF-P6-11) |
 | GET | `/api/v1/orders/{id}/quote` | (opcional) preview/recalcula cotización. | — → `{breakdown}` | 200 | |
 
 **Criterio de salida F2**: pedido → stock descuenta, precio cuadra con la fórmula, no se permite stock negativo (concurrency: 2 confirmaciones simultáneas → 1 gana, 1 → 409).
@@ -172,14 +232,14 @@ api/presentation/routers/
 ### Presupuestos (P7 wizard + P8 resumen)
 | Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
 |---|---|---|---|---|---|
-| POST | `/api/v1/budgets` | Crea presupuesto (wizard completo). | `{customer:{...}o customer_id, delivery_date?, notes?, items:[{product_id,qty,unit_price?(override manual)}], margin_pct?(override), calc_mode(cost_plus/manual)}` → `{budget, seq, summary}` | 201 | Asigna `seq` `#000NN` por tenant (row lock, gap permitido). Snapshot de cálculo. |
+| POST | `/api/v1/budgets` | Crea presupuesto (wizard completo). | `{customer:{...}o customer_id (con delivery_address?), delivery_date?, notes?, items:[{product_id,qty,unit_price?(override manual)}], margin_pct?(override), calc_mode(cost_plus/manual)}` → `{budget, seq, summary}` | 201 | Asigna `seq` `#000NN` por tenant (row lock, gap permitido). Snapshot de cálculo. |
 | GET | `/api/v1/budgets` | Lista de presupuestos. | `?q,from,to,status,page,page_size` → `{items,total,...}` | 200 | Item: `seq,customer,final, status(borrador/enviado), date`. |
 | GET | `/api/v1/budgets/{id}` | Detalle con ítems + cálculo. | — → `{budget, items, summary}` | 200 / 404 | `summary`: subtotal, total_costos, gain_pct, gain_amount, total_venta. Consistente (invariantes). |
 | PUT | `/api/v1/budgets/{id}` | Actualiza presupuesto. | `{...campos, items?}` → `{budget, summary}` | 200 | Solo `borrador`. Reenviar tras editar genera **nueva versión**. |
 | PATCH | `/api/v1/budgets/{id}/items` | Ajusta cantidades/ítems. | `{items:[{product_id,qty,unit_price?}]}` → `{summary}` | 200 | Recalcula < 50 ms. (RF-P8-02) |
 | DELETE | `/api/v1/budgets/{id}` | Elimina. | — → `204` | 204 | **No toca stock ni pedidos**. |
 | POST | `/api/v1/budgets/{id}/recalculate` | Recalcula resumen. | — → `{summary}` | 200 | Modo cost-plus o manual (explícito en UI). |
-| POST | `/api/v1/budgets/{id}/convert-to-order` | Convierte en pedido. | — → `{order}` | 201 | Crea pedido con mismos ítems (F2). |
+| POST | `/api/v1/budgets/{id}/convert-to-order` | Convierte en pedido. | — → `{order_id, seq}` | 201 | Crea pedido con mismos ítems y respeta los precios manuales. Solo presupuestos `enviado` (si no: 409 `budget_not_sent`). Guarda `order_id` en el presupuesto; una segunda conversión responde 409 `already_converted`. (RF-P8-08) |
 | POST | `/api/v1/budgets/{id}/send` | Marca enviado (congela versión). | — → `{budget, sent_at}` | 200 / 409 | `borrador→enviado`; snapshot inmutable por versión (auditoría). Header `Idempotency-Key`. |
 
 ### PDF (P9)
@@ -187,6 +247,7 @@ api/presentation/routers/
 |---|---|---|---|---|---|
 | GET | `/api/v1/budgets/{id}/pdf` | Devuelve/genera PDF. | — → `application/pdf` (stream) | 200 / 404 | Server-side (ReportLab/WeasyPrint). Branding del tenant, **sin costos internos**. Cache por hash de contenido; invalidado al editar. |
 | POST | `/api/v1/budgets/{id}/pdf` | (opcional) genera + devuelve link temporal firmado. | — → `{url, expires_at}` | 200 | Link temporal con expiración (no expone el file estático). |
+| GET | `/api/v1/budgets/export` | Export CSV de presupuestos. | `?from,to,status` → `text/csv` | 200 | Columnas: seq, cliente, fecha, entrega, total venta, estado. (RF-P6-11) |
 
 ### WhatsApp (P10)
 | Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
@@ -221,11 +282,11 @@ api/presentation/routers/
 | Fase | Endpoints core | Routers |
 |---|---|---|
 | F0 Fundaciones | 12 | system, auth, auth-google, tenant |
-| F1 Motor + catálogo | 16 | tenant(settings), ingredients, products |
-| F2 Pedidos y stock | 13 | customers, orders |
-| F3 Presupuestos + PDF + WhatsApp | 14 | budgets, pdf, webhooks |
+| F1 Motor + catálogo | 18 | tenant(settings+order-window), ingredients, products |
+| F2 Pedidos y stock | 16 | customers, orders |
+| F3 Presupuestos + PDF + WhatsApp | 15 | budgets, pdf, webhooks |
 | F4 Endurecimiento | 0 nuevos (+1 opcional contacto) | cross-cutting |
-| **Total** | **~53** | 10 routers |
+| **Total** | **~61** | 10 routers |
 
 ### Endpoints aún por confirmar con Gaspar
 1. `/tenant/settings/recalculate` (F1): ¿recálculo global síncrono o task asíncrona? (impacta UX si catálogo grande).
@@ -233,6 +294,7 @@ api/presentation/routers/
 3. `orders/{id}/quote` (F2): ¿se necesita como endpoint separado o basta con `PATCH` + `GET`?
 4. Contacto: ¿existe página de contacto en el producto? (define si entra `POST /contact`).
 5. Inbound WhatsApp (F3/F4): ¿se habilita en la v1 o se deja out-of-scope? (define si `webhooks/whatsapp` es obligatorio o opcional de fase).
+6. `tenant/order-window` (F1): GET autenticado (decisión actual: v1 no tiene catálogo público, el banner solo aparece dentro de la app). Si aparece un catálogo público, el GET pasa a la allow-list de `security.md` #6.
 
 ---
 

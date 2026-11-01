@@ -4,7 +4,8 @@
 
 ## Qué datos pedimos y por qué
 
-- **Email.** Para crear tu cuenta y enviarte el link de acceso. Sin email no hay cuenta.
+- **Email.** Para crear tu cuenta y enviarte el link de acceso. Sin email no hay cuenta. El link viaja por un proveedor de email transaccional: con él solo se comparte tu email.
+- **Tu cuenta de Google, si entrás con el botón Google.** Usamos solo tu identidad (un ID único y el dato de que tu email está verificado) para que no tengas que recordar la cuenta. No pedimos acceso a tu Gmail, contactos ni nada más; tus recetas, costos y precios nunca se envían a Google.
 - **Nombre de tu negocio, moneda y ciudad.** Para que tus documentos y precios se vean bien.
 - **Insumos, recetas, pedidos y presupuestos.** Para hacer lo que pediste: calcular costos y armar presupuestos.
 - **Teléfono y email de tus clientes.** Para que el presupuesto se pueda enviar por WhatsApp. Solo se muestran en tus propios documentos y mensajes.
@@ -14,6 +15,7 @@
 
 - No pedimos tu tarjeta. El pago se hace fuera de la app.
 - No pedimos acceso a tus redes sociales.
+- Del botón Google, no pedimos nada más allá de la identidad (ver arriba).
 - No vendemos tus datos ni los de tus clientes a nadie.
 
 ## Qué hacemos con tus datos

@@ -12,7 +12,8 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import List, Optional, Tuple
 
-from sqlalchemy import func, insert, literal, or_, select
+from sqlalchemy import func, insert, literal, or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -67,6 +68,7 @@ def _budget_to_domain(orm: BudgetORM) -> Budget:
         created_at=orm.created_at,
         updated_at=orm.updated_at,
         sent_at=orm.sent_at,
+        order_id=orm.order_id,
     )
 
 
@@ -167,23 +169,36 @@ class SQLBudgetRepository:
 
     # -------------------------------------------------------------- mutables
 
+    async def _bump_sequence(self) -> Optional[int]:
+        """UPDATE atomico ... RETURNING: la base serializa los incrementos
+        concurrentes (bloqueo de fila), no hay lectura-modificacion-escritura."""
+        return (
+            await self.session.execute(
+                update(TenantSequenceORM)
+                .where(TenantSequenceORM.key == BUDGET_SEQUENCE_KEY)
+                .values(current=TenantSequenceORM.current + 1)
+                .returning(TenantSequenceORM.current)
+                .execution_options(synchronize_session=False)
+            )
+        ).scalar_one_or_none()
+
     async def _next_sequence(self) -> str:
         """Incrementa y devuelve la secuencia del tenant. El commit lo
         hace el llamador: falla -> rollback, el contador no se mueve."""
-        row = (
-            await self.session.execute(
-                select(TenantSequenceORM).where(
-                    TenantSequenceORM.key == BUDGET_SEQUENCE_KEY
-                )
-            )
-        ).scalars().first()
-        if row is None:
-            row = TenantSequenceORM(key=BUDGET_SEQUENCE_KEY, current=0)
-            self.session.add(row)
-            await self.session.flush()
-        row.current += 1
-        await self.session.flush()
-        return format_sequence(row.current)
+        current = await self._bump_sequence()
+        if current is None:
+            # Primera vez: crear la fila. Si otra transaccion la creo antes
+            # (PK duplicada), se descarta el savepoint y se reintenta el UPDATE.
+            try:
+                async with self.session.begin_nested():
+                    self.session.add(
+                        TenantSequenceORM(key=BUDGET_SEQUENCE_KEY, current=0)
+                    )
+            except IntegrityError:
+                pass
+            current = await self._bump_sequence()
+        assert current is not None
+        return format_sequence(current)
 
     async def create(self, budget: Budget) -> Budget:
         try:
@@ -313,6 +328,25 @@ class SQLBudgetRepository:
                 await self.session.delete(event)
             await self.session.commit()
             return True
+        except Exception:
+            await self.session.rollback()
+            raise
+
+    # -------------------------------------------------------------- convert
+
+    async def mark_converted(self, budget_id: str, order_id: str) -> bool:
+        """Asocia el pedido solo si el presupuesto sigue sin convertir
+        (UPDATE condicional: la base serializa conversiones concurrentes).
+        False = ya estaba convertido o no existe."""
+        try:
+            result = await self.session.execute(
+                update(BudgetORM)
+                .where(BudgetORM.id == budget_id, BudgetORM.order_id.is_(None))
+                .values(order_id=order_id)
+                .execution_options(synchronize_session=False)
+            )
+            await self.session.commit()
+            return result.rowcount == 1
         except Exception:
             await self.session.rollback()
             raise

@@ -50,7 +50,9 @@ from api.v1.orders.schemas import (
 )
 from api.v1.settings.dependencies import get_settings_repository
 from domain.use_cases import GetSettings
+from domain.use_cases.transition_order_status import TransitionOrderStatus
 from data.repositories.sql_ingredient_repository import SQLIngredientRepository
+from data.repositories.sql_order_repository import SQLOrderRepository
 from data.repositories.sql_product_repository import SQLProductRepository
 from domain.models import BusinessSettings, Ingredient, Product, User
 from domain.order_pricing import price_order_item
@@ -60,6 +62,7 @@ from domain.orders import (
     Order,
     OrderItem,
     OrderItemSnapshot,
+    OrderNotEditableError,
     transition_status,
 )
 from domain.pricing import UnitConversionError
@@ -484,7 +487,10 @@ async def update_order(
         items=tuple(items),
         snapshots=snapshots,
     )
-    saved = await order_repo.update(order)
+    try:
+        saved = await order_repo.update(order)
+    except OrderNotEditableError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     if saved is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Pedido no encontrado"
@@ -496,7 +502,7 @@ async def update_order(
 async def patch_order_status(
     order_id: str,
     payload: OrderStatusPatch,
-    order_repo: OrderRepository = Depends(get_order_repository),
+    order_repo: SQLOrderRepository = Depends(get_order_repository),
     ingredient_repo: SQLIngredientRepository = Depends(get_ingredient_repository),
     _admin: User = Depends(require_admin),
 ):
@@ -514,49 +520,55 @@ async def patch_order_status(
     except InvalidStatusTransitionError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    if payload.status == "confirmado":
-        try:
-            updated = await order_repo.confirm(order)
-        except InsufficientOrderStockError as e:
-            details: List[InsufficientStockItem] = []
-            for ingredient_id, faltante in e.shortage.items():
-                row = await ingredient_repo.get(ingredient_id)
-                available = (
-                    row.stock_qty if row is not None else Decimal("0")
+    try:
+        return await _apply_status(order, payload.status, order_repo, ingredient_repo)
+    except InvalidStatusTransitionError as e:
+        # Revalidado bajo lock en el repositorio (carrera con otro PATCH).
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+async def _apply_status(
+    order: Order,
+    target: str,
+    order_repo: SQLOrderRepository,
+    ingredient_repo: SQLIngredientRepository,
+):
+    try:
+        updated = await TransitionOrderStatus(order_repo).execute(order.id, target)
+    except InsufficientOrderStockError as e:
+        details: List[InsufficientStockItem] = []
+        for ingredient_id, faltante in e.shortage.items():
+            row = await ingredient_repo.get(ingredient_id)
+            # available/required capturados bajo lock (RNF-P6-04).
+            available = e.available.get(ingredient_id, Decimal("0"))
+            required = e.required.get(ingredient_id, available + faltante)
+            details.append(
+                InsufficientStockItem(
+                    ingredient_id=ingredient_id,
+                    ingredient_name=(
+                        row.name if row is not None else "insumo borrado"
+                    ),
+                    available=available,
+                    required=required,
                 )
-                details.append(
-                    InsufficientStockItem(
-                        ingredient_id=ingredient_id,
-                        ingredient_name=(
-                            row.name if row is not None else "insumo borrado"
-                        ),
-                        available=available,
-                        # el dominio guarda el FALTANTE; la API reporta el
-                        # requerido total.
-                        required=available + faltante,
-                    )
-                )
-            return JSONResponse(
-                status_code=status.HTTP_409_CONFLICT,
-                content={
-                    "error": "Stock insuficiente para confirmar el pedido",
-                    # JSONResponse no sabe serializar Decimal (RNF-P4-02):
-                    # el dinero viaja como str.
-                    "insufficient_stock": [
-                        {
-                            "ingredient_id": d.ingredient_id,
-                            "ingredient_name": d.ingredient_name,
-                            "available": str(d.available),
-                            "required": str(d.required),
-                        }
-                        for d in details
-                    ],
-                },
             )
-    elif payload.status == "cancelado":
-        updated = await order_repo.cancel(order)
-    else:  # entregado
-        updated = await order_repo.mark_delivered(order)
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "error": "Stock insuficiente para confirmar el pedido",
+                # JSONResponse no sabe serializar Decimal (RNF-P4-02):
+                # el dinero viaja como str.
+                "insufficient_stock": [
+                    {
+                        "ingredient_id": d.ingredient_id,
+                        "ingredient_name": d.ingredient_name,
+                        "available": str(d.available),
+                        "required": str(d.required),
+                    }
+                    for d in details
+                ],
+            },
+        )
     return _detail_response(updated, updated.whatsapp_sent_at)
 
 
@@ -574,7 +586,8 @@ async def whatsapp_link(
             status_code=status.HTTP_404_NOT_FOUND, detail="Pedido no encontrado"
         )
     message = _whatsapp_message(order)
-    url = f"https://wa.me/{order.customer_phone}?text={quote(message)}"
+    digits = "".join(ch for ch in order.customer_phone if ch.isdigit())
+    url = f"https://wa.me/{digits}?text={quote(message)}"
     now = datetime.datetime.now(datetime.timezone.utc)
     await repo.mark_whatsapp_sent(order, now)
     return WhatsAppLinkResponse(url=url, message=message)

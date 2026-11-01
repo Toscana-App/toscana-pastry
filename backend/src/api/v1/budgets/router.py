@@ -56,23 +56,30 @@ from data.repositories.sql_product_repository import SQLProductRepository
 from domain.budget_pricing import unit_product_cost
 from domain.budgets import (
     Budget,
+    BudgetAlreadyConvertedError,
+    BudgetNotConvertibleError,
     CalculationMode as CalcMode,
     NoBudgetChangesError,
-    derive_budget_items,
     transition_to_sent,
 )
-from domain.models import BusinessSettings, Ingredient, Product, User
-from domain.order_pricing import OrderItemSnapshot, price_order_item
-from domain.orders import Order, OrderItem
+from domain.models import BusinessSettings, User
 from domain.pricing import UnitConversionError
 from domain.repositories import (
     BudgetRepository,
     CustomerRepository,
+    IngredientRepository,
     OrderRepository,
     ProductRepository,
     SettingsRepository,
 )
-from domain.use_cases import GetSettings
+from domain.use_cases import (
+    BudgetItemDraft,
+    BudgetNotFoundError,
+    ConvertBudgetToOrder,
+    DeriveBudgetItems,
+    GetSettings,
+    UnknownProductError,
+)
 from domain.whatsapp import (
     WHATSAPP_DAILY_LIMIT,
     budget_whatsapp_message,
@@ -136,70 +143,33 @@ def _detail_response(budget: Budget) -> BudgetDetailResponse:
     )
 
 
-async def _load_products(
-    repo: ProductRepository, product_ids: List[str]
-) -> Dict[str, Product]:
-    by_id: Dict[str, Product] = {}
-    for product_id in dict.fromkeys(product_ids):
-        product = await repo.get(product_id)
-        if product is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Producto desconocido o eliminado: {product_id}",
-            )
-        by_id[product_id] = product
-    return by_id
-
-
-async def _load_ingredients(repo: SQLIngredientRepository) -> Dict[str, Ingredient]:
-    """Insumos activos paginados (los borrados quedan con costo 0, mismo
-    criterio que el pedido)."""
-    by_id: Dict[str, Ingredient] = {}
-    page = 1
-    while True:
-        items, total = await repo.list(None, None, page, 100)
-        for item in items:
-            by_id[item.id] = item
-        if not items or len(by_id) >= total:
-            break
-        page += 1
-    return by_id
-
-
-def _resolve_margin(
-    margin_override: Optional[Decimal], settings: BusinessSettings
-) -> Decimal:
-    return margin_override if margin_override is not None else settings.margin_pct
-
-
 async def _derive_items(
     product_repo: ProductRepository,
-    ingredient_repo: SQLIngredientRepository,
+    ingredient_repo: IngredientRepository,
     settings: BusinessSettings,
     inputs: List[BudgetItemInput],
     margin_override: Optional[Decimal],
     mode: CalcMode,
 ) -> Tuple[list, Decimal]:
-    """Deriva (items, margin_applied) contra el catalogo corriente.
-    El override de precio solo rige en modo manual (RF-P7-05)."""
-    try:
-        products = await _load_products(
-            product_repo, [i.product_id for i in inputs]
+    """Mapea la entrada HTTP (centavos) al caso de uso y sus errores a 400."""
+    drafts = [
+        BudgetItemDraft(
+            product_id=i.product_id,
+            qty=i.qty,
+            price_override=(
+                cents_to_decimal(i.price_override)
+                if i.price_override is not None
+                else None
+            ),
         )
-        ingredients_by_id = await _load_ingredients(ingredient_repo)
-    except UnitConversionError as e:
+        for i in inputs
+    ]
+    try:
+        return await DeriveBudgetItems(product_repo, ingredient_repo).execute(
+            settings, drafts, margin_override, mode
+        )
+    except (UnknownProductError, UnitConversionError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    margin_applied = _resolve_margin(margin_override, settings)
-    raw = []
-    for entry in inputs:
-        product = products[entry.product_id]
-        unit_cost = unit_product_cost(product, ingredients_by_id, settings)
-        override: Optional[Decimal] = None
-        if entry.price_override is not None and mode == CalcMode.MANUAL:
-            override = cents_to_decimal(entry.price_override)
-        raw.append((entry.product_id, product.name, entry.qty, unit_cost, override))
-    items, _totals = derive_budget_items(tuple(raw), margin_applied)
-    return list(items), margin_applied
 
 
 # ---------------------------------------------------------------------------
@@ -256,7 +226,7 @@ async def create_budget(
     budget_repo: BudgetRepository = Depends(get_budget_repository),
     customer_repo: CustomerRepository = Depends(get_customer_repository),
     product_repo: ProductRepository = Depends(get_product_repository),
-    ingredient_repo: SQLIngredientRepository = Depends(get_ingredient_repository),
+    ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     _admin: User = Depends(require_admin),
 ):
@@ -312,7 +282,7 @@ async def update_budget(
     budget_repo: BudgetRepository = Depends(get_budget_repository),
     customer_repo: CustomerRepository = Depends(get_customer_repository),
     product_repo: ProductRepository = Depends(get_product_repository),
-    ingredient_repo: SQLIngredientRepository = Depends(get_ingredient_repository),
+    ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     _admin: User = Depends(require_admin),
 ):
@@ -395,7 +365,7 @@ async def patch_budget_items(
     payload: BudgetItemsPatch,
     budget_repo: BudgetRepository = Depends(get_budget_repository),
     product_repo: ProductRepository = Depends(get_product_repository),
-    ingredient_repo: SQLIngredientRepository = Depends(get_ingredient_repository),
+    ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     _admin: User = Depends(require_admin),
 ):
@@ -456,7 +426,7 @@ async def recalculate_budget(
     budget_id: str,
     budget_repo: BudgetRepository = Depends(get_budget_repository),
     product_repo: ProductRepository = Depends(get_product_repository),
-    ingredient_repo: SQLIngredientRepository = Depends(get_ingredient_repository),
+    ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     _admin: User = Depends(require_admin),
 ):
@@ -521,64 +491,33 @@ async def convert_to_order(
     budget_repo: BudgetRepository = Depends(get_budget_repository),
     order_repo: OrderRepository = Depends(get_order_repository),
     product_repo: ProductRepository = Depends(get_product_repository),
-    ingredient_repo: SQLIngredientRepository = Depends(get_ingredient_repository),
+    ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     _admin: User = Depends(require_admin),
 ):
-    """Convierte en pedido (RF-P8-02): mismo cliente e items, estado
-    `nuevo`, con SUS PROPIOS snapshots de precios congelados (RNF-P6-03)
-    y el margen del presupuesto (o el del tenant). El descuento de stock
-    ocurre al confirmar el pedido, no aqui."""
-    budget = await budget_repo.get(budget_id)
-    if budget is None:
+    """Convierte en pedido (RF-P8-02, RF-P8-08): solo presupuestos
+    `enviado`, una sola vez (409 `already_converted`). La orquestacion
+    vive en el caso de uso ConvertBudgetToOrder."""
+    use_case = ConvertBudgetToOrder(
+        budget_repo, order_repo, product_repo, ingredient_repo, settings_repo
+    )
+    try:
+        result = await use_case.execute(budget_id)
+    except BudgetNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Presupuesto no encontrado"
         )
-    settings = await GetSettings(settings_repo).execute()
-    try:
-        products = await _load_products(
-            product_repo, [item.product_id for item in budget.items]
+    except BudgetAlreadyConvertedError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="already_converted"
         )
-        ingredients_by_id = await _load_ingredients(ingredient_repo)
-    except UnitConversionError as e:
+    except BudgetNotConvertibleError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="budget_not_sent"
+        )
+    except (UnknownProductError, UnitConversionError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    inputs = [
-        OrderItemInput(product_id=item.product_id, qty=item.qty)
-        for item in budget.items
-    ]
-    order_items: List[OrderItem] = []
-    snapshots: Dict[str, OrderItemSnapshot] = {}
-    for entry in inputs:
-        product = products[entry.product_id]
-        portions = product.servings
-        snapshot = price_order_item(
-            product,
-            ingredients_by_id,
-            settings,
-            qty=entry.qty,
-            portions=portions,
-            margin_override=budget.margin_pct,
-        )
-        order_item = OrderItem(
-            product_id=product.id or "",
-            qty=entry.qty,
-            portions=portions,
-            note="",
-            product_name=product.name,
-        )
-        order_items.append(order_item)
-        snapshots[order_item.id or ""] = snapshot
-    order = Order(
-        customer_id=budget.customer_id,
-        customer_name=budget.customer_name,
-        customer_phone=budget.customer_phone,
-        date=datetime.date.today(),
-        margin_pct=budget.margin_pct,
-        items=tuple(order_items),
-        snapshots=snapshots,
-    )
-    created = await order_repo.create(order)
-    return ConvertToOrderResponse(order_id=created.id or "", seq=budget.seq)
+    return ConvertToOrderResponse(order_id=result.order_id, seq=result.seq)
 
 
 @router.post("/{budget_id}/send", response_model=BudgetDetailResponse)

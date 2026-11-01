@@ -13,7 +13,7 @@ Contrato:
   response informa `impacted_orders` (200); sin pedidos, 204. A diferencia
   de los insumos en recetas activas, no se bloquea con 409.
 """
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse
@@ -33,38 +33,41 @@ from api.v1.products.schemas import (
 )
 from api.v1.settings.dependencies import get_settings_repository
 from domain.models import (
-    BusinessSettings,
     Ingredient,
     Product,
     RecipeItem,
     User,
 )
-from domain.pricing import CostBreakdown, calculate_price
+from domain.pricing import CostBreakdown
 from domain.product_price import ProductPrice, derive_product_price, line_cost_of_item
 from domain.repositories import (
     IngredientRepository,
     ProductRepository,
     SettingsRepository,
 )
-from domain.use_cases import GetSettings
+from domain.use_cases import (
+    CreateProduct,
+    GetSettings,
+    ProductValidationError,
+    UpdateProduct,
+)
 
 router = APIRouter(prefix="/products", tags=["products"])
 
-_ALL_INGREDIENTS_PAGE_SIZE = 100
+
+async def _load_ingredients(
+    repo: IngredientRepository, products: Iterable[Product]
+) -> Dict[str, Ingredient]:
+    """Solo los insumos usados por las recetas de `products` (una consulta)."""
+    ids = {item.ingredient_id for product in products for item in product.recipe}
+    return {ingredient.id: ingredient for ingredient in await repo.get_many(list(ids))}
 
 
-async def _load_ingredients(repo: IngredientRepository) -> Dict[str, Ingredient]:
-    """Todos los insumos activos (app single-tenant: el catalogo es chico)."""
-    by_id: Dict[str, Ingredient] = {}
-    page = 1
-    while True:
-        items, total = await repo.list(None, None, page, _ALL_INGREDIENTS_PAGE_SIZE)
-        for item in items:
-            by_id[item.id] = item
-        if not items or len(by_id) >= total:
-            break
-        page += 1
-    return by_id
+def _to_recipe_items(inputs: List[RecipeItemInput]) -> List[RecipeItem]:
+    return [
+        RecipeItem(ingredient_id=entry.ingredient_id, qty=entry.qty, unit=entry.unit)
+        for entry in inputs
+    ]
 
 
 def _breakdown_response(
@@ -143,97 +146,6 @@ def _detail_response(
     )
 
 
-def _assemble_product(
-    name: Optional[str],
-    category: Optional[str],
-    description: Optional[str],
-    prep_time_min: Optional[int],
-    servings: Optional[int],
-    difficulty: Optional[str],
-    recipe_inputs: Optional[List[RecipeItemInput]],
-    existing: Optional[Product],
-    settings: BusinessSettings,
-    ingredients_by_id: Dict[str, Ingredient],
-) -> Tuple[Optional[Product], Optional[str]]:
-    """Arma el Product de dominio y valida la receta contra los insumos
-    corrientes. En create, los campos omitidos vienen de los default de
-    settings (RF-P4-01). Devuelve (product, error)."""
-    if existing is None:
-        name = name or ""
-        category = category or ""
-        description = description or ""
-        prep_time_min = (
-            settings.default_prep_minutes if prep_time_min is None else prep_time_min
-        )
-        servings = settings.default_servings if servings is None else servings
-        difficulty = settings.default_difficulty if difficulty is None else difficulty
-    else:
-        name = name if name is not None else existing.name
-        category = category if category is not None else existing.category
-        description = description if description is not None else existing.description
-        prep_time_min = (
-            prep_time_min if prep_time_min is not None else existing.prep_time_min
-        )
-        servings = servings if servings is not None else existing.servings
-        difficulty = (
-            difficulty if difficulty is not None else existing.difficulty
-        )
-
-    if recipe_inputs is not None:
-        recipe_items: List[RecipeItem] = []
-        line_items: List[tuple] = []
-        for entry in recipe_inputs:
-            ingredient = ingredients_by_id.get(entry.ingredient_id)
-            if ingredient is None:
-                return None, f"Insumo desconocido en la receta: {entry.ingredient_id}"
-            recipe_items.append(
-                RecipeItem(
-                    ingredient_id=entry.ingredient_id,
-                    qty=entry.qty,
-                    unit=entry.unit,
-                )
-            )
-            line_items.append(
-                (entry.qty, entry.unit, ingredient.price_per_unit, ingredient.unit)
-            )
-    else:
-        # Receta sin cambios: se conserva. Lineas cuyo insumo fue borrado
-        # no bloquean el guardado (el producto queda "incompleto" en
-        # lectura; el detalle lo muestra).
-        recipe_items = list(existing.recipe) if existing is not None else []
-        line_items = [
-            (
-                item.qty,
-                item.unit,
-                ingredients_by_id[item.ingredient_id].price_per_unit,
-                ingredients_by_id[item.ingredient_id].unit,
-            )
-            for item in recipe_items
-            if item.ingredient_id in ingredients_by_id
-        ]
-
-    try:
-        product = Product(
-            name=name,
-            category=category,
-            recipe=tuple(recipe_items),
-            description=description,
-            prep_time_min=prep_time_min,
-            servings=servings,
-            difficulty=difficulty,
-            **({"id": existing.id, "deleted_at": existing.deleted_at} if existing else {}),
-        )
-    except ValueError as e:
-        return None, str(e)
-    # Validacion de unidades con el mismo codigo que /pricing/preview
-    # (UnitConversionError hereda de ValueError).
-    try:
-        calculate_price(line_items, product.prep_time_min, settings.to_pricing())
-    except ValueError as e:
-        return None, str(e)
-    return product, None
-
-
 @router.get("", response_model=ProductListResponse)
 async def list_products(
     q: Optional[str] = Query(default=None, min_length=1, max_length=120),
@@ -250,7 +162,7 @@ async def list_products(
     settings = await GetSettings(settings_repo).execute()
     items, total = await repo.list(q, category, page, page_size)
     categories = await repo.distinct_categories()
-    ingredients_by_id = await _load_ingredients(ingredient_repo)
+    ingredients_by_id = await _load_ingredients(ingredient_repo, items)
     return ProductListResponse(
         items=[
             _list_item(item, derive_product_price(item, ingredients_by_id, settings))
@@ -279,7 +191,7 @@ async def get_product(
             status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado"
         )
     settings = await GetSettings(settings_repo).execute()
-    ingredients_by_id = await _load_ingredients(ingredient_repo)
+    ingredients_by_id = await _load_ingredients(ingredient_repo, [product])
     return _detail_response(
         product, derive_product_price(product, ingredients_by_id, settings),
         ingredients_by_id,
@@ -296,23 +208,20 @@ async def create_product(
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     _admin: User = Depends(require_admin),
 ):
+    try:
+        product = await CreateProduct(repo, ingredient_repo, settings_repo).execute(
+            name=payload.name,
+            category=payload.category,
+            description=payload.description,
+            prep_time_min=payload.prep_time_min,
+            servings=payload.servings,
+            difficulty=payload.difficulty,
+            recipe=_to_recipe_items(payload.recipe),
+        )
+    except ProductValidationError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     settings = await GetSettings(settings_repo).execute()
-    ingredients_by_id = await _load_ingredients(ingredient_repo)
-    product, error = _assemble_product(
-        name=payload.name,
-        category=payload.category,
-        description=payload.description,
-        prep_time_min=payload.prep_time_min,
-        servings=payload.servings,
-        difficulty=payload.difficulty,
-        recipe_inputs=payload.recipe,
-        existing=None,
-        settings=settings,
-        ingredients_by_id=ingredients_by_id,
-    )
-    if error is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
-    await repo.create(product)
+    ingredients_by_id = await _load_ingredients(ingredient_repo, [product])
     return _detail_response(
         product, derive_product_price(product, ingredients_by_id, settings),
         ingredients_by_id,
@@ -329,33 +238,28 @@ async def update_product(
     _admin: User = Depends(require_admin),
 ):
     """Parcial; `recipe` reemplaza la receta completa cuando se envia."""
-    existing = await repo.get(product_id)
-    if existing is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado"
-        )
     provided = payload.model_dump(exclude_unset=True)
-    settings = await GetSettings(settings_repo).execute()
-    ingredients_by_id = await _load_ingredients(ingredient_repo)
-    product, error = _assemble_product(
-        name=provided.get("name"),
-        category=provided.get("category"),
-        description=provided.get("description"),
-        prep_time_min=provided.get("prep_time_min"),
-        servings=provided.get("servings"),
-        difficulty=provided.get("difficulty"),
-        recipe_inputs=payload.recipe if "recipe" in provided else None,
-        existing=existing,
-        settings=settings,
-        ingredients_by_id=ingredients_by_id,
-    )
-    if error is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
-    saved = await repo.update(product)
+    try:
+        saved = await UpdateProduct(repo, ingredient_repo, settings_repo).execute(
+            product_id,
+            name=provided.get("name"),
+            category=provided.get("category"),
+            description=provided.get("description"),
+            prep_time_min=provided.get("prep_time_min"),
+            servings=provided.get("servings"),
+            difficulty=provided.get("difficulty"),
+            recipe=(
+                _to_recipe_items(payload.recipe) if "recipe" in provided else None
+            ),
+        )
+    except ProductValidationError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     if saved is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado"
         )
+    settings = await GetSettings(settings_repo).execute()
+    ingredients_by_id = await _load_ingredients(ingredient_repo, [saved])
     return _detail_response(
         saved, derive_product_price(saved, ingredients_by_id, settings),
         ingredients_by_id,

@@ -258,6 +258,37 @@ async def test_create_422_validation_errors(client):
 
 
 @pytest.mark.asyncio
+async def test_recipe_over_30_lines_is_422(client):
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    flour = await _create_ingredient(client, headers, "Harina")
+    recipe = [
+        {"ingredient_id": f"ing-{n}", "qty": 1, "unit": "g"} for n in range(31)
+    ]
+    created = await client.post(
+        "/api/v1/products",
+        json={"name": "Torta", "category": "Tortas", "recipe": recipe},
+        headers=headers,
+    )
+    assert created.status_code == 422
+    ok = await client.post(
+        "/api/v1/products",
+        json={
+            "name": "Torta",
+            "category": "Tortas",
+            "recipe": [{"ingredient_id": flour["id"], "qty": 1, "unit": "g"}],
+        },
+        headers=headers,
+    )
+    assert ok.status_code == 201
+    updated = await client.patch(
+        f"/api/v1/products/{ok.json()['id']}",
+        json={"recipe": recipe},
+        headers=headers,
+    )
+    assert updated.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_create_400_unknown_ingredient(client):
     headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
     response = await client.post(
