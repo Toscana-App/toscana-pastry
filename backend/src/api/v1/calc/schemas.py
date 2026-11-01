@@ -298,6 +298,13 @@ class MaterialUpdate(BaseModel):
     package_quantity: Qty | None = Field(default=None, gt=Decimal("0"))
     notes: str | None = Field(default=None, max_length=MAX_MATERIAL_NOTES)
 
+    @field_validator("name", mode="before")
+    @classmethod
+    def _name_not_null(cls, value):
+        if value is None:
+            raise ValueError("nombre no puede ser null")
+        return value
+
     @field_validator("name")
     @classmethod
     def _name_not_blank(cls, value: str | None) -> str | None:

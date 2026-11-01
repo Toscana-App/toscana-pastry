@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
 from api.v1.dependencies import get_current_user, require_admin
+from api.v1.money import cents_to_decimal
 from domain.models import User
 from api.v1.calc.dependencies import (
     get_calc_settings_repository,
@@ -625,7 +626,9 @@ async def create_default_cost(
         cost = CalcDefaultCost(
             name=payload.name,
             type=payload.type,
-            default_unit_cost_or_rate=payload.default_unit_cost_or_rate,
+            default_unit_cost_or_rate=cents_to_decimal(
+                payload.default_unit_cost_or_rate
+            ),
             default_quantity_or_minutes=payload.default_quantity_or_minutes,
             status=payload.status,
         )
@@ -667,8 +670,10 @@ async def update_default_cost(
             id=existing.id,
             name=updates.get("name", existing.name),
             type=updates.get("type", existing.type),
-            default_unit_cost_or_rate=updates.get(
-                "default_unit_cost_or_rate", existing.default_unit_cost_or_rate
+            default_unit_cost_or_rate=(
+                cents_to_decimal(updates["default_unit_cost_or_rate"])
+                if "default_unit_cost_or_rate" in updates
+                else existing.default_unit_cost_or_rate
             ),
             default_quantity_or_minutes=updates.get(
                 "default_quantity_or_minutes", existing.default_quantity_or_minutes
@@ -754,7 +759,11 @@ async def create_material(
             category_id=payload.category_id,
             supplier_id=payload.supplier_id,
             unit_of_measure=payload.unit_of_measure,
-            purchase_total_price=payload.purchase_total_price,
+            purchase_total_price=(
+                cents_to_decimal(payload.purchase_total_price)
+                if payload.purchase_total_price is not None
+                else None
+            ),
             package_quantity=payload.package_quantity,
             notes=payload.notes,
         )
@@ -864,8 +873,14 @@ async def update_material(
             category_id=updates.get("category_id", existing.category_id),
             supplier_id=updates.get("supplier_id", existing.supplier_id),
             unit_of_measure=updates.get("unit_of_measure", existing.unit_of_measure),
-            purchase_total_price=updates.get(
-                "purchase_total_price", existing.purchase_total_price
+            purchase_total_price=(
+                (
+                    cents_to_decimal(updates["purchase_total_price"])
+                    if updates["purchase_total_price"] is not None
+                    else None
+                )
+                if "purchase_total_price" in updates
+                else existing.purchase_total_price
             ),
             package_quantity=updates.get("package_quantity", existing.package_quantity),
             notes=updates.get("notes", existing.notes),
@@ -896,6 +911,7 @@ async def delete_material(
     """DELETE /calc/materials/{id}: elimina (S4).
 
     Usado en lineas de productos -> 409 + {impacted_products: N}.
+    Con historial de costos -> 409 + {detail: "has_cost_history"}.
     """
     existing = await repo.get(material_id)
     if existing is None:
@@ -908,6 +924,12 @@ async def delete_material(
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,
             content={"impacted_products": in_use},
+        )
+    # El historial de costos es append-only: no se borra ni se deja huerfano.
+    if await repo.count_cost_history(material_id) > 0:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={"detail": "has_cost_history"},
         )
     deleted = await repo.delete(material_id)
     if deleted is None:

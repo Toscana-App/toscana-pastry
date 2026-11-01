@@ -83,6 +83,7 @@ precio_enviado  = round_up(precio_final, paso_redondeo)
 | P8 Presupuesto·resumen | `modules/budgets` | `/budgets/{id}`, `/budgets/{id}/items`, `/budgets/{id}/recalculate` | 3 |
 | P9 PDF | `modules/pdf` | `/budgets/{id}/pdf` (generación + download) | 3 |
 | P10 WhatsApp | `modules/whatsapp` + `api/bot` | `/budgets/{id}/whatsapp-link`, webhook `/webhooks/whatsapp` | 3 |
+| P11 Portal + checkout e2e | `modules/portal` + `modules/checkout` | `/orders/mine`, `/cart`, `/orders/{id}/payment`, webhook `/webhooks/mercadopago`, `/customers/me/addresses`, `/coupons`, `/leads` | 5 |
 
 Cada módulo web es autónomo: propios componentes, hooks y tests; comparte solo `shared/`.
 
@@ -141,6 +142,17 @@ Cada módulo web es autónomo: propios componentes, hooks y tests; comparte solo
 - Legal: política de privacidad + términos publicados (ver `legal_*.md`), enlace en footer.
 - **Criterio de salida**: Lighthouse ≥ 90 en las 4 categorías, checklist de seguridad 100%, legal publicado, sin warnings de build.
 
+### Fase 5 — Portal self-service + checkout e2e (Semanas 9–10) · **Entrega: el cliente pide y paga solo**
+- Precondición: roles de 3 vías + precios duales (`odd/tasks/roles-dual-pricing.md`). Especificación: `p11_portal_checkout.md` + `api_endpoints.md` §FASE 5.
+- Portal para `negocio`/`cliente`: catálogo con precio de su audiencia (fuga de precios = 403), carrito server-side, "Mis pedidos" (solo lectura).
+- **Checkout de 5 pasos** (patrón `toscana-demo`): Contacto → Dirección → Entrega → Pago → Revisar y confirmar; sin guest checkout en v1; 409 `order_window_closed` en el paso 5 (RF-P6-09).
+- **Pagos**: `payment_method ∈ {mercadopago, cash}` (p06 RF-P6-12…14). Mercado Pago vía `CheckoutProvider` agnóstico + `MockCheckoutProvider` (safe mode de la skill `mercadopago-integration`): `POST/GET /orders/{id}/payment` + webhook firmado e idempotente → `paid` automático. Efectivo: `paid=false` + badge "Cobrar en la entrega", lo marca la dueña.
+- **Libro de direcciones por cliente** (máx. 5, default) usado en checkout y como sugerencia en el wizard de presupuestos (P7).
+- **Cupones**: ABM admin (percent/fixed, vigencia, `max_uses`) + aplicación en carrito con snapshot de `discount_amount` en el pedido.
+- **Leads**: formulario público `consumer`/`business` (hCaptcha + rate limit) + gestión admin.
+- **WhatsApp Business upgrade** (p10 RF-P10-07/08): envío directo por Business API con estados `sent/delivered/read/failed`, reintentos y métricas; fallback `wa.me` intacto.
+- **Criterio de salida**: `negocio`/`cliente` completa el checkout e2e y paga (mock MP con webhook que marca `paid`, o efectivo con badge); la dueña ve el pedido en P6 con el método de pago; el portal nunca expone precios de la otra audiencia (tests cross-rol).
+
 ---
 
 ## 4. Checklist técnico (trazabilidad → fase)
@@ -179,15 +191,18 @@ Cada módulo web es autónomo: propios componentes, hooks y tests; comparte solo
 | 30 | **Dirección de entrega por cliente** (wizard, PDF, WhatsApp) | p07, p08, p09, p10 | 3 |
 | 31 | **Legal: Google Sign-In en política de privacidad** | legal_privacy_policy.md | 0/4 |
 | 32 | **Anti-patterns de referencia documentados** (auth localStorage / JWT sin exp) | security.md §21 | 0 |
+| 33 | **Portal self-service + checkout e2e de 5 pasos** (negocio/cliente; no-fuga de precios por audiencia) | p11, `api_endpoints.md` §FASE 5 | 5 |
+| 34 | **Pago Mercado Pago (contratos safe mode + mock)** y efectivo en la entrega (webhook firmado, idempotencia, `paid` automático) | p06 RF-P6-12…14, p11 RF-P11-10/11 | 5 |
+| 35 | **Leads + libro de direcciones + cupones** (captura `consumer`/`business`, máx. 5 direcciones por cliente, percent/fixed con `max_uses`) + WhatsApp Business upgrade (estados + reintentos) | p11 RF-P11-09/13/14, p10 RF-P10-07/08 | 5 |
 
 ---
 
 ## 5. Decisiones de diseño (premisas fijadas)
 
 1. **Billing fuera de la app** (como el original): acceso por pago único externo; la app solo aprovisiona cuenta por magic link (token de compra en el link, canjeable una vez).
-2. **WhatsApp outbound = `wa.me`** (cero costo, sin Cloud API) para el envío al cliente; **inbound = Chat SDK** solo si el negocio quiere recibir mensajes (Cloud API, requiere verificación Meta).
+2. **WhatsApp outbound = `wa.me`** (cero costo, sin Cloud API) para el envío al cliente; **inbound = Chat SDK** solo si el negocio quiere recibir mensajes (Cloud API, requiere verificación Meta). **Update (2026-10-25)**: con Business API conectada, el outbound pasa a envío directo por `BusinessApiProvider` con estados de entrega/lectura y reintentos (p10 RF-P10-07/08); `wa.me` queda como fallback y como default sin conexión.
 3. **PDF server-side** (no jsPDF): control total del branding y sin costo en el cliente; cache por hash de contenido del presupuesto.
 4. **Stock descuenta al confirmar**, no al crear (evita roturas con presupuestos que no se transforman en pedidos).
 5. **Margen por pedido** con override explícito en el pedido (corrige la ambigüedad de la app original: el override debe ser visible en UI).
 6. **Multi-tenancy estricta**: `tenant_id` en toda consulta (middleware + a nivel de repositorio).
-7. **Sin portal self-service ni sockets en v1** (decisión de recon 2026-10-23, `elclubdelosaludable.ar`): single-usuario por tenant; si aparece el caso de seguimiento en vivo, el canal es SSE sobre los listados, no Socket.IO. El portal de clientes se revisa solo si 3+ tenants lo piden.
+7. **Sin portal self-service ni sockets en v1** (decisión de recon 2026-10-23, `elclubdelosaludable.ar`): single-usuario por tenant; si aparece el caso de seguimiento en vivo, el canal es SSE sobre los listados, no Socket.IO. El portal de clientes se revisa solo si 3+ tenants lo piden. — **Override parcial (2026-10-25, decisión del owner)**: el portal self-service + checkout e2e (Fase 5, `p11_portal_checkout.md`) está APROBADO para los roles `negocio`/`cliente`, con precondición del sistema de roles de 3 vías. La restricción de sockets (SSE, no Socket.IO) se mantiene vigente.

@@ -31,13 +31,13 @@ def compute_unit_cost(
     """unit_cost = purchase_total_price / package_quantity (RF-P2CC-02).
 
     Faltando precio o cantidad devuelve None (material `incomplete`).
-    Si package_quantity es 0 o el precio es negativo lanza ValueError
+    Si package_quantity es <= 0 o el precio es negativo lanza ValueError
     (la API lo traduce a 422). El redondeo es ROUND_HALF_UP a centavos;
     el float nunca toca el monto (RNF-P5CC-01).
     """
     if purchase_total_price is None or package_quantity is None:
         return None
-    if package_quantity == 0:
+    if package_quantity <= 0:
         raise ValueError("package_quantity debe ser > 0")
     if purchase_total_price < 0:
         raise ValueError(f"purchase_total_price >= 0: {purchase_total_price}")
@@ -110,7 +110,7 @@ class CalcMaterial:
             raise ValueError(f"notes max {MAX_MATERIAL_NOTES}: {len(self.notes)}")
         if self.purchase_total_price is not None and self.purchase_total_price < 0:
             raise ValueError(f"purchase_total_price >= 0: {self.purchase_total_price}")
-        if self.package_quantity is not None and self.package_quantity == 0:
+        if self.package_quantity is not None and self.package_quantity <= 0:
             raise ValueError("package_quantity debe ser > 0")
 
         # Derivacion en el servidor: unit_cost/status nunca del cliente.

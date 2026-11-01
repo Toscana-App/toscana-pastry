@@ -5,11 +5,30 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/a
 export const ACCESS_TOKEN_COOKIE = "auth_token";
 export const REFRESH_TOKEN_COOKIE = "refresh_token";
 
-// Evento que emite lib/api al cerrar una sesión (logout o refresh fallido):
-// AuthContext lo escucha para limpiar el usuario en memoria y que
-// ProtectedRoute redirija. Sin él, la navegación dependía de que algo
-// recargara la página.
+// Event emitted by lib/api when a session is closed (logout or failed
+// refresh): AuthContext listens for it to clear the in-memory user so
+// ProtectedRoute can redirect. Without it, navigation depended on
+// something reloading the page.
 export const AUTH_SESSION_CLEARED_EVENT = "auth:session-cleared";
+
+/**
+ * Error tipado de la API.
+ *
+ * `status` y `payload` son necesarios para los flujos de la Fase 4:
+ * - DELETE /ingredients/{id} → 409 con `{"impacted_recipes": N}` (UC-05): el
+ *   diálogo de confirmación muestra el impacto antes de eliminar.
+ * - 422 del backend: `detail` es un array de issues (FastAPI), no un string.
+ */
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+    public readonly payload: unknown = null,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
 
 // Una sola promesa de refresh compartida: evita N llamadas a /auth/refresh
 // cuando varias requests fallan con 401 al mismo tiempo.
@@ -67,9 +86,25 @@ export async function apiFetch<T>(
   }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: "An error occurred" }));
-    throw new Error(error.detail || error.message || "Network error");
+    const body: unknown = await response.json().catch(() => null);
+    const candidate =
+      (body as { detail?: unknown } | null)?.detail ??
+      (body as { message?: unknown } | null)?.message ??
+      "An error occurred";
+    // FastAPI responde 422 con detail: [{loc, msg, type}] — se toma el primer
+    // msg; el cuerpo completo queda en `payload`.
+    const message =
+      typeof candidate === "string"
+        ? candidate
+        : Array.isArray(candidate) &&
+            typeof (candidate[0] as { msg?: unknown } | undefined)?.msg === "string"
+          ? (candidate[0] as { msg: string }).msg
+          : "An error occurred";
+    throw new ApiError(response.status, message, body);
   }
+
+  // 204 No Content (p. ej. DELETE /ingredients/{id}): no hay cuerpo que parsear.
+  if (response.status === 204) return undefined as T;
 
   return response.json() as Promise<T>;
 }
@@ -82,9 +117,10 @@ export function persistSession(accessToken: string, refreshToken: string) {
 export function clearSession() {
   removeCookie(ACCESS_TOKEN_COOKIE);
   removeCookie(REFRESH_TOKEN_COOKIE);
-  // Avisa a la capa de auth: borrar los cookies no cambia el estado en memoria,
-  // y AuthContext sólo evalúa la sesión al montar. Sin este aviso el usuario
-  // queda viendo una UI "autenticada" sin tokens y toda request siguiente falla.
+  // Notifies the auth layer: removing the cookies does not change the
+  // in-memory state, and AuthContext only evaluates the session on mount.
+  // Without this notification the user keeps seeing an "authenticated" UI
+  // with no tokens and every following request fails.
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(AUTH_SESSION_CLEARED_EVENT));
   }
