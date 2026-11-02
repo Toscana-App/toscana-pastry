@@ -45,7 +45,7 @@ Multi-tenant or SaaS is out of scope for v1; it is considered only if demand app
 
 ## Brand Commitments
 
-No logo, name treatment, or visual identity exists yet. Do not invent a logo or brand mark.
+Official brand: "Toscana", tagline "Horneando momentos". The logo (rosette isotype + serif "Toscana" lettering, single ink #373435) lives as source SVGs in `docs/images/`; use those, never redraw or invent variants. Brand colors: coral RGB(255, 112, 120), peach RGB(245, 204, 173), sage RGB(204, 224, 201), teal RGB(117, 189, 163).
 
 Observed copy convention in shipped UI (not yet confirmed as a binding brand voice): Spanish (Argentina) with "tú" address (tuteo), es-AR price format.
 
