@@ -3,6 +3,7 @@
 import { Suspense } from "react"
 import { Container, Spinner, VStack } from "@chakra-ui/react"
 import LoginForm from "@/components/auth/LoginForm"
+import { BrandLogo } from "@/components/layout/BrandLogo"
 
 export default function LoginPage() {
   return (
@@ -15,6 +16,7 @@ export default function LoginPage() {
       minH="100dvh"
     >
       <VStack gap={8} width="full" align="center">
+        <BrandLogo variant="vertical" height={150} priority />
         {/* Suspense obligatorio: LoginForm usa useSearchParams (requisito de prerender de Next). */}
         <Suspense fallback={<Spinner size="xl" />}>
           <LoginForm />

@@ -80,3 +80,22 @@ describe("palette contrast (WCAG AA)", () => {
     expect(resolve("bg.panel", "_light").toLowerCase()).not.toBe(resolve("bg", "_light").toLowerCase())
   })
 })
+
+describe("brand colors", () => {
+  it.each([
+    ["toscana.coral", "#ff7078"],
+    ["toscana.peach", "#f5ccad"],
+    ["toscana.sage", "#cce0c9"],
+    ["toscana.teal", "#75bda3"],
+  ])("defines %s as %s", (name, hex) => {
+    expect(resolve(name, "_light")).toBe(hex)
+  })
+
+  it.each(MODES)("fills primary actions with the exact brand coral (%s)", (mode) => {
+    expect(resolve("brand.solid", mode)).toBe("#ff7078")
+  })
+
+  it.each(MODES)("fills positive states with the brand teal (%s)", (mode) => {
+    expect(resolve("green.solid", mode)).toBe("#75bda3")
+  })
+})
