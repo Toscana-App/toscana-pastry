@@ -118,7 +118,7 @@ export default function LoginForm() {
       bg="bg.panel"
     >
       <Stack gap={6} align="center">
-        <Heading fontSize="2xl" color="brand.fg">
+        <Heading fontSize="2xl">
           Iniciar sesión
         </Heading>
         <Text color="fg.muted" textAlign="center">
