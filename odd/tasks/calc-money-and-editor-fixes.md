@@ -65,6 +65,19 @@ Cifras reales del incidente (producto `83db6568-88f8-438b-9719-f34c05226f8c`):
 - S5. Edición de un producto existente nunca puede vaciar líneas por bug de
   hydratación (regresión bloqueante).
 
+## Estado (verificación 2026-11-02)
+
+- **M1-core: DONE** — `money.py` ya rechaza str/float (int centavos canónico) y el
+  router calc fue migrado a centavos (b19b616 + fixes `eeae3ff`/`82fbe50`/`075b00b`).
+  Falta solo el fixture de aceptación "Torta corazón" (M1-acceptance).
+- **F2-backend: NO DONE (corrección 2026-11-02)** — `GET /calc/products/{id}`
+  sigue devolviendo `materials/labor/extra_costs` a nivel superior (router.py
+  `get_product`); solo POST/PATCH/recalculate usan `ProductWithLinesResponse`
+  (con `product_lines`). El frontend debe mapear el shape top-level (F2).
+- **F1-parcial: DONE** — `pesosToCents`/`formatCents` en `lib/format.ts`;
+  `calcMaterialsService` + `calcSettingsService` convierten en el borde (ccf6c5a).
+  Falta el flujo products/dashboard/price list.
+
 ## Tasks
 
 - M1 [backend, S3, S5] **Unificar semántica `Money` en el endpoint family calc.**
@@ -106,6 +119,25 @@ Cifras reales del incidente (producto `83db6568-88f8-438b-9719-f34c05226f8c`):
   corazón" ejecutado; hallazgos 1-6 documentados arriba con URL/IDs de
   evidencia. `POST /products/{id}/recalculate` funciona (200) pero hereda el
   total contaminado.
+- L3. Verificación 2026-11-02 (codegraph + lectura): M1-core y F1-parcial ya
+  quedaron cubiertos por commits previos; el plan se ejecuta sobre branch
+  `feat/calc-money-fixes` (base `feat/dark-theme`). Tareas activas:
+  M1-acceptance, M2, F1 (products/display), F2 (frontend), F3, F4.
+- L4. 2026-11-02: M1-acceptance + M2 DONE (test
+  `tests/integration/api/test_calc_money_acceptance.py`, 4 tests green:
+  "Torta corazón" 1.688.000 ctvs -> 2.917.829 ctvs con 21% IVA/30% margen;
+  paridad de escala de las 3 familias; str en Money -> 422). Nota: el GET de
+  detalle NO envuelve las líneas en `product_lines` (solo POST/PATCH/\
+  recalculate), corregido el estado de F2-backend. Advisory (fuera de
+  alcance): `sql_calc_material_repository.py:273` — el método `list()` de la
+  clase `SQLCalcMaterialRepository` shadowea el builtin `list` en el class
+  body y la anotation `tuple[list[CalcMaterialCostHistory], int]` falla al
+  importar en Python 3.12/3.13 (eval inmediato); solo pasa en 3.14 (PEP 649).
+  La suite corre con el Python 3.14 del sistema (baseline histórica).
+- L5. 2026-11-02 (corrección de L3): F2-backend NO estaba hecho; `product_lines`
+  solo existe en POST/PATCH/recalculate (`ProductWithLinesResponse`), el GET
+  de detalle sigue devolviendo las líneas a nivel superior.
+
 - L2. Decisión: no migrar datos — con M1 las respuestas `unit_cost` de
   materiales ya están en ctvs; solo la escala de entrada del MaterialForm
   cambia (×100). Los materiales ya creados con 1500 ctvs ($15) deben
