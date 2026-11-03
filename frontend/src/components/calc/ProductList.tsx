@@ -12,6 +12,7 @@ import {
 } from "@chakra-ui/react";
 import { calcProductsService } from "@/services/calcProductsService";
 import { toaster } from "@/lib/toaster";
+import { formatCents } from "@/lib/format";
 import type {
   ProductListItem,
   ProductListQuery,
@@ -145,8 +146,8 @@ export default function ProductList({ mode = "library" }: ProductListProps) {
                     </Text>
                   </Table.Cell>
                 )}
-                <Table.Cell textAlign="right">{item.product_total_cost}</Table.Cell>
-                <Table.Cell textAlign="right">{item.final_sale_price}</Table.Cell>
+                <Table.Cell textAlign="right">{formatCents(item.product_total_cost)}</Table.Cell>
+                <Table.Cell textAlign="right">{formatCents(item.final_sale_price)}</Table.Cell>
                 <Table.Cell textAlign="right">{item.margin_percent}</Table.Cell>
                 <Table.Cell textAlign="center">
                   <IconButton

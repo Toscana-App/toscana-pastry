@@ -15,6 +15,7 @@ import {
 } from "@chakra-ui/react";
 import { calcProductsService } from "@/services/calcProductsService";
 import { toaster } from "@/lib/toaster";
+import { formatCents } from "@/lib/format";
 import type { DashboardResponse, DashboardTopItem, DashboardBottomItem } from "@/types/calc";
 
 // KPI Card component (defined outside render)
@@ -110,13 +111,13 @@ export default function Dashboard() {
         />
         <KPICard
           title="Costo Promedio"
-          value={dashboard.avg_product_cost}
+          value={formatCents(dashboard.avg_product_cost)}
           subtitle="Por producto"
           color="purple"
         />
         <KPICard
           title="Precio Promedio"
-          value={dashboard.avg_final_price}
+          value={formatCents(dashboard.avg_final_price)}
           subtitle="Por producto"
           color="cyan"
         />
@@ -142,7 +143,7 @@ export default function Dashboard() {
                 return (
                   <Table.Row key={item.id}>
                     <Table.Cell fontWeight="medium">{item.name}</Table.Cell>
-                    <Table.Cell textAlign="right">{item.final_sale_price}</Table.Cell>
+                    <Table.Cell textAlign="right">{formatCents(item.final_sale_price)}</Table.Cell>
                     <Table.Cell textAlign="right">
                       <Badge colorPalette={badgeColor} variant="subtle">
                         {badgeText}
@@ -184,7 +185,7 @@ export default function Dashboard() {
                 return (
                   <Table.Row key={item.id}>
                     <Table.Cell fontWeight="medium">{item.name}</Table.Cell>
-                    <Table.Cell textAlign="right">{item.product_total_cost}</Table.Cell>
+                    <Table.Cell textAlign="right">{formatCents(item.product_total_cost)}</Table.Cell>
                     <Table.Cell textAlign="right">
                       <Badge colorPalette={badgeColor} variant="subtle">
                         {badgeText}
