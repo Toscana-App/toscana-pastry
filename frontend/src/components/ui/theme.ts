@@ -16,6 +16,17 @@ const FONT_STACK = `var(--font-sn-pro), -apple-system, BlinkMacSystemFont, "Sego
  */
 const customConfig = defineConfig({
   theme: {
+    // Hero entrance (components/portal/hero_section.tsx): compositor-only props.
+    keyframes: {
+      "hero-rise": {
+        from: { opacity: "0", transform: "translateY(24px)" },
+        to: { opacity: "1", transform: "translateY(0)" },
+      },
+      "hero-slide": {
+        from: { opacity: "0", transform: "translateX(32px)" },
+        to: { opacity: "1", transform: "translateX(0)" },
+      },
+    },
     tokens: {
       fonts: {
         heading: { value: FONT_STACK },
