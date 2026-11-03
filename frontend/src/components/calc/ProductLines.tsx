@@ -12,16 +12,17 @@ import {
 } from "@chakra-ui/react";
 import { createListCollection } from "@ark-ui/react";
 import { toaster } from "@/lib/toaster";
+import { formatMoneyDecimals } from "@/lib/format";
 import type {
   Material,
   ProductLineMaterialIn,
   ProductLineLaborIn,
   ProductLineExtraCostIn,
-  ProductLineMaterialOut,
 } from "@/types/calc";
 
 interface ProductLinesProps {
   materials?: Material[];
+  materialLines?: ProductLineMaterialIn[];
   laborLines?: ProductLineLaborIn[];
   extraCostLines?: ProductLineExtraCostIn[];
   onLinesChange?: (
@@ -30,6 +31,38 @@ interface ProductLinesProps {
     extraCosts: ProductLineExtraCostIn[]
   ) => void;
   showPreview?: boolean;
+}
+
+/** Preview vivo (F2): totales por fila en pesos. Materiales: qty ×
+ * unit_cost del catálogo; trabajo: tarifa × minutos/60; extras:
+ * costo × qty. Sin toggle, el componente no muestra totales inventados. */
+export function computeLinePreviews(
+  materials: Material[] | undefined,
+  materialLines: ProductLineMaterialIn[],
+  laborLines: ProductLineLaborIn[],
+  extraCostLines: ProductLineExtraCostIn[]
+) {
+  const materialTotals = materialLines.map((line) => {
+    const mat = materials?.find((m) => m.id === line.material_id);
+    const unit = mat && mat.unit_cost != null ? Number(mat.unit_cost) : 0;
+    const qty = Number(line.quantity_used) || 0;
+    return unit * qty;
+  });
+  const laborTotals = laborLines.map((line) => {
+    const rate = Number(line.hourly_rate) || 0;
+    const minutes = Number(line.minutes_required) || 0;
+    return (rate * minutes) / 60;
+  });
+  const extraTotals = extraCostLines.map((line) => {
+    const cost = Number(line.unit_cost) || 0;
+    const qty = Number(line.quantity) || 0;
+    return cost * qty;
+  });
+  const grandTotal =
+    materialTotals.reduce((a, b) => a + b, 0) +
+    laborTotals.reduce((a, b) => a + b, 0) +
+    extraTotals.reduce((a, b) => a + b, 0);
+  return { materialTotals, laborTotals, extraTotals, grandTotal };
 }
 
 // Form for material lines
@@ -95,7 +128,7 @@ function MaterialLineForm({
           value={quantity}
           onChange={(e) => setQuantity(e.target.value)}
         />
-        <Button onClick={handleAdd}>Agregar</Button>
+        <Button variant="outline" onClick={handleAdd}>Agregar</Button>
       </Flex>
     </Flex>
   );
@@ -158,7 +191,7 @@ function LaborLineForm({
           value={minutesRequired}
           onChange={(e) => setMinutesRequired(e.target.value)}
         />
-        <Button onClick={handleAdd}>Agregar trabajo</Button>
+        <Button variant="outline" onClick={handleAdd}>Agregar trabajo</Button>
       </Flex>
     </Flex>
   );
@@ -221,60 +254,77 @@ function ExtraCostLineForm({
           value={quantity}
           onChange={(e) => setQuantity(e.target.value)}
         />
-        <Button onClick={handleAdd}>Agregar costo</Button>
+        <Button variant="outline" onClick={handleAdd}>Agregar costo</Button>
       </Flex>
     </Flex>
   );
 }
 
-// Display component for lines
+// Display component for lines (controlado: las lineas llegan por props;
+// con showPreview se muestran los totales calculados en pesos).
 function LinesDisplay({
   materials,
+  materialLines,
   labor,
   extraCosts,
+  showPreview,
+  previews,
   onRemoveMaterial,
   onRemoveLabor,
   onRemoveExtraCost,
 }: {
-  materials: ProductLineMaterialOut[];
+  materials: Material[];
+  materialLines: ProductLineMaterialIn[];
   labor: ProductLineLaborIn[];
   extraCosts: ProductLineExtraCostIn[];
+  showPreview: boolean;
+  previews: ReturnType<typeof computeLinePreviews>;
   onRemoveMaterial: (index: number) => void;
   onRemoveLabor: (index: number) => void;
   onRemoveExtraCost: (index: number) => void;
 }) {
+  const fmt = (pesos: number) => formatMoneyDecimals(pesos.toFixed(2));
   return (
     <Flex direction="column" gap={4}>
-      {materials.length > 0 && (
+      {materialLines.length > 0 && (
         <Flex direction="column">
           <Text fontWeight="bold" mb={2}>Materiales</Text>
           <Table.Root size="sm">
             <Table.Header>
               <Table.ColumnHeader>Material</Table.ColumnHeader>
               <Table.ColumnHeader>Cantidad</Table.ColumnHeader>
-              <Table.ColumnHeader>Costo Unitario</Table.ColumnHeader>
-              <Table.ColumnHeader>Costo Total</Table.ColumnHeader>
+              {showPreview && <Table.ColumnHeader>Costo Unitario</Table.ColumnHeader>}
+              {showPreview && <Table.ColumnHeader>Total</Table.ColumnHeader>}
               <Table.ColumnHeader></Table.ColumnHeader>
             </Table.Header>
             <Table.Body>
-              {materials.map((line, index) => (
-                <Table.Row key={index}>
-                  <Table.Cell>{line.material_name}</Table.Cell>
-                  <Table.Cell>{line.quantity_used}</Table.Cell>
-                  <Table.Cell>{line.unit_cost_snapshot}</Table.Cell>
-                  <Table.Cell>{line.line_total_cost}</Table.Cell>
-                  <Table.Cell>
-                    <IconButton
-                      size="sm"
-                      variant="ghost"
-                      aria-label="Eliminar"
-                      onClick={() => onRemoveMaterial(index)}
-                    >
-                      ✕
-                    </IconButton>
-                  </Table.Cell>
-                </Table.Row>
-              ))}
+              {materialLines.map((line, index) => {
+                const mat = materials.find((m) => m.id === line.material_id);
+                return (
+                  <Table.Row key={index}>
+                    <Table.Cell>{mat?.name || line.material_id}</Table.Cell>
+                    <Table.Cell>{line.quantity_used}</Table.Cell>
+                    {showPreview && (
+                      <Table.Cell>
+                        {mat?.unit_cost != null ? fmt(Number(mat.unit_cost)) : "-"}
+                      </Table.Cell>
+                    )}
+                    {showPreview && (
+                      <Table.Cell>{fmt(previews.materialTotals[index] ?? 0)}</Table.Cell>
+                    )}
+                    <Table.Cell>
+                      <IconButton
+                        size="sm"
+                        variant="ghost"
+                        aria-label="Eliminar material"
+                        onClick={() => onRemoveMaterial(index)}
+                      >
+                        ✕
+                      </IconButton>
+                    </Table.Cell>
+                  </Table.Row>
+                );
+              })}
             </Table.Body>
           </Table.Root>
         </Flex>
@@ -286,23 +336,25 @@ function LinesDisplay({
           <Table.Root size="sm">
             <Table.Header>
               <Table.ColumnHeader>Actividad</Table.ColumnHeader>
-              <Table.ColumnHeader>Tarifa/Hora</Table.ColumnHeader>
+              {showPreview && <Table.ColumnHeader>Tarifa/Hora</Table.ColumnHeader>}
               <Table.ColumnHeader>Minutos</Table.ColumnHeader>
-              <Table.ColumnHeader>Costo Total</Table.ColumnHeader>
+              {showPreview && <Table.ColumnHeader>Total</Table.ColumnHeader>}
               <Table.ColumnHeader></Table.ColumnHeader>
             </Table.Header>
             <Table.Body>
               {labor.map((line, index) => (
                 <Table.Row key={index}>
                   <Table.Cell>{line.activity_name}</Table.Cell>
-                  <Table.Cell>{line.hourly_rate}</Table.Cell>
+                  {showPreview && <Table.Cell>{fmt(Number(line.hourly_rate))}</Table.Cell>}
                   <Table.Cell>{line.minutes_required}</Table.Cell>
-                  <Table.Cell>0.00</Table.Cell>
+                  {showPreview && (
+                    <Table.Cell>{fmt(previews.laborTotals[index] ?? 0)}</Table.Cell>
+                  )}
                   <Table.Cell>
                     <IconButton
                       size="sm"
                       variant="ghost"
-                      aria-label="Eliminar"
+                      aria-label="Eliminar trabajo"
                       onClick={() => onRemoveLabor(index)}
                     >
                       ✕
@@ -321,23 +373,25 @@ function LinesDisplay({
           <Table.Root size="sm">
             <Table.Header>
               <Table.ColumnHeader>Concepto</Table.ColumnHeader>
-              <Table.ColumnHeader>Costo Unitario</Table.ColumnHeader>
+              {showPreview && <Table.ColumnHeader>Costo Unitario</Table.ColumnHeader>}
               <Table.ColumnHeader>Cantidad</Table.ColumnHeader>
-              <Table.ColumnHeader>Costo Total</Table.ColumnHeader>
+              {showPreview && <Table.ColumnHeader>Total</Table.ColumnHeader>}
               <Table.ColumnHeader></Table.ColumnHeader>
             </Table.Header>
             <Table.Body>
               {extraCosts.map((line, index) => (
                 <Table.Row key={index}>
                   <Table.Cell>{line.concept_name}</Table.Cell>
-                  <Table.Cell>{line.unit_cost}</Table.Cell>
+                  {showPreview && <Table.Cell>{fmt(Number(line.unit_cost))}</Table.Cell>}
                   <Table.Cell>{line.quantity}</Table.Cell>
-                  <Table.Cell>0.00</Table.Cell>
+                  {showPreview && (
+                    <Table.Cell>{fmt(previews.extraTotals[index] ?? 0)}</Table.Cell>
+                  )}
                   <Table.Cell>
                     <IconButton
                       size="sm"
                       variant="ghost"
-                      aria-label="Eliminar"
+                      aria-label="Eliminar costo extra"
                       onClick={() => onRemoveExtraCost(index)}
                     >
                       ✕
@@ -350,86 +404,75 @@ function LinesDisplay({
         </Flex>
       )}
 
-      {materials.length === 0 && labor.length === 0 && extraCosts.length === 0 && (
-        <Flex p={4} bg="gray.50" borderRadius="md" justify="center">
-          <Text color="gray.500">No hay líneas agregadas aún</Text>
+      {materialLines.length === 0 && labor.length === 0 && extraCosts.length === 0 && (
+        <Flex p={4} bg="bg.subtle" borderRadius="md" justify="center">
+          <Text color="fg.muted">No hay líneas agregadas aún</Text>
         </Flex>
       )}
+
+      {showPreview &&
+        (materialLines.length > 0 || labor.length > 0 || extraCosts.length > 0) && (
+          <Flex justify="flex-end" p={3} bg="bg.subtle" borderRadius="md">
+            <Text fontWeight="bold">Total estimado: {fmt(previews.grandTotal)}</Text>
+          </Flex>
+        )}
     </Flex>
   );
 }
 
+// Componente controlado (F2): el parent es la fuente de verdad de las
+// líneas; la hidratación desde el GET de detalle llega vía props sin
+// estado interno duplicado que se queda stale.
 export default function ProductLines({
   materials,
+  materialLines = [],
   laborLines = [],
   extraCostLines = [],
   onLinesChange,
+  showPreview = false,
 }: ProductLinesProps) {
-  const [materialLines, setMaterialLines] = useState<ProductLineMaterialIn[]>([]);
-  const [laborLinesState, setLaborLinesState] = useState<ProductLineLaborIn[]>(laborLines);
-  const [extraCostLinesState, setExtraCostLinesState] = useState<ProductLineExtraCostIn[]>(extraCostLines);
-
   const handleAddMaterial = (line: ProductLineMaterialIn) => {
-    setMaterialLines(prev => [...prev, line]);
-    onLinesChange?.(
-      [...materialLines, line],
-      laborLinesState,
-      extraCostLinesState
-    );
+    onLinesChange?.([...materialLines, line], laborLines, extraCostLines);
   };
 
   const handleRemoveMaterial = (index: number) => {
-    setMaterialLines(prev => prev.filter((_, i) => i !== index));
     onLinesChange?.(
       materialLines.filter((_, i) => i !== index),
-      laborLinesState,
-      extraCostLinesState
+      laborLines,
+      extraCostLines
     );
   };
 
   const handleAddLabor = (line: ProductLineLaborIn) => {
-    setLaborLinesState(prev => [...prev, line]);
-    onLinesChange?.(
-      materialLines,
-      [...laborLinesState, line],
-      extraCostLinesState
-    );
+    onLinesChange?.(materialLines, [...laborLines, line], extraCostLines);
   };
 
   const handleRemoveLabor = (index: number) => {
-    setLaborLinesState(prev => prev.filter((_, i) => i !== index));
     onLinesChange?.(
       materialLines,
-      laborLinesState.filter((_, i) => i !== index),
-      extraCostLinesState
+      laborLines.filter((_, i) => i !== index),
+      extraCostLines
     );
   };
 
   const handleAddExtraCost = (line: ProductLineExtraCostIn) => {
-    setExtraCostLinesState(prev => [...prev, line]);
-    onLinesChange?.(
-      materialLines,
-      laborLinesState,
-      [...extraCostLinesState, line]
-    );
+    onLinesChange?.(materialLines, laborLines, [...extraCostLines, line]);
   };
 
   const handleRemoveExtraCost = (index: number) => {
-    setExtraCostLinesState(prev => prev.filter((_, i) => i !== index));
     onLinesChange?.(
       materialLines,
-      laborLinesState,
-      extraCostLinesState.filter((_, i) => i !== index)
+      laborLines,
+      extraCostLines.filter((_, i) => i !== index)
     );
   };
 
-  const materialLinesDisplay = materialLines.map((line, index) => ({
-    ...line,
-    material_name: materials?.find(m => m.id === line.material_id)?.name || '',
-    unit_cost_snapshot: materials?.find(m => m.id === line.material_id)?.unit_cost || '0.00',
-    line_total_cost: '0.00',
-    sort_order: index,
-  })) as ProductLineMaterialOut[];
+  const previews = computeLinePreviews(
+    materials,
+    materialLines,
+    laborLines,
+    extraCostLines
+  );
 
   return (
     <Flex direction="column" gap={4}>
@@ -442,17 +485,18 @@ export default function ProductLines({
 
       <ExtraCostLineForm onAdd={handleAddExtraCost} />
 
-      {materialLinesDisplay.length > 0 || laborLinesState.length > 0 || extraCostLinesState.length > 0 ? (
-        <Flex direction="column" gap={4}>
-          <LinesDisplay
-            materials={materialLinesDisplay}
-            labor={laborLinesState}
-            extraCosts={extraCostLinesState}
-            onRemoveMaterial={handleRemoveMaterial}
-            onRemoveLabor={handleRemoveLabor}
-            onRemoveExtraCost={handleRemoveExtraCost}
-          />
-        </Flex>
+      {(materialLines.length > 0 || laborLines.length > 0 || extraCostLines.length > 0) ? (
+        <LinesDisplay
+          materials={materials || []}
+          materialLines={materialLines}
+          labor={laborLines}
+          extraCosts={extraCostLines}
+          showPreview={showPreview}
+          previews={previews}
+          onRemoveMaterial={handleRemoveMaterial}
+          onRemoveLabor={handleRemoveLabor}
+          onRemoveExtraCost={handleRemoveExtraCost}
+        />
       ) : null}
     </Flex>
   );

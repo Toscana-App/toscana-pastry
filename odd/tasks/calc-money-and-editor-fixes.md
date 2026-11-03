@@ -76,7 +76,23 @@ Cifras reales del incidente (producto `83db6568-88f8-438b-9719-f34c05226f8c`):
   (con `product_lines`). El frontend debe mapear el shape top-level (F2).
 - **F1-parcial: DONE** — `pesosToCents`/`formatCents` en `lib/format.ts`;
   `calcMaterialsService` + `calcSettingsService` convierten en el borde (ccf6c5a).
-  Falta el flujo products/dashboard/price list.
+- **M1-acceptance + M2: DONE** — `test_calc_money_acceptance.py` (16c8fbe).
+- **F1 (products/display): DONE (2026-11-03)** — `types/calc.ts` Money → `number`
+  (ctvs) + `ProductDetail` (shape real del GET, líneas a nivel superior);
+  `calcProductsService.toApiPayload()` convierte labor/extra a ctvs en el borde;
+  `ProductList`/`Dashboard` muestran con `formatCents`. Tests:
+  `calcProductsService.test.ts` (4 casos).
+- **F2: DONE (2026-11-03)** — `ProductLines` ahora es componente controlado
+  (`materialLines` por prop, sin estado interno duplicado) + `computeLinePreviews`
+  + preview vivo (total por fila y "Total estimado" en pesos, con toggle);
+  `ProductEditor` hidrata desde el shape top-level del GET con ctvs→pesos en los
+  inputs (antes leía `product_lines.*`, que el GET no envía → tabla vacía).
+  Tests: `ProductLines.test.tsx` (6 casos).
+- **F3: DONE (2026-11-03)** — post-crear el editor queda en modo edición con el
+  id nuevo; post-actualizar, toast con botón "Ver"; botón "Recalcular" con
+  spinner; panel de costos del motor con `formatCents`.
+- **F4: DONE (2026-11-03)** — link "Calculadora" en `AdminNav` (antes solo
+  alcanzable por URL).
 
 ## Tasks
 
@@ -137,6 +153,13 @@ Cifras reales del incidente (producto `83db6568-88f8-438b-9719-f34c05226f8c`):
 - L5. 2026-11-02 (corrección de L3): F2-backend NO estaba hecho; `product_lines`
   solo existe en POST/PATCH/recalculate (`ProductWithLinesResponse`), el GET
   de detalle sigue devolviendo las líneas a nivel superior.
+- L6. 2026-11-03: F1 (products/display), F2, F3 y F4 DONE en frontend. Gates:
+  tsc limpio, eslint limpio, vitest 392/392 (39 archivos; 6 tests nuevos de
+  preview + 4 del borde del service), `next build` OK. Notas: `pesosToCents`
+  trunca el tercer decimal (comportamiento existente del helper compartido;
+  el ODD no manda half-up, no se tocó). `centsToPesos` devuelve `number` — la
+  conversión a string para los inputs del editor vive en `mapDetailLines`
+  (ProductEditor).
 
 - L2. Decisión: no migrar datos — con M1 las respuestas `unit_cost` de
   materiales ya están en ctvs; solo la escala de entrada del MaterialForm
