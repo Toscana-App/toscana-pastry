@@ -160,6 +160,25 @@ Cifras reales del incidente (producto `83db6568-88f8-438b-9719-f34c05226f8c`):
   el ODD no manda half-up, no se tocó). `centsToPesos` devuelve `number` — la
   conversión a string para los inputs del editor vive en `mapDetailLines`
   (ProductEditor).
+- L7. 2026-11-03 (verificación en vivo, ego-browser): app levantada
+  (uvicorn :8000 con Python 3.14 + `PYTHONPATH=src`, next dev :3000, postgres
+  docker). Sesión admin inyectada (user `admin@toscana.dev` + JWT dev en
+  cookie `auth_token`, legible por JS). Hallazgos:
+  1. F4 OK: link "Calculadora" visible en AdminNav y con highlight.
+  2. F1 OK: listado muestra "ARS 16.880" / "ARS 29.178,29" (formatCents).
+  3. F2 OK: editor hidrata las 7 líneas de materiales + trabajo + extra
+     (antes tabla vacía); con toggle, el preview vivo por fila coincide con
+     el motor (Total estimado: 16.880).
+  4. F3 OK: "Recalcular" muestra toast "Precios recalculados"; al crear
+     (producto de prueba) el editor queda en modo edición (botón
+     "Actualizar Producto") con panel de costos (500 + 30% + 21% =
+     864,29 ✔). Producto de prueba eliminado.
+  5. Migración de datos dev: los 7 materiales live estaban en escala legacy
+     (pesos, p.ej. Harina=15) — se multiplicó por 100 en `calc_materials`
+     (documentado en L2) y se recalculó "Torta corazón".
+  Evidencia: `odd/evidence/calc-product-list.png`,
+  `calc-product-editor.png`, `calc-editor-preview.png`,
+  `calc-editor-after-create.png`, `calc-product-list-updated.png`.
 
 - L2. Decisión: no migrar datos — con M1 las respuestas `unit_cost` de
   materiales ya están en ctvs; solo la escala de entrada del MaterialForm
