@@ -10,6 +10,8 @@ CRUD de materiales + historial append-only de costo unitario
 # atributos de instancia como Column[T], no como el valor. En runtime son
 # los valores; el mapeo ORM->dominio pasa por Decimal()/str() explicitos.
 
+from __future__ import annotations
+
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
