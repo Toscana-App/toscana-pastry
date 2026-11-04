@@ -181,7 +181,7 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
           type: "success",
           action: {
             label: "Ver",
-            onClick: () => router.push(`/admin/calculadora/productos/${savedId}`),
+            onClick: () => router.push(`/admin/calculator/products/${savedId}`),
           },
         });
       } else {

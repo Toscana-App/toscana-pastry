@@ -154,7 +154,7 @@ export default function ProductList({ mode = "library" }: ProductListProps) {
                     size="sm"
                     variant="ghost"
                     aria-label="Ver detalles"
-                    onClick={() => window.open(`/admin/calculadora/productos/${item.id}`, "_blank")}
+                    onClick={() => window.open(`/admin/calculator/products/${item.id}`, "_blank")}
                   >
                     👁️
                   </IconButton>

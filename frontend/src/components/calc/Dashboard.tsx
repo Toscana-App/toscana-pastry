@@ -65,7 +65,7 @@ export default function Dashboard() {
   }, []);
 
   const handleViewProduct = useCallback(
-    (productId: string) => router.push(`/admin/calculadora/productos/${productId}`),
+    (productId: string) => router.push(`/admin/calculator/products/${productId}`),
     [router]
   );
 
