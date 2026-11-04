@@ -89,3 +89,19 @@ export function toFormValues(settings: BusinessSettings): SettingsFormValues {
     default_difficulty: settings.default_difficulty,
   };
 }
+
+/** Ventana de pedidos / corte de pedidos (RF-P5-07 / RF-P6-09). */
+export interface OrderWindow {
+  open: boolean;
+  /** ISO datetime de reapertura; null si la ventana está abierta. */
+  reopens_at: string | null;
+  /** Mensaje para el portal y el banner admin (≤200 chars). */
+  message: string;
+}
+
+/** Payload de actualización de la ventana (PATCH). */
+export interface OrderWindowUpdate {
+  open: boolean;
+  reopens_at?: string | null;
+  message?: string;
+}

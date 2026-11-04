@@ -20,3 +20,6 @@ out/
 
 # Local agent overrides (never committed)
 CLAUDE.local.md
+
+# byproducts de uv/pip install -e
+*.egg-info/

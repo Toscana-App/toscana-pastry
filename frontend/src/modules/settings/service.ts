@@ -1,10 +1,13 @@
 import { apiFetch } from "@/lib/api";
 import { pesosToCents } from "@/lib/format";
-import type { BusinessSettings, SettingsFormValues } from "./types";
+import type { BusinessSettings, OrderWindow, OrderWindowUpdate, SettingsFormValues } from "./types";
 
 // Path del contrato (p05 / api_endpoints.md): la configuración del negocio vive
 // bajo /tenant/settings, no como recurso suelto.
 const BASE = "/tenant/settings";
+// Ventana de pedidos (corte de pedidos, RF-P5-07 / RF-P6-09): endpoint propio,
+// singleton del tenant.
+const WINDOW_BASE = "/tenant/order-window";
 
 /**
  * Servicio de configuración del negocio (Fase 4, WU7).
@@ -35,6 +38,26 @@ export const settingsService = {
         urgent_surcharge_pct: String(values.urgent_surcharge_pct),
         consumer_markup_pct: String(values.consumer_markup_pct),
       }),
+    });
+  },
+};
+
+/**
+ * Servicio de la ventana de pedidos / corte de pedidos (RF-P5-07 / RF-P6-09).
+ *
+ * - GET: estado de la ventana (abierta/cerrada, reapertura, mensaje).
+ *   404 si el backend no lo expone → la sección admin se deshabilita.
+ * - PATCH: abre o cierra; al abrir `reopens_at` se limpia. Requiere admin.
+ */
+export const orderWindowService = {
+  get(): Promise<OrderWindow> {
+    return apiFetch<OrderWindow>(WINDOW_BASE);
+  },
+
+  update(payload: OrderWindowUpdate): Promise<OrderWindow> {
+    return apiFetch<OrderWindow>(WINDOW_BASE, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
     });
   },
 };
