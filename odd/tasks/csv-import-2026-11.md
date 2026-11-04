@@ -32,7 +32,7 @@
 | ID | Requerimiento |
 |----|---------------|
 | RF-CSV-01 | Plantilla por entidad: `GET /imports/template?entity=ingredients\|products\|customers` → CSV con encabezados + 2 filas de ejemplo, generado desde el mismo modelo Pydantic que valida (RNF-CSV-09). |
-| RF-CSV-02 | Upload: `POST /imports` (multipart: `file` + `entity`) → crea `import_id`, parsea el CSV, valida fila por fila con Pydantic y guarda cada fila en staging con `status` (valid/error) y `errors` (fila, columna, mensaje). Devuelve resumen `{total, valid, errors}` + primeros N errores. |
+| RF-CSV-02 | Upload: `POST /imports` (multipart: `file` + `entity`) → crea `import_id`, parsea el CSV, valida fila por fila con Pydantic y guarda cada fila en staging con `status` (valid/error) y `errors` (fila, columna, mensaje). Devuelve resumen `{total, valid, errors}` + primeros N errores. **Contrato de columnas estricto**: el set de encabezados debe coincidir exactamente con la plantilla (orden irrelevante); columna desconocida o faltante → **422 rechazando el archivo completo** (sin `import_id`, sin staging) con el listado de las columnas en falta. |
 | RF-CSV-03 | Los errores no abortan el lote: las filas válidas quedan en staging; las filas en error se reportan con número de fila y columna, y no se confirman. |
 | RF-CSV-04 | Revisión: `GET /imports/{import_id}/rows?status=&page=` → filas de staging paginadas con estado y errores, para la UI de revisión. |
 | RF-CSV-05 | Confirmación: `POST /imports/{import_id}/confirm` → una transacción única pasa las filas válidas a la tabla final y marca la import como confirmada (atómica: todo o nada, RNF-CSV-05). |
@@ -41,8 +41,9 @@
 | RF-CSV-08 | Entidad 1: **insumos** (adapter CSV que reutiliza el parsing tolerante de `ingredients_import.py`). El endpoint viejo por texto pegado sigue funcionando. |
 | RF-CSV-09 | Entidad 2: **productos** (nombre, categoría, unidad, costo unitario, precio venta, stock inicial). |
 | RF-CSV-10 | Entidad 3: **clientes** (nombre, teléfono, email, dirección de entrega opcional). |
-| RF-CSV-11 | Frontend: dropzone (`react-dropzone`) para adjuntar; preview con PapaParse (primeras filas + detección client-side de separador/encoding); flujo upload → revisión (tabla con estados) → confirmar/descartar. |
-| RF-CSV-12 | Frontend: botón "Descargar plantilla" que llama a RF-CSV-01 y descarga el archivo. |
+| RF-CSV-11 | Frontend: dropzone (`react-dropzone`) con botón "Subir archivo" (file picker) + sección para arrastrar el archivo; **validación client-side antes de subir** (PapaParse: set de columnas estricto contra la plantilla + chequeos básicos de datos por fila); flujo upload → revisión (tabla con estados) → confirmar/descartar. Con columnas ajenas a la plantilla o datos inválidos: error visible y **no se permite subir ni confirmar hasta corregir** (el usuario corrige el archivo y vuelve a subirlo). |
+| RF-CSV-12 | Frontend: botón "Descargar plantilla" que llama a RF-CSV-01 y descarga el archivo (el usuario completa esa plantilla con los datos). |
+| RF-CSV-13 | Doble validación: el frontend valida set de columnas (estricto, derivado de la plantilla descargada) y datos básicos por fila antes de enviar; el backend revalida todo (fuente autoritativa) y rechaza el archivo con 422 si las columnas no coinciden. El botón "Confirmar" queda **deshabilitado mientras existan filas en error** en staging. |
 
 ### RNF (no funcionales)
 
@@ -58,6 +59,7 @@
 | RNF-CSV-08 | Auth: `require_admin` en todos los endpoints de import (igual que el import actual). |
 | RNF-CSV-09 | Plantilla ↔ validación: test que descarga la plantilla de cada entidad y la importa de vuelta como valid (round-trip). |
 | RNF-CSV-10 | Decimales argentinos en campos numéricos: coma decimal y punto de miles ("1.000,5"), reutilizando las convenciones de `domain/ingredients_import.py`. |
+| RNF-CSV-11 | El backend es la autoridad única de validación: los chequeos del frontend son un gate de feedback temprano, no contrato. Si frontend y backend discrepan, manda el backend. |
 
 ## Estructura propuesta
 
@@ -87,7 +89,9 @@ frontend/src/modules/imports/
 ### T-CSV-1 — Motor de import (staging)
 - Modelos ORM `ImportSessionORM` (id, entity, filename, created_at, confirmed_at, totals) y
   `ImportRowORM` (id, import_id, row_number, data JSONB, status, errors JSONB, created_at) +
-  migrations (el proyecto usa Alembic: chequear `backend/alembic/`).
+  migration: SQL plano en `backend/migrations/` (existen 0001–0006, sin alembic); la nueva es
+  **`0008_import_staging.sql`** (0007 reservado para `customer_delivery_address` de PR #44,
+  pendiente de merge).
 - `domain/imports.py` puro: estados, resumen de totales, reglas de TTL.
 - Repo: `create_session`, `bulk_insert_rows` (chunked), `list_rows` (paginado + filtro status),
   `mark_confirmed` (borra filas de staging tras confirmar), `purge_expired`.
@@ -141,19 +145,24 @@ frontend/src/modules/imports/
 
 ### T-CSV-8 — Frontend: ImportDialog v2
 - Deps: `react-dropzone`, `papaparse` (+ `@types/papaparse`).
-- `modules/imports/service.ts`: `template(entity)`, `upload(file, entity)` (FormData/multipart
+- `modules/imports/service.ts`: `template(entity)` (devuelve el texto CSV: se parsea con
+  PapaParse para extraer el set de columnas), `upload(file, entity)` (FormData/multipart
   — chequear que `apiFetch` lo soporta o agregarlo), `rows(importId, {status, page})`,
   `confirm(importId)`, `discard(importId)`.
-- `ImportDialogV2.tsx`: dropzone → preview PapaParse (primeras 50 filas, separador/encoding
-  detectado) → upload → tabla de revisión (badge por fila: válido/en error/skipped + mensaje)
-  → confirmar (con contador "X de Y válidos") / descartar.
+- `ImportDialogV2.tsx`: botón "Subir archivo" (file picker) + sección drag&drop en la misma
+  dropzone (`react-dropzone`) → **validación client-side**: set de columnas estricto contra
+  la plantilla (columna ajena/faltante → bloquear el envío y mostrar las columnas en falta)
+  + chequeos básicos por fila (requeridos, numéricos con coma decimal) → preview PapaParse
+  (primeras 50 filas, separador/encoding detectado) → upload → tabla de revisión (badge por
+  fila: válido/en error/skipped + mensaje) → confirmar (deshabilitado mientras `errors > 0`,
+  con contador "X de Y válidos") / descartar.
 - vitest: service (URLs, FormData) + componente (flujo happy path y con errores).
 - **RF:** RF-CSV-11, RF-CSV-12 · **Commits:** `feat(imports-fe): dropzone + revisión + confirmación` · **Riesgo:** bajo. **Depende de:** T-CSV-4 (contratos de API).
 
 ### T-CSV-9 — Frontend: wiring en páginas
-- Botón "Importar CSV" + "Descargar plantilla" en las páginas de insumos, productos y clientes
-  (reemplaza/complementa el ImportDialog actual de insumos: el textarea queda como atajo, el
-  CSV como flujo principal).
+- Botón "Importar CSV" + "Descargar plantilla" en las páginas de insumos, productos y clientes.
+  El CSV es el flujo principal de insumos: el botón del ImportDialog por textarea queda
+  **oculto** (componente y endpoint vivos — deprecación de UI, decisión 2026-11-04).
 - GA4: `import_started`, `import_confirmed` (gateados por consentimiento, como el resto).
 - **RF:** RF-CSV-12 · **Commits:** `feat(imports-fe): wiring en insumos, productos y clientes` · **Riesgo:** bajo. **Depende de:** T-CSV-5/6/7 (entidades disponibles) + T-CSV-8.
 
@@ -165,12 +174,21 @@ Cada task = un commit (o par de commits backend+frontend); una sola branch
 `feat/csv-import` con PR único (la feature es un solo flujo; separar por entidad fragmenta la
 revisión).
 
-## Preguntas abiertas (para Gaspar)
+## Decisiones tomadas (Gaspar, 2026-11-04)
 
-1. **Entidades de v1**: asumo insumos + productos + clientes. ¿Faltan alguna (proveedores,
-   materiales de calc) o sobra alguna?
-2. **Duplicados en confirmación**: v1 = **skip con reporte** (no update). ¿Basta, o conviene
-   update de precio/costo al reimportar?
-3. **Límites v1**: 5 MB / 10.000 filas. ¿Ajustar?
-4. ¿El import por texto pegado de insumos se **depreca** (oculta la UI, endpoint vivo) o se
-   mantiene en paralelo indefinidamente?
+1. **Entidades de v1**: insumos + productos + clientes — aprobado.
+2. **Duplicados en confirmación**: skip con reporte (no update) — aprobado.
+3. **Límites v1**: 5 MB / 10.000 filas — aprobado.
+4. **Import por texto pegado**: deprecar la UI (botón oculto, endpoint vivo) — aprobado.
+
+## Flujo refinado (Gaspar, 2026-11-04)
+
+1. El backend proporciona la plantilla CSV con las columnas exactas (`GET /imports/template?entity=`);
+   el usuario la descarga y la completa con sus datos.
+2. El usuario la sube con el botón "Subir archivo" (abre el selector de la PC) o arrastrando el
+   archivo a la sección de dropzone.
+3. Validación del formato de columnas y de los datos **en frontend y en backend**: si existe una
+   columna que no forma parte de la plantilla original, o datos incorrectos → se indica el error
+   al usuario y **no se permite guardar** hasta que lo resuelva (corrige el archivo y lo vuelve a subir).
+4. Objetivo: que el backend reciba la información de manera correcta — la validación del backend
+   es la autoritativa (RNF-CSV-11); la del frontend es un gate de feedback temprano (RF-CSV-13).
