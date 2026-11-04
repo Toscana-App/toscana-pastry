@@ -16,7 +16,7 @@ import { Flex, Text } from "@chakra-ui/react";
 const SECTIONS = [
   { href: "/admin", label: "Usuarios", exact: true },
   { href: "/admin/ingredients", label: "Ingredientes", exact: false },
-  { href: "/admin/calculadora/productos", label: "Calculadora", exact: false, match: "/admin/calculadora" },
+  { href: "/admin/calculator/products", label: "Calculator", exact: false, match: "/admin/calculator" },
   { href: "/admin/settings", label: "Configuración", exact: false },
 ] as const;
 

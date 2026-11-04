@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders as render } from "../../../../test-utils";
-import CalculadoraConfigPage from "./page";
+import CalculatorConfigPage from "./page";
 
 // Captura los props que recibe ProtectedRoute (vi.hoisted por el hoisting
 // de vi.mock).
@@ -48,9 +48,9 @@ vi.mock("@/lib/toaster", () => ({
   toaster: { create: vi.fn() },
 }));
 
-describe("CalculadoraConfigPage", () => {
+describe("CalculatorConfigPage", () => {
   it("renders ProtectedRoute with requiredRole=admin, the heading and the 5 tabs", async () => {
-    render(<CalculadoraConfigPage />);
+    render(<CalculatorConfigPage />);
 
     expect(
       await screen.findByText("Configuración de la calculadora")
