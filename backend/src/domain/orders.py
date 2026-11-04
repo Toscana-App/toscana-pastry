@@ -123,11 +123,13 @@ def normalize_phone(phone: str) -> str:
 @dataclass(frozen=True)
 class Customer:
     """Cliente (nombre + telefono). Sin email: el canal de contacto es
-    WhatsApp (RF-P6-06)."""
+    WhatsApp (RF-P6-06). `delivery_address` es opcional (RF-P7-06): se
+    usa como prefill del presupuesto y viaja en el snapshot del mismo."""
 
     name: str
     phone: str
     id: Optional[str] = None
+    delivery_address: Optional[str] = None
     created_at: Optional[datetime.datetime] = None
 
     def __post_init__(self):
@@ -139,6 +141,13 @@ class Customer:
         if not (5 <= len(phone) <= 20):
             raise ValueError("El telefono debe tener entre 5 y 20 digitos")
         object.__setattr__(self, "phone", phone)
+        if self.delivery_address is not None:
+            stripped = self.delivery_address.strip()
+            if len(stripped) > 500:
+                raise ValueError(
+                    "La direccion de entrega no puede superar 500 caracteres"
+                )
+            object.__setattr__(self, "delivery_address", stripped or None)
         if self.id is None:
             # La identidad la genera el dominio (mismo criterio que User, F5).
             object.__setattr__(self, "id", str(uuid.uuid4()))
