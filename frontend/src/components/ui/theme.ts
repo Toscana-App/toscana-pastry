@@ -13,6 +13,8 @@ const FONT_STACK = `var(--font-sn-pro), -apple-system, BlinkMacSystemFont, "Sego
  * Neutrals are warm (flour paper in light, cocoa near-black in dark); the
  * logo ink is #373435. Text and status pairs are pinned to WCAG AA by
  * theme.test.ts.
+ *
+ * Radius scale: derived from impuestito.org design system (base 0.5rem = 8px).
  */
 const customConfig = defineConfig({
   theme: {
@@ -31,6 +33,18 @@ const customConfig = defineConfig({
       fonts: {
         heading: { value: FONT_STACK },
         body: { value: FONT_STACK },
+      },
+      // Radius scale from impuestito.org: base 0.5rem with multipliers.
+      radii: {
+        "2xs": { value: "4px" },    // ×0.5 — small elements
+        xs: { value: "6px" },       // ×0.75 — small inputs
+        sm: { value: "8px" },       // ×1 — buttons, chips
+        md: { value: "12px" },      // ×1.5 — form fields
+        lg: { value: "16px" },      // ×2 — standard cards
+        xl: { value: "20px" },      // ×2.5 — large cards
+        "2xl": { value: "24px" },   // ×3 — panels, modals
+        "3xl": { value: "32px" },   // ×4 — large containers
+        full: { value: "9999px" },  // pills, badges
       },
       colors: {
         brand: {
@@ -67,9 +81,7 @@ const customConfig = defineConfig({
         fg: {
           DEFAULT: { value: { _light: "#1c1718", _dark: "#f7f1ee" } },
           muted: { value: { _light: "#5e5553", _dark: "#b0a5a2" } },
-          // Placeholder/disabled tier only; not for body copy.
           subtle: { value: { _light: "#7d7371", _dark: "#807573" } },
-          // Chakra defaults (500/600 in light) fail 4.5:1 on white.
           error: { value: { _light: "{colors.red.700}", _dark: "{colors.red.300}" } },
           success: { value: { _light: "{colors.green.fg}", _dark: "{colors.green.fg}" } },
           warning: { value: { _light: "{colors.orange.700}", _dark: "{colors.orange.300}" } },
@@ -80,8 +92,6 @@ const customConfig = defineConfig({
           subtle: { value: { _light: "#f6f1ee", _dark: "#1d1817" } },
           emphasized: { value: { _light: "#d6ccc7", _dark: "#463c3a" } },
         },
-        // Keys read by Chakra's colorPalette recipes. The fill is the exact
-        // brand coral in both modes; white on it is 2.6:1, so its text is dark ink.
         brand: {
           solid: { value: { _light: "{colors.brand.400}", _dark: "{colors.brand.400}" } },
           contrast: { value: { _light: "#2a1215", _dark: "#2a1215" } },
@@ -91,7 +101,6 @@ const customConfig = defineConfig({
           emphasized: { value: { _light: "{colors.brand.200}", _dark: "{colors.brand.800}" } },
           focusRing: { value: { _light: "{colors.brand.500}", _dark: "{colors.brand.400}" } },
         },
-        // Positive state speaks in the brand teal and sage.
         green: {
           solid: { value: { _light: "{colors.toscana.teal}", _dark: "{colors.toscana.teal}" } },
           contrast: { value: { _light: "#10251d", _dark: "#10251d" } },
@@ -101,7 +110,6 @@ const customConfig = defineConfig({
           emphasized: { value: { _light: "#b3d3ae", _dark: "#21443a" } },
           focusRing: { value: { _light: "{colors.toscana.teal}", _dark: "{colors.toscana.teal}" } },
         },
-        // Status fills: Chakra's defaults put white text under 4.5:1.
         red: { solid: { value: { _light: "{colors.red.600}", _dark: "{colors.red.600}" } } },
         orange: {
           solid: { value: { _light: "{colors.orange.700}", _dark: "{colors.orange.700}" } },
