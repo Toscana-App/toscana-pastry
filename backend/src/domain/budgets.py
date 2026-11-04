@@ -169,8 +169,9 @@ class Budget:
     customer_id: str
     customer_name: str
     customer_phone: str
-    items: Tuple[BudgetItem, ...]
-    margin_pct: Optional[Decimal]  # None = margen del tenant
+    delivery_address: Optional[str] = None  # snapshot (RF-P7-06/07)
+    items: Tuple[BudgetItem, ...] = ()
+    margin_pct: Optional[Decimal] = None  # None = margen del tenant
     calculation_mode: CalculationMode = CalculationMode.COST_PLUS
     status: str = "borrador"
     version: int = 0

@@ -117,12 +117,32 @@ class CustomerCreate(BaseModel):
 
     name: str = Field(min_length=2, max_length=120)
     phone: str = Field(min_length=5, max_length=30)
+    delivery_address: str | None = Field(default=None, max_length=500)
+
+    @field_validator("delivery_address")
+    @classmethod
+    def _strip_address(cls, value: str | None) -> str | None:
+        return _strip_optional(value)
+
+
+class CustomerUpdate(BaseModel):
+    """PATCH /customers/{id} (RF-P7-06): actualizacion parcial."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    delivery_address: str | None = Field(default=None, max_length=500)
+
+    @field_validator("delivery_address")
+    @classmethod
+    def _strip_address(cls, value: str | None) -> str | None:
+        return _strip_optional(value)
 
 
 class CustomerResponse(BaseModel):
     id: str
     name: str
     phone: str
+    delivery_address: str | None = None
     created_at: str
 
 

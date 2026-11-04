@@ -196,6 +196,13 @@ class CustomerRepository(ABC):
         pass
 
     @abstractmethod
+    async def update_address(
+        self, customer_id: str, delivery_address: Optional[str]
+    ) -> Optional["Customer"]:
+        """Direccion de entrega (RF-P7-06); None si el cliente no existe."""
+        pass
+
+    @abstractmethod
     async def get_or_create(
         self, customer: "Customer"
     ) -> tuple["Customer", bool]:

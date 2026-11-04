@@ -15,7 +15,7 @@ Reglas del contrato (api_endpoints.md §F3):
 import datetime
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from api.v1.money import Money, Pct, Qty
 
@@ -41,10 +41,22 @@ class BudgetCreate(BaseModel):
     calculation_mode: CalculationMode = "cost_plus"
     margin_pct: Optional[Pct] = Field(default=None, ge=0, le=200)
     items: List[BudgetItemInput] = Field(min_length=1)
+    delivery_address: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("delivery_address")
+    @classmethod
+    def _strip_address(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
 
 
 class BudgetUpdate(BaseModel):
-    """PUT /budgets/{id}: parcial. Borrador y enviado (reenviar, RF-P8-05)."""
+    """PUT /budgets/{id}: parcial. Borrador y enviado (reenviar, RF-P8-05).
+
+    `delivery_address` ausente conserva el snapshot; presente (o null
+    explicito) lo reemplaza (RNF-P7-04)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -52,6 +64,15 @@ class BudgetUpdate(BaseModel):
     calculation_mode: Optional[CalculationMode] = None
     margin_pct: Optional[Pct] = Field(default=None, ge=0, le=200)
     items: Optional[List[BudgetItemInput]] = Field(default=None, min_length=1)
+    delivery_address: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("delivery_address")
+    @classmethod
+    def _strip_address(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
 
 
 class BudgetItemsPatch(BaseModel):
@@ -110,6 +131,7 @@ class BudgetDetailResponse(BaseModel):
     id: str
     seq: str
     customer: BudgetCustomerResponse
+    delivery_address: Optional[str] = None
     status: BudgetStatus
     calculation_mode: CalculationMode
     margin_pct: Optional[Pct] = None

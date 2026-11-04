@@ -63,6 +63,8 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  delete (URL as unknown as { createObjectURL?: unknown }).createObjectURL;
+  delete (URL as unknown as { revokeObjectURL?: unknown }).revokeObjectURL;
 });
 
 describe("budgetsService — GET /budgets", () => {
@@ -158,6 +160,39 @@ describe("budgetsService — POST /budgets", () => {
   });
 });
 
+describe("budgetsService — delivery_address (RF-P7-06/07)", () => {
+  it("create manda delivery_address cuando está y getDetail la mapea", async () => {
+    const fetchMock = mockFetch(201, detailBody({ delivery_address: "Av. San Martín 1234" }));
+
+    const detail = await budgetsService.create({
+      customer_id: "c1",
+      calculation_mode: "cost_plus",
+      margin_pct: null,
+      delivery_address: "Av. San Martín 1234",
+      items: [{ product_id: "p1", qty: 1, price_override: null }],
+    });
+
+    const body = JSON.parse(lastCall(fetchMock).init.body as string);
+    expect(body.delivery_address).toBe("Av. San Martín 1234");
+    expect(detail.delivery_address).toBe("Av. San Martín 1234");
+  });
+
+  it("create omite delivery_address del body cuando no está; el detalle la mapea a null", async () => {
+    const fetchMock = mockFetch(201, detailBody());
+
+    const detail = await budgetsService.create({
+      customer_id: "c1",
+      calculation_mode: "cost_plus",
+      margin_pct: null,
+      items: [{ product_id: "p1", qty: 1, price_override: null }],
+    });
+
+    const body = JSON.parse(lastCall(fetchMock).init.body as string);
+    expect(body).not.toHaveProperty("delivery_address");
+    expect(detail.delivery_address).toBeNull();
+  });
+});
+
 describe("budgetsService — PUT /budgets/{id}", () => {
   it("update manda solo los campos presentes (margin_pct undefined no se toca)", async () => {
     const fetchMock = mockFetch(200, detailBody());
@@ -221,5 +256,73 @@ describe("budgetsService — acciones", () => {
     const { url, init } = lastCall(fetchMock);
     expect(url).toBe(`${API_BASE}/budgets/b1`);
     expect(init.method).toBe("DELETE");
+  });
+});
+
+describe("budgetsService — PDF y WhatsApp (Fase 8, P9/P10)", () => {
+  it("pdfUrl hace GET binario y devuelve el objectURL del blob", async () => {
+    const blob = new Blob(["%PDF-1.4"], { type: "application/pdf" });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      blob: async () => blob,
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const createSpy = vi.fn(() => "blob:obj-1");
+    // No reemplazar el global URL: jsdom (tough-cookie) usa `new URL(...)`.
+    (URL as unknown as { createObjectURL: unknown }).createObjectURL = createSpy;
+    (URL as unknown as { revokeObjectURL: unknown }).revokeObjectURL = vi.fn();
+
+    const url = await budgetsService.pdfUrl("b1");
+
+    expect(url).toBe("blob:obj-1");
+    expect(createSpy).toHaveBeenCalledWith(blob);
+    const [u] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(u).toBe(`${API_BASE}/budgets/b1/pdf`);
+  });
+
+  it("pdfUrl: respuesta no ok → ApiError legible", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+    await expect(budgetsService.pdfUrl("b1")).rejects.toThrow("No se pudo generar el PDF");
+  });
+
+  it("sharePdf hace POST /budgets/{id}/pdf y devuelve { url, expires_at }", async () => {
+    const fetchMock = mockFetch(200, {
+      url: "https://public.example/api/v1/pdf/tok",
+      expires_at: "2026-11-07T00:00:00Z",
+    });
+
+    const res = await budgetsService.sharePdf("b1");
+
+    const { url, init } = lastCall(fetchMock);
+    expect(url).toBe(`${API_BASE}/budgets/b1/pdf`);
+    expect(init.method).toBe("POST");
+    expect(res.url).toBe("https://public.example/api/v1/pdf/tok");
+    expect(res.expires_at).toBe("2026-11-07T00:00:00Z");
+  });
+
+  it("whatsappLink hace POST /budgets/{id}/whatsapp-link y devuelve { url, sent_at }", async () => {
+    const fetchMock = mockFetch(200, {
+      url: "https://wa.me/5491155550100?text=hola",
+      sent_at: "2026-11-04T12:00:00Z",
+    });
+
+    const res = await budgetsService.whatsappLink("b1");
+
+    const { url, init } = lastCall(fetchMock);
+    expect(url).toBe(`${API_BASE}/budgets/b1/whatsapp-link`);
+    expect(init.method).toBe("POST");
+    expect(res.url).toBe("https://wa.me/5491155550100?text=hola");
+    expect(res.sent_at).toBe("2026-11-04T12:00:00Z");
+  });
+
+  it("whatsappLink: 429 → ApiError con el mensaje de límite (RNF-P10-06)", async () => {
+    mockFetch(429, {
+      detail: "Límite diario de links de WhatsApp alcanzado (30/día)",
+    });
+
+    await expect(budgetsService.whatsappLink("b1")).rejects.toThrow(
+      "Límite diario de links de WhatsApp alcanzado",
+    );
   });
 });

@@ -172,6 +172,7 @@ class CustomerORM(Base):
     phone = Column(String, nullable=False)
     name_norm = Column(String, nullable=False, index=True)
     phone_norm = Column(String, nullable=False)
+    delivery_address = Column(String, nullable=True)  # RF-P7-06
     created_at = Column(DateTime(timezone=True), nullable=False)
     __table_args__ = (
         {"extend_existing": True},
@@ -217,6 +218,7 @@ class BudgetORM(Base):
     )
     customer_name = Column(String, nullable=False, index=True)  # snapshot
     customer_phone = Column(String, nullable=False)  # snapshot
+    delivery_address = Column(String, nullable=True)  # snapshot (RF-P7-06)
     status = Column(String, nullable=False, default="borrador", index=True)
     calculation_mode = Column(String, nullable=False, default="cost_plus")
     margin_pct = Column(String, nullable=True)  # override; nulo = tenant

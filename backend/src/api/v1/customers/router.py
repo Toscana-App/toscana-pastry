@@ -12,6 +12,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.exc import IntegrityError
+from starlette.responses import JSONResponse
 
 from api.v1.dependencies import get_current_user, require_admin, require_role
 from api.v1.customers.dependencies import (
@@ -27,6 +28,7 @@ from api.v1.customers.schemas import (
     CustomerCreate,
     CustomerListResponse,
     CustomerResponse,
+    CustomerUpdate,
 )
 from domain.customer_address import (
     CannotRemoveOnlyAddress,
@@ -50,6 +52,7 @@ def _response(customer: Customer) -> CustomerResponse:
         id=customer.id or "",
         name=customer.name,
         phone=customer.phone,
+        delivery_address=customer.delivery_address,
         created_at=_iso(customer.created_at),
     )
 
@@ -85,17 +88,70 @@ async def create_customer(
     """Crea o reutiliza (dedup nombre+telefono). Duplicado: 409 con el
     cliente existente (RF-P6-08)."""
     try:
-        customer = Customer(name=payload.name, phone=payload.phone)
+        customer = Customer(
+            name=payload.name,
+            phone=payload.phone,
+            delivery_address=payload.delivery_address,
+        )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     existing, created = await repo.get_or_create(customer)
     if not created:
-        raise HTTPException(
+        # 409 con el cliente existente en el body (`existing`) + el
+        # header X-Customer-Id (RF-P6-08/RF-P7-03): el wizard muestra la
+        # sugerencia "usar datos existentes" con direccion incluida.
+        return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Cliente duplicado (mismo nombre y telefono)",
+            content={
+                "detail": "Cliente duplicado (mismo nombre y telefono)",
+                "existing": _response(existing).model_dump(),
+            },
             headers={"X-Customer-Id": existing.id or ""},
         )
     return _response(existing)
+
+
+@router.get("/{customer_id}", response_model=CustomerResponse)
+async def get_customer(
+    customer_id: str,
+    repo: CustomerRepository = Depends(get_customer_repository),
+    current_user: User = Depends(get_current_user),
+):
+    """Detalle (lectura, como el listado): prefill del wizard
+    (RF-P7-03/07)."""
+    customer = await repo.get(customer_id)
+    if customer is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado"
+        )
+    return _response(customer)
+
+
+@router.patch("/{customer_id}", response_model=CustomerResponse)
+async def update_customer(
+    customer_id: str,
+    payload: CustomerUpdate,
+    repo: CustomerRepository = Depends(get_customer_repository),
+    _admin: User = Depends(require_admin),
+):
+    """Actualizacion parcial de la direccion de entrega (RF-P7-06): el
+    wizard persiste la direccion usada en el presupuesto."""
+    if not payload.model_dump(exclude_unset=True):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="al menos un campo para actualizar",
+        )
+    try:
+        updated = await repo.update_address(
+            customer_id, payload.delivery_address
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    if updated is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado"
+        )
+    return _response(updated)
 
 
 _ADDRESS_GUARD = require_role(UserRole.CUSTOMER, UserRole.NEGOCIO)

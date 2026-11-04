@@ -296,6 +296,121 @@ class TestCustomers:
         )
         assert response.status_code == 200
 
+    # -- delivery_address (RF-P7-06/07) --------------------------------
+
+    async def test_alta_con_direccion_de_entrega(self, client: AsyncClient):
+        token = await _admin_token(client)
+        response = await client.post(
+            "/api/v1/customers",
+            json={
+                "name": "Marta Envios",
+                "phone": "11 3000 4000",
+                "delivery_address": "Av. Rivadavia 1234, CABA",
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 201, response.text
+        assert response.json()["delivery_address"] == "Av. Rivadavia 1234, CABA"
+
+        # La direccion viaja en el listado (RF-P7-06).
+        listing = await client.get(
+            "/api/v1/customers",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert listing.status_code == 200
+        items = listing.json()["items"]
+        assert any(
+            i["delivery_address"] == "Av. Rivadavia 1234, CABA" for i in items
+        )
+
+    async def test_alta_sin_direccion_da_null(self, client: AsyncClient):
+        token = await _admin_token(client)
+        response = await client.post(
+            "/api/v1/customers",
+            json={"name": "Sin Direccion", "phone": "11 3000 4001"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 201
+        assert response.json()["delivery_address"] is None
+
+    async def test_patch_direccion_de_entrega(self, client: AsyncClient):
+        token = await _admin_token(client)
+        customer_id = await _make_customer(client, token, "María", "+357 555-1234")
+        response = await client.patch(
+            f"/api/v1/customers/{customer_id}",
+            json={"delivery_address": "Calle 10 100, San Francisco"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["delivery_address"] == "Calle 10 100, San Francisco"
+        # Parcial: name/phone intactos.
+        assert body["name"] == "María"
+        assert body["phone"] == "3575551234"
+
+        # Cadena vacia limpia la direccion.
+        cleared = await client.patch(
+            f"/api/v1/customers/{customer_id}",
+            json={"delivery_address": ""},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert cleared.status_code == 200
+        assert cleared.json()["delivery_address"] is None
+
+    async def test_patch_sin_campos_da_422(self, client: AsyncClient):
+        token = await _admin_token(client)
+        customer_id = await _make_customer(client, token, "María", "+357 555-1234")
+        response = await client.patch(
+            f"/api/v1/customers/{customer_id}",
+            json={},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 422
+
+    async def test_patch_cliente_inexistente_da_404(self, client: AsyncClient):
+        token = await _admin_token(client)
+        response = await client.patch(
+            "/api/v1/customers/no-existe",
+            json={"delivery_address": "Cualquiera 1"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 404
+
+    async def test_patch_requiere_admin(self, client: AsyncClient):
+        token = await _admin_token(client)
+        customer_id = await _make_customer(client, token, "María", "+357 555-1234")
+        customer_token = await _customer_token(client)
+        response = await client.patch(
+            f"/api/v1/customers/{customer_id}",
+            json={"delivery_address": "Avenida 1"},
+            headers={"Authorization": f"Bearer {customer_token}"},
+        )
+        assert response.status_code == 403
+
+    async def test_duplicado_incluye_cliente_existente(self, client: AsyncClient):
+        """El 409 de dedup devuelve el cliente completo en el body
+        (`existing`), no solo el header X-Customer-Id (RF-P7-03)."""
+        token = await _admin_token(client)
+        first = await _make_customer(client, token, "María", "+357 555-1234")
+        patched = await client.patch(
+            f"/api/v1/customers/{first}",
+            json={"delivery_address": "Calle 10 100, San Francisco"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert patched.status_code == 200
+
+        response = await client.post(
+            "/api/v1/customers",
+            json={"name": "  maria ", "phone": "3575551234"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 409
+        assert response.headers.get("X-Customer-Id") == first
+        existing = response.json()["existing"]
+        assert existing["id"] == first
+        assert existing["name"] == "María"
+        assert existing["delivery_address"] == "Calle 10 100, San Francisco"
+
 
 # ---------------------------------------------------------------------------
 # Crear pedido (RNF-P6-03)
