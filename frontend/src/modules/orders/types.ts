@@ -187,7 +187,7 @@ export interface InsufficientStockResponse {
   insufficient_stock: InsufficientStockItem[];
 }
 
-/** POST /orders/{id}/whatsapp — enlace generado (UC-05). */
+/** POST /orders/{id}/whatsapp-link — enlace generado (UC-05). */
 export interface WhatsAppLink {
   url: string;
   message: string;

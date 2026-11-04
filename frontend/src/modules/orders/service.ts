@@ -218,9 +218,11 @@ export const ordersService = {
     }));
   },
 
-  /** POST /orders/{id}/whatsapp — enlace wa.me con el mensaje del pedido. */
+  /** POST /orders/{id}/whatsapp-link — enlace wa.me con el mensaje del pedido. */
   whatsapp(id: string): Promise<WhatsAppLink> {
-    return apiFetch<WhatsAppLink>(`${BASE}/${id}/whatsapp`, { method: "POST" });
+    return apiFetch<WhatsAppLink>(`${BASE}/${id}/whatsapp-link`, {
+      method: "POST",
+    });
   },
 };
 
