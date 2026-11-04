@@ -238,7 +238,7 @@ export interface InsufficientStockResponse {
   insufficient_stock: InsufficientStockItem[];
 }
 
-/** POST /orders/{id}/whatsapp — enlace generado (UC-05). */
+/** POST /orders/{id}/whatsapp-link — enlace generado (UC-05). */
 export interface WhatsAppLink {
   url: string;
   message: string;
@@ -249,11 +249,15 @@ export interface Customer {
   id: string;
   name: string;
   phone: string;
+  /** null = sin dirección de entrega (Fase 7, RF-P7-03). */
+  delivery_address?: string | null;
 }
 
 export interface CustomerCreateInput {
   name: string;
   phone: string;
+  /** Opcional: se guarda en el cliente (Fase 7, RF-P7-06). */
+  delivery_address?: string | null;
 }
 
 export interface CustomerListResponse {

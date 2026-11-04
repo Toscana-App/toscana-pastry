@@ -140,11 +140,15 @@ async def _set_settings(client: AsyncClient, token: str) -> None:
 
 
 async def _make_customer(
-    client: AsyncClient, token: str, name: str, phone: str
+    client: AsyncClient, token: str, name: str, phone: str,
+    delivery_address: str | None = None,
 ) -> str:
+    body: dict = {"name": name, "phone": phone}
+    if delivery_address is not None:
+        body["delivery_address"] = delivery_address
     response = await client.post(
         "/api/v1/customers",
-        json={"name": name, "phone": phone},
+        json=body,
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 201, response.text
@@ -379,6 +383,75 @@ class TestBudgetCreate:
         )
         assert response.status_code == 200
 
+    # -- delivery_address (RF-P7-06/07) --------------------------------
+
+    async def test_crear_con_direccion_de_entrega(self, client: AsyncClient):
+        token, _, torta_id, customer_id = await _setup(client)
+        response = await client.post(
+            "/api/v1/budgets",
+            json={
+                "customer_id": customer_id,
+                "items": [{"product_id": torta_id, "qty": 2}],
+                "delivery_address": "Av. San Martín 1234, San Francisco",
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 201, response.text
+        assert response.json()["delivery_address"] == (
+            "Av. San Martín 1234, San Francisco"
+        )
+
+    async def test_crear_hereda_direccion_del_cliente(self, client: AsyncClient):
+        """Sin direccion en el payload, el snapshot del presupuesto
+        hereda la del cliente (RNF-P7-04)."""
+        token, _, torta_id, _ = await _setup(client)
+        customer_id = await _make_customer(
+            client,
+            token,
+            "Con Direccion",
+            "3575559999",
+            delivery_address="Calle 27 de Febrero 500, San Francisco",
+        )
+        body = await _create_budget(client, token, customer_id, torta_id, qty=2)
+        assert body["delivery_address"] == "Calle 27 de Febrero 500, San Francisco"
+
+        detail = await client.get(
+            f"/api/v1/budgets/{body['id']}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert detail.status_code == 200
+        assert detail.json()["delivery_address"] == (
+            "Calle 27 de Febrero 500, San Francisco"
+        )
+
+    async def test_crear_sin_direccion_da_null(self, client: AsyncClient):
+        token, _, torta_id, customer_id = await _setup(client)
+        body = await _create_budget(client, token, customer_id, torta_id, qty=2)
+        assert body["delivery_address"] is None
+
+    async def test_direccion_explicita_tiene_precedencia(
+        self, client: AsyncClient
+    ):
+        token, _, torta_id, _ = await _setup(client)
+        customer_id = await _make_customer(
+            client,
+            token,
+            "Con Direccion",
+            "3575559998",
+            delivery_address="Calle Vieja 1",
+        )
+        response = await client.post(
+            "/api/v1/budgets",
+            json={
+                "customer_id": customer_id,
+                "items": [{"product_id": torta_id, "qty": 2}],
+                "delivery_address": "Calle Nueva 2",
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 201
+        assert response.json()["delivery_address"] == "Calle Nueva 2"
+
 
 # ---------------------------------------------------------------------------
 # Lectura pura (no vuelve al catalogo)
@@ -492,6 +565,38 @@ class TestBudgetUpdate:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 404
+
+    async def test_editar_conserva_y_actualiza_direccion(self, client: AsyncClient):
+        """PUT sin direccion conserva el snapshot; PUT con direccion
+        explicito lo actualiza (RNF-P7-04)."""
+        token, _, torta_id, customer_id = await _setup(client)
+        created = await client.post(
+            "/api/v1/budgets",
+            json={
+                "customer_id": customer_id,
+                "items": [{"product_id": torta_id, "qty": 2}],
+                "delivery_address": "Av. Corrientes 700, CABA",
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert created.status_code == 201
+        budget_id = created.json()["id"]
+
+        response = await client.put(
+            f"/api/v1/budgets/{budget_id}",
+            json={"items": [{"product_id": torta_id, "qty": 3}]},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 200
+        assert response.json()["delivery_address"] == "Av. Corrientes 700, CABA"
+
+        changed = await client.put(
+            f"/api/v1/budgets/{budget_id}",
+            json={"delivery_address": "Pasaje 12, San Francisco"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert changed.status_code == 200
+        assert changed.json()["delivery_address"] == "Pasaje 12, San Francisco"
 
 
 # ---------------------------------------------------------------------------

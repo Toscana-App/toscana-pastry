@@ -108,7 +108,12 @@ def build_budget_pdf(budget: Budget, business_name: str, footer_text: str) -> by
                     ),
                     Paragraph(
                         f"<b>Cliente</b><br/>{escape(budget.customer_name)}<br/>"
-                        f"Tel: {escape(budget.customer_phone)}",
+                        f"Tel: {escape(budget.customer_phone)}"
+                        + (
+                            f"<br/>Entrega: {escape(budget.delivery_address)}"
+                            if budget.delivery_address
+                            else ""
+                        ),
                         s["cell"],
                     ),
                 ]

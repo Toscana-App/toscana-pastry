@@ -1,4 +1,5 @@
-import { apiFetch } from "@/lib/api";
+import { ACCESS_TOKEN_COOKIE, apiFetch, API_BASE_URL, ApiError } from "@/lib/api";
+import { getCookie } from "@/lib/cookies";
 import { downloadEndpoint } from "@/lib/download";
 import type {
   BudgetCreatePayload,
@@ -12,7 +13,9 @@ import type {
   CalculationMode,
   ConvertToOrderResponse,
   ExportFormat,
+  PdfShare,
   RecalculateResponse,
+  WhatsAppLink,
 } from "./types";
 
 const BASE = "/budgets";
@@ -68,6 +71,7 @@ function detailOf(raw: Record<string, unknown>): BudgetDetail {
     version: raw.version as number,
     items: (raw.items as unknown[]).map((i) => itemOf(i as Record<string, unknown>)),
     summary: summaryOf(raw.summary as Record<string, unknown>),
+    delivery_address: (raw.delivery_address as string | null) ?? null,
     created_at: raw.created_at as string,
     updated_at: raw.updated_at as string,
     sent_at: raw.sent_at as string | null,
@@ -107,6 +111,11 @@ export const budgetsService = {
         customer_id: payload.customer_id,
         calculation_mode: payload.calculation_mode,
         margin_pct: payload.margin_pct,
+        // Solo si el wizard la capturó (Fase 7, RF-P7-06); si no, el backend
+        // hereda la del cliente.
+        ...(payload.delivery_address
+          ? { delivery_address: payload.delivery_address }
+          : {}),
         items: payload.items.map((i) => ({
           product_id: i.product_id,
           qty: i.qty,
@@ -202,6 +211,35 @@ export const budgetsService = {
     if (params.from) query.set("from", params.from);
     if (params.to) query.set("to", params.to);
     query.set("format", format);
-    return downloadEndpoint(`${BASE}/export?${query.toString()}`, `presupuestos.${format}`);
+    return downloadEndpoint(`${BASE}/export?${query.toString()}`, `presupuestos.${format}`);  },
+
+  /**
+   * GET /budgets/{id}/pdf (P9) — PDF binario autenticado. Devuelve un
+   * objectURL para el preview en página; el llamador revoca el anterior
+   * al reemplazarlo. fetch crudo: apiFetch siempre parsea JSON.
+   */
+  async pdfUrl(id: string): Promise<string> {
+    const token = getCookie(ACCESS_TOKEN_COOKIE);
+    const res = await fetch(`${API_BASE_URL}${BASE}/${id}/pdf`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    if (!res.ok) throw new ApiError(res.status, "No se pudo generar el PDF");
+    return URL.createObjectURL(await res.blob());
   },
+
+  /**
+   * POST /budgets/{id}/pdf (P9) — link temporal firmado de 72 h (HMAC,
+   * sin sesión): lo abre el cliente final en su navegador.
+   */
+  sharePdf(id: string): Promise<PdfShare> {
+    return apiFetch<PdfShare>(`${BASE}/${id}/pdf`, { method: "POST" });
+  },
+
+  /**
+   * POST /budgets/{id}/whatsapp-link (P10) — wa.me prellenado con la
+   * plantilla + link firmado al PDF. 429 al superar 30 links/día
+   * (RNF-P10-06).
+   */
+  whatsappLink(id: string): Promise<WhatsAppLink> {
+    return apiFetch<WhatsAppLink>(`${BASE}/${id}/whatsapp-link`, { method: "POST" });  },
 };

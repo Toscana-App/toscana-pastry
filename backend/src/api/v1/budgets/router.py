@@ -134,6 +134,7 @@ def _detail_response(budget: Budget) -> BudgetDetailResponse:
             "name": budget.customer_name,
             "phone": budget.customer_phone,
         },
+        delivery_address=budget.delivery_address,
         status=cast(BudgetStatus, budget.status),
         calculation_mode=cast(CalculationMode, budget.calculation_mode.value),
         margin_pct=budget.margin_pct,
@@ -345,6 +346,13 @@ async def create_budget(
         customer_id=customer.id or "",
         customer_name=customer.name,
         customer_phone=customer.phone,
+        # Snapshot (RNF-P7-04): explicito en el wizard; si no, hereda la
+        # direccion del cliente.
+        delivery_address=(
+            payload.delivery_address
+            if payload.delivery_address is not None
+            else customer.delivery_address
+        ),
         items=tuple(items),
         margin_pct=payload.margin_pct,
         calculation_mode=CalcMode(payload.calculation_mode),
@@ -400,6 +408,14 @@ async def update_budget(
     mode = CalcMode(
         provided.get("calculation_mode", existing.calculation_mode.value)
     )
+    # Direccion de entrega (RNF-P7-04): explicito reemplaza; cambio de
+    # cliente hereda la suya; en caso contrario conserva el snapshot.
+    if "delivery_address" in provided:
+        address = provided["delivery_address"]
+    elif "customer_id" in provided:
+        address = customer.delivery_address
+    else:
+        address = existing.delivery_address
     if "items" in provided:
         assert payload.items is not None
         items, _ = await _derive_items(
@@ -435,6 +451,7 @@ async def update_budget(
         customer_id=customer.id or "",
         customer_name=customer.name,
         customer_phone=customer.phone,
+        delivery_address=address,
         items=tuple(items),
         margin_pct=margin,
         calculation_mode=mode,
@@ -482,6 +499,7 @@ async def patch_budget_items(
         customer_id=existing.customer_id,
         customer_name=existing.customer_name,
         customer_phone=existing.customer_phone,
+        delivery_address=existing.delivery_address,
         items=tuple(items),
         margin_pct=existing.margin_pct,
         calculation_mode=existing.calculation_mode,
@@ -555,6 +573,7 @@ async def recalculate_budget(
         customer_id=existing.customer_id,
         customer_name=existing.customer_name,
         customer_phone=existing.customer_phone,
+        delivery_address=existing.delivery_address,
         items=tuple(items),
         margin_pct=existing.margin_pct,
         calculation_mode=existing.calculation_mode,

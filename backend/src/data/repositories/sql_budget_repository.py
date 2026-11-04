@@ -58,6 +58,7 @@ def _budget_to_domain(orm: BudgetORM) -> Budget:
         customer_id=orm.customer_id,
         customer_name=orm.customer_name,
         customer_phone=orm.customer_phone,
+        delivery_address=orm.delivery_address,  # type: ignore[arg-type]
         items=items,
         margin_pct=Decimal(orm.margin_pct) if orm.margin_pct is not None else None,
         calculation_mode=CalculationMode(orm.calculation_mode),
@@ -82,6 +83,7 @@ def _snapshot_to_json(budget: Budget) -> str:
                 "id": budget.customer_id,
                 "name": budget.customer_name,
                 "phone": budget.customer_phone,
+                "delivery_address": budget.delivery_address,
             },
             "margin_pct": str(budget.margin_pct)
             if budget.margin_pct is not None
@@ -210,6 +212,7 @@ class SQLBudgetRepository:
                 customer_id=budget.customer_id,
                 customer_name=budget.customer_name,
                 customer_phone=budget.customer_phone,
+                delivery_address=budget.delivery_address,
                 status=budget.status,
                 calculation_mode=budget.calculation_mode.value,
                 margin_pct=str(budget.margin_pct) if budget.margin_pct is not None else None,
@@ -256,6 +259,7 @@ class SQLBudgetRepository:
             orm.customer_id = budget.customer_id
             orm.customer_name = budget.customer_name
             orm.customer_phone = budget.customer_phone
+            orm.delivery_address = budget.delivery_address  # type: ignore[reportAttributeAccessIssue]
             orm.calculation_mode = budget.calculation_mode.value
             orm.margin_pct = (
                 str(budget.margin_pct) if budget.margin_pct is not None else None

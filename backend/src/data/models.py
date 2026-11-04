@@ -172,6 +172,7 @@ class CustomerORM(Base):
     phone = Column(String, nullable=False)
     name_norm = Column(String, nullable=False, index=True)
     phone_norm = Column(String, nullable=False)
+    delivery_address = Column(String, nullable=True)  # RF-P7-06
     created_at = Column(DateTime(timezone=True), nullable=False)
     __table_args__ = (
         {"extend_existing": True},
@@ -217,6 +218,7 @@ class BudgetORM(Base):
     )
     customer_name = Column(String, nullable=False, index=True)  # snapshot
     customer_phone = Column(String, nullable=False)  # snapshot
+    delivery_address = Column(String, nullable=True)  # snapshot (RF-P7-06)
     status = Column(String, nullable=False, default="borrador", index=True)
     calculation_mode = Column(String, nullable=False, default="cost_plus")
     margin_pct = Column(String, nullable=True)  # override; nulo = tenant
@@ -887,6 +889,61 @@ class WhatsAppSendORM(Base):
     )
     delivered_at = Column(DateTime(timezone=True), nullable=True)
     read_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+
+
+class ImportSessionORM(Base):
+    """Sesion de importacion CSV con staging (RF-CSV-01/04/07/11).
+
+    `template_columns` se guarda como JSON serializado en Text (mismo patron
+    que los snapshots de presupuesto). `status` avanza received -> in_review
+    -> confirmed | discarded.
+    """
+
+    __tablename__ = "import_sessions"
+
+    id = Column(String, primary_key=True)
+    tenant_id = Column(String, nullable=False, index=True)
+    user_id = Column(String, nullable=False, index=True)
+    entity = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="received", index=True)
+    filename = Column(String, nullable=False)
+    delimiter = Column(String, nullable=False)
+    encoding = Column(String, nullable=False)
+    template_columns = Column(Text, nullable=False)  # JSON: [col, ...]
+    total_rows = Column(Integer, nullable=False, default=0)
+    valid_rows = Column(Integer, nullable=False, default=0)
+    invalid_rows = Column(Integer, nullable=False, default=0)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+    confirmed_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class ImportRowORM(Base):
+    """Fila estadiada de una importacion (RF-CSV-03/08).
+
+    `data` (JSON: {col: valor}) y `errors` (JSON: [msg, ...]) son Text con JSON
+    serializado. `row_number` es 1-indexed (el encabezado no cuenta).
+    """
+
+    __tablename__ = "import_rows"
+
+    id = Column(String, primary_key=True)
+    import_id = Column(
+        String, ForeignKey("import_sessions.id"), nullable=False, index=True
+    )
+    tenant_id = Column(String, nullable=False, index=True)
+    row_number = Column(Integer, nullable=False)
+    status = Column(String, nullable=False, default="valid")
+    data = Column(Text, nullable=False)  # JSON: {col: valor}
+    errors = Column(Text, nullable=False, default="[]")  # JSON: [msg, ...]
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.datetime.now(datetime.UTC),

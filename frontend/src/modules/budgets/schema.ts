@@ -23,6 +23,12 @@ export const budgetClientSchema = z.object({
     .min(5, "Teléfono muy corto")
     .max(20)
     .regex(/^[0-9+\s-]+$/, "Solo dígitos"),
+  /** Opcional: dirección de entrega (Fase 7, RF-P7-06). */
+  delivery_address: z
+    .string()
+    .trim()
+    .max(500, "Dirección muy larga")
+    .optional(),
 });
 
 export type BudgetClientValue = z.infer<typeof budgetClientSchema>;

@@ -89,6 +89,8 @@ interface DraftState {
   step: number;
   name: string;
   phone: string;
+  /** Dirección de entrega opcional (Fase 7, RF-P7-06). */
+  deliveryAddress: string;
   customer: Customer | null;
   mode: CalculationMode;
   margin: string;
@@ -100,6 +102,7 @@ function freshDraft(): DraftState {
     step: 1,
     name: "",
     phone: "",
+    deliveryAddress: "",
     customer: null,
     mode: "cost_plus",
     margin: "",
@@ -188,6 +191,8 @@ export function BudgetWizard() {
   const [savingClient, setSavingClient] = useState(false);
   const [savingBudget, setSavingBudget] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** 409 en el dedupe: cliente existente esperando confirmación (RF-P7-03). */
+  const [suggestion, setSuggestion] = useState<Customer | null>(null);
   const [products, setProducts] = useState<ProductListItem[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [productsError, setProductsError] = useState<string | null>(null);
@@ -263,6 +268,7 @@ export function BudgetWizard() {
     const parsed = budgetClientSchema.safeParse({
       name: draft.name,
       phone: draft.phone,
+      delivery_address: draft.deliveryAddress,
     });
     if (!parsed.success) {
       const errs: Record<string, string> = {};
@@ -277,18 +283,32 @@ export function BudgetWizard() {
     setSavingClient(true);
     setError(null);
     try {
-      // Dedupe por nombre+teléfono: 409 → el service adopta el existente.
-      const customer = await customersService.create({
+      // Dedupe por nombre+teléfono: 409 → el service trae el existente
+      // (adopted) y se ofrece "usar datos existentes" (RF-P7-03).
+      const { customer, adopted } = await customersService.createWithAdoption({
         name: parsed.data.name,
         phone: parsed.data.phone,
+        delivery_address:
+          parsed.data.delivery_address === "" ? undefined : parsed.data.delivery_address,
       });
+      if (adopted) {
+        // Se queda en el paso 1: la dirección existente queda prellenada
+        // (editable); si el cliente no la tiene, conserva la escrita.
+        setSuggestion(customer);
+        setDraft((d) => ({
+          ...d,
+          deliveryAddress: customer.delivery_address ?? d.deliveryAddress,
+        }));
+        return;
+      }
+      setSuggestion(null);
       setDraft((d) => ({ ...d, customer, step: 2 }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo guardar el cliente");
     } finally {
       setSavingClient(false);
     }
-  }, [draft.name, draft.phone]);
+  }, [draft.name, draft.phone, draft.deliveryAddress]);
 
   /** Valida el paso 2 y pasa al resumen. */
   const continueFromItems = useCallback(() => {
@@ -338,12 +358,20 @@ export function BudgetWizard() {
         qty: Number(r.qty),
         price_override: draft.mode === "manual" && r.price !== "" ? pesosToCents(r.price) : null,
       }));
+      const address = draft.deliveryAddress.trim();
+      const customer = draft.customer!;
       const budget = await budgetsService.create({
-        customer_id: draft.customer!.id,
+        customer_id: customer.id,
         calculation_mode: draft.mode,
         margin_pct: draft.margin === "" ? null : draft.margin,
+        delivery_address: address === "" ? undefined : address,
         items,
       });
+      // Persiste la dirección usada en el presupuesto en el cliente
+      // (RF-P7-06) cuando cambió respecto al registro.
+      if (address !== "" && customer.delivery_address !== address) {
+        await customersService.updateAddress(customer.id, address);
+      }
       try {
         window.sessionStorage.removeItem(DRAFT_KEY);
       } catch {
@@ -366,6 +394,7 @@ export function BudgetWizard() {
     setClientErrors({});
     setItemErrors({});
     setError(null);
+    setSuggestion(null);
   }, []);
 
   return (
@@ -415,6 +444,44 @@ export function BudgetWizard() {
               />
               {clientErrors.phone ? <Field.ErrorText>{clientErrors.phone}</Field.ErrorText> : null}
             </Field.Root>
+            <Field.Root w="100%">
+              <Field.Label>Dirección de entrega</Field.Label>
+              <Input
+                value={draft.deliveryAddress}
+                onChange={(e) => patch({ deliveryAddress: e.target.value })}
+                placeholder="Ej.: Av. San Martín 1234, San Francisco"
+                aria-label="Dirección de entrega del cliente"
+              />
+              <Field.HelperText>
+                Opcional: se guarda en el cliente y en el presupuesto (RF-P7-06).
+              </Field.HelperText>
+              {clientErrors.delivery_address ? (
+                <Field.ErrorText>{clientErrors.delivery_address}</Field.ErrorText>
+              ) : null}
+            </Field.Root>
+            {suggestion ? (
+              <Alert.Root status="info" fontSize="sm">
+                <Alert.Content>
+                  <Alert.Title>Cliente existente</Alert.Title>
+                  <Alert.Description>
+                    Ya existe un cliente con este nombre y teléfono: <b>{suggestion.name}</b> ·{" "}
+                    {suggestion.phone}
+                    {suggestion.delivery_address ? ` · ${suggestion.delivery_address}` : ""}.
+                  </Alert.Description>
+                  <Button
+                    mt={2}
+                    size="sm"
+                    colorPalette="brand"
+                    onClick={() => {
+                      setDraft((d) => ({ ...d, customer: suggestion, step: 2 }));
+                      setSuggestion(null);
+                    }}
+                  >
+                    Usar datos existentes
+                  </Button>
+                </Alert.Content>
+              </Alert.Root>
+            ) : null}
             <HStack justify="flex-end" pt={1}>
               <Button colorPalette="brand" onClick={continueFromClient} loading={savingClient}>
                 Continuar
@@ -578,6 +645,11 @@ export function BudgetWizard() {
             <Text fontSize="sm" color="fg.muted">
               Cliente: <b>{draft.customer?.name}</b> · {draft.customer?.phone}
             </Text>
+            {draft.deliveryAddress.trim() ? (
+              <Text fontSize="sm" color="fg.muted">
+                Entrega: {draft.deliveryAddress}
+              </Text>
+            ) : null}
 
             <Box w="full" overflowX="auto" borderWidth="1px" borderColor="gray.200" rounded="md">
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>

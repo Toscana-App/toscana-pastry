@@ -14,6 +14,7 @@ def _to_domain(orm: CustomerORM) -> Customer:
         name=orm.name,  # type: ignore[arg-type]
         phone=orm.phone,  # type: ignore[arg-type]
         id=orm.id,  # type: ignore[arg-type]
+        delivery_address=orm.delivery_address,  # type: ignore[arg-type]
         created_at=orm.created_at,  # type: ignore[arg-type]
     )
 
@@ -76,6 +77,7 @@ class SQLCustomerRepository:
             phone=customer.phone,
             name_norm=customer.name_norm,
             phone_norm=customer.phone_norm,
+            delivery_address=customer.delivery_address,
             created_at=datetime.now(timezone.utc),
         )
         self.session.add(orm)
@@ -94,3 +96,24 @@ class SQLCustomerRepository:
         )
         orm = result.scalars().first()
         return _to_domain(orm) if orm else None
+
+    async def update_address(
+        self, customer_id: str, delivery_address: Optional[str]
+    ) -> Optional[Customer]:
+        """Actualiza la direccion de entrega (RF-P7-06). Cadena vacia o
+        None limpia el valor. None de retorno = cliente inexistente."""
+        result = await self.session.execute(
+            select(CustomerORM).where(CustomerORM.id == customer_id)
+        )
+        orm = result.scalars().first()
+        if orm is None:
+            return None
+        stripped = (delivery_address or "").strip() or None
+        if stripped is not None and len(stripped) > 500:
+            raise ValueError(
+                "La direccion de entrega no puede superar 500 caracteres"
+            )
+        orm.delivery_address = stripped
+        await self.session.commit()
+        await self.session.refresh(orm)
+        return _to_domain(orm)

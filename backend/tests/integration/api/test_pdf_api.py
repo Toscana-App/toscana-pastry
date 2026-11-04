@@ -188,11 +188,15 @@ async def _setup(client: AsyncClient, token: str):
 
 
 async def _make_customer(
-    client: AsyncClient, token: str, name: str, phone: str
+    client: AsyncClient, token: str, name: str, phone: str,
+    delivery_address: str | None = None,
 ) -> str:
+    body: dict = {"name": name, "phone": phone}
+    if delivery_address is not None:
+        body["delivery_address"] = delivery_address
     response = await client.post(
         "/api/v1/customers",
-        json={"name": name, "phone": phone},
+        json=body,
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 201, response.text
@@ -309,6 +313,39 @@ class TestBudgetPdfEndpoint:
         assert "margen" not in text
         assert "$775,00" not in text
         assert "$1.000,00" not in text
+
+    async def test_pdf_incluye_direccion_de_entrega(self, client):
+        """RF-P7-07: el documento muestra la direccion del snapshot si
+        esta presente."""
+        token = await _login(client)
+        product_id = await _setup(client, token)
+        customer_id = await _make_customer(
+            client,
+            token,
+            "María",
+            "+54 9 357 123-4567",
+            delivery_address="Calle Falsa 1234, San Francisco",
+        )
+        budget_id = await _make_budget(client, token, customer_id, product_id)
+        response = await client.get(
+            f"/api/v1/budgets/{budget_id}/pdf",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 200, response.text
+        text = _pdf_text(response.content)
+        assert "Calle Falsa 1234" in text
+
+    async def test_pdf_sin_direccion_no_muestra_la_linea(self, client):
+        token = await _login(client)
+        product_id = await _setup(client, token)
+        customer_id = await _make_customer(client, token, "María", "5493571234567")
+        budget_id = await _make_budget(client, token, customer_id, product_id)
+        response = await client.get(
+            f"/api/v1/budgets/{budget_id}/pdf",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        text = _pdf_text(response.content).lower()
+        assert "entrega" not in text
 
 
 class TestShareLink:
@@ -453,6 +490,27 @@ class TestWhatsAppLink:
         assert "Total (IVA incluido): $3.751,00" in message
         assert "/api/v1/pdf/" in message
         assert "Toscana Pastry" in message
+
+    async def test_whatsapp_link_incluye_direccion_de_entrega(self, client):
+        """RF-P7-07: el mensaje muestra la direccion si esta presente en
+        el snapshot del presupuesto."""
+        token = await _login(client)
+        product_id = await _setup(client, token)
+        customer_id = await _make_customer(
+            client,
+            token,
+            "María",
+            "0357 422-3456",
+            delivery_address="Calle Falsa 1234, San Francisco",
+        )
+        budget_id = await _make_budget(client, token, customer_id, product_id)
+        response = await client.post(
+            f"/api/v1/budgets/{budget_id}/whatsapp-link",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 200, response.text
+        message = unquote(response.json()["url"].split("text=", 1)[1])
+        assert "Calle Falsa 1234" in message
 
     async def test_whatsapp_link_teléfono_invalido_es_400(self, client):
         token = await _login(client)

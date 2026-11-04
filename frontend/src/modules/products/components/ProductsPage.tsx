@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Alert,
   Button,
@@ -17,6 +18,8 @@ import { SearchIcon } from "@/components/ui/search-icon";
 import { useAuth } from "@/contexts/AuthContext";
 import { EmptyState } from "@/modules/shared/EmptyState";
 import { useProducts } from "../hooks/useProducts";
+import { ImportDialogV2 } from "@/modules/imports/ImportDialogV2";
+import { downloadTemplate } from "@/modules/imports/download";
 import { ProductCard } from "./ProductCard";
 
 const PAGE_SIZE = 20;
@@ -47,7 +50,10 @@ export function ProductsPage() {
     setQuery,
     setCategory,
     goToPage,
+    reload,
   } = useProducts();
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
+  const [tplError, setTplError] = useState<string | null>(null);
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const hasFilters = query.trim().length > 0 || category !== null;
@@ -60,9 +66,28 @@ export function ProductsPage() {
           <Text color="fg.muted">{total} en total</Text>
         </Flex>
         {isAdmin ? (
-          <Button colorPalette="brand" asChild>
-            <NextLink href="/productos/new">+ Nuevo producto</NextLink>
-          </Button>
+          <Flex gap={3}>
+            <Button
+              variant="outline"
+              onClick={() =>
+                downloadTemplate("products")
+                  .then(() => setTplError(null))
+                  .catch((e) =>
+                    setTplError(
+                      e instanceof Error ? e.message : "No se pudo descargar la plantilla",
+                    ),
+                  )
+              }
+            >
+              Descargar plantilla
+            </Button>
+            <Button variant="outline" onClick={() => setCsvImportOpen(true)}>
+              Importar CSV
+            </Button>
+            <Button colorPalette="brand" asChild>
+              <NextLink href="/productos/new">+ Nuevo producto</NextLink>
+            </Button>
+          </Flex>
         ) : null}
       </Flex>
 
@@ -113,6 +138,14 @@ export function ProductsPage() {
           <Alert.Content>
             <Alert.Title>No se pudo cargar la lista</Alert.Title>
             <Alert.Description>{error}</Alert.Description>
+          </Alert.Content>
+        </Alert.Root>
+      ) : null}
+
+      {tplError ? (
+        <Alert.Root status="error">
+          <Alert.Content>
+            <Alert.Description>{tplError}</Alert.Description>
           </Alert.Content>
         </Alert.Root>
       ) : null}
@@ -185,6 +218,13 @@ export function ProductsPage() {
           ) : null}
         </>
       )}
+
+      <ImportDialogV2
+        entity="products"
+        open={csvImportOpen}
+        onOpenChange={setCsvImportOpen}
+        onImported={reload}
+      />
     </Flex>
   );
 }

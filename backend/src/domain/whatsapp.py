@@ -54,6 +54,8 @@ def budget_whatsapp_message(
     totals = budget.totals
     lines = [f"Hola {budget.customer_name}:", ""]
     lines.append(f"Te enviamos el presupuesto {budget.seq} de {business}.")
+    if budget.delivery_address:
+        lines.append(f"Entrega: {budget.delivery_address}")
     lines.append("Descargalo aqui:")
     lines.append(share_url)
     lines.append("")

@@ -19,7 +19,8 @@ import { formatCents, formatQty } from "@/lib/format";
 import { SearchIcon } from "@/components/ui/search-icon";
 import { EmptyState } from "@/modules/shared/EmptyState";
 import { useIngredients } from "../hooks/useIngredients";
-import { ImportDialog } from "./ImportDialog";
+import { ImportDialogV2 } from "@/modules/imports/ImportDialogV2";
+import { downloadTemplate } from "@/modules/imports/download";
 import { StockBadge } from "./StockBadge";
 
 const PAGE_SIZE = 50;
@@ -35,7 +36,8 @@ const PAGE_SIZE = 50;
 export function IngredientsPage() {
   const { items, total, page, query, loading, error, setQuery, goToPage, reload } =
     useIngredients();
-  const [importOpen, setImportOpen] = useState(false);
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
+  const [tplError, setTplError] = useState<string | null>(null);
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const hasSearched = query.trim().length > 0;
@@ -48,8 +50,22 @@ export function IngredientsPage() {
           <Text color="fg.muted">{total} en total</Text>
         </Flex>
         <Flex gap={3}>
-          <Button variant="outline" onClick={() => setImportOpen(true)}>
-            Importar
+          <Button
+            variant="outline"
+            onClick={() =>
+              downloadTemplate("ingredients")
+                .then(() => setTplError(null))
+                .catch((e) =>
+                  setTplError(
+                    e instanceof Error ? e.message : "No se pudo descargar la plantilla",
+                  ),
+                )
+            }
+          >
+            Descargar plantilla
+          </Button>
+          <Button variant="outline" onClick={() => setCsvImportOpen(true)}>
+            Importar CSV
           </Button>
           <Button colorPalette="brand" asChild>
             <NextLink href="/admin/ingredients/new">+ Nuevo</NextLink>
@@ -71,6 +87,14 @@ export function IngredientsPage() {
           <Alert.Content>
             <Alert.Title>No se pudo cargar la lista</Alert.Title>
             <Alert.Description>{error}</Alert.Description>
+          </Alert.Content>
+        </Alert.Root>
+      ) : null}
+
+      {tplError ? (
+        <Alert.Root status="error">
+          <Alert.Content>
+            <Alert.Description>{tplError}</Alert.Description>
           </Alert.Content>
         </Alert.Root>
       ) : null}
@@ -185,9 +209,10 @@ export function IngredientsPage() {
         </>
       )}
 
-      <ImportDialog
-        open={importOpen}
-        onOpenChange={setImportOpen}
+      <ImportDialogV2
+        entity="ingredients"
+        open={csvImportOpen}
+        onOpenChange={setCsvImportOpen}
         onImported={reload}
       />
     </Flex>
