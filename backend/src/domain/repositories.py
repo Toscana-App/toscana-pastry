@@ -219,6 +219,7 @@ class OrderRepository(ABC):
         date_to: Optional[date],
         page: int,
         page_size: int,
+        paid: Optional[bool] = None,
     ) -> tuple[List["Order"], int]:
         pass
 

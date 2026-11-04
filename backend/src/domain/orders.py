@@ -243,6 +243,10 @@ class Order:
     updated_at: datetime.datetime | None = None
     whatsapp_sent_at: datetime.datetime | None = None
     id: str | None = None
+    # Fase 5: estado de pago (RF-P6-10) y metodo de pago. El repositorio
+    # los rellena al reconstruir (paid se deriva de paid_at, monotono).
+    paid: bool = False
+    payment_method: str = "cash"
 
     # Se setean desde el repositorio al reconstruir (frozen).
     items: tuple[OrderItem, ...] = field(default=(), compare=False)

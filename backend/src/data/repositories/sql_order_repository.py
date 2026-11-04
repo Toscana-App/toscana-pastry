@@ -202,6 +202,8 @@ def _order_to_domain(orm: OrderORM) -> P6Order:
         updated_at=orm.updated_at,
         whatsapp_sent_at=orm.whatsapp_sent_at,
         id=orm.id,
+        paid=orm.paid_at is not None,
+        payment_method=str(orm.payment_method or "cash"),
         items=items,
         snapshots=snapshots,
     )
@@ -595,12 +597,18 @@ class SQLOrderRepository:
         date_to: Optional[datetime.date],
         page: int,
         page_size: int,
+        paid: Optional[bool] = None,
     ) -> Tuple[List[P6Order], int]:
         filters = []
         if status:
             filters.append(OrderORM.status == status)
         if customer_id:
             filters.append(OrderORM.customer_id == customer_id)
+        if paid is not None:
+            # `paid` no es columna: se deriva de paid_at (RF-P6-10).
+            filters.append(
+                OrderORM.paid_at.isnot(None) if paid else OrderORM.paid_at.is_(None)
+            )
         if q and q.strip():
             from data.accent import accent_fold
 
