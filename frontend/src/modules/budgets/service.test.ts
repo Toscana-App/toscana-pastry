@@ -158,6 +158,39 @@ describe("budgetsService — POST /budgets", () => {
   });
 });
 
+describe("budgetsService — delivery_address (RF-P7-06/07)", () => {
+  it("create manda delivery_address cuando está y getDetail la mapea", async () => {
+    const fetchMock = mockFetch(201, detailBody({ delivery_address: "Av. San Martín 1234" }));
+
+    const detail = await budgetsService.create({
+      customer_id: "c1",
+      calculation_mode: "cost_plus",
+      margin_pct: null,
+      delivery_address: "Av. San Martín 1234",
+      items: [{ product_id: "p1", qty: 1, price_override: null }],
+    });
+
+    const body = JSON.parse(lastCall(fetchMock).init.body as string);
+    expect(body.delivery_address).toBe("Av. San Martín 1234");
+    expect(detail.delivery_address).toBe("Av. San Martín 1234");
+  });
+
+  it("create omite delivery_address del body cuando no está; el detalle la mapea a null", async () => {
+    const fetchMock = mockFetch(201, detailBody());
+
+    const detail = await budgetsService.create({
+      customer_id: "c1",
+      calculation_mode: "cost_plus",
+      margin_pct: null,
+      items: [{ product_id: "p1", qty: 1, price_override: null }],
+    });
+
+    const body = JSON.parse(lastCall(fetchMock).init.body as string);
+    expect(body).not.toHaveProperty("delivery_address");
+    expect(detail.delivery_address).toBeNull();
+  });
+});
+
 describe("budgetsService — PUT /budgets/{id}", () => {
   it("update manda solo los campos presentes (margin_pct undefined no se toca)", async () => {
     const fetchMock = mockFetch(200, detailBody());

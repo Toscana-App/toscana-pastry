@@ -65,6 +65,7 @@ function detailOf(raw: Record<string, unknown>): BudgetDetail {
     version: raw.version as number,
     items: (raw.items as unknown[]).map((i) => itemOf(i as Record<string, unknown>)),
     summary: summaryOf(raw.summary as Record<string, unknown>),
+    delivery_address: (raw.delivery_address as string | null) ?? null,
     created_at: raw.created_at as string,
     updated_at: raw.updated_at as string,
     sent_at: raw.sent_at as string | null,
@@ -104,6 +105,11 @@ export const budgetsService = {
         customer_id: payload.customer_id,
         calculation_mode: payload.calculation_mode,
         margin_pct: payload.margin_pct,
+        // Solo si el wizard la capturó (Fase 7, RF-P7-06); si no, el backend
+        // hereda la del cliente.
+        ...(payload.delivery_address
+          ? { delivery_address: payload.delivery_address }
+          : {}),
         items: payload.items.map((i) => ({
           product_id: i.product_id,
           qty: i.qty,

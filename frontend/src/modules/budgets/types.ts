@@ -40,6 +40,8 @@ export interface BudgetCreatePayload {
   calculation_mode: CalculationMode;
   /** null = margen del tenant. */
   margin_pct: string | null;
+  /** Snapshot de la dirección de entrega (Fase 7, RF-P7-06). */
+  delivery_address?: string | null;
   items: BudgetItemInput[];
 }
 
@@ -132,6 +134,8 @@ export interface BudgetDetail {
   version: number;
   items: BudgetItem[];
   summary: BudgetSummary;
+  /** Snapshot de la dirección de entrega (Fase 7, RF-P7-07). */
+  delivery_address: string | null;
   created_at: string;
   updated_at: string;
   sent_at: string | null;

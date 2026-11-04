@@ -240,22 +240,47 @@ export const customersService = {
   },
 
   /**
+   * POST /customers — 201 → { customer, adopted: false }. 409 → el cliente
+   * existente (dedupe) en { customer, adopted: true } (RF-P6-08): la UI puede
+   * ofrecer "usar datos existentes" con los datos del cliente, incluida su
+   * dirección de entrega (Fase 7, RF-P7-03).
+   */
+  async createWithAdoption(
+    input: CustomerCreateInput,
+  ): Promise<{ customer: Customer; adopted: boolean }> {
+    try {
+      const customer = await apiFetch<Customer>(CUSTOMERS, {
+        method: "POST",
+        body: JSON.stringify(input),
+      });
+      return { customer, adopted: false };
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) {
+        const existing = (e.payload as { existing?: Customer } | null)?.existing;
+        if (existing) return { customer: existing, adopted: true };
+      }
+      throw e;
+    }
+  },
+
+  /**
    * POST /customers — 201 → el cliente creado. 409 → devuelve el existente
    * (dedupe) en vez de lanzar: el wizard lo adopta.
    */
   async create(input: CustomerCreateInput): Promise<Customer> {
-    try {
-      return await apiFetch<Customer>(CUSTOMERS, {
-        method: "POST",
-        body: JSON.stringify(input),
-      });
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 409) {
-        const existing = (e.payload as { existing?: Customer } | null)?.existing;
-        if (existing) return existing;
-      }
-      throw e;
-    }
+    const { customer } = await this.createWithAdoption(input);
+    return customer;
+  },
+
+  /**
+   * PATCH /customers/{id} — parcial: persiste la dirección de entrega usada
+   * en el presupuesto (Fase 7, RF-P7-06).
+   */
+  updateAddress(id: string, delivery_address: string): Promise<Customer> {
+    return apiFetch<Customer>(`${CUSTOMERS}/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ delivery_address }),
+    });
   },
 };
 
