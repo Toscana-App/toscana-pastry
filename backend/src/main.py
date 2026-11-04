@@ -15,6 +15,7 @@ from api.v1.ingredients.router import router as ingredients_router
 from api.v1.imports.router import router as imports_router
 from api.v1.leads.router import router as leads_router
 from api.v1.orders.router import router as orders_router
+from api.v1.order_window.router import router as order_window_router
 from api.v1.pdf.router import router as pdf_router
 from api.v1.pricing.router import router as pricing_router
 from api.v1.products.router import router as products_router
@@ -66,6 +67,7 @@ app.include_router(cart_router, prefix="/api/v1")
 app.include_router(coupons_router, prefix="/api/v1")
 app.include_router(leads_router, prefix="/api/v1")
 app.include_router(orders_router, prefix="/api/v1")
+app.include_router(order_window_router, prefix="/api/v1")
 app.include_router(webhooks_router, prefix="/api/v1")
 app.include_router(whatsapp_router, prefix="/api/v1")
 

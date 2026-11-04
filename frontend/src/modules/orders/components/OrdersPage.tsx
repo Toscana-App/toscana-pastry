@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   Alert,
   Badge,
@@ -16,9 +17,13 @@ import {
 import NextLink from "next/link";
 import { SearchIcon } from "@/components/ui/search-icon";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatCents } from "@/lib/format";
+import { formatCents, formatDateTime } from "@/lib/format";
 import { EmptyState } from "@/modules/shared/EmptyState";
+import { orderWindowService } from "@/modules/settings/service";
+import type { OrderWindow } from "@/modules/settings/types";
 import { useOrders } from "../hooks/useOrders";
+import { ordersService } from "../service";
+import { WeeklySummaryView } from "./WeeklySummaryView";
 import { ORDER_STATUS_LABELS, ORDER_STATUSES, type OrderStatus } from "../types";
 
 const PAGE_SIZE = 20;
@@ -42,41 +47,172 @@ const STATUS_COLORS: Record<OrderStatus, "blue" | "green" | "gray" | "red"> = {
 export function OrdersPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const [view, setView] = useState<"list" | "weekly">("list");
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
   const {
     items,
     total,
+    unpaidCount,
     page,
     query,
     status,
+    paid,
     dateFrom,
     dateTo,
     loading,
     error,
     setQuery,
     setStatus,
+    setPaid,
     setDateFrom,
     setDateTo,
     goToPage,
   } = useOrders();
 
+  // Ventana de pedidos (RF-P6-09): si está cerrada se muestra el banner de
+  // aviso y se deshabilita la creación desde esta vista.
+  const [orderWindow, setOrderWindow] = useState<OrderWindow | null>(null);
+  useEffect(() => {
+    let active = true;
+    orderWindowService
+      .get()
+      .then((w) => {
+        if (active) setOrderWindow(w);
+      })
+      .catch(() => {
+        if (active) setOrderWindow(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  const windowClosed = orderWindow !== null && !orderWindow.open;
+
+  // Export del listado (UC-08): baja el reporte con los filtros activos
+  // (estado, pago y rango de fechas) en CSV o PDF.
+  const handleExport = (format: "csv" | "pdf") => {
+    setExporting(true);
+    setExportError(null);
+    ordersService
+      .exportReport(
+        {
+          status: status ?? undefined,
+          paid: paid ?? undefined,
+          from: dateFrom || undefined,
+          to: dateTo || undefined,
+        },
+        format,
+      )
+      .catch((e: unknown) =>
+        setExportError(
+          e instanceof Error ? e.message : "No se pudo generar el archivo",
+        ),
+      )
+      .finally(() => setExporting(false));
+  };
+
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const hasFilters =
-    query.trim().length > 0 || status !== null || dateFrom !== "" || dateTo !== "";
+    query.trim().length > 0 ||
+    status !== null ||
+    paid !== null ||
+    dateFrom !== "" ||
+    dateTo !== "";
 
   return (
     <Flex direction="column" gap={5}>
       <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
         <Flex direction="column" gap={1}>
           <Heading fontSize="2xl">Pedidos</Heading>
-          <Text color="fg.muted">{total} en total</Text>
+          <Text color="fg.muted">
+            {total} en total
+            {unpaidCount > 0 ? ` · ${unpaidCount} sin pagar` : ""}
+          </Text>
         </Flex>
+        {view === "list" ? (
+          <Flex gap={2}>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={exporting || total === 0}
+              onClick={() => handleExport("csv")}
+            >
+              {exporting ? "Generando…" : "Exportar CSV"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              colorPalette="brand"
+              disabled={exporting || total === 0}
+              onClick={() => handleExport("pdf")}
+            >
+              {exporting ? "Generando…" : "Exportar PDF"}
+            </Button>
+          </Flex>
+        ) : null}
         {isAdmin ? (
-          <Button colorPalette="brand" asChild>
-            <NextLink href="/pedidos/nuevo">+ Nuevo pedido</NextLink>
-          </Button>
+          windowClosed ? (
+            <Button
+              colorPalette="brand"
+              disabled
+              title="La ventana de pedidos está cerrada"
+            >
+              + Nuevo pedido
+            </Button>
+          ) : (
+            <Button colorPalette="brand" asChild>
+              <NextLink href="/pedidos/nuevo">+ Nuevo pedido</NextLink>
+            </Button>
+          )
         ) : null}
       </Flex>
 
+      {windowClosed ? (
+        <Alert.Root status="warning" borderRadius="md">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>Sección de pedidos cerrada</Alert.Title>
+            <Alert.Description>
+              {orderWindow?.message || "No se pueden crear pedidos nuevos."}
+              {orderWindow?.reopens_at
+                ? ` Reabre el ${formatDateTime(orderWindow.reopens_at)}.`
+                : ""}
+            </Alert.Description>
+          </Alert.Content>
+        </Alert.Root>
+      ) : null}
+
+      {/* Pestañas: listado / resumen semanal (UC-08) */}
+      <Flex gap={1} borderBottomWidth="1px" borderColor="gray.200">
+        {(
+          [
+            { id: "list", label: "Listado" },
+            { id: "weekly", label: "Resumen semanal" },
+          ] as const
+        ).map((tab) => (
+          <Box
+            key={tab.id}
+            as="button"
+            onClick={() => setView(tab.id)}
+            px={4}
+            py={2}
+            fontSize="sm"
+            fontWeight={view === tab.id ? "600" : "400"}
+            color={view === tab.id ? "brand.500" : "fg.muted"}
+            borderBottomWidth="2px"
+            borderBottomColor={view === tab.id ? "brand.500" : "transparent"}
+            cursor="pointer"
+          >
+            {tab.label}
+          </Box>
+        ))}
+      </Flex>
+
+      {view === "weekly" ? (
+        <WeeklySummaryView />
+      ) : (
+        <>
       <Flex gap={3} flexWrap="wrap" align="center">
         <InputGroup startElement={<SearchIcon />} maxW="320px">
           <Input
@@ -112,6 +248,17 @@ export function OrdersPage() {
               {ORDER_STATUS_LABELS[s]}
             </Button>
           ))}
+          <Button
+            size="sm"
+            rounded="full"
+            whiteSpace="nowrap"
+            variant={paid === false ? "solid" : "outline"}
+            colorPalette={paid === false ? "orange" : "gray"}
+            aria-pressed={paid === false}
+            onClick={() => setPaid(paid === false ? null : false)}
+          >
+            Sin pagar
+          </Button>
         </Flex>
 
         <Flex gap={2} align="center">
@@ -160,15 +307,30 @@ export function OrdersPage() {
                 ? "Cargá el primer pedido desde el wizard."
                 : "Los pedidos que haga tu panadero aparecerán acá."
           }
-          actionLabel={isAdmin && !hasFilters ? "Crear el primer pedido" : undefined}
-          actionHref={isAdmin && !hasFilters ? "/pedidos/nuevo" : undefined}
+          actionLabel={
+            isAdmin && !hasFilters && !windowClosed
+              ? "Crear el primer pedido"
+              : undefined
+          }
+          actionHref={
+            isAdmin && !hasFilters && !windowClosed ? "/pedidos/nuevo" : undefined
+          }
         />
       ) : (
         <Box overflowX="auto" borderWidth="1px" borderColor="gray.200" rounded="md">
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr>
-                {["Fecha", "Cliente", "Teléfono", "Ítems", "Total", "Estado", ""].map((h) => (
+                {[
+                  "Fecha",
+                  "Cliente",
+                  "Teléfono",
+                  "Ítems",
+                  "Total",
+                  "Pago",
+                  "Estado",
+                  "",
+                ].map((h) => (
                   <th
                     key={h}
                     style={{
@@ -200,6 +362,14 @@ export function OrdersPage() {
                   <td style={{ padding: "10px 14px" }}>{order.item_count}</td>
                   <td style={{ padding: "10px 14px", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
                     {formatCents(order.total)}
+                  </td>
+                  <td style={{ padding: "10px 14px" }}>
+                    <Badge
+                      colorPalette={order.paid ? "green" : "orange"}
+                      variant="subtle"
+                    >
+                      {order.paid ? "Pagado" : "Sin pagar"}
+                    </Badge>
                   </td>
                   <td style={{ padding: "10px 14px" }}>
                     <Badge colorPalette={STATUS_COLORS[order.status]} variant="subtle">
@@ -239,6 +409,8 @@ export function OrdersPage() {
           <Pagination.NextTrigger />
         </Pagination.Root>
       ) : null}
+        </>
+      )}
     </Flex>
   );
 }

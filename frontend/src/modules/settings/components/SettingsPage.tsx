@@ -25,6 +25,7 @@ import {
   SETTINGS_DEFAULTS,
   type SettingsFormValues,
 } from "../types";
+import { OrderWindowSection } from "./OrderWindowSection";
 
 /** Campo numérico con sufijo opcional (ARS, %, min). */
 function NumberField({
@@ -354,6 +355,10 @@ export function SettingsPage() {
               </Field.Root>
             </Grid>
           </Fieldset.Root>
+
+          {/* Corte de pedidos (RF-P5-07 / RF-P6-09): endpoint propio
+              (GET/PATCH /tenant/order-window), se guarda por separado. */}
+          <OrderWindowSection />
 
           <Flex gap={3} flexWrap="wrap">
             <Button type="submit" colorPalette="brand" loading={saving}>

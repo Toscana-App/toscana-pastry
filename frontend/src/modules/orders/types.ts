@@ -67,7 +67,54 @@ export interface OrderListItem {
   item_count: number;
   /** Total del pedido en centavos (long). */
   total: number;
+  /** true → ya se registró el pago (RF-P6-10). */
+  paid: boolean;
   created_at: string;
+}
+
+/** GET /orders/weekly — rango de la semana natural (Lun-Dom, UC-08). */
+export interface WeeklyRange {
+  from: string; // YYYY-MM-DD (lunes)
+  to: string; // YYYY-MM-DD (domingo)
+}
+
+/** GET /orders/weekly — fila del resumen (pedido confirmado/entregado). */
+export interface WeeklyItem {
+  id: string;
+  customer: string;
+  date: string; // YYYY-MM-DD
+  items_count: number;
+  /** Total del pedido en centavos. */
+  total: number;
+  /** true → ya se registró el pago (RF-P6-10). */
+  paid: boolean;
+  payment_method: string;
+}
+
+/** GET /orders/weekly — totales de la semana, en centavos. */
+export interface WeeklyTotals {
+  amount: number;
+  paid: number;
+  unpaid: number;
+}
+
+/** GET /orders/weekly — respuesta completa (UC-08 / RF-P6-11). */
+export interface WeeklySummary {
+  week: WeeklyRange;
+  items: WeeklyItem[];
+  totals: WeeklyTotals;
+}
+
+/** Formato de exportación (UC-08): CSV por defecto, PDF opcional. */
+export type ExportFormat = "csv" | "pdf";
+
+/** GET /orders/export — filtros del export (mismos que el listado). */
+export interface OrderExportParams {
+  status?: OrderStatus;
+  /** true → solo pagados; false → solo sin pagar. */
+  paid?: boolean;
+  from?: string; // YYYY-MM-DD
+  to?: string; // YYYY-MM-DD
 }
 
 export interface OrderListResponse {
@@ -84,6 +131,8 @@ export interface OrderListParams {
   q?: string;
   date_from?: string;
   date_to?: string;
+  /** true → solo pagados; false → solo sin pagar (RF-P6-10). */
+  paid?: boolean;
   page?: number;
   page_size?: number;
 }
@@ -147,6 +196,8 @@ export interface OrderDetail {
   items: OrderItem[];
   /** Total del pedido en centavos. */
   total: number;
+  /** true → ya se registró el pago (RF-P6-10). */
+  paid: boolean;
   whatsapp_sent_at: string | null;
   created_at: string;
   updated_at: string;

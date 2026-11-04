@@ -11,15 +11,20 @@ const PAGE_SIZE = 20;
 export interface UseOrdersResult {
   items: OrderListItem[];
   total: number;
+  /** Cantidad de pedidos "sin pagar" bajo los filtros vigentes (RF-P6-10). */
+  unpaidCount: number;
   page: number;
   query: string;
   status: OrderStatus | null;
+  /** null = todos; false = solo sin pagar; true = solo pagados (RF-P6-10). */
+  paid: boolean | null;
   dateFrom: string;
   dateTo: string;
   loading: boolean;
   error: string | null;
   setQuery: (q: string) => void;
   setStatus: (status: OrderStatus | null) => void;
+  setPaid: (paid: boolean | null) => void;
   setDateFrom: (date: string) => void;
   setDateTo: (date: string) => void;
   goToPage: (page: number) => void;
@@ -36,18 +41,20 @@ export interface UseOrdersResult {
 export function useOrders(): UseOrdersResult {
   const [query, setQueryState] = useState("");
   const [status, setStatusState] = useState<OrderStatus | null>(null);
+  const [paid, setPaidState] = useState<boolean | null>(null);
   const [dateFrom, setDateFromState] = useState("");
   const [dateTo, setDateToState] = useState("");
   const [page, setPage] = useState(1);
   const [reloadToken, setReloadToken] = useState(0);
   const [items, setItems] = useState<OrderListItem[]>([]);
   const [total, setTotal] = useState(0);
+  const [unpaidCount, setUnpaidCount] = useState(0);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const debouncedQuery = useDebounce(query, 250);
   const searchTerm = debouncedQuery.trim();
   // Clave de la petición vigente; loading se deriva comparándola con la última respondida.
-  const requestKey = JSON.stringify([searchTerm, status, dateFrom, dateTo, page, reloadToken]);
+  const requestKey = JSON.stringify([searchTerm, status, paid, dateFrom, dateTo, page, reloadToken]);
   const loading = loadedKey !== requestKey;
 
   useEffect(() => {
@@ -60,6 +67,7 @@ export function useOrders(): UseOrdersResult {
           status: status ?? undefined,
           date_from: dateFrom || undefined,
           date_to: dateTo || undefined,
+          paid: paid ?? undefined,
           page,
           page_size: PAGE_SIZE,
         });
@@ -79,7 +87,35 @@ export function useOrders(): UseOrdersResult {
     return () => {
       cancelled = true;
     };
-  }, [searchTerm, status, dateFrom, dateTo, page, reloadToken, requestKey]);
+  }, [searchTerm, status, paid, dateFrom, dateTo, page, reloadToken, requestKey]);
+
+  // Contador "N sin pagar" para el header: mismos filtros que la lista (sin
+  // el filtro de pago), paginada con page_size 1 porque solo interesa el total.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCount() {
+      try {
+        const data = await ordersService.list({
+          q: searchTerm || undefined,
+          status: status ?? undefined,
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined,
+          paid: false,
+          page: 1,
+          page_size: 1,
+        });
+        if (!cancelled) setUnpaidCount(data.total);
+      } catch {
+        // El contador es informativo: su fallo no rompe la página.
+      }
+    }
+
+    loadCount();
+    return () => {
+      cancelled = true;
+    };
+  }, [searchTerm, status, dateFrom, dateTo, reloadToken]);
 
   const setQuery = useCallback((q: string) => {
     setQueryState(q);
@@ -88,6 +124,11 @@ export function useOrders(): UseOrdersResult {
 
   const setStatus = useCallback((next: OrderStatus | null) => {
     setStatusState(next);
+    setPage(1);
+  }, []);
+
+  const setPaid = useCallback((next: boolean | null) => {
+    setPaidState(next);
     setPage(1);
   }, []);
 
@@ -112,15 +153,18 @@ export function useOrders(): UseOrdersResult {
   return {
     items,
     total,
+    unpaidCount,
     page,
     query,
     status,
+    paid,
     dateFrom,
     dateTo,
     loading,
     error,
     setQuery,
     setStatus,
+    setPaid,
     setDateFrom,
     setDateTo,
     goToPage,

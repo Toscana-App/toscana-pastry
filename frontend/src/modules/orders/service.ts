@@ -1,11 +1,14 @@
 import { apiFetch, ApiError } from "@/lib/api";
+import { downloadEndpoint } from "@/lib/download";
 import type {
   Customer,
   CustomerCreateInput,
   CustomerListResponse,
+  ExportFormat,
   InsufficientStockResponse,
   OrderCreatePayload,
   OrderDetail,
+  OrderExportParams,
   OrderItemBreakdown,
   OrderListParams,
   OrderListResponse,
@@ -112,6 +115,7 @@ function detailOf(raw: Record<string, unknown>): OrderDetail {
     margin_pct: raw.margin_pct == null ? null : Number(raw.margin_pct as string),
     items: (raw.items as unknown[]).map((i) => orderItemOf(i as Record<string, unknown>)),
     total: raw.total as number,
+    paid: Boolean(raw.paid),
     whatsapp_sent_at: raw.whatsapp_sent_at as string | null,
     created_at: raw.created_at as string,
     updated_at: raw.updated_at as string,
@@ -130,6 +134,7 @@ export const ordersService = {
     if (params.q) query.set("q", params.q);
     if (params.date_from) query.set("date_from", params.date_from);
     if (params.date_to) query.set("date_to", params.date_to);
+    if (params.paid != null) query.set("paid", String(params.paid));
     if (params.page) query.set("page", String(params.page));
     if (params.page_size) query.set("page_size", String(params.page_size));
     const qs = query.toString();
@@ -195,6 +200,17 @@ export const ordersService = {
   },
 
   /**
+   * PATCH /orders/{id}/paid — registra el pago en efectivo (RF-P6-10).
+   * Monotónico: si ya está pagado el backend responde 409.
+   */
+  markPaid(id: string): Promise<{ id: string; paid: boolean }> {
+    return apiFetch<{ id: string; paid: boolean }>(`${BASE}/${id}/paid`, {
+      method: "PATCH",
+      body: JSON.stringify({}),
+    });
+  },
+
+  /**
    * POST /orders/preview — cotización en vivo del wizard (admin, sin
    * persistir). Mismo cálculo que el create.
    */
@@ -223,6 +239,22 @@ export const ordersService = {
     return apiFetch<WhatsAppLink>(`${BASE}/${id}/whatsapp-link`, {
       method: "POST",
     });
+  },
+
+  /**
+   * GET /orders/export — descarga binaria del reporte (UC-08 / RF-P6-11).
+   * `format` = "csv" por defecto (backward-compatible) o "pdf".
+   * Mismo fetch→blob→download que los otros exports: el filename sale del
+   * Content-Disposition del backend.
+   */
+  exportReport(params: OrderExportParams = {}, format: ExportFormat = "csv"): Promise<void> {
+    const query = new URLSearchParams();
+    if (params.status) query.set("status", params.status);
+    if (params.paid != null) query.set("paid", String(params.paid));
+    if (params.from) query.set("from", params.from);
+    if (params.to) query.set("to", params.to);
+    query.set("format", format);
+    return downloadEndpoint(`${BASE}/export?${query.toString()}`, `pedidos.${format}`);
   },
 };
 

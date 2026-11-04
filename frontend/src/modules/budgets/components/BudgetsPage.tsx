@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Alert,
   Badge,
@@ -19,6 +20,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { formatCents } from "@/lib/format";
 import { EmptyState } from "@/modules/shared/EmptyState";
 import { useBudgets } from "../hooks/useBudgets";
+import { budgetsService } from "../service";
 import { BUDGET_STATUS_LABELS, BUDGET_STATUSES, type BudgetStatus } from "../types";
 
 const PAGE_SIZE = 20;
@@ -69,6 +71,31 @@ export function BudgetsPage() {
   const hasFilters =
     query.trim().length > 0 || status !== null || dateFrom !== "" || dateTo !== "";
 
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  // Export del listado (Fase 5): baja el reporte con los filtros activos
+  // (estado y rango de fechas) en CSV o PDF.
+  const handleExport = (format: "csv" | "pdf") => {
+    setExporting(true);
+    setExportError(null);
+    budgetsService
+      .exportReport(
+        {
+          status: status ?? undefined,
+          from: dateFrom || undefined,
+          to: dateTo || undefined,
+        },
+        format,
+      )
+      .catch((e: unknown) =>
+        setExportError(
+          e instanceof Error ? e.message : "No se pudo generar el archivo",
+        ),
+      )
+      .finally(() => setExporting(false));
+  };
+
   return (
     <Flex direction="column" gap={5}>
       <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
@@ -76,12 +103,41 @@ export function BudgetsPage() {
           <Heading fontSize="2xl">Presupuestos</Heading>
           <Text color="fg.muted">{total} en total</Text>
         </Flex>
-        {isAdmin ? (
-          <Button colorPalette="brand" asChild>
-            <NextLink href="/presupuestos/nuevo">+ Nuevo presupuesto</NextLink>
+        <Flex gap={2}>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={exporting || total === 0}
+            onClick={() => handleExport("csv")}
+          >
+            {exporting ? "Generando…" : "Exportar CSV"}
           </Button>
-        ) : null}
+          <Button
+            size="sm"
+            variant="outline"
+            colorPalette="brand"
+            disabled={exporting || total === 0}
+            onClick={() => handleExport("pdf")}
+          >
+            {exporting ? "Generando…" : "Exportar PDF"}
+          </Button>
+          {isAdmin ? (
+            <Button colorPalette="brand" asChild>
+              <NextLink href="/presupuestos/nuevo">+ Nuevo presupuesto</NextLink>
+            </Button>
+          ) : null}
+        </Flex>
       </Flex>
+
+      {exportError ? (
+        <Alert.Root status="error" borderRadius="md">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>No se pudo exportar</Alert.Title>
+            <Alert.Description>{exportError}</Alert.Description>
+          </Alert.Content>
+        </Alert.Root>
+      ) : null}
 
       <Flex gap={3} flexWrap="wrap" align="center">
         <InputGroup startElement={<SearchIcon />} maxW="320px">

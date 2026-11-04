@@ -112,6 +112,28 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
     }
   }, [order]);
 
+  // Marcar pagado (RF-P6-10): el backend es monotónico (409 si ya pagado).
+  const markPaid = useCallback(async () => {
+    if (!order) return;
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      const result = await ordersService.markPaid(order.id);
+      // El endpoint responde {id, paid}; el resto del detalle no cambia.
+      setOrder({ ...order, paid: result.paid });
+    } catch (e) {
+      setActionError(
+        e instanceof Error && e.message.includes("409")
+          ? "El pedido ya está marcado como pagado."
+          : e instanceof Error
+            ? e.message
+            : "No se pudo marcar como pagado",
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  }, [order]);
+
   if (loading) {
     return (
       <Stack gap={3} maxW="720px">
@@ -142,6 +164,12 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
           <Heading fontSize="2xl">Pedido {order.id.slice(0, 8)}</Heading>
           <Badge colorPalette={STATUS_COLORS[order.status]} variant="subtle">
             {ORDER_STATUS_LABELS[order.status]}
+          </Badge>
+          <Badge
+            colorPalette={order.paid ? "green" : "orange"}
+            variant="subtle"
+          >
+            {order.paid ? "Pagado" : "Sin pagar"}
           </Badge>
         </HStack>
         <Button variant="ghost" asChild>
@@ -274,6 +302,22 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
               <NextLink href={`/pedidos/${order.id}/editar`}>Editar</NextLink>
             </Button>
           ) : null}
+          {order.paid ? (
+            <Text fontSize="sm" color="fg.muted" alignSelf="center">
+              Pago registrado
+            </Text>
+          ) : (
+            <Button
+              variant="outline"
+              colorPalette="green"
+              loading={actionLoading}
+              onClick={() => {
+                void markPaid();
+              }}
+            >
+              Marcar pagado
+            </Button>
+          )}
           {nextStatuses.map((s) => (
             <Button
               key={s}

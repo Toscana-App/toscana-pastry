@@ -259,6 +259,51 @@ describe("budgetsService — acciones", () => {
   });
 });
 
+describe("budgetsService — GET /budgets/export (Fase 5)", () => {
+  function mockBlobFetch(status: number, headers: Record<string, string> = {}) {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: status >= 200 && status < 300,
+      status,
+      headers: new Headers(headers),
+      json: async () => null,
+      blob: async () => new Blob(["%PDF-1.4 fake"]),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  beforeEach(() => {
+    // jsdom no implementa object URLs.
+    URL.createObjectURL = vi.fn().mockReturnValue("blob:mock");
+    URL.revokeObjectURL = vi.fn();
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  });
+
+  it("exportReport csv arma la URL con filtros y format=csv", async () => {
+    const fetchMock = mockBlobFetch(200, {
+      "Content-Disposition": 'attachment; filename="presupuestos.csv"',
+    });
+
+    await budgetsService.exportReport(
+      { status: "enviado", from: "2026-10-01", to: "2026-10-31" },
+      "csv",
+    );
+
+    expect(lastCall(fetchMock).url).toBe(
+      `${API_BASE}/budgets/export?status=enviado&from=2026-10-01&to=2026-10-31&format=csv`,
+    );
+  });
+
+  it("exportReport pdf usa format=pdf y sin filtros no manda query extra", async () => {
+    const fetchMock = mockBlobFetch(200, {
+      "Content-Disposition": 'attachment; filename="presupuestos.pdf"',
+    });
+
+    await budgetsService.exportReport({}, "pdf");
+
+    expect(lastCall(fetchMock).url).toBe(`${API_BASE}/budgets/export?format=pdf`);  });
+});
+
 describe("budgetsService — PDF y WhatsApp (Fase 8, P9/P10)", () => {
   it("pdfUrl hace GET binario y devuelve el objectURL del blob", async () => {
     const blob = new Blob(["%PDF-1.4"], { type: "application/pdf" });
@@ -323,6 +368,5 @@ describe("budgetsService — PDF y WhatsApp (Fase 8, P9/P10)", () => {
 
     await expect(budgetsService.whatsappLink("b1")).rejects.toThrow(
       "Límite diario de links de WhatsApp alcanzado",
-    );
-  });
+    );  });
 });
