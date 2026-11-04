@@ -349,14 +349,17 @@ describe("ordersService — preview y whatsapp", () => {
     expect(res.items[0].price.base).toBe(77500);
   });
 
-  it("whatsapp hace POST a /whatsapp y devuelve url+message", async () => {
+  it("whatsapp hace POST a /whatsapp-link (contrato del backend) y devuelve url+message", async () => {
     const fetchMock = mockFetch(200, {
       url: "https://wa.me/5491122334455?text=hola",
       message: "Hola María, tu pedido...",
     });
 
     const res = await ordersService.whatsapp("o1");
-    expect(lastCall(fetchMock).url).toBe(`${API_BASE}/orders/o1/whatsapp`);
+    // backend/src/api/v1/orders/router.py: POST /orders/{order_id}/whatsapp-link
+    expect(lastCall(fetchMock).url).toBe(
+      `${API_BASE}/orders/o1/whatsapp-link`,
+    );
     expect(res.url).toContain("wa.me");
   });
 });
