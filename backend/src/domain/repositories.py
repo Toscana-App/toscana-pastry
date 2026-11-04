@@ -6,6 +6,7 @@ from domain.customer_address import CustomerAddress
 from domain.models import User, UserRole, BusinessSettings, Ingredient, Product, StockMovement, StockStatus
 from domain.orders import Customer, Order
 from domain.budgets import Budget
+from domain.imports import ImportRow, ImportSession
 
 class UserRepository(ABC):
     @abstractmethod
@@ -360,4 +361,64 @@ class DocumentRepository(ABC):
 
     @abstractmethod
     async def save(self, budget_id: str, content_hash: str, pdf: bytes) -> None:
+        pass
+
+
+class ImportRepository(ABC):
+    """CSV import (T-CSV-1/4): staging de sesiones + filas.
+
+    Los metodos de staging (create_session, bulk_insert_rows) commitan por
+    cuenta propia. El confirm es una sola transaccion: el router orquesta
+    (find_duplicate/insert del adapter) y llama set_status +
+    delete_staging_rows SIN commit, y hace el commit unico al final
+    (RNF-CSV-05: nada de escrituras parciales).
+    """
+
+    @abstractmethod
+    async def create_session(self, session: ImportSession) -> ImportSession:
+        pass
+
+    @abstractmethod
+    async def bulk_insert_rows(
+        self, import_id: str, tenant_id: str, rows: Sequence[ImportRow]
+    ) -> int:
+        """Persiste las filas en lotes (RNF-CSV-11: sin N+1)."""
+        pass
+
+    @abstractmethod
+    async def get_session(
+        self, import_id: str, tenant_id: str
+    ) -> Optional[ImportSession]:
+        """None si no existe O no pertenece al tenant (404 en el router)."""
+        pass
+
+    @abstractmethod
+    async def list_rows(
+        self,
+        import_id: str,
+        status: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> tuple[List[ImportRow], int]:
+        pass
+
+    @abstractmethod
+    async def set_status(
+        self,
+        import_id: str,
+        status: str,
+        confirmed_at: Optional[datetime] = None,
+    ) -> None:
+        """Cambia el estado de la sesion (SIN commit; el commit lo hace el
+        orquestador para que sea una sola transaccion)."""
+        pass
+
+    @abstractmethod
+    async def delete_staging_rows(self, import_id: str) -> int:
+        """Borra las filas estadiadas (SIN commit)."""
+        pass
+
+    @abstractmethod
+    async def purge_expired(self, now: datetime) -> int:
+        """RF-CSV-07: limpia sesiones cuyo TTL expiro (filas via cascade)."""
         pass
