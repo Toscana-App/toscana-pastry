@@ -16,11 +16,14 @@ Reglas clave:
 - Money viaja en centavos (RF-P8-03) y Pct como string (money.py).
 """
 import datetime
+import io
+from csv import writer as csv_writer
 from decimal import Decimal
-from typing import Dict, List, Optional, Tuple, cast
+from typing import Dict, List, Literal, Optional, Tuple, cast
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi.responses import StreamingResponse
 
 from api.v1.budgets.dependencies import get_budget_repository
 from api.v1.budgets.schemas import (
@@ -41,7 +44,7 @@ from api.v1.budgets.schemas import (
 )
 from api.v1.dependencies import get_current_user, require_admin
 from api.v1.ingredients.dependencies import get_ingredient_repository
-from api.v1.money import cents_to_decimal
+from api.v1.money import cents_to_decimal, decimal_to_cents
 from api.v1.orders.dependencies import (
     get_customer_repository,
     get_order_repository,
@@ -215,6 +218,97 @@ async def list_budgets(
         total=total,
         page=page,
         page_size=page_size,
+    )
+
+
+@router.get("/export")
+async def export_budgets(
+    status_: Optional[str] = Query(
+        default=None, alias="status", pattern="^(borrador|enviado)$"
+    ),
+    from_: Optional[datetime.date] = Query(default=None, alias="from"),
+    to_: Optional[datetime.date] = Query(default=None, alias="to"),
+    fmt: Literal["csv", "pdf"] = Query(default="csv", alias="format"),
+    repo: BudgetRepository = Depends(get_budget_repository),
+    _admin: User = Depends(require_admin),
+):
+    """Export del listado de presupuestos (mismos filtros que
+    GET /budgets). CSV por defecto (backward-compatible);
+    ``format=pdf`` genera PDF con PyMuPDF en memoria (Fase 5, sin
+    archivo intermedio). Columnas: secuencia, cliente, teléfono, fecha
+    de creación, enviado, estado y total de venta."""
+    budgets: List[Budget] = []
+    page = 1
+    while True:
+        batch, total = await repo.list(
+            status=status_, q=None, date_from=from_, date_to=to_,
+            page=page, page_size=100,
+        )
+        budgets.extend(batch)
+        if not batch or len(budgets) >= total:
+            break
+        page += 1
+    budgets.sort(key=lambda b: b.seq)
+
+    def _tuple(b: Budget) -> tuple[str, str, str, datetime.date, datetime.date | None, str, int]:
+        return (
+            b.seq,
+            b.customer_name,
+            b.customer_phone,
+            b.created_at.date(),
+            b.sent_at.date() if b.sent_at else None,
+            b.status,
+            decimal_to_cents(b.totals.total_venta),
+        )
+
+    period_label = (
+        f"{from_.isoformat()} a {to_.isoformat()}" if from_ and to_ else "todos"
+    )
+    period_slug = (
+        f"{from_.isoformat()}_a_{to_.isoformat()}" if from_ and to_ else "todos"
+    )
+    if fmt == "csv":
+        from data.pdf_export.pymupdf_renderer import format_money_cents
+
+        rows = [
+            ["seq", "cliente", "telefono", "fecha", "enviado", "estado",
+             "total_venta"]
+        ]
+        for seq, cliente, telefono, fecha, enviado, estado, total_cents in (
+            _tuple(b) for b in budgets
+        ):
+            rows.append(
+                [
+                    f"#{seq}",
+                    cliente,
+                    telefono,
+                    fecha.strftime("%d/%m/%Y"),
+                    enviado.strftime("%d/%m/%Y") if enviado else "",
+                    estado,
+                    format_money_cents(total_cents),
+                ]
+            )
+        buf = io.StringIO()
+        w = csv_writer(buf, lineterminator="\n")
+        for row in rows:
+            w.writerow(row)
+        return StreamingResponse(
+            iter([buf.getvalue()]),
+            media_type="text/csv; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="presupuestos_{period_slug}.csv"'
+            },
+        )
+    # PDF
+    from data.pdf_export.pymupdf_renderer import render_budgets_export_pdf
+
+    pdf_bytes = render_budgets_export_pdf(period_label, [_tuple(b) for b in budgets])
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="presupuestos_{period_slug}.pdf"'
+        },
     )
 
 

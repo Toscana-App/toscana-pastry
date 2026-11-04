@@ -1,7 +1,9 @@
 import { apiFetch } from "@/lib/api";
+import { downloadEndpoint } from "@/lib/download";
 import type {
   BudgetCreatePayload,
   BudgetDetail,
+  BudgetExportParams,
   BudgetItem,
   BudgetListParams,
   BudgetListResponse,
@@ -9,6 +11,7 @@ import type {
   BudgetUpdatePayload,
   CalculationMode,
   ConvertToOrderResponse,
+  ExportFormat,
   RecalculateResponse,
 } from "./types";
 
@@ -182,5 +185,23 @@ export const budgetsService = {
   /** DELETE /budgets/{id} — borrado definitivo (no toca stock, RF-P8-07). */
   remove(id: string): Promise<void> {
     return apiFetch<void>(`${BASE}/${id}`, { method: "DELETE" });
+  },
+
+  /**
+   * GET /budgets/export — descarga binaria del reporte (Fase 5).
+   * `format` = "csv" por defecto (backward-compatible) o "pdf".
+   * Mismo fetch→blob→download que los exports de pedidos: el filename
+   * sale del Content-Disposition del backend.
+   */
+  exportReport(
+    params: BudgetExportParams = {},
+    format: ExportFormat = "csv",
+  ): Promise<void> {
+    const query = new URLSearchParams();
+    if (params.status) query.set("status", params.status);
+    if (params.from) query.set("from", params.from);
+    if (params.to) query.set("to", params.to);
+    query.set("format", format);
+    return downloadEndpoint(`${BASE}/export?${query.toString()}`, `presupuestos.${format}`);
   },
 };

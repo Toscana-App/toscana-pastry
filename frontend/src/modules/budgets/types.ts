@@ -85,6 +85,12 @@ export interface BudgetListParams {
   page_size?: number;
 }
 
+/** Formato de exportación (Fase 5): CSV por defecto, PDF opcional. */
+export type ExportFormat = "csv" | "pdf";
+
+/** GET /budgets/export — filtros del export (mismos que el listado). */
+export type BudgetExportParams = Pick<BudgetListParams, "status" | "from" | "to">;
+
 /** Línea del presupuesto — costos y precio guardados al escribir. */
 export interface BudgetItem {
   product_id: string;

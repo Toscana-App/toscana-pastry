@@ -232,6 +232,8 @@ class OrderListItem(BaseModel):
     status: OrderStatus
     item_count: int
     total: Money
+    paid: bool = False
+    payment_method: str = "cash"
     created_at: str
 
 
@@ -290,3 +292,43 @@ class InsufficientStockResponse(BaseModel):
 class WhatsAppLinkResponse(BaseModel):
     url: str
     message: str
+
+
+# ─── Fase 5: resumen semanal (RF-P6-11) ─────────────────────────────
+
+
+class WeeklyRange(BaseModel):
+    """Semana natural Lun-Dom del resumen (la clave JSON es `from`)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: dt.date = Field(alias="from")
+    to: dt.date
+
+
+class WeeklyItem(BaseModel):
+    """Fila del resumen: un pedido confirmado/entregado de la semana."""
+
+    id: str
+    customer: str
+    date: dt.date
+    items_count: int
+    total: Money
+    paid: bool
+    payment_method: str
+
+
+class WeeklyTotals(BaseModel):
+    """Totales en centavos (Money): monto total, pagado y pendiente."""
+
+    amount: Money
+    paid: Money
+    unpaid: Money
+
+
+class WeeklySummaryResponse(BaseModel):
+    """GET /orders/weekly: resumen de la semana natural (Lun-Dom)."""
+
+    week: WeeklyRange
+    items: List[WeeklyItem]
+    totals: WeeklyTotals

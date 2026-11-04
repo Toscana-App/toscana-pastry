@@ -4,13 +4,16 @@ Namespace: /api/v1/orders.
 """
 
 import datetime
+import io
+import re
+from csv import writer as csv_writer
 from decimal import Decimal
 from email.utils import format_datetime
-from typing import Dict, List, Optional, Tuple, cast
+from typing import Dict, List, Literal, Optional, Tuple, cast
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi import status as http_status
 
 from api.v1.dependencies import require_admin, get_current_user
@@ -39,8 +42,13 @@ from api.v1.orders.schemas import (
     OrderStatusPatch,
     OrderUpdate,
     SnapshotLineResponse,
+    WeeklyItem,
+    WeeklyRange,
+    WeeklySummaryResponse,
+    WeeklyTotals,
     WhatsAppLinkResponse,
 )
+from api.v1.money import decimal_to_cents
 from api.v1.orders.schemas import OrderStatus as P6OrderStatus
 from api.v1.orders.schemas import (
     OrderDetailSchema,
@@ -705,11 +713,13 @@ async def list_orders(
     date_to: Optional[datetime.date] = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
+    paid: Optional[bool] = Query(default=None),
     repo: OrderRepository = Depends(get_order_repository),
     current_user: User = Depends(get_current_user),
 ):
     """Listado con filtros combinables: estado, cliente, nombre (sin
-    acentos, RF-P2-02) y rango de fechas (RF-P6-05)."""
+    acentos, RF-P2-02), rango de fechas (RF-P6-05) y estado de pago
+    (RF-P6-10: `paid=true` solo pagados, `paid=false` solo sin pagar)."""
     orders, total = await repo.list_orders(
         status=status_,
         customer_id=customer_id,
@@ -718,6 +728,7 @@ async def list_orders(
         date_to=date_to,
         page=page,
         page_size=page_size,
+        paid=paid,
     )
     return OrderListResponse(
         items=[
@@ -729,6 +740,8 @@ async def list_orders(
                 status=cast(P6OrderStatus, o.status),
                 item_count=len(o.items),
                 total=o.total,
+                paid=o.paid,
+                payment_method=o.payment_method,
                 created_at=_iso(o.created_at),
             )
             for o in orders
@@ -829,6 +842,222 @@ async def preview_order(
             for item in items
         ],
         total=total,
+    )
+
+
+# ─── Fase 5: resumen semanal + export (RF-P6-11) ────────────────────
+
+_WEEK_ISO_RE = re.compile(r"^(\d{4})-W(\d{1,2})$")
+
+
+def _parse_week(week: Optional[str]) -> Tuple[datetime.date, datetime.date]:
+    """Resuelve la semana natural (Lun-Dom) a reportar (RF-P6-11).
+
+    Acepta ISO week ``2026-W44`` o cualquier fecha ``2026-11-02`` dentro
+    de la semana; ``None`` = semana actual del servidor.
+    """
+    if week is None or not week.strip():
+        ref = datetime.date.today()
+    else:
+        w = week.strip().upper()
+        m = _WEEK_ISO_RE.match(w)
+        if m:
+            try:
+                ref = datetime.date.fromisocalendar(int(m.group(1)), int(m.group(2)), 1)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="week invalida: usa AAAA-Wnn (ej. 2026-W44) o una fecha AAAA-MM-DD",
+                )
+        else:
+            try:
+                ref = datetime.date.fromisoformat(week.strip())
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="week invalida: usa AAAA-Wnn (ej. 2026-W44) o una fecha AAAA-MM-DD",
+                )
+    iso = ref.isocalendar()
+    monday = datetime.date.fromisocalendar(iso[0], iso[1], 1)
+    sunday = datetime.date.fromisocalendar(iso[0], iso[1], 7)
+    return monday, sunday
+
+
+async def _fetch_all_orders(
+    repo: OrderRepository,
+    status_: Optional[str],
+    date_from: Optional[datetime.date],
+    date_to: Optional[datetime.date],
+    paid: Optional[bool],
+) -> List[P6Order]:
+    """Recorre todas las paginas del listado filtrado (export/resumen)."""
+    orders: List[P6Order] = []
+    page = 1
+    while True:
+        batch, total = await repo.list_orders(
+            status=status_,
+            customer_id=None,
+            q=None,
+            date_from=date_from,
+            date_to=date_to,
+            page=page,
+            page_size=100,
+            paid=paid,
+        )
+        orders.extend(batch)
+        if not batch or len(orders) >= total:
+            break
+        page += 1
+    return orders
+
+
+def _orders_csv_rows(orders: List[P6Order]) -> List[List[str]]:
+    """Filas CSV (con cabecera) del export de pedidos, dinero en
+    formato legible $1.234,56 (format_money_cents, Fase 5)."""
+    from data.pdf_export.pymupdf_renderer import format_money_cents
+
+    rows: List[List[str]] = [
+        ["id", "cliente", "fecha", "items", "total", "estado", "pago", "metodo"]
+    ]
+    for o in orders:
+        rows.append(
+            [
+                o.id or "",
+                o.customer_name,
+                o.date.isoformat(),
+                str(len(o.items)),
+                format_money_cents(decimal_to_cents(o.total)),
+                o.status,
+                "si" if o.paid else "no",
+                o.payment_method,
+            ]
+        )
+    return rows
+
+
+def _csv_response(rows: List[List[str]], filename: str) -> StreamingResponse:
+    """CSV streaming con csv.writer (escape correcto, mismo patron que
+    la pricelist de productos)."""
+    buf = io.StringIO()
+    w = csv_writer(buf, lineterminator="\n")
+    for row in rows:
+        w.writerow(row)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/weekly", response_model=WeeklySummaryResponse)
+async def weekly_summary(
+    week: Optional[str] = Query(default=None, max_length=10),
+    repo: OrderRepository = Depends(get_order_repository),
+    _admin: User = Depends(require_admin),
+):
+    """Resumen semanal (RF-P6-11): pedidos confirmados/entregados de la
+    semana natural (Lun-Dom) con totales de monto y estado de pago.
+    Solo admin; `week` opcional (2026-W44 o fecha dentro de la semana)."""
+    monday, sunday = _parse_week(week)
+    orders: List[P6Order] = []
+    for st in ("confirmado", "entregado"):
+        orders.extend(
+            await _fetch_all_orders(repo, st, monday, sunday, None)
+        )
+    orders.sort(key=lambda o: (o.date, o.customer_name))
+    total_amount = sum((o.total for o in orders), Decimal("0"))
+    paid_amount = sum((o.total for o in orders if o.paid), Decimal("0"))
+    return WeeklySummaryResponse(
+        week=WeeklyRange.model_validate({"from": monday, "to": sunday}),
+        items=[
+            WeeklyItem(
+                id=o.id or "",
+                customer=o.customer_name,
+                date=o.date,
+                items_count=len(o.items),
+                total=decimal_to_cents(o.total),
+                paid=o.paid,
+                payment_method=o.payment_method,
+            )
+            for o in orders
+        ],
+        totals=WeeklyTotals(
+            amount=decimal_to_cents(total_amount),
+            paid=decimal_to_cents(paid_amount),
+            unpaid=decimal_to_cents(total_amount - paid_amount),
+        ),
+    )
+
+
+@router.get("/weekly/pdf")
+async def weekly_summary_pdf(
+    week: Optional[str] = Query(default=None, max_length=10),
+    repo: OrderRepository = Depends(get_order_repository),
+    _admin: User = Depends(require_admin),
+):
+    """PDF (PyMuPDF, en memoria) del resumen semanal — mismo dato que
+    GET /orders/weekly (Fase 5, nuevo requerimiento de export)."""
+    monday, sunday = _parse_week(week)
+    orders: List[P6Order] = []
+    for st in ("confirmado", "entregado"):
+        orders.extend(await _fetch_all_orders(repo, st, monday, sunday, None))
+    orders.sort(key=lambda o: (o.date, o.customer_name))
+    from data.pdf_export.pymupdf_renderer import render_weekly_pdf
+
+    total_cents = sum((decimal_to_cents(o.total) for o in orders), 0)
+    paid_cents = sum((decimal_to_cents(o.total) for o in orders if o.paid), 0)
+    data = [
+        (o.date, o.customer_name, len(o.items), decimal_to_cents(o.total),
+         o.paid, o.payment_method)
+        for o in orders
+    ]
+    pdf_bytes = render_weekly_pdf(monday, sunday, data, total_cents, paid_cents)
+    iso_week = monday.isocalendar()
+    filename = f"resumen_semanal_{iso_week[0]}-W{iso_week[1]:02d}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/export")
+async def export_orders(
+    from_: Optional[datetime.date] = Query(default=None, alias="from"),
+    to_: Optional[datetime.date] = Query(default=None, alias="to"),
+    status_: Optional[str] = Query(
+        default=None, alias="status", pattern="^(nuevo|confirmado|entregado|cancelado)$"
+    ),
+    paid: Optional[bool] = Query(default=None),
+    fmt: Literal["csv", "pdf"] = Query(default="csv", alias="format"),
+    repo: OrderRepository = Depends(get_order_repository),
+    _admin: User = Depends(require_admin),
+):
+    """Export del listado de pedidos con los mismos filtros que
+    GET /orders (fecha, estado, pago). CSV por defecto (backward-
+    compatible); ``format=pdf`` genera PDF con PyMuPDF en memoria
+    (Fase 5, sin archivo intermedio)."""
+    orders = await _fetch_all_orders(repo, status_, from_, to_, paid)
+    orders.sort(key=lambda o: (o.date, o.customer_name))
+    if from_ and to_:
+        period = f"{from_.isoformat()}_a_{to_.isoformat()}"
+    else:
+        period = "todos"
+    if fmt == "csv":
+        return _csv_response(_orders_csv_rows(orders), f"pedidos_{period}.csv")
+    # PDF
+    from data.pdf_export.pymupdf_renderer import render_orders_export_pdf
+
+    data = [
+        (o.id or "", o.customer_name, o.date, len(o.items),
+         decimal_to_cents(o.total), o.status, o.paid, o.payment_method)
+        for o in orders
+    ]
+    pdf_bytes = render_orders_export_pdf(period, data)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="pedidos_{period}.pdf"'},
     )
 
 
