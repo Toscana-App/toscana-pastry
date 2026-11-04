@@ -154,3 +154,17 @@ export interface ConvertToOrderResponse {
   /** Secuencia del presupuesto (para el log). */
   seq: string;
 }
+
+/** POST /budgets/{id}/pdf (P9): link firmado temporal de 72 h. */
+export interface PdfShare {
+  url: string;
+  /** ISO 8601 UTC. */
+  expires_at: string;
+}
+
+/** POST /budgets/{id}/whatsapp-link (P10): wa.me prellenado. */
+export interface WhatsAppLink {
+  url: string;
+  /** Momento del registro de auditoría (RF-P10-02). ISO 8601 UTC. */
+  sent_at: string;
+}

@@ -1,4 +1,6 @@
-import { apiFetch } from "@/lib/api";
+import { ACCESS_TOKEN_COOKIE, apiFetch, API_BASE_URL } from "@/lib/api";
+import { getCookie } from "@/lib/cookies";
+import { ApiError } from "@/lib/api";
 import type {
   BudgetCreatePayload,
   BudgetDetail,
@@ -9,7 +11,9 @@ import type {
   BudgetUpdatePayload,
   CalculationMode,
   ConvertToOrderResponse,
+  PdfShare,
   RecalculateResponse,
+  WhatsAppLink,
 } from "./types";
 
 const BASE = "/budgets";
@@ -188,5 +192,36 @@ export const budgetsService = {
   /** DELETE /budgets/{id} — borrado definitivo (no toca stock, RF-P8-07). */
   remove(id: string): Promise<void> {
     return apiFetch<void>(`${BASE}/${id}`, { method: "DELETE" });
+  },
+
+  /**
+   * GET /budgets/{id}/pdf (P9) — PDF binario autenticado. Devuelve un
+   * objectURL para el preview en página; el llamador revoca el anterior
+   * al reemplazarlo. fetch crudo: apiFetch siempre parsea JSON.
+   */
+  async pdfUrl(id: string): Promise<string> {
+    const token = getCookie(ACCESS_TOKEN_COOKIE);
+    const res = await fetch(`${API_BASE_URL}${BASE}/${id}/pdf`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    if (!res.ok) throw new ApiError(res.status, "No se pudo generar el PDF");
+    return URL.createObjectURL(await res.blob());
+  },
+
+  /**
+   * POST /budgets/{id}/pdf (P9) — link temporal firmado de 72 h (HMAC,
+   * sin sesión): lo abre el cliente final en su navegador.
+   */
+  sharePdf(id: string): Promise<PdfShare> {
+    return apiFetch<PdfShare>(`${BASE}/${id}/pdf`, { method: "POST" });
+  },
+
+  /**
+   * POST /budgets/{id}/whatsapp-link (P10) — wa.me prellenado con la
+   * plantilla + link firmado al PDF. 429 al superar 30 links/día
+   * (RNF-P10-06).
+   */
+  whatsappLink(id: string): Promise<WhatsAppLink> {
+    return apiFetch<WhatsAppLink>(`${BASE}/${id}/whatsapp-link`, { method: "POST" });
   },
 };

@@ -25,6 +25,8 @@ import {
   CALCULATION_MODE_LABELS,
   type BudgetDetail,
   type BudgetSummary,
+  type PdfShare,
+  type WhatsAppLink,
 } from "../types";
 
 const STATUS_COLORS: Record<BudgetDetail["status"], "blue" | "green"> = {
@@ -33,6 +35,11 @@ const STATUS_COLORS: Record<BudgetDetail["status"], "blue" | "green"> = {
 };
 
 type PendingAction = "send" | "convert" | "delete";
+
+/** P9: el link temporal firma un vencimiento; vencido → se regenera. */
+function isShareExpired(share: PdfShare | null): boolean {
+  return share != null && new Date(share.expires_at).getTime() < Date.now();
+}
 
 const DIALOG_COPY: Record<PendingAction, { title: string; body: string; cta: string }> = {
   send: {
@@ -80,6 +87,14 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
   const [recalculated, setRecalculated] = useState<BudgetSummary | null>(null);
   const [recalcMargin, setRecalcMargin] = useState<number | null>(null);
   const [recalcLoading, setRecalcLoading] = useState(false);
+  // Fase 8 (P9/P10): PDF y WhatsApp.
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [waLast, setWaLast] = useState<WhatsAppLink | null>(null);
+  const [waLoading, setWaLoading] = useState(false);
+  const [share, setShare] = useState<PdfShare | null>(null);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
 
   const load = useCallback(() => {
     budgetsService
@@ -135,6 +150,65 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
       setRecalcLoading(false);
     }
   }, [budget]);
+
+  /** P9: preview del PDF (GET binario → objectURL → iframe). */
+  const openPdf = useCallback(async () => {
+    if (!budget) return;
+    setPdfLoading(true);
+    setActionError(null);
+    try {
+      const url = await budgetsService.pdfUrl(budget.id);
+      setPdfUrl((old) => {
+        if (old) URL.revokeObjectURL(old);
+        return url;
+      });
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "No se pudo generar el PDF");
+    } finally {
+      setPdfLoading(false);
+    }
+  }, [budget]);
+
+  /** P10: wa.me prellenado; 429 → mensaje de límite (RNF-P10-06). */
+  const sendWhatsapp = useCallback(async () => {
+    if (!budget) return;
+    setWaLoading(true);
+    setActionError(null);
+    try {
+      const res = await budgetsService.whatsappLink(budget.id);
+      window.open(res.url, "_blank", "noopener");
+      setWaLast(res);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "No se pudo generar el link de WhatsApp");
+    } finally {
+      setWaLoading(false);
+    }
+  }, [budget]);
+
+  /** P9: link temporal firmado (72 h). Regenerar lo reemplaza. */
+  const newShareLink = useCallback(async () => {
+    if (!budget) return;
+    setShareLoading(true);
+    setActionError(null);
+    try {
+      setShare(await budgetsService.sharePdf(budget.id));
+      setShareCopied(false);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "No se pudo generar el link");
+    } finally {
+      setShareLoading(false);
+    }
+  }, [budget]);
+
+  const copyShare = useCallback(async () => {
+    if (!share) return;
+    try {
+      await navigator.clipboard.writeText(share.url);
+      setShareCopied(true);
+    } catch {
+      setActionError("No se pudo copiar el link al portapapeles");
+    }
+  }, [share]);
 
   if (loading) {
     return (
@@ -337,6 +411,23 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
           <Button variant="outline" onClick={() => setPendingAction("convert")}>
             Convertir en pedido
           </Button>
+          <Button variant="outline" loading={pdfLoading} onClick={() => void openPdf()}>
+            Ver PDF
+          </Button>
+          <Button
+            variant="outline"
+            loading={waLoading}
+            onClick={() => void sendWhatsapp()}
+          >
+            Enviar por WhatsApp
+          </Button>
+          <Button
+            variant="outline"
+            loading={shareLoading && !isShareExpired(share)}
+            onClick={() => void newShareLink()}
+          >
+            Link temporal (72 h)
+          </Button>
           <Button
             variant="outline"
             colorPalette="red"
@@ -345,6 +436,67 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
             Eliminar
           </Button>
         </HStack>
+      ) : null}
+
+      {/* Preview del PDF (P9): objectURL del binario servido. */}
+      {pdfUrl ? (
+        <Box borderWidth="1px" borderColor="gray.200" rounded="md" w="full">
+          <iframe
+            src={pdfUrl}
+            title={`PDF presupuesto ${budget.seq}`}
+            style={{ width: "100%", height: "720px", border: "none", display: "block" }}
+          />
+        </Box>
+      ) : null}
+
+      {/* WhatsApp (P10): wa.me abierto + registro de auditoría. */}
+      {waLast ? (
+        <Alert.Root status="success" fontSize="sm">
+          <Alert.Content>
+            <Alert.Description>
+              WhatsApp abierto con el presupuesto prellenado (enviado {waLast.sent_at}). El
+              cliente solo presiona &quot;enviar&quot; en la app.
+            </Alert.Description>
+          </Alert.Content>
+        </Alert.Root>
+      ) : null}
+
+      {/* Link temporal (P9): copiable, con vencimiento y regeneración. */}
+      {share ? (
+        <Box borderWidth="1px" borderColor="gray.200" rounded="md" p={4} maxW="640px">
+          <VStack align="start" gap={2}>
+            <Text fontWeight="600">Link temporal (72 h)</Text>
+            {isShareExpired(share) ? (
+              <>
+                <Text fontSize="sm" color="red.600">
+                  El link venció.
+                </Text>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  loading={shareLoading}
+                  onClick={() => void newShareLink()}
+                >
+                  Generar nuevo
+                </Button>
+              </>
+            ) : (
+              <>
+                <HStack gap={2} align="center" wrap="wrap">
+                  <Text fontSize="sm" fontFamily="mono" wordBreak="break-all">
+                    {share.url}
+                  </Text>
+                  <Button size="sm" variant="outline" onClick={() => void copyShare()}>
+                    {shareCopied ? "Copiado" : "Copiar"}
+                  </Button>
+                </HStack>
+                <Text fontSize="sm" color="fg.muted">
+                  Vence: {new Date(share.expires_at).toLocaleString()}
+                </Text>
+              </>
+            )}
+          </VStack>
+        </Box>
       ) : null}
 
       {/* Confirmación de acciones (mismo patrón de Dialog v3 que pedidos) */}

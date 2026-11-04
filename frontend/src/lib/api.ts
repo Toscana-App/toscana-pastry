@@ -1,6 +1,6 @@
 import { getCookie, setCookie, removeCookie } from "./cookies";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 export const ACCESS_TOKEN_COOKIE = "auth_token";
 export const REFRESH_TOKEN_COOKIE = "refresh_token";
