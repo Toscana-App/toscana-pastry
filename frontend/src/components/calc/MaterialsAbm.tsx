@@ -8,11 +8,12 @@ import {
   Flex,
   Input,
   Select,
-  Spinner,
   Table,
   Tag,
   Text,
 } from "@chakra-ui/react";
+import { AbmListSkeleton } from "@/components/ui/skeleton";
+
 import { createListCollection } from "@ark-ui/react";
 import { calcMaterialsService } from "@/services/calcMaterialsService";
 import { calcSettingsService } from "@/services/calcSettingsService";
@@ -297,9 +298,11 @@ export default function MaterialsAbm() {
 
   if (loading) {
     return (
-      <Flex align="center" justify="center" py={16}>
-        <Spinner size="xl" />
-      </Flex>
+      <AbmListSkeleton
+        cols={["14%", "20%", "14%", "10%", "14%", "12%", "8%", "8%"]}
+        withCreate
+        selects={2}
+      />
     );
   }
 

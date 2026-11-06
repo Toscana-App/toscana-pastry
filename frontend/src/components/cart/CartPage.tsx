@@ -18,10 +18,11 @@ import {
   Input,
   Separator,
   Skeleton,
-  Spinner,
   Stack,
   Text,
 } from "@chakra-ui/react";
+import { ShimmerDot } from "@/components/ui/skeleton";
+
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -325,7 +326,7 @@ function CartPage() {
             </Flex>
             <Flex justify="space-between" align="center">
               {busy ? (
-                <Spinner size="sm" />
+                <ShimmerDot size="14px" />
               ) : (
                 <Text fontSize="sm" color="fg.muted">
                   Los precios pueden variar según tu audiencia.

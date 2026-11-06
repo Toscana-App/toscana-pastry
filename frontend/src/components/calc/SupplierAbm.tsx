@@ -8,10 +8,11 @@ import {
   Flex,
   Heading,
   Input,
-  Spinner,
   Table,
   Text,
 } from "@chakra-ui/react";
+import { SkeletonTable } from "@/components/ui/skeleton";
+
 import { calcSettingsService } from "@/services/calcSettingsService";
 import { toaster } from "@/lib/toaster";
 import { ApiError } from "@/lib/api";
@@ -368,9 +369,7 @@ export default function SupplierAbm() {
       </Flex>
 
       {loading ? (
-        <Flex align="center" justify="center" py={16}>
-          <Spinner size="xl" />
-        </Flex>
+        <SkeletonTable rows={6} cols={["22%", "15%", "15%", "25%", "16%", "7%"]} />
       ) : items.length === 0 ? (
         <EmptyState.Root>
           <EmptyState.Content>

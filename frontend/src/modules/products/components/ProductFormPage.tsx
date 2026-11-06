@@ -5,18 +5,18 @@ import { useRouter } from "next/navigation";
 import {
   Alert,
   Button,
-  Center,
   Dialog,
   Field,
   Flex,
   Heading,
   Input,
-  Spinner,
   Table,
   Tabs,
   Text,
   Textarea,
 } from "@chakra-ui/react";
+import { ProductFormSkeleton } from "@/components/ui/skeleton";
+
 import { useForm, useWatch, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { EnumSelect } from "@/components/ui/enum-select";
@@ -235,11 +235,7 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
   }
 
   if (loadingInitial) {
-    return (
-      <Center py={16}>
-        <Spinner size="xl" />
-      </Center>
-    );
+    return <ProductFormSkeleton />;
   }
 
   return (

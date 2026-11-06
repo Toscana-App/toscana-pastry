@@ -2,7 +2,8 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Center, Spinner } from "@chakra-ui/react";
+import { FullPageSkeleton } from "@/components/ui/skeleton";
+
 import { useAuth } from "@/contexts/AuthContext";
 import type { UserRole } from "@/types/auth";
 
@@ -28,11 +29,7 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
   }, [isAuthenticated, loading, lacksRole, router]);
 
   if (loading || !isAuthenticated || lacksRole) {
-    return (
-      <Center minH="100dvh">
-        <Spinner size="xl" />
-      </Center>
-    );
+    return <FullPageSkeleton />;
   }
 
   return <>{children}</>;

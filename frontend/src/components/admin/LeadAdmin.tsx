@@ -17,6 +17,8 @@ import {
   Table,
   Text,
 } from "@chakra-ui/react";
+import { SkeletonTable } from "@/components/ui/skeleton";
+
 import { useCallback, useEffect, useState } from "react";
 import {
   fetchLeads,
@@ -133,9 +135,11 @@ function LeadAdmin() {
             </Button>
           </Flex>
 
-          {leads.length === 0 ? (
+          {loading ? (
+            <SkeletonTable rows={5} cols={["10%", "24%", "30%", "14%", "22%"]} />
+          ) : leads.length === 0 ? (
             <Text fontSize="sm" color="fg.muted">
-              {loading ? "Cargando…" : "No hay leads con esos filtros."}
+              No hay leads con esos filtros.
             </Text>
           ) : (
             <Table.ScrollArea rounded="md">

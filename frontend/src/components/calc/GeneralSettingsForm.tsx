@@ -8,8 +8,9 @@ import {
   Flex,
   Input,
   Select,
-  Spinner,
 } from "@chakra-ui/react";
+import { FormSkeleton } from "@/components/ui/skeleton";
+
 import { calcSettingsService } from "@/services/calcSettingsService";
 import { toaster } from "@/lib/toaster";
 import type { CalcSettingsResponse, RoundingMode } from "@/types/calc";
@@ -70,11 +71,7 @@ export default function GeneralSettingsForm() {
   }, []);
 
   if (loading || !form) {
-    return (
-      <Flex align="center" justify="center" py={16}>
-        <Spinner size="xl" />
-      </Flex>
-    );
+    return <FormSkeleton fields={7} />;
   }
 
   const setField =

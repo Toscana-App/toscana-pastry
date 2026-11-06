@@ -10,10 +10,11 @@ import {
   Input,
   InputGroup,
   Pagination,
-  Spinner,
   Table,
   Text,
 } from "@chakra-ui/react";
+import { IngredientsSkeleton } from "@/components/ui/skeleton";
+
 import NextLink from "next/link";
 import { formatCents, formatQty } from "@/lib/format";
 import { SearchIcon } from "@/components/ui/search-icon";
@@ -100,9 +101,7 @@ export function IngredientsPage() {
       ) : null}
 
       {loading ? (
-        <Flex align="center" justify="center" py={16}>
-          <Spinner size="xl" />
-        </Flex>
+        <IngredientsSkeleton />
       ) : total === 0 && !hasSearched ? (
         <EmptyState
           title="Todavía no hay ingredientes"

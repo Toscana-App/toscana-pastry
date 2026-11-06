@@ -19,6 +19,8 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
+import { AddressBookSkeleton } from "@/components/ui/skeleton";
+
 import { useCallback, useEffect, useState } from "react";
 import {
   deleteMyAddress,
@@ -186,9 +188,7 @@ function AddressBook() {
         <Card.Body>
           <Stack gap={2} py={4}>
             <Text fontWeight="semibold">Libro de direcciones</Text>
-            <Text fontSize="sm" color="fg.muted">
-              Cargando…
-            </Text>
+            <AddressBookSkeleton />
           </Stack>
         </Card.Body>
       </Card.Root>

@@ -5,10 +5,11 @@ import {
   Button,
   Dialog,
   Flex,
-  Spinner,
   Table,
   Text,
 } from "@chakra-ui/react";
+import { SkeletonTable } from "@/components/ui/skeleton";
+
 import { calcMaterialsService } from "@/services/calcMaterialsService";
 import { toaster } from "@/lib/toaster";
 import type { CostHistoryListResponse, Material } from "@/types/calc";
@@ -103,9 +104,7 @@ export default function CostHistoryDialog({
           </Dialog.Header>
           <Dialog.Body>
             {loading ? (
-              <Flex align="center" justify="center" py={10}>
-                <Spinner size="lg" />
-              </Flex>
+              <SkeletonTable rows={5} cols={["33%", "33%", "34%"]} />
             ) : loadError ? (
               <Flex align="center" direction="column" gap={3} py={6}>
                 <Text>No se pudo cargar el historial.</Text>

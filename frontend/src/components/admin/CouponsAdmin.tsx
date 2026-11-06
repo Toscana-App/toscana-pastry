@@ -23,6 +23,8 @@ import {
   Text,
   Switch,
 } from "@chakra-ui/react";
+import { ListCardSkeleton } from "@/components/ui/skeleton";
+
 import { useCallback, useEffect, useState } from "react";
 import {
   createCoupon,
@@ -158,9 +160,16 @@ function CouponsAdmin() {
 
   if (loading) {
     return (
-      <Text fontSize="sm" color="fg.muted">
-        Cargando cupones…
-      </Text>
+      <Card.Root>
+        <Card.Body>
+          <ListCardSkeleton
+            titleWidth="26%"
+            buttonWidth="110px"
+            cols={["30%", "22%", "22%", "18%", "8%"]}
+            rows={5}
+          />
+        </Card.Body>
+      </Card.Root>
     );
   }
 

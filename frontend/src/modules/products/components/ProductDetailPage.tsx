@@ -6,14 +6,14 @@ import {
   Alert,
   Badge,
   Button,
-  Center,
   Flex,
   Heading,
-  Spinner,
   Table,
   Tabs,
   Text,
 } from "@chakra-ui/react";
+import { DetailPageSkeleton } from "@/components/ui/skeleton";
+
 import NextLink from "next/link";
 import { formatCents, formatQty } from "@/lib/format";
 import { toaster } from "@/lib/toaster";
@@ -80,11 +80,7 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
   }
 
   if (loading) {
-    return (
-      <Center py={16}>
-        <Spinner size="xl" />
-      </Center>
-    );
+    return <DetailPageSkeleton tabs={3} />;
   }
 
   if (error || !product) {

@@ -7,9 +7,10 @@ import {
   Button,
   Table,
   Text,
-  Spinner,
   IconButton,
 } from "@chakra-ui/react";
+import { CalcProductListSkeleton } from "@/components/ui/skeleton";
+
 import { calcProductsService } from "@/services/calcProductsService";
 import { toaster } from "@/lib/toaster";
 import type {
@@ -169,11 +170,7 @@ export default function ProductList({ mode = "library" }: ProductListProps) {
   const totalPages = Math.ceil(total / pageSize);
 
   if (loading && page === 1) {
-    return (
-      <Flex justify="center" align="center" minH="400px">
-        <Spinner size="xl" />
-      </Flex>
-    );
+    return <CalcProductListSkeleton />;
   }
 
   return (

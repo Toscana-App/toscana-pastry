@@ -1,7 +1,9 @@
 "use client"
 
 import { Suspense } from "react"
-import { Container, Spinner, VStack } from "@chakra-ui/react"
+import { Container, VStack } from "@chakra-ui/react";
+import { LoginFormSkeleton } from "@/components/ui/skeleton";
+
 import LoginForm from "@/components/auth/LoginForm"
 
 export default function LoginPage() {
@@ -16,7 +18,7 @@ export default function LoginPage() {
     >
       <VStack gap={8} width="full" align="center">
         {/* Suspense obligatorio: LoginForm usa useSearchParams (requisito de prerender de Next). */}
-        <Suspense fallback={<Spinner size="xl" />}>
+        <Suspense fallback={<LoginFormSkeleton />}>
           <LoginForm />
         </Suspense>
       </VStack>

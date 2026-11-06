@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Badge, Flex, Heading, Spinner, Table, Text } from "@chakra-ui/react";
+import { Badge, Flex, Heading, Table, Text } from "@chakra-ui/react";
+import { AdminUsersSkeleton } from "@/components/ui/skeleton";
+
 import CouponsAdmin from "@/components/admin/CouponsAdmin";
 import LeadAdmin from "@/components/admin/LeadAdmin";
 import { apiFetch } from "@/lib/api";
@@ -50,11 +52,7 @@ function AdminUsers() {
   }, []);
 
   if (loading) {
-    return (
-      <Flex align="center" justify="center" py={16}>
-        <Spinner size="xl" />
-      </Flex>
-    );
+    return <AdminUsersSkeleton />;
   }
 
   return (

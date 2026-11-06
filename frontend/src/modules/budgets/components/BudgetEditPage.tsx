@@ -12,11 +12,12 @@ import {
   HStack,
   Input,
   Skeleton,
-  Spinner,
   Stack,
   Text,
   VStack,
 } from "@chakra-ui/react";
+import { BudgetRowsSkeleton } from "@/components/ui/skeleton";
+
 import NextLink from "next/link";
 import { useRouter } from "next/navigation";
 import { formatCents, pesosToCents, centsToPesos } from "@/lib/format";
@@ -361,12 +362,7 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
               Productos
             </Text>
             {productsLoading ? (
-              <HStack gap={2} py={2}>
-                <Spinner size="sm" color="brand.400" />
-                <Text fontSize="sm" color="fg.muted">
-                  Cargando catálogo…
-                </Text>
-              </HStack>
+              <BudgetRowsSkeleton rows={3} />
             ) : productsError ? (
               <Alert.Root status="error" fontSize="sm">
                 <Alert.Description>{productsError}</Alert.Description>

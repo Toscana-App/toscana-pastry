@@ -9,10 +9,11 @@ import {
   Button,
   Dialog,
   Flex,
-  Spinner,
   Table,
   Text,
 } from "@chakra-ui/react";
+import { ShimmerDot } from "@/components/ui/skeleton";
+
 import { trackEvent } from "@/lib/analytics";
 import { importsService } from "./service";
 import { downloadTemplate } from "./download";
@@ -317,7 +318,7 @@ function ImportDialogContent({
 
               {uploading && (
                 <Flex align="center" gap={3}>
-                  <Spinner size="sm" />
+                  <ShimmerDot />
                   <Text color="fg.muted">Procesando…</Text>
                 </Flex>
               )}
