@@ -2,8 +2,6 @@
 full-list pagination, resolve_audience)."""
 
 import csv
-import sys
-import types
 from decimal import Decimal
 
 import pytest
@@ -169,18 +167,18 @@ async def test_lists_and_csv_are_not_truncated_by_page_size(client, monkeypatch)
 
 @pytest.mark.asyncio
 async def test_pdf_render_failure_is_generic_503(client, monkeypatch):
+    """Si pdfgenerator falla, el endpoint devuelve 503 genérico problem+json
+    sin filtrar detalles internos del error (path, lib, etc.)."""
+    from api.v1.pdf.dependencies import get_pdf_client
+    from data.pdf.client import PdfServiceError
+
     await _add(client, "Harina")
 
     class Boom:
-        def __init__(self, *a, **k):
-            pass
+        def render_pricelist(self, rows, audience_label):
+            raise PdfServiceError("pdfgenerator upstream 502: /secret/path/libpango.so")
 
-        def render(self):
-            raise OSError("cannot load library /secret/path/libpango.so")
-
-    fake = types.ModuleType("weasyprint")
-    fake.HTML = Boom  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "weasyprint", fake)
+    monkeypatch.setitem(app.dependency_overrides, get_pdf_client, lambda: Boom())
     r = await client.get(
         PDF, params={"audience": "revendedores"}, headers=await _h(client, "admin@example.com")
     )

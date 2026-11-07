@@ -7,8 +7,8 @@
 - GET  /pdf/{token}       : acceso público con token (sin sesión).
 
 Seguridad: el documento renderizado no contiene costos ni margen — el
-renderer (data/pdf/reportlab_renderer.py) solo toca el snapshot del cliente, y la suite de
-tests lo verifica contra el PDF real.
+servicio pdfgenerator (ADR-0001) solo recibe el snapshot del cliente, y la
+suite de tests lo verifica contra el PDF real.
 """
 import asyncio
 from datetime import datetime, timezone
@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from api.v1.budgets.dependencies import get_budget_repository
 from api.v1.dependencies import get_current_user, require_admin
-from api.v1.pdf.dependencies import get_document_repository, get_pdf_renderer
+from api.v1.pdf.dependencies import get_document_repository, get_pdf_client
 from api.v1.pdf.schemas import PdfShareResponse
 from api.v1.rate_limit import SlidingWindowRateLimiter
 from api.v1.pdf.signing import make_share_token, verify_share_token
@@ -84,7 +84,7 @@ async def get_budget_pdf(
     budget_repo: BudgetRepository = Depends(get_budget_repository),
     document_repo: DocumentRepository = Depends(get_document_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
-    renderer: PdfRenderer = Depends(get_pdf_renderer),
+    renderer: PdfRenderer = Depends(get_pdf_client),
     current_user: User = Depends(get_current_user),
 ):
     """PDF server-side (P9): application/pdf con ETag por hash de
@@ -126,7 +126,7 @@ async def get_shared_pdf(
     budget_repo: BudgetRepository = Depends(get_budget_repository),
     document_repo: DocumentRepository = Depends(get_document_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
-    renderer: PdfRenderer = Depends(get_pdf_renderer),
+    renderer: PdfRenderer = Depends(get_pdf_client),
 ):
     """Acceso público con token firmado (sin autenticación). Token
     vencido o alterado → 404 genérico (no se revela el motivo: evita

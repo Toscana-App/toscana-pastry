@@ -30,7 +30,6 @@ import asyncio
 import csv as csv_module
 import logging
 from decimal import Decimal
-from html import escape
 from io import StringIO
 from typing import Dict, Iterable, List, Optional
 
@@ -39,7 +38,9 @@ from fastapi.responses import JSONResponse
 
 from api.v1.dependencies import get_current_user, require_admin, require_role
 from api.v1.ingredients.dependencies import get_ingredient_repository
+from api.v1.pdf.dependencies import get_pdf_client
 from api.v1.pricing.schemas import Audience
+from data.pdf.client import PdfClient
 from api.v1.products.dependencies import get_product_repository
 from api.v1.products.schemas import (
     PriceBreakdownResponse,
@@ -257,51 +258,6 @@ def _build_csv(rows: list[dict[str, str]]) -> str:
     for row in rows:
         writer.writerow([_csv_safe(row[h]) for h in header])
     return output.getvalue()
-
-
-def _build_pdf_html(product_rows: list[dict[str, str]]) -> str:
-    """Construye HTML para renderizar como PDF con WeasyPrint.
-
-    Escapa ``name`` y ``unit`` con ``html.escape`` para prevenir
-    inyección de markup. El ``audience_label`` es controlado por
-    la aplicación y no necesita escapado.
-    """
-    rows_html = ""
-    for row in product_rows:
-        name = escape(row["name"])
-        unit = escape(row["unit"])
-        rows_html += (
-            f"<tr><td>{name}</td>"
-            f"<td>{unit}</td>"
-            f"<td>{escape(row['price'])}</td></tr>\n"
-        )
-
-    return f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <style>
-        body {{ font-family: sans-serif; margin: 2em; }}
-        h1 {{ color: #333; border-bottom: 2px solid #e8d5b7; padding-bottom: 0.5em; }}
-        table {{ border-collapse: collapse; width: 100%; margin-top: 1em; }}
-        th {{ background: #f5ebe0; padding: 0.5em; text-align: left; border-bottom: 2px solid #ddd; }}
-        td {{ padding: 0.5em; border-bottom: 1px solid #eee; }}
-        .audience {{ color: #666; font-style: italic; }}
-    </style>
-</head>
-<body>
-    <h1>Lista de Precios</h1>
-    <p class="audience">Audiencia: {product_rows[0].get('audience_label', 'revendedores')}</p>
-    <table>
-        <thead>
-            <tr><th>Producto</th><th>Unidad</th><th>Precio</th></tr>
-        </thead>
-        <tbody>
-            {rows_html}
-        </tbody>
-    </table>
-</body>
-</html>"""
 
 
 def _stock_status(stock_qty: Decimal, low_stock_threshold: Decimal) -> str:
@@ -541,19 +497,6 @@ async def pricelist_csv(
     )
 
 
-def _pdf_unavailable() -> JSONResponse:
-    return JSONResponse(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        media_type="application/problem+json",
-        content={
-            "type": "about:blank",
-            "title": "Service Unavailable",
-            "status": status.HTTP_503_SERVICE_UNAVAILABLE,
-            "detail": "PDF generation is temporarily unavailable.",
-        },
-    )
-
-
 @router.get("/pricelist/pdf")
 async def pricelist_pdf(
     audience: Audience = Query(..., description="Audiencia de precios"),
@@ -562,42 +505,24 @@ async def pricelist_pdf(
     ),
     ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
+    pdf: PdfClient = Depends(get_pdf_client),
 ):
-    """Exporta la lista de precios en PDF para la audiencia del rol.
+    """Exporta la lista de precios en PDF para la audiencia del rol
+    (render vía pdfgenerator, ADR-0001).
 
     - admin: ambas audiencias.
     - negocio: solo revendedores.
     - cliente: solo consumidor_final.
-
-    Renderiza con WeasyPrint (requiere Pango en Windows).
     """
     resolved = _resolve_or_403(current_user, audience)
     priced, _ = await _build_audience_rows(ingredient_repo, settings_repo, resolved)
 
     audience_label = "Revendedores" if resolved == "revendedores" else "Consumidor final"
-    product_rows = []
-    for product, price in priced:
-        product_rows.append({
-            "name": product.name,
-            "unit": product.unit,
-            "price": f"${price}",
-            "audience_label": audience_label,
-        })
-
-    html_content = _build_pdf_html(product_rows)
-    # Lazy import: WeasyPrint requires Pango/GObject on Windows. El detalle
-    # del error va solo al log; el cliente recibe un problema generico.
-    try:
-        from weasyprint import HTML
-
-        # Render CPU-bound: fuera del event loop.
-        pdf_bytes = await asyncio.to_thread(
-            lambda: HTML(string=html_content).render().write_pdf()
-        )
-    except OSError as e:
-        logger.error("PDF render failed: %s", e)
-        return _pdf_unavailable()
-
+    rows = [
+        {"name": product.name, "unit": product.unit, "price": f"${price}"}
+        for product, price in priced
+    ]
+    pdf_bytes = await asyncio.to_thread(pdf.render_pricelist, rows, audience_label)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

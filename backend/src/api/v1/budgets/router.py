@@ -15,6 +15,7 @@ Reglas clave:
   se descuenta al confirmar el pedido, RNF-P6-02).
 - Money viaja en centavos (RF-P8-03) y Pct como string (money.py).
 """
+import asyncio
 import datetime
 import io
 from csv import writer as csv_writer
@@ -44,16 +45,18 @@ from api.v1.budgets.schemas import (
 )
 from api.v1.dependencies import get_current_user, require_admin
 from api.v1.ingredients.dependencies import get_ingredient_repository
-from api.v1.money import cents_to_decimal, decimal_to_cents
+from api.v1.money import cents_to_decimal, decimal_to_cents, format_money_cents
 from api.v1.orders.dependencies import (
     get_customer_repository,
     get_order_repository,
     get_product_repository,
 )
 from api.v1.orders.schemas import OrderItemInput
+from api.v1.pdf.dependencies import get_pdf_client
 from api.v1.pdf.signing import make_share_token
 from api.v1.settings.dependencies import get_settings_repository
 from core.config import settings as app_settings
+from data.pdf.client import PdfClient
 from data.repositories.sql_ingredient_repository import SQLIngredientRepository
 from data.repositories.sql_product_repository import SQLProductRepository
 from domain.budget_pricing import unit_product_cost
@@ -231,11 +234,12 @@ async def export_budgets(
     to_: Optional[datetime.date] = Query(default=None, alias="to"),
     fmt: Literal["csv", "pdf"] = Query(default="csv", alias="format"),
     repo: BudgetRepository = Depends(get_budget_repository),
+    pdf: PdfClient = Depends(get_pdf_client),
     _admin: User = Depends(require_admin),
 ):
     """Export del listado de presupuestos (mismos filtros que
     GET /budgets). CSV por defecto (backward-compatible);
-    ``format=pdf`` genera PDF con PyMuPDF en memoria (Fase 5, sin
+    ``format=pdf`` genera PDF vía pdfgenerator (ADR-0001, sin
     archivo intermedio). Columnas: secuencia, cliente, teléfono, fecha
     de creación, enviado, estado y total de venta."""
     budgets: List[Budget] = []
@@ -269,8 +273,6 @@ async def export_budgets(
         f"{from_.isoformat()}_a_{to_.isoformat()}" if from_ and to_ else "todos"
     )
     if fmt == "csv":
-        from data.pdf_export.pymupdf_renderer import format_money_cents
-
         rows = [
             ["seq", "cliente", "telefono", "fecha", "enviado", "estado",
              "total_venta"]
@@ -300,10 +302,25 @@ async def export_budgets(
                 "Content-Disposition": f'attachment; filename="presupuestos_{period_slug}.csv"'
             },
         )
-    # PDF
-    from data.pdf_export.pymupdf_renderer import render_budgets_export_pdf
-
-    pdf_bytes = render_budgets_export_pdf(period_label, [_tuple(b) for b in budgets])
+    # PDF (pdfgenerator, ADR-0001)
+    payload = {
+        "period_label": period_label,
+        "budgets": [
+            {
+                "seq": str(seq),
+                "cliente": cliente,
+                "telefono": telefono,
+                "fecha": fecha.isoformat(),
+                "enviado": enviado.isoformat() if enviado else None,
+                "estado": estado,
+                "total_cents": total_cents,
+            }
+            for seq, cliente, telefono, fecha, enviado, estado, total_cents in (
+                _tuple(b) for b in budgets
+            )
+        ],
+    }
+    pdf_bytes = await asyncio.to_thread(pdf.render_budgets_export, payload)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
