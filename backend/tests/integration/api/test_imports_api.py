@@ -72,7 +72,7 @@ async def client(db_session):
         app.dependency_overrides = {}
 
 
-async def _login(client: AsyncClient, email: str) -> str:
+async def _login(client: AsyncClient, email: str = "admin@example.com") -> str:
     response = await client.post("/api/v1/auth/login", json={"email": email})
     assert response.status_code == 200, response.text
     return response.json()["access_token"]
