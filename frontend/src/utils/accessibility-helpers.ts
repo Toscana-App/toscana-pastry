@@ -1,5 +1,5 @@
 // utils/accessibility-helpers.ts
-import { Browser, Page } from 'puppeteer-core';
+import puppeteer, { Browser, Page } from 'puppeteer-core';
 
 export interface AccessibilityReport {
   violations: AccessibilityViolation[];
@@ -77,6 +77,17 @@ export interface CustomRule {
   expectedResult: string;
 }
 
+// Resultado de `axe.run()` (axe-core se inyecta por URL y no trae tipos).
+interface AxeRunResult {
+  violations?: AccessibilityViolation[];
+  passes?: AccessibilityPass[];
+  incomplete?: AccessibilityIncomplete[];
+}
+
+interface AxeRunOptions {
+  rules?: Record<string, { enabled: boolean }>;
+}
+
 export class AccessibilityTester {
   private browser: Browser;
 
@@ -115,8 +126,16 @@ export class AccessibilityTester {
       });
 
       // Ejecutar audit
-      const results = await page.evaluate(() => {
-        return (window as any).axe.run(document, {
+      const results = await page.evaluate((): Promise<AxeRunResult> => {
+        const axe = (window as unknown as {
+          axe: {
+            run: (
+              context: Document,
+              options?: AxeRunOptions,
+            ) => Promise<AxeRunResult>;
+          };
+        }).axe;
+        return axe.run(document, {
           rules: {
             'color-contrast': { enabled: true },
             'aria-labels': { enabled: true },
@@ -430,11 +449,9 @@ export class AccessibilityTester {
   }
 }
 
-export async function launchAccessibilityBrowser(): Promise<{ browser: any, tester: AccessibilityTester }> {
+export async function launchAccessibilityBrowser(): Promise<{ browser: Browser, tester: AccessibilityTester }> {
   // En un entorno real, esto lanzaría un ego-browser real
   // Para este caso, simulamos el comportamiento
-  const puppeteer = require('puppeteer-core');
-  
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage']

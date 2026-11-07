@@ -35,7 +35,8 @@ beforeEach(() => {
   vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
     this: HTMLAnchorElement,
   ) {
-    anchor = this;
+    // Cast: `anchor = this` dispara no-this-alias; la aserción no cambia el tipo.
+    anchor = this as HTMLAnchorElement;
   });
 });
 

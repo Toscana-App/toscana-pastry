@@ -1,10 +1,16 @@
 // utils/accessibility-helpers-simple.ts
-import { Browser, Page } from 'puppeteer-core';
+import puppeteer, { Browser, Page } from 'puppeteer-core';
+import type {
+  AccessibilityIncomplete,
+  AccessibilityPass,
+  AccessibilityViolation,
+  ColorContrastIssue,
+} from './accessibility-helpers';
 
 export interface AccessibilityReport {
-  violations: any[];
-  passes: any[];
-  incomplete: any[];
+  violations: AccessibilityViolation[];
+  passes: AccessibilityPass[];
+  incomplete: AccessibilityIncomplete[];
   timestamp: string;
   wcagVersion: string;
   url: string;
@@ -18,7 +24,7 @@ export interface ScreenReaderReport {
 }
 
 export interface ColorContrastReport {
-  violations: any[];
+  violations: ColorContrastIssue[];
   passes: number;
   recommendations: string[];
 }
@@ -51,7 +57,7 @@ export class AccessibilityTester {
     return report;
   }
 
-  private async simulateAccessibilityViolations(page: Page): Promise<any[]> {
+  private async simulateAccessibilityViolations(page: Page): Promise<AccessibilityViolation[]> {
     // Simular violaciones de accesibilidad realistas
     return [
       {
@@ -75,7 +81,7 @@ export class AccessibilityTester {
     ];
   }
 
-  private async simulateAccessibilityPasses(page: Page): Promise<any[]> {
+  private async simulateAccessibilityPasses(page: Page): Promise<AccessibilityPass[]> {
     return [
       {
         id: 'semantic-html',
@@ -176,9 +182,7 @@ export class AccessibilityTester {
   }
 }
 
-export async function launchAccessibilityBrowser(): Promise<{ browser: any; tester: AccessibilityTester }> {
-  const puppeteer = require('puppeteer-core');
-  
+export async function launchAccessibilityBrowser(): Promise<{ browser: Browser; tester: AccessibilityTester }> {
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage']
