@@ -15,12 +15,10 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy import event
 
 from api.v1.auth.dependencies import get_user_repository
 from api.v1.customers.dependencies import get_customer_address_repository
 from data.db import get_db
-from data.models import Base
 from data.repositories.sql_customer_address_repository import (
     SQLCustomerAddressRepository,
 )

@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from main import app
-from data.models import Base
 from data.repositories.sql_user_repository import SQLUserRepository
 from api.v1.auth.dependencies import get_user_repository
 from api.v1.calc.dependencies import get_calc_settings_repository

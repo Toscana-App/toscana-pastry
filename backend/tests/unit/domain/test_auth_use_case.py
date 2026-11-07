@@ -1,7 +1,5 @@
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
-from domain.models import User
 from domain.use_cases.authenticate_user import AuthenticateUser
 
 class MockUserRepository:

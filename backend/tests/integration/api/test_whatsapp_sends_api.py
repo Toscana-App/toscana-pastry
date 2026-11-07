@@ -19,7 +19,6 @@ import uuid
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -33,7 +32,6 @@ from api.v1.whatsapp.dependencies import (
     get_whatsapp_send_repository,
 )
 from data.db import get_db as get_db_orig
-from data.models import Base
 from data.repositories.sql_user_repository import SQLUserRepository
 from data.repositories.sql_whatsapp_send_repository import (
     SQLWhatsAppSendRepository,

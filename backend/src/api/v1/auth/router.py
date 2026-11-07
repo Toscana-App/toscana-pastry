@@ -1,12 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 from domain.models import User
 from domain.repositories import UserRepository
 from domain.use_cases import AuthenticateUser
 from api.v1.dependencies import get_current_user
 from api.v1.auth.dependencies import get_user_repository
 from api.v1.auth.schemas import AuthRequest, AuthResponse, UserInfo
-from core.config import settings
 from domain.auth.logic import create_access_token, create_refresh_token, decode_refresh_token
 from pydantic import BaseModel
 

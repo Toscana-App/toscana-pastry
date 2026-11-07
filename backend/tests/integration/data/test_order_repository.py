@@ -20,7 +20,6 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from data.models import Base
 from data.repositories.sql_order_repository import SQLOrderRepository
 from domain.order import Order, OrderItem, PaymentMethod, PaymentStatus
 

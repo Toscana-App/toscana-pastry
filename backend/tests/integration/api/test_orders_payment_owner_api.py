@@ -10,7 +10,6 @@ from decimal import Decimal
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -21,7 +20,6 @@ from api.v1.auth.dependencies import get_user_repository
 from api.v1.dependencies import get_current_user
 from api.v1.orders.dependencies import get_checkout_provider
 from data.db import get_db as get_db_orig
-from data.models import Base
 from data.repositories.sql_order_repository import SQLOrderRepository
 from data.repositories.sql_user_repository import SQLUserRepository
 from domain.models import User, UserRole

@@ -1,6 +1,5 @@
 """Dependencies para leads (RF-P11-13, C5)."""
 
-from api.v1.dependencies import get_current_user  # noqa: F401
 from data.repositories.sql_lead_repository import SQLLeadRepository
 
 

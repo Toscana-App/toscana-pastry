@@ -5,7 +5,6 @@ import uuid
 from decimal import Decimal
 
 import httpx
-import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event, select

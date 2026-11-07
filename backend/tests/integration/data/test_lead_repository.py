@@ -9,9 +9,7 @@ from sqlalchemy.ext.asyncio import (
     AsyncSession,
     create_async_engine,
 )
-from sqlalchemy.orm import sessionmaker
 
-from data.models import Base
 from domain.lead import Lead
 from data.repositories.sql_lead_repository import SQLLeadRepository
 

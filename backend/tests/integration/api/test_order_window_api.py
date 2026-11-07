@@ -7,10 +7,8 @@ suite. Sin configuración previa la ventana existe por defecto abierta.
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from main import app
-from data.models import Base
 from data.repositories.sql_user_repository import SQLUserRepository
 from data.repositories.sql_order_repository import SQLOrderRepository
 from data.db import get_db

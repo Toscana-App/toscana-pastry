@@ -8,7 +8,6 @@ siempre se recalcula en lectura con los datos corrientes (RF-P3-04).
 Un insumo "no tiene precio" cuando: no existe, esta borrado suave, o su
 price_per_unit es 0 (decision de negocio Fase 5: 0 = sin precio).
 """
-from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 

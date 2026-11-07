@@ -13,7 +13,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from main import app
-from data.models import Base, BudgetItemORM, BudgetORM, CustomerORM, OrderItemORM, OrderORM
+from data.models import BudgetItemORM, BudgetORM, CustomerORM, OrderItemORM, OrderORM
 from data.repositories.sql_user_repository import SQLUserRepository
 from data.repositories.sql_order_repository import SQLOrderRepository
 from data.db import get_db

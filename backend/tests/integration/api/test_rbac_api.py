@@ -1,13 +1,11 @@
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from api.v1.auth.dependencies import get_user_repository
 from api.v1.ingredients.dependencies import get_ingredient_repository
 from api.v1.settings.dependencies import get_settings_repository
 from data.db import get_db
-from data.models import Base
 from data.repositories.sql_ingredient_repository import SQLIngredientRepository
 from data.repositories.sql_settings_repository import SQLSettingsRepository
 from data.repositories.sql_user_repository import SQLUserRepository

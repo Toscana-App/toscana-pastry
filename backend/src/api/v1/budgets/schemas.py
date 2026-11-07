@@ -12,12 +12,11 @@ Reglas del contrato (api_endpoints.md §F3):
 - La respuesta nunca recalcula contra el catalogo: los totales se derivan
   de los items guardados (borde puro, dominio).
 """
-import datetime
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from api.v1.money import Money, Pct, Qty
+from api.v1.money import Money, Pct
 
 BudgetStatus = Literal["borrador", "enviado"]
 CalculationMode = Literal["cost_plus", "manual"]

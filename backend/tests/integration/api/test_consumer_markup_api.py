@@ -4,10 +4,8 @@ import pytest
 import pytest_asyncio
 from decimal import Decimal
 from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
 from main import app
-from data.models import Base
 from data.repositories.sql_user_repository import SQLUserRepository
 from data.repositories.sql_settings_repository import SQLSettingsRepository
 from data.db import get_db
