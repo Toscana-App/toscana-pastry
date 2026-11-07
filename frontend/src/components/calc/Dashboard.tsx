@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   Flex,
   SimpleGrid,
@@ -14,6 +15,7 @@ import {
 } from "@chakra-ui/react";
 import { calcProductsService } from "@/services/calcProductsService";
 import { toaster } from "@/lib/toaster";
+import { formatCents } from "@/lib/format";
 import type { DashboardResponse, DashboardTopItem, DashboardBottomItem } from "@/types/calc";
 
 // KPI Card component (defined outside render)
@@ -23,15 +25,15 @@ const KPICard = ({ title, value, subtitle, color = "gray" }: {
   subtitle?: string;
   color?: string;
 }) => (
-  <Box p={4} bg="white" borderRadius="md" shadow="sm" border="1px solid" borderColor="gray.200">
-    <Text fontSize="sm" color="gray.600" fontWeight="medium" mb={2}>
+  <Box p={4} bg="bg.panel" borderRadius="md" shadow="sm" border="1px solid" borderColor="border">
+    <Text fontSize="sm" color="fg.muted" fontWeight="medium" mb={2}>
       {title}
     </Text>
-    <Heading size="lg" color={`${color}.900`}>
+    <Heading size="lg" color={`${color}.fg`}>
       {typeof value === "number" ? value.toLocaleString() : value}
     </Heading>
     {subtitle && (
-      <Text fontSize="sm" color="gray.500" mt={1}>
+      <Text fontSize="sm" color="fg.muted" mt={1}>
         {subtitle}
       </Text>
     )}
@@ -40,7 +42,7 @@ const KPICard = ({ title, value, subtitle, color = "gray" }: {
 
 // Section Card component (defined outside render)
 const SectionCard = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <Box p={4} bg="white" borderRadius="md" shadow="sm" border="1px solid" borderColor="gray.200">
+  <Box p={4} bg="bg.panel" borderRadius="md" shadow="sm" border="1px solid" borderColor="border">
     <Heading size="md" mb={4}>
       {title}
     </Heading>
@@ -49,6 +51,7 @@ const SectionCard = ({ title, children }: { title: string; children: React.React
 );
 
 export default function Dashboard() {
+  const router = useRouter();
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -61,10 +64,10 @@ export default function Dashboard() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleViewProduct = useCallback((productId: string) => {
-    // Secure navigation to product edit page
-    window.location.href = `/admin/calculadora/productos/${productId}`;
-  }, []);
+  const handleViewProduct = useCallback(
+    (productId: string) => router.push(`/admin/calculator/products/${productId}`),
+    [router]
+  );
 
   if (loading) {
     return (
@@ -75,7 +78,7 @@ export default function Dashboard() {
   }
 
   if (!dashboard) {
-    return <Text color="red.500">Error cargando dashboard</Text>;
+    return <Text color="red.fg">Error cargando dashboard</Text>;
   }
 
   return (
@@ -108,13 +111,13 @@ export default function Dashboard() {
         />
         <KPICard
           title="Costo Promedio"
-          value={dashboard.avg_product_cost}
+          value={formatCents(dashboard.avg_product_cost)}
           subtitle="Por producto"
           color="purple"
         />
         <KPICard
           title="Precio Promedio"
-          value={dashboard.avg_final_price}
+          value={formatCents(dashboard.avg_final_price)}
           subtitle="Por producto"
           color="cyan"
         />
@@ -140,7 +143,7 @@ export default function Dashboard() {
                 return (
                   <Table.Row key={item.id}>
                     <Table.Cell fontWeight="medium">{item.name}</Table.Cell>
-                    <Table.Cell textAlign="right">{item.final_sale_price}</Table.Cell>
+                    <Table.Cell textAlign="right">{formatCents(item.final_sale_price)}</Table.Cell>
                     <Table.Cell textAlign="right">
                       <Badge colorPalette={badgeColor} variant="subtle">
                         {badgeText}
@@ -182,7 +185,7 @@ export default function Dashboard() {
                 return (
                   <Table.Row key={item.id}>
                     <Table.Cell fontWeight="medium">{item.name}</Table.Cell>
-                    <Table.Cell textAlign="right">{item.product_total_cost}</Table.Cell>
+                    <Table.Cell textAlign="right">{formatCents(item.product_total_cost)}</Table.Cell>
                     <Table.Cell textAlign="right">
                       <Badge colorPalette={badgeColor} variant="subtle">
                         {badgeText}

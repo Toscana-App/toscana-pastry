@@ -24,7 +24,7 @@ const CALC_TABS: { id: CalcTabId; label: string }[] = [
   { id: "default-costs", label: "Costos por defecto" },
 ];
 
-export default function CalculadoraConfigPage() {
+export default function CalculatorConfigPage() {
   // RNF-P5CC-03: cada tab hace 1 GET al activarse por primera vez, no los 5
   // al montar. Ark UI mantiene montados los Tabs.Content inactivos (hidden),
   // así que montar el componente solo cuando su tab fue visitado garantiza

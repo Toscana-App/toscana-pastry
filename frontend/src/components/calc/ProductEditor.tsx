@@ -18,19 +18,43 @@ import { calcMaterialsService } from "@/services/calcMaterialsService";
 import { calcSettingsService } from "@/services/calcSettingsService";
 import ProductLines from "./ProductLines";
 import { toaster } from "@/lib/toaster";
+import { centsToPesos, formatCents } from "@/lib/format";
 import type {
   Category,
   Material,
   Product,
+  ProductCostsResponse,
   ProductCreatePayload,
+  ProductDetail,
   ProductUpdatePayload,
   ProductLineMaterialIn,
   ProductLineLaborIn,
   ProductLineExtraCostIn,
   ProductStatus,
   CategoryListResponse,
-  ProductWithLines,
 } from "@/types/calc";
+
+// Hidratación (F2): el GET de detalle devuelve las líneas a nivel
+// superior (sin envoltorio product_lines) y los montos en int de
+// centavos; los inputs del editor trabajan en pesos (string).
+function mapDetailLines(detail: ProductDetail) {
+  return {
+    materialLines: detail.materials.map((line) => ({
+      material_id: line.material_id,
+      quantity_used: line.quantity_used,
+    })),
+    laborLines: detail.labor.map((line) => ({
+      activity_name: line.activity_name,
+      hourly_rate: String(centsToPesos(line.hourly_rate)),
+      minutes_required: line.minutes_required,
+    })),
+    extraCostLines: detail.extra_costs.map((line) => ({
+      concept_name: line.concept_name,
+      unit_cost: String(centsToPesos(line.unit_cost)),
+      quantity: line.quantity,
+    })),
+  };
+}
 
 interface ProductEditorProps {
   initial?: Product;
@@ -52,6 +76,7 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
 
   const [saving, setSaving] = useState(false);
   const [fetching, setFetching] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
 
   const [materials, setMaterials] = useState<Material[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -60,6 +85,10 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
   const [extraCostLines, setExtraCostLines] = useState<ProductLineExtraCostIn[]>([]);
 
   const [showPreview, setShowPreview] = useState(false);
+  // F3: tras crear, el editor queda en modo edición con el id recién
+  // creado (no volver al listado). `costs` alimenta el panel de costos.
+  const [savedId, setSavedId] = useState<string | null>(initial?.id || null);
+  const [costs, setCosts] = useState<ProductCostsResponse | null>(null);
 
   const categoryCollection = createListCollection({
     items: categories.map(c => ({ value: c.id, label: c.name }))
@@ -88,10 +117,13 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
         toaster.create({ title: "Error cargando materiales", type: "error" });
       });
 
-    // If editing, fetch product data
+    // If editing, fetch product data (GET detail: lineas a nivel
+    // superior, montos en int de centavos).
     if (initial?.id) {
       calcProductsService.getProduct(initial.id)
-        .then((productData: ProductWithLines) => {
+        .then((productData: ProductDetail) => {
+          setSavedId(productData.product.id);
+          setCosts(productData.costs);
           setName(productData.product.name);
           setSku(productData.product.sku || "");
           setCategoryId(productData.product.category_id || "");
@@ -101,27 +133,11 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
           setDiscountPercent(productData.product.discount_percent);
           setTaxPercent(productData.product.tax_percent);
           setStatus(productData.product.status as ProductStatus);
-          
-          // Load existing material lines from the product
-          if (productData.product_lines) {
-            const materialLines = productData.product_lines.materials.map(line => ({
-              material_id: line.material_id,
-              quantity_used: line.quantity_used,
-            }));
-            const laborLines = productData.product_lines.labor.map(line => ({
-              activity_name: line.activity_name,
-              hourly_rate: line.hourly_rate,
-              minutes_required: line.minutes_required,
-            }));
-            const extraCostLines = productData.product_lines.extra_costs.map(line => ({
-              concept_name: line.concept_name,
-              unit_cost: line.unit_cost,
-              quantity: line.quantity,
-            }));
-            setMaterialLines(materialLines);
-            setLaborLines(laborLines);
-            setExtraCostLines(extraCostLines);
-          }
+
+          const lines = mapDetailLines(productData);
+          setMaterialLines(lines.materialLines);
+          setLaborLines(lines.laborLines);
+          setExtraCostLines(lines.extraCostLines);
         })
         .catch(() => {
           toaster.create({ title: "Error cargando producto", type: "error" });
@@ -154,27 +170,57 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
         extra_costs: extraCostLines,
       };
 
-      let savedProduct: Product;
-      if (initial?.id) {
-        // Update existing product
-        const result = await calcProductsService.updateProduct(initial.id, payload as ProductUpdatePayload);
-        savedProduct = result.product;
-        toaster.create({ title: "Producto actualizado exitosamente", type: "success" });
+      if (savedId) {
+        // F3: update — quedarse en el editor, refrescar costos y ofrecer
+        // "Ver" en el toast.
+        const result = await calcProductsService.updateProduct(savedId, payload as ProductUpdatePayload);
+        setCosts(result.costs);
+        onSave?.(result.product);
+        toaster.create({
+          title: "Producto actualizado exitosamente",
+          type: "success",
+          action: {
+            label: "Ver",
+            onClick: () => router.push(`/admin/calculator/products/${savedId}`),
+          },
+        });
       } else {
-        // Create new product
+        // F3: create — no volver al listado; el editor pasa a modo
+        // edición con el id recién creado.
         const result = await calcProductsService.createProduct(payload as ProductCreatePayload);
-        savedProduct = result.product;
+        setSavedId(result.product.id);
+        setCosts(result.costs);
+        setMarginPercent(result.product.margin_percent);
+        setDiscountPercent(result.product.discount_percent);
+        setTaxPercent(result.product.tax_percent);
+        setStatus(result.product.status as ProductStatus);
+        onSave?.(result.product);
         toaster.create({ title: "Producto creado exitosamente", type: "success" });
       }
-
-      onSave?.(savedProduct);
-      router.back();
-
     } catch (error) {
       const message = error instanceof Error ? error.message : "Error guardando producto";
       toaster.create({ title: message, type: "error" });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleRecalculate = async () => {
+    if (!savedId) return;
+    try {
+      setRecalculating(true);
+      const result = await calcProductsService.recalculateProduct(savedId);
+      setCosts(result.costs);
+      setMarginPercent(result.product.margin_percent);
+      setDiscountPercent(result.product.discount_percent);
+      setTaxPercent(result.product.tax_percent);
+      setStatus(result.product.status as ProductStatus);
+      toaster.create({ title: "Precios recalculados", type: "success" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error recalculando precios";
+      toaster.create({ title: message, type: "error" });
+    } finally {
+      setRecalculating(false);
     }
   };
 
@@ -353,12 +399,25 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
         <Heading as="h2" size="md">Líneas de Producto</Heading>
         <ProductLines
           materials={materials}
+          materialLines={materialLines}
           laborLines={laborLines}
           extraCostLines={extraCostLines}
           onLinesChange={handleLinesChange}
           showPreview={showPreview}
         />
       </Flex>
+
+      {costs && (
+        <Flex direction="column" gap={2} p={4} bg="bg.subtle" borderRadius="md" maxW="420px">
+          <Heading as="h3" size="sm">Costos (motor)</Heading>
+          <Flex gap={4}><UIText flex={1}>Costo total:</UIText><UIText fontWeight="bold">{formatCents(costs.product_total_cost)}</UIText></Flex>
+          <Flex gap={4}><UIText flex={1}>Ganancia:</UIText><UIText fontWeight="bold">{formatCents(costs.profit_amount)}</UIText></Flex>
+          <Flex gap={4}><UIText flex={1}>Descuento:</UIText><UIText fontWeight="bold">{formatCents(costs.discount_amount)}</UIText></Flex>
+          <Flex gap={4}><UIText flex={1}>Ganancia ajustada:</UIText><UIText fontWeight="bold">{formatCents(costs.adjusted_profit_amount)}</UIText></Flex>
+          <Flex gap={4}><UIText flex={1}>Impuesto:</UIText><UIText fontWeight="bold">{formatCents(costs.tax_amount)}</UIText></Flex>
+          <Flex gap={4}><UIText flex={1}>Precio final:</UIText><UIText fontWeight="bold">{formatCents(costs.final_sale_price)}</UIText></Flex>
+        </Flex>
+      )}
 
       <Flex justify="flex-end" gap={3} mt={6}>
         <Button
@@ -367,6 +426,11 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
         >
           {showPreview ? "Ocultar" : "Mostrar"} Vista Previa
         </Button>
+        {savedId && (
+          <Button variant="outline" onClick={handleRecalculate} loading={recalculating}>
+            Recalcular
+          </Button>
+        )}
         <Button variant="outline" onClick={() => router.back()} disabled={saving}>
           Cancelar
         </Button>
@@ -375,7 +439,7 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
           loading={saving}
           disabled={!name.trim()}
         >
-          {initial?.id ? "Actualizar" : "Guardar"} Producto
+          {savedId ? "Actualizar" : "Guardar"} Producto
         </Button>
       </Flex>
     </Flex>
