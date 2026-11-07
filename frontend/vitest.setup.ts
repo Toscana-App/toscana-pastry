@@ -21,6 +21,21 @@ if (typeof globalThis.ResizeObserver === "undefined") {
   globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
 }
 
+// jsdom no implementa matchMedia; next-themes (ColorModeProvider) lo usa
+// para leer la preferencia de color del sistema. Default: modo claro.
+if (typeof window !== "undefined" && !window.matchMedia) {
+  window.matchMedia = (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  });
+}
+
 // Vitest sin `globals: true`: el auto-cleanup de Testing Library no se
 // registra solo, se explicita aquí.
 afterEach(() => {

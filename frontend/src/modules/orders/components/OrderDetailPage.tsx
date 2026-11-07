@@ -178,7 +178,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
       </Flex>
 
       {/* Cliente + datos */}
-      <Box borderWidth="1px" borderColor="gray.200" rounded="md" p={4}>
+      <Box borderWidth="1px" borderColor="border" rounded="md" p={4}>
         <VStack align="start" gap={2}>
           <Text fontWeight="600">{order.customer.name}</Text>
           <Text color="fg.muted" fontSize="sm">{order.customer.phone}</Text>
@@ -195,7 +195,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
       </Box>
 
       {/* Snapshot de líneas */}
-      <Box borderWidth="1px" borderColor="gray.200" rounded="md" overflowX="auto">
+      <Box borderWidth="1px" borderColor="border" rounded="md" overflowX="auto">
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
           <thead>
             <tr>
@@ -205,9 +205,9 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
                   style={{
                     textAlign: "left",
                     padding: "10px 14px",
-                    borderBottom: "1px solid #e5e5e5",
+                    borderBottom: "1px solid var(--chakra-colors-border)",
                     fontWeight: 600,
-                    color: "#525252",
+                    color: "var(--chakra-colors-fg-muted)",
                     whiteSpace: "nowrap",
                   }}
                 >
@@ -218,7 +218,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
           </thead>
           <tbody>
             {order.items.map((item, idx) => (
-              <tr key={`${item.product_id}-${idx}`} style={{ borderBottom: "1px solid #f0f0f0" }}>
+              <tr key={`${item.product_id}-${idx}`} style={{ borderBottom: "1px solid var(--chakra-colors-border-muted)" }}>
                 <td style={{ padding: "10px 14px", fontWeight: 500 }}>{item.product_name}</td>
                 <td style={{ padding: "10px 14px" }}>{item.qty}</td>
                 <td style={{ padding: "10px 14px" }}>{item.portions}</td>
@@ -248,7 +248,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
           <Box
             key={`lines-${item.product_id}-${idx}`}
             borderWidth="1px"
-            borderColor="gray.100"
+            borderColor="border.muted"
             rounded="md"
             p={3}
           >
@@ -259,7 +259,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
               <Stack gap={1}>
                 {item.lines.map((line) => (
                   <HStack key={line.ingredient_id} justify="space-between" fontSize="sm">
-                    <Text color={line.is_missing ? "red.600" : "fg.muted"}>
+                    <Text color={line.is_missing ? "red.fg" : "fg.muted"}>
                       {line.ingredient_name} · {line.qty} {line.unit}
                       {line.is_missing ? " (sin precio)" : ""}
                     </Text>

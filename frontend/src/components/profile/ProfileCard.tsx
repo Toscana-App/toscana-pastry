@@ -34,8 +34,8 @@ export function ProfileCard({ user }: ProfileCardProps) {
       p={8}
       borderRadius="xl"
       borderWidth="1px"
-      borderColor="gray.200"
-      bg="white"
+      borderColor="border"
+      bg="bg.panel"
       boxShadow="lg"
     >
       <VStack gap={6} align="center">
@@ -52,17 +52,17 @@ export function ProfileCard({ user }: ProfileCardProps) {
         <VStack width="full" align="start" gap={3}>
           <HStack justifyContent="space-between" width="full">
             <Text fontWeight="medium">Correo electrónico</Text>
-            <Text color="gray.600" fontWeight="bold">{user.email}</Text>
+            <Text color="fg.muted" fontWeight="bold">{user.email}</Text>
           </HStack>
           {user.googleId && (
             <HStack justifyContent="space-between" width="full">
               <Text fontWeight="medium">Google ID</Text>
-              <Text color="gray.600" fontWeight="bold">{user.googleId}</Text>
+              <Text color="fg.muted" fontWeight="bold">{user.googleId}</Text>
             </HStack>
           )}
           <HStack justifyContent="space-between" width="full">
             <Text fontWeight="medium">ID de cuenta</Text>
-            <Text color="gray.600" fontWeight="bold">{user.id}</Text>
+            <Text color="fg.muted" fontWeight="bold">{user.id}</Text>
           </HStack>
         </VStack>
       </VStack>

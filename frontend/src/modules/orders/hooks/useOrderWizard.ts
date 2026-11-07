@@ -48,7 +48,7 @@ export function useOrderWizard(orderId?: string) {
   const [customerId, setCustomerId] = useState("");
   const [customerMode, setCustomerMode] = useState<"existing" | "new">("existing");
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customerQuery, setCustomerQuery] = useState("");
+  const [customerQuery] = useState("");
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [date, setDate] = useState(todayIso());

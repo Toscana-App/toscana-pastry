@@ -147,7 +147,7 @@ export function IngredientDetailPage({ id }: IngredientDetailPageProps) {
             <Flex
               direction="column"
               borderWidth="1px"
-              borderColor="gray.200"
+              borderColor="border"
               rounded="md"
               divideY="1px"
             >

@@ -181,7 +181,7 @@ export function PaymentCard({ order }: { order: OrderDetail }) {
 
         {state.kind === "pending" && (
           <Flex align="center" gap={3}>
-            <Spinner size="sm" color="brand.500" />
+            <Spinner size="sm" color="brand.fg" />
             <Text fontSize="sm">
               Procesando pago, esto puede tardar unos segundos…
             </Text>

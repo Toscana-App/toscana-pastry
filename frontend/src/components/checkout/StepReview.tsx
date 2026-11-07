@@ -196,10 +196,10 @@ export function StepReview({
           ))}
           {cart.coupon && (
             <Flex justify="space-between" gap={2}>
-              <Text fontSize="sm" color="green.600">
+              <Text fontSize="sm" color="green.fg">
                 Cupón {cart.coupon.code}
               </Text>
-              <Text fontSize="sm" color="green.600">
+              <Text fontSize="sm" color="green.fg">
                 −${cart.discount_amount}
               </Text>
             </Flex>
@@ -236,7 +236,7 @@ export function CheckoutSuccess({
 }) {
   return (
     <Stack gap={4} maxW="md" align="center" textAlign="center" py={8}>
-      <Text fontSize="2xl" fontWeight="bold" color="green.600">
+      <Text fontSize="2xl" fontWeight="bold" color="green.fg">
         ¡Pedido recibido!
       </Text>
       <Text color="fg.muted">
