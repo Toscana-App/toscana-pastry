@@ -53,8 +53,25 @@ export function WeeklySummaryView() {
   }, []);
 
   useEffect(() => {
-    load(null);
-  }, [load]);
+    let cancelled = false;
+    const loadInitial = async () => {
+      try {
+        const res = await weeklyService.get(null);
+        if (!cancelled) setSummary(res);
+      } catch (e: unknown) {
+        if (!cancelled)
+          setError(e instanceof Error ? e.message : "No se pudo cargar el resumen");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    // Carga inicial dentro del efecto (setState solo tras await) para no
+    // disparar react-hooks/set-state-in-effect; `load` queda para los handlers.
+    loadInitial();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const applyWeek = () => {
     const week = weekInput.trim() || null;
