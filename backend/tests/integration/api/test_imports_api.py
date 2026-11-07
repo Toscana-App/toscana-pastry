@@ -122,7 +122,7 @@ async def test_template_returns_csv_of_entity_columns(client):
     assert response.status_code == 200
     assert "text/csv" in response.headers["content-type"]
     assert "attachment" in response.headers.get("content-disposition", "")
-    assert response.text.splitlines()[0] == "nombre,cantidad,unidad,precio"
+    assert response.text.splitlines()[0] == "nombre;cantidad;unidad;precio"
 
 
 @pytest.mark.asyncio
@@ -198,7 +198,8 @@ async def test_upload_empty_file_422(client):
 @pytest.mark.asyncio
 async def test_upload_oversize_413(client):
     token = await _login(client)
-    big = ("nombre,cantidad,unidad,precio\n" "Harina,1,kg,10\n") * 10000
+    # ~6.1 MB: supera MAX_FILE_BYTES (5 MiB) sin tocar el limite de filas.
+    big = "nombre,cantidad,unidad,precio\n" + ("Harina,1,kg,10" + "x" * 600 + "\n") * 10000
     response = await client.post(
         "/api/v1/imports",
         files={"file": ("big.csv", big.encode("utf-8"), "text/csv")},
@@ -286,10 +287,16 @@ async def test_rows_unknown_id_404(client):
 
 
 @pytest.mark.asyncio
-async def test_rows_scoped_by_owner(client):
-    """El tenant es el owner (monotenante): otro usuario no ve el import."""
+async def test_rows_scoped_by_owner(client, db_session):
+    """Otro admin no ve el import (scope por owner): 404.
+
+    (Un usuario no-admin seria 403 por RBAC antes que por scope, asi que
+    el "otro" usuario tambien tiene que ser admin para probar el scope.)"""
+    await SQLUserRepository(db_session).save(
+        User(email="admin2@example.com", role=UserRole.ADMIN)
+    )
     admin_token = await _login(client, "admin@example.com")
-    other_token = await _login(client, "other@example.com")
+    other_token = await _login(client, "admin2@example.com")
     import_id = (await _upload_body(client, admin_token, INGREDIENTS_CSV, "ingredients")).json()["import_id"]
     response = await client.get(
         f"/api/v1/imports/{import_id}/rows",
@@ -372,14 +379,17 @@ async def test_confirm_rolls_back_on_insert_error(client, db_session, monkeypatc
     async def boom(session, data):
         raise RuntimeError("fallo simulado")
 
-    monkeypatch.setattr(IngredientsAdapter, "insert", boom)
+    monkeypatch.setattr(IngredientsAdapter, "insert", staticmethod(boom))
     token = await _login(client)
     import_id = (await _upload_body(client, token, INGREDIENTS_CSV, "ingredients")).json()["import_id"]
-    response = await client.post(
-        f"/api/v1/imports/{import_id}/confirm",
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert response.status_code == 500
+    # Starlette re-levanta la exception al cliente ASGI despues de generar el
+    # 500 (documentado en ServerErrorMiddleware): el fallo se observa como
+    # exception, no como response.
+    with pytest.raises(RuntimeError, match="fallo simulado"):
+        await client.post(
+            f"/api/v1/imports/{import_id}/confirm",
+            headers={"Authorization": f"Bearer {token}"},
+        )
     count = (await db_session.execute(select(func.count()).select_from(IngredientORM))).scalar()
     assert count == 0
 
@@ -396,10 +406,13 @@ async def test_delete_discards(client, db_session):
     )
     assert response.status_code == 200
     assert response.json()["status"] == "discarded"
-    # Ya no se puede ver:
-    assert (
-        await client.get(f"/api/v1/imports/{import_id}/rows", headers={"Authorization": f"Bearer {token}"})
-    ).status_code == 404
+    # La sesion queda registrada como descartada; el staging se elimino:
+    rows_response = await client.get(
+        f"/api/v1/imports/{import_id}/rows",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert rows_response.status_code == 200
+    assert rows_response.json()["total"] == 0
 
 
 @pytest.mark.asyncio

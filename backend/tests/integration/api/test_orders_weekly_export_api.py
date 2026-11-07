@@ -247,8 +247,8 @@ async def test_weekly_default_week_aggregates(client, db_session):
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["range"]["from"] == monday.isoformat()
-    assert body["range"]["to"] == (monday + datetime.timedelta(days=6)).isoformat()
+    assert body["week"]["from"] == monday.isoformat()
+    assert body["week"]["to"] == (monday + datetime.timedelta(days=6)).isoformat()
     assert body["totals"]["amount"] == 1234567 + 80000
     assert body["totals"]["paid"] == 1234567
     assert body["totals"]["unpaid"] == 80000
@@ -277,8 +277,8 @@ async def test_weekly_iso_week_param(client, db_session):
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["range"]["from"] == anchor.isoformat()
-    assert body["range"]["to"] == (anchor + datetime.timedelta(days=6)).isoformat()
+    assert body["week"]["from"] == anchor.isoformat()
+    assert body["week"]["to"] == (anchor + datetime.timedelta(days=6)).isoformat()
     assert body["totals"]["amount"] == 100000
 
 
@@ -400,7 +400,8 @@ async def test_budgets_export_csv_default(client, db_session):
     assert "#00042" in body
     assert "María Gómez" in body
     assert "enviado" in body
-    assert "$4.520,00" in body
+    # total_venta incluye IVA 21% (dominio/budgets.py): 4520.00 * 1.21
+    assert "$5.469,20" in body
 
 
 @pytest.mark.asyncio
