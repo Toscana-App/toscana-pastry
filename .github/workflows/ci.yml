@@ -97,5 +97,4 @@ jobs:
         run: uv sync --frozen
 
       - name: Run tests
-        # TEMP-DIAGNOSTIC (revertir): solo 3 tests con traceback completo.
-        run: uv run pytest --tb=long -k "weekly_default_week_aggregates or orders_export_csv_default or budgets_export_csv_default"
+        run: uv run pytest -q
