@@ -12,7 +12,9 @@ import { WhatsAppFloat } from "@/components/portal/WhatsAppFloat";
 
 /**
  * Self-service portal layout (route group `(portal)`, flat URLs:
- * "/" (home), "/my-orders", "/carrito", "/checkout", "/profile").
+ * "/my-orders", "/carrito", "/checkout", "/profile").
+ *
+ * The home page (`/`) is public (app/page.tsx) and does NOT use this layout.
  *
  * Role gate (p11 RF-P11-01):
  * - no session → /login with `from` to return after login
