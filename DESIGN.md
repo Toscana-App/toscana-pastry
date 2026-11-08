@@ -259,7 +259,7 @@ Chakra default radii: small corners (4–6px) on buttons, inputs, and table scro
 - **Component:** `BrandLogo` (`frontend/src/components/layout/BrandLogo.tsx`), props `variant="horizontal" | "vertical"` and `height` in px. It renders both tints and swaps them with Chakra `_dark`: ink (#373435) on light surfaces, cream (#f7f1ee) on dark.
 - **Horizontal:** rosette + "Toscana". Navbar, 36px tall.
 - **Vertical tagline lockup:** rosette + "Toscana" + "Horneando momentos". Login page, 150px tall, centered above the card.
-- **Assets:** sources are `docs/images/*.svg` (single ink #373435). `frontend/scripts/build_brand_assets.mjs` rasterizes them with sharp into `frontend/public/brand/`: `logo_horizontal_{ink,cream}.webp` (108px tall) and `logo_vertical_tagline_{ink,cream}.webp` (660px wide). The favicon is `frontend/src/app/icon.png`, the rosette on peach.
+- **Assets:** versionados en `frontend/public/brand/` — `logo_horizontal_{ink,cream}.webp` (108px tall) y `logo_vertical_tagline_{ink,cream}.webp` (660px wide), derivados de `docs/images/*.svg` (single ink #373435). El favicon es `frontend/src/app/icon.png`, la roseta sobre peach.
 
 ### Feedback
 - **Toasts:** `goey-toast` (`gooeyToast.success` / `.error`) with exclamatory es-AR titles ("¡Agregado al carrito!", "¡Ups! …") and a description line.
