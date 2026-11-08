@@ -56,6 +56,7 @@ from api.v1.dependencies import (
 from api.v1.ingredients.dependencies import get_ingredient_repository
 from api.v1.pdf.dependencies import get_pdf_client
 from api.v1.pricing.schemas import Audience
+from data.accent import accent_fold, validate_search_term
 from data.pdf.client import PdfClient
 from api.v1.products.dependencies import (
     get_media_root,
@@ -120,13 +121,13 @@ def _csv_safe(value: str) -> str:
     return value
 
 
-async def _list_all_ingredients(ingredient_repo: IngredientRepository) -> list:
+async def _list_all_products(product_repo: ProductRepository) -> list:
     """Recorre todas las paginas del repositorio: sin truncado silencioso."""
     products: list = []
     page = 1
     while True:
-        batch, total = await ingredient_repo.list(
-            q=None, status=None, page=page, page_size=_LIST_PAGE_SIZE
+        batch, total = await product_repo.list(
+            q=None, category=None, page=page, page_size=_LIST_PAGE_SIZE
         )
         products.extend(batch)
         if not batch or len(products) >= total:
@@ -144,41 +145,56 @@ def _resolve_or_403(user: User, audience: str) -> str:
         ) from e
 
 
-async def _build_audience_rows(
+async def _build_store_rows(
+    product_repo: ProductRepository,
     ingredient_repo: IngredientRepository,
     settings_repo: SettingsRepository,
     resolved: str,
     q: str | None = None,
     page: int | None = None,
     page_size: int | None = None,
-) -> tuple[list[tuple], int]:
-    """Devuelve ``(filas, total)`` con ``(ingredient, precio_para_la_audiencia)``;
-    unico lugar donde se aplica ``derive_audience_price``.
+) -> tuple[list[tuple], int, list[str]]:
+    """Devuelve ``(filas, total, categorias)`` con filas
+    ``(product, precio_para_la_audiencia, price)``; unico lugar donde se aplica
+    ``derive_audience_price`` sobre la tienda.
 
-    Sin ``q``/``page``/``page_size`` devuelve TODOS los productos (exports, y el
-    listado por defecto). Con alguno, filtra (``q`` por nombre, insensible a
-    acentos, RF-P3-01) y pagina; ``total`` sigue siendo el total de productos.
+    Solo productos disponibles con receta completa; ``q`` filtra por nombre
+    (insensible a acentos, RF-P3-01); ``page``/``page_size`` pagina sobre el
+    catalogo visible; ``total`` y ``categories`` reflejan ese catalogo.
     """
     settings = await GetSettings(settings_repo).execute()
-    if q is None and page is None and page_size is None:
-        products = await _list_all_ingredients(ingredient_repo)
-        total = len(products)
-    else:
-        products, total = await ingredient_repo.list(
-            q=q, status=None, page=page or 1, page_size=page_size or _DEFAULT_PAGE_SIZE
+    products = await _list_all_products(product_repo)
+    ingredients_by_id = await _load_ingredients(ingredient_repo, products)
+    priced: list[tuple] = []
+    for product in products:
+        price = derive_product_price(product, ingredients_by_id, settings)
+        if not product.available or not price.complete or price.breakdown is None:
+            continue
+        priced.append(
+            (
+                product,
+                derive_audience_price(
+                    price.breakdown.rounded,
+                    settings.consumer_markup_pct,
+                    resolved,
+                ),
+                price,
+            )
         )
-    rows = [
-        (
-            product,
-            derive_audience_price(
-                product.price_per_unit, settings.consumer_markup_pct, resolved
-            ),
-        )
-        for product in products
-    ]
-    return rows, total
-
-
+    if q is not None:
+        folded = accent_fold(validate_search_term(q))
+        priced = [
+            (product, audience_price, price)
+            for product, audience_price, price in priced
+            if folded in accent_fold(product.name)
+        ]
+    total = len(priced)
+    categories = sorted({product.category for product, _, _ in priced})
+    if page is not None or page_size is not None:
+        size = page_size or _DEFAULT_PAGE_SIZE
+        start = ((page or 1) - 1) * size
+        priced = priced[start : start + size]
+    return priced, total, categories
 
 
 async def _load_ingredients(
@@ -281,26 +297,12 @@ def _build_csv(rows: list[dict[str, str]]) -> str:
     comas, comillas y saltos de línea en los valores.
     """
     output = StringIO()
-    header = list(rows[0].keys())
+    header = list(rows[0].keys()) if rows else ["name", "category", "price"]
     writer = csv_module.writer(output, lineterminator="\n")
     writer.writerow(header)
     for row in rows:
         writer.writerow([_csv_safe(row[h]) for h in header])
     return output.getvalue()
-
-
-def _stock_status(stock_qty: Decimal, low_stock_threshold: Decimal) -> str:
-    """Deriva el status de stock desde los campos del ingrediente.
-
-    - ``EMPTY``: stock_qty == 0
-    - ``LOW``: 0 < stock_qty <= low_stock_threshold
-    - ``OK``: stock_qty > low_stock_threshold
-    """
-    if stock_qty == 0:
-        return "EMPTY"
-    if stock_qty <= low_stock_threshold:
-        return "LOW"
-    return "OK"
 
 
 @router.get("")
@@ -324,35 +326,36 @@ async def list_products(
     - Sin `audience`: listado P3 (busqueda insensible a acentos RF-P3-01,
       filtro por categoria y categorias derivadas) con PriceBreakdown de
       cada producto. `page` por defecto 1, `page_size` por defecto 20 (max 100).
-    - Con `audience`: catalogo S3 para el portal — insumos con precio
-      derivado para la audiencia del rol. Guard: admin ambas audiencias,
-      negocio solo revendedores, cliente solo consumidor_final (403 si no).
-      `q` filtra por nombre (insensible a acentos, RF-P3-01); `page` /
-      `page_size` opcionales; sin filtros se devuelven todos; `total` es el
-      total de productos, no el de la pagina. (Búsqueda basada en recursos:
-      coleccion base + filtros, estandar REST.)
+    - Con `audience`: catalogo del portal — productos disponibles y
+      completos con precio derivado para la audiencia del rol. Guard:
+      admin ambas audiencias, negocio solo revendedores, cliente solo
+      consumidor_final (403 si no). `q` filtra por nombre (insensible a
+      acentos, RF-P3-01); `page` / `page_size` opcionales; `total` y
+      `categories` reflejan el catalogo visible.
     """
     if audience is not None:
         resolved = _resolve_or_403(current_user, audience)
-        priced, total = await _build_audience_rows(
-            ingredient_repo, settings_repo, resolved, q=q,
+        priced, total, categories = await _build_store_rows(
+            repo, ingredient_repo, settings_repo, resolved, q=q,
             page=page, page_size=page_size,
         )
         return {
             "audience": resolved,
             "products": [
                 {
-                    "id": ingredient.id,
-                    "name": ingredient.name,
-                    "unit": ingredient.unit,
-                    "price_per_unit": str(price),
-                    "status": _stock_status(
-                        ingredient.stock_qty, ingredient.low_stock_threshold
-                    ),
+                    "id": product.id,
+                    "name": product.name,
+                    "category": product.category,
+                    "description": product.description,
+                    "image_url": product.image_url,
+                    "price": str(audience_price),
+                    "price_per_serving": str(price.per_serving),
+                    "complete": True,
                 }
-                for ingredient, price in priced
+                for product, audience_price, price in priced
             ],
             "total": total,
+            "categories": categories,
         }
     page = page or 1
     page_size = page_size or 20
@@ -377,13 +380,16 @@ async def list_products(
     )
 
 
-@router.get("/{product_id}", response_model=ProductDetailResponse)
+@router.get("/{product_id}")
 async def get_product(
     product_id: str,
+    audience: Optional[Audience] = Query(
+        default=None, description="Audiencia de precios (S3)"
+    ),
     repo: ProductRepository = Depends(get_product_repository),
     ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_admin_or_audience),
 ):
     """Detalle P4: informacion + receta con costo por linea + desglose
     completo del motor (o missing_ingredients si es incompleto)."""
@@ -394,10 +400,28 @@ async def get_product(
         )
     settings = await GetSettings(settings_repo).execute()
     ingredients_by_id = await _load_ingredients(ingredient_repo, [product])
-    return _detail_response(
-        product, derive_product_price(product, ingredients_by_id, settings),
-        ingredients_by_id,
-    )
+    price = derive_product_price(product, ingredients_by_id, settings)
+    if audience is not None:
+        resolved = _resolve_or_403(current_user, audience)
+        if not product.available or not price.complete or price.breakdown is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado"
+            )
+        return {
+            "id": product.id,
+            "name": product.name,
+            "category": product.category,
+            "description": product.description,
+            "image_url": product.image_url,
+            "price": str(
+                derive_audience_price(
+                    price.breakdown.rounded, settings.consumer_markup_pct, resolved
+                )
+            ),
+            "servings": product.servings,
+            "prep_time_min": product.prep_time_min,
+        }
+    return _detail_response(product, price, ingredients_by_id)
 
 
 @router.post(
@@ -564,6 +588,7 @@ async def pricelist_csv(
     current_user: User = Depends(
         require_role(UserRole.ADMIN, UserRole.NEGOCIO, UserRole.CUSTOMER)
     ),
+    repo: ProductRepository = Depends(get_product_repository),
     ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
 ):
@@ -574,15 +599,18 @@ async def pricelist_csv(
     - cliente: solo consumidor_final.
     """
     resolved = _resolve_or_403(current_user, audience)
-    priced, _ = await _build_audience_rows(ingredient_repo, settings_repo, resolved)
+    priced, _, _ = await _build_store_rows(
+        repo, ingredient_repo, settings_repo, resolved
+    )
 
-    rows = []
-    for product, price in priced:
-        rows.append({
+    rows = [
+        {
             "name": product.name,
-            "unit": product.unit,
-            "price": f"${price}",
-        })
+            "category": product.category,
+            "price": f"${audience_price}",
+        }
+        for product, audience_price, _ in priced
+    ]
 
     csv_content = _build_csv(rows)
     return Response(
@@ -600,6 +628,7 @@ async def pricelist_pdf(
     current_user: User = Depends(
         require_role(UserRole.ADMIN, UserRole.NEGOCIO, UserRole.CUSTOMER)
     ),
+    repo: ProductRepository = Depends(get_product_repository),
     ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     pdf: PdfClient = Depends(get_pdf_client),
@@ -612,12 +641,18 @@ async def pricelist_pdf(
     - cliente: solo consumidor_final.
     """
     resolved = _resolve_or_403(current_user, audience)
-    priced, _ = await _build_audience_rows(ingredient_repo, settings_repo, resolved)
+    priced, _, _ = await _build_store_rows(
+        repo, ingredient_repo, settings_repo, resolved
+    )
 
     audience_label = "Revendedores" if resolved == "revendedores" else "Consumidor final"
     rows = [
-        {"name": product.name, "unit": product.unit, "price": f"${price}"}
-        for product, price in priced
+        {
+            "name": product.name,
+            "unit": product.category,
+            "price": f"${audience_price}",
+        }
+        for product, audience_price, _ in priced
     ]
     pdf_bytes = await asyncio.to_thread(pdf.render_pricelist, rows, audience_label)
     return Response(

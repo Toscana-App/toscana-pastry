@@ -35,6 +35,7 @@ caracterización + agrega la verificación numérica de no-fuga.
 """
 
 import csv
+import uuid
 from decimal import Decimal
 from io import StringIO
 
@@ -44,9 +45,12 @@ from httpx import ASGITransport, AsyncClient
 
 from api.v1.auth.dependencies import get_user_repository
 from api.v1.ingredients.dependencies import get_ingredient_repository
+from api.v1.products.dependencies import get_product_repository
 from api.v1.settings.dependencies import get_settings_repository
 from data.db import get_db
+from data.models import BusinessSettingsORM, ProductORM, RecipeItemORM
 from data.repositories.sql_ingredient_repository import SQLIngredientRepository
+from data.repositories.sql_product_repository import SQLProductRepository
 from data.repositories.sql_settings_repository import SQLSettingsRepository
 from data.repositories.sql_user_repository import SQLUserRepository
 from domain.models import Ingredient, User, UserRole
@@ -77,15 +81,15 @@ async def client(db_session):
     async def override_get_ingredient_repository():
         yield SQLIngredientRepository(db_session)
 
+    async def override_get_product_repository():
+        yield SQLProductRepository(db_session)
+
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_user_repository] = override_get_user_repository
     app.dependency_overrides[get_settings_repository] = override_get_settings_repository
     app.dependency_overrides[get_ingredient_repository] = override_get_ingredient_repository
+    app.dependency_overrides[get_product_repository] = override_get_product_repository
 
-    # La matriz documenta roles distintos por usuario; sin siembra el login
-    # auto-crea todos como `customer` (AuthenticateUser) y la matriz no valida
-    # roles reales. Siembran los 3 usuarios con su rol + el catalogo de insumos
-    # para la verificacion numerica de no-fuga (case8 ya usa _BASE_PRICES).
     user_repo = SQLUserRepository(db_session)
     for _email, _role in (
         ("admin@example.com", UserRole.ADMIN),
@@ -93,9 +97,28 @@ async def client(db_session):
         ("cliente@example.com", UserRole.CUSTOMER),
     ):
         await user_repo.save(User(email=_email, role=_role))
+
+    db_session.add(
+        BusinessSettingsORM(
+            hourly_rate="1",
+            margin_pct="0",
+            round_step="0.01",
+            gas_pct="0",
+            waste_pct="0",
+            consumer_markup_pct=str(_MARKUP_PCT),
+            include_labor=False,
+            include_gas=False,
+            include_waste=False,
+            default_prep_minutes=0,
+            default_servings=6,
+            default_difficulty="simple",
+            business_name="",
+            footer_text="",
+        )
+    )
     ingredient_repo = SQLIngredientRepository(db_session)
     for _p in _TEST_PRODUCTS:
-        await ingredient_repo.create(
+        ingredient = await ingredient_repo.create(
             Ingredient(
                 name=_p["name"],
                 unit=_p["unit"],
@@ -103,6 +126,29 @@ async def client(db_session):
                 stock_qty=Decimal(_p["stock_qty"]),
             )
         )
+        product_id = str(uuid.uuid4())
+        product = ProductORM(
+            id=product_id,
+            name=_p["name"],
+            category="General",
+            description="",
+            prep_time_min=0,
+            servings=6,
+            difficulty="simple",
+            available=True,
+        )
+        product.recipe_items = [
+            RecipeItemORM(
+                id=str(uuid.uuid4()),
+                product_id=product_id,
+                ingredient_id=ingredient.id,
+                qty="1",
+                unit=_p["unit"],
+                position=0,
+            )
+        ]
+        db_session.add(product)
+    await db_session.commit()
 
     try:
         async with AsyncClient(
@@ -155,7 +201,7 @@ _BASE_PRICES = {
 def _parse_pricelist(csv_text: str) -> dict[str, Decimal]:
     """Parse a pricelist CSV by header name; assert shape and product coverage."""
     reader = csv.DictReader(StringIO(csv_text))
-    assert reader.fieldnames == ["name", "unit", "price"]
+    assert reader.fieldnames == ["name", "category", "price"]
     rows = list(reader)
     assert len(rows) == len(_TEST_PRODUCTS)
     prices: dict[str, Decimal] = {}
@@ -209,7 +255,7 @@ async def test_case2_negocio_revendedores_products_200_no_leak(client):
     assert len(data["products"]) == len(_TEST_PRODUCTS)
     for product in data["products"]:
         expected = _expected_price(_BASE_PRICES[product["name"]], "revendedores")
-        actual = Decimal(product["price_per_unit"])
+        actual = Decimal(product["price"])
         assert actual == expected, (
             f"Producto {product['name']}: precio {actual} != esperado {expected} (no-fuga fallida)"
         )
@@ -288,7 +334,7 @@ async def test_case6_cliente_consumidor_final_products_200_no_leak(client):
     for product in data["products"]:
         base_price = _BASE_PRICES[product["name"]]
         expected = _expected_price(base_price, "consumidor_final")
-        actual = Decimal(product["price_per_unit"])
+        actual = Decimal(product["price"])
         assert actual == expected, (
             f"Producto {product['name']}: precio {actual} != esperado {expected} (no-fuga fallida)"
         )
@@ -421,7 +467,7 @@ async def test_case13_admin_products_consumidor_final_200_no_leak(client):
     for product in data["products"]:
         base_price = _BASE_PRICES[product["name"]]
         expected = _expected_price(base_price, "consumidor_final")
-        actual = Decimal(product["price_per_unit"])
+        actual = Decimal(product["price"])
         assert actual == expected, (
             f"Producto {product['name']}: precio {actual} != esperado {expected} (no-fuga fallida)"
         )
@@ -437,6 +483,26 @@ async def test_case14_admin_put_tenant_settings_200(client):
     r = await client.put(
         "/api/v1/tenant/settings",
         json=_SETTINGS_PAYLOAD,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 200
+    r = await client.put(
+        "/api/v1/tenant/settings",
+        json={
+            "hourly_rate": 1,
+            "margin_pct": "0",
+            "round_step": 1,
+            "include_labor": False,
+            "include_gas": False,
+            "gas_pct": "0",
+            "include_waste": False,
+            "waste_pct": "0",
+            "urgent_surcharge_pct": "20",
+            "consumer_markup_pct": str(_MARKUP_PCT),
+            "default_prep_minutes": 0,
+            "default_servings": 6,
+            "default_difficulty": "simple",
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
     assert r.status_code == 200
