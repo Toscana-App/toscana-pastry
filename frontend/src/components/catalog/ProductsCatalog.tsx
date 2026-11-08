@@ -6,38 +6,33 @@ import {
   Box,
   Button,
   Flex,
+  Image,
   SegmentGroup,
   Table,
   Text,
 } from "@chakra-ui/react";
 import { useRouter, useSearchParams } from "next/navigation";
+import NextLink from "next/link";
 import { CatalogSkeleton } from "@/components/ui/skeleton";
-
 import { useAuth } from "@/contexts/AuthContext";
-import { apiFetch } from "@/lib/api";
 import { gooeyToast } from "goey-toast";
-import { Audience, Product } from "@/types/pricing";
 import { isPortalRole } from "@/lib/portalRoutes";
-import { addCartItem } from "@/services/cartService";
 import {
   canSwitchAudience,
   roleAllowedAudiences,
   roleDefaultDisplayAudience,
 } from "@/lib/roleAudience";
+import { addCartItem } from "@/services/cartService";
+import { fetchStoreList } from "@/services/storeService";
 import { downloadPricelistCSV, downloadPricelistPDF } from "@/services/pricingService";
+import type { Audience, Product } from "@/types/pricing";
 
-interface ProductListResponse {
-  products: Product[];
-  total: number;
-}
-
-/** Audience label for display. */
 function audienceLabel(audience: Audience): string {
   return audience === "revendedores" ? "Revendedores" : "Consumidor final";
 }
 
-/** Prices arrive as decimal strings ("4.34"); render with locale grouping. */
-function formatPrice(value: string): string {
+function formatPrice(value: string | null): string {
+  if (value === null) return "—";
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return value;
   return parsed.toLocaleString("es-AR", {
@@ -46,18 +41,6 @@ function formatPrice(value: string): string {
   });
 }
 
-/**
- * Product catalog with the price derived from the role's audience
- * (T5 — dual roles) + restriction tags "when present" (p11 UC-02).
- *
- * Reused by:
- * - the portal ("Inicio" tab, route "/") for business/customer
- * - the admin "/products" page (same component, no second pricing path
- *   — RNF-P11-03).
- *
- * The price always comes from the backend (`/products?audience=`): the
- * client never recalculates or persists prices.
- */
 export function ProductsCatalog() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
@@ -68,11 +51,6 @@ export function ProductsCatalog() {
   const [audience, setAudience] = useState<Audience>("revendedores");
   const [addingId, setAddingId] = useState<string | null>(null);
 
-  // Búsqueda por nombre desde la navbar del portal (PortalSearch navega a
-  // "/" con ?q=term): se envía al backend como `q` de la misma colección
-  // (accent-fold en el repo) — GET /api/v1/products?audience=&q=.
-  // El backend es la autoridad (validación estricta: 422 si inválido); el
-  // slice a 120 solo evita 422 por términos pegados manualmente en la URL.
   const q = (searchParams.get("q") ?? "").trim().slice(0, 120);
 
   const role = user?.role ?? "";
@@ -98,40 +76,26 @@ export function ProductsCatalog() {
     []
   );
 
-  // Track the last role we processed to avoid duplicate initializations.
   const processedRoleRef = useRef<string | null>(null);
 
-  // Pick the default audience for the role on mount / role change.
   useEffect(() => {
     if (processedRoleRef.current === role) return;
     processedRoleRef.current = role;
     const defaultAud = roleDefaultDisplayAudience(role);
     if (allowedAudiences.includes(defaultAud)) {
-      // Synchronous setState is intentional here — role is an external
-      // system change (auth context), not a React state cascade.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setAudience(defaultAud);
     }
   }, [role, allowedAudiences]);
 
-  // Fetch products for the selected audience (y la búsqueda `q` cuando hay).
-  // Until the auth role is known (or the role does not allow the current
-  // audience) no request is fired: otherwise a customer mounting the page
-  // would trigger a guaranteed-403 fetch against "revendedores" before the
-  // role effect switches the audience.
   useEffect(() => {
     let cancelled = false;
 
     if (!allowedAudiences.includes(audience)) return;
 
-    async function fetchProducts() {
+    async function load() {
       try {
-        const params = new URLSearchParams();
-        params.set("audience", audience);
-        if (q) params.set("q", q);
-        const response = await apiFetch<ProductListResponse>(
-          `/products?${params.toString()}`
-        );
+        const response = await fetchStoreList(audience, q || undefined);
         if (!cancelled) setProducts(response.products ?? []);
       } catch (error) {
         if (cancelled) return;
@@ -144,7 +108,7 @@ export function ProductsCatalog() {
       }
     }
 
-    fetchProducts();
+    load();
     return () => {
       cancelled = true;
     };
@@ -156,8 +120,6 @@ export function ProductsCatalog() {
 
   return (
     <Flex direction="column" gap={4}>
-      {/* Toolbar: which list (switcher for admin, label for portal roles)
-          + export of that same list. */}
       <Flex align="center" justify="space-between" gap={3} wrap="wrap">
         {canSwitch ? (
           <SegmentGroup.Root
@@ -174,7 +136,6 @@ export function ProductsCatalog() {
             />
           </SegmentGroup.Root>
         ) : (
-          // Restriction tag: this list is ONLY for the role's audience.
           <Badge colorPalette="brand" size="lg">{audienceLabel(audience)}</Badge>
         )}
 
@@ -207,7 +168,6 @@ export function ProductsCatalog() {
         </Flex>
       </Flex>
 
-      {/* Product table */}
       {products.length === 0 ? (
         <Box
           border="1px"
@@ -228,32 +188,57 @@ export function ProductsCatalog() {
             <Table.Header>
               <Table.Row bg="bg.muted">
                 <Table.ColumnHeader>Producto</Table.ColumnHeader>
-                <Table.ColumnHeader w="8rem">Unidad</Table.ColumnHeader>
-                <Table.ColumnHeader w="9rem" textAlign="end">Precio</Table.ColumnHeader>
+                <Table.ColumnHeader w="11rem" textAlign="end">Precio</Table.ColumnHeader>
                 {showCart && <Table.ColumnHeader srOnly>Agregar</Table.ColumnHeader>}
               </Table.Row>
             </Table.Header>
             <Table.Body>
-              {products.map((product: Product) => (
+              {products.map((product) => (
                 <Table.Row key={product.id}>
                   <Table.Cell>
-                    <Flex direction="column" gap={1}>
-                      <Text>{product.name}</Text>
-                      {/* Restriction tags (gluten-free, etc.) — when present. */}
-                      {product.tags && product.tags.length > 0 && (
-                        <Flex gap={1} wrap="wrap">
-                          {product.tags.map((tag) => (
-                            <Badge key={tag} colorPalette="gray" variant="subtle">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </Flex>
-                      )}
+                    <Flex align="center" gap={3}>
+                      <Box
+                        boxSize="2.5rem"
+                        rounded="md"
+                        overflow="hidden"
+                        bg="bg.muted"
+                        flexShrink={0}
+                      >
+                        {product.image_url ? (
+                          <Image
+                            src={product.image_url}
+                            alt={`Imagen de ${product.name}`}
+                            boxSize="100%"
+                            objectFit="cover"
+                          />
+                        ) : null}
+                      </Box>
+                      <Flex direction="column" gap={1}>
+                        <NextLink
+                          href={`/productos/${product.id}`}
+                          style={{
+                            color: "inherit",
+                            fontWeight: 500,
+                            textDecoration: "none",
+                          }}
+                        >
+                          {product.name}
+                        </NextLink>
+                        <Text fontSize="sm" color="fg.muted">
+                          {product.category}
+                        </Text>
+                      </Flex>
                     </Flex>
                   </Table.Cell>
-                  <Table.Cell color="fg.muted">{product.unit}</Table.Cell>
-                  <Table.Cell textAlign="end" fontWeight="medium" fontVariantNumeric="tabular-nums">
-                    ${formatPrice(product.price_per_unit)}
+                  <Table.Cell textAlign="end" fontVariantNumeric="tabular-nums">
+                    <Flex direction="column" gap={0.5} align="flex-end">
+                      <Text fontWeight="medium">${formatPrice(product.price)}</Text>
+                      {product.price_per_serving && (
+                        <Text fontSize="xs" color="fg.muted">
+                          ${formatPrice(product.price_per_serving)} por porción
+                        </Text>
+                      )}
+                    </Flex>
                   </Table.Cell>
                   {showCart && (
                     <Table.Cell textAlign="end">

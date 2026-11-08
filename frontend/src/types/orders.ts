@@ -83,9 +83,7 @@ export interface OrderDetail {
 export interface PortalOrderPayload {
   items: {
     product_id: string;
-    product_name: string;
     quantity: number;
-    unit_price: string;
     portion_note: string;
   }[];
   date: string;

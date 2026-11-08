@@ -70,9 +70,7 @@ export function StepReview({
       const payload: PortalOrderPayload = {
         items: cart.items.map((item) => ({
           product_id: item.product_id,
-          product_name: item.name,
           quantity: item.qty,
-          unit_price: item.unit_price,
           portion_note: "",
         })),
         date: delivery.date,
