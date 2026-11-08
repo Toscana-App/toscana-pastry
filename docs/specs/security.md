@@ -165,17 +165,18 @@
 ## 16. Restringir archivos
 - **Control**: acceso controlado a archivos; sin subidas arbitrarias.
 - **Implementación**:
-  - **v1: sin uploads de usuario** (decisión). Si se agregan en el futuro: allow-list de MIME (webp/png/pdf), tamaño ≤ 5 MB, filename hasheado, storage fuera del webroot, sin ejecución.
+  - **v1: sin uploads de usuario**, con la excepción del **upload de imagen de producto** (P12): admin-only (403 a roles de portal), multipart con validación por **magic bytes** (JPEG/PNG/WebP — el `Content-Type` del cliente no basta), ≤5 MB, dimensiones mínimas, nombre de archivo `<product_id>.<ext>` (nunca el nombre enviado por el cliente), storage en disco fuera del webroot, sin ejecución, sin listing de directorio (spec `p12_product_media.md`).
   - PDF: solo vía `GET /budgets/{id}/pdf` **autenticado** o mediante URL firmada (expiración ≤ 1 h, single-use). Sin directorio estático de PDFs alcanzable por path.
   - Edge: `X-Content-Type-Options: nosniff` (ítem 18); sin listing de directorios; `next.config` sin `filesystem` expuesto.
 - **Dónde**: F3 (PDF) · F4 (edge).
-- **Verificación**: pytest: path directo de PDF sin sesión ni URL válida → 403/404; URL firmada expirada → 410; (test condicional) upload con MIME no permitido → 415.
+- **Verificación**: pytest: path directo de PDF sin sesión ni URL válida → 403/404; URL firmada expirada → 410; upload con tipo no permitido (magic bytes, content-type falsificado) → 422; upload de imagen con token de cliente → 403.
 
 ## 17. Devolver datos necesarios
 - **Control**: exposición mínima; los datos internos nunca salen hacia el cliente final.
 - **Implementación**:
   - Esquemas **Response** explícitos (solo los campos que consume la UI); sin `*` ni dumps de entidad completa.
   - `costs`, `breakdown`, `total_costos`, `margin`/`ganancia`: **solo** en responses al usuario del tenant. **Nunca** en PDF, ni en el template de WhatsApp, ni en links públicos.
+  - **RBAC por endpoint (P12)**: todo endpoint que sirve datos de gestión (costos, recetas, márgenes, stock, precios de compra, PII de clientes, pedidos ajenos, settings, calculadora) exige `require_admin` (403 explícito) — no basta con ocultar en UI. Los endpoints de portal validan pertenencia (404 anti-sondeo). Matriz completa en la sección **RBAC**.
   - Listados siempre paginados (ítem 3 del contrato); `GET /me` sin campos innecesarios.
 - **Dónde**: `api/presentation/schemas/` · F0 → F3.
 - **Verificación**: pytest: el PDF y el template de WhatsApp no contienen campos de costos/margen; los responses no incluyen campos internos no declarados.
@@ -209,6 +210,26 @@
   - Política: CI **falla** con critical/high explotables; imágenes base actualizadas trimestralmente (opcional: `docker scout`).
 - **Dónde**: `.github/workflows/ci.yml`, `.github/dependabot.yml` · F0 (desde el primer PR).
 - **Verificación**: step de CI rojo ante CVE high; reportes de `pip-audit`/`pnpm audit` archivados como artifacts.
+
+---
+
+## RBAC — matriz de roles por endpoint (P12, 2026-11-08)
+
+> Cierre de fugas: antes de este cambio, 23 endpoints de gestión respondían con `get_current_user` (solo sesión) sin verificar rol — un token de `cliente`/`negocio` podía leer recetas con costo por línea, proveedores, stock, PII de clientes, pedidos ajenos y el dashboard de márgenes. Regla: **la fuga es 403 (o 404 por pertenencia), nunca ocultación en UI**. Test de regresión permanente: `backend/tests/integration/api/test_rbac_matrix.py` (por cada fila: token de `cliente` → 403/404; token admin → 200).
+
+| Endpoint | Dato expuesto | Guard |
+|---|---|---|
+| `GET /ingredients`, `GET /ingredients/{id}`, `GET /ingredients/{id}/movements` | precios de compra, stock, historial | admin |
+| `GET /tenant/settings` | horas, margen, markup, branding | admin |
+| `GET /products` (sin `audience`), `GET /products/{id}` (sin `audience`) | receta, costos por línea, margen | admin |
+| `GET /customers`, `GET /customers/{id}` | PII de todos los clientes | admin |
+| `GET /orders`, `GET /orders/{id}` | pedidos de todos, margen, PII | admin |
+| `GET /budgets`, `GET /budgets/{id}`, `GET /api/v1/pdf/budgets/{id}/pdf` | presupuestos con costos | admin |
+| `GET /calc/settings`, `/calc/material-categories`, `/calc/product-categories`, `/calc/suppliers`, `/calc/products`, `/calc/products/price-list`, `/calc/products/price-list/export`, `/calc/products/{id}`, `/calc/products/{id}/versions`, `/calc/dashboard` | costos, proveedores, dashboard de márgenes | admin |
+| `POST /orders/{id}/payment`, `GET /orders/{id}/payment` | estado de pago del pedido | rol portal + **pertenencia** (pedido ajeno → 404) |
+| `GET /products?audience=`, `pricelist/*` | precio de la audiencia propia | rol portal |
+| `POST|DELETE /products/{id}/image` | imagen del producto | admin |
+| `POST|DELETE /cart*`, `GET /orders/mine*`, `/customers/me/addresses` | carrito y pedidos propios | rol portal + pertenencia |
 
 ---
 
@@ -266,7 +287,7 @@
 - [x] 13. Parametrizar queries — §13 (SQLAlchemy bind params, regla CI)
 - [x] 14. Validar inputs — §14 (Pydantic v2: allow-lists, longitudes, bordes)
 - [x] 15. Sanitizar contenido — §15 (texto inerte: React/ReportLab/WhatsApp, test XSS)
-- [x] 16. Restringir archivos — §16 (sin uploads v1; PDF solo URL firmada)
+- [x] 16. Restringir archivos — §16 (sin uploads v1 salvo imagen de producto P12: admin-only, magic bytes, ≤5 MB; PDF solo URL firmada)
 - [x] 17. Devolver datos necesarios — §17 (schemas Response explícitos; costos solo al tenant)
 - [x] 18. Security headers — §18 (Caddy: HSTS/CSP + origins GSI/nosniff/DENY/Referrer/Permissions)
 - [x] 19. Forzar HTTPS — §19 (TLS automático, 301, HSTS preload)

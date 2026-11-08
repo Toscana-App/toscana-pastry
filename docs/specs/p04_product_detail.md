@@ -2,7 +2,7 @@
 Módulo: `web/modules/products` (parte detail) · Rutas: `/productos/nuevo`, `/productos/{id}` · Fase: **1**
 
 ## Contexto
-La pantalla más densa del producto: datos del producto + receta (insumos con cantidad y unidad) + parámetros de preparación + desglose de costos en vivo. Tabs: **Información · Ingredientes · Preparación · Costos** (verificado en screenshot).
+La pantalla más densa del producto: datos del producto + receta (insumos con cantidad y unidad) + parámetros de preparación + desglose de costos en vivo + **imagen del producto** (upload multipart, P12) + **switch de publicación** hacia la tienda del portal. Tabs: **Información · Ingredientes · Preparación · Costos** (verificado en screenshot).
 
 ## User story
 > Como **repostera**, quiero **definir la receta de cada producto y ver su costo real desglosado**, para **ponerle un precio que me deje la ganancia que quiero**.
@@ -32,6 +32,9 @@ La pantalla más densa del producto: datos del producto + receta (insumos con ca
 - **RF-P4-06**: Validación de guardado: ≥1 insumo, tiempos > 0, categoría requerida; errores inline por tab. (UC-01)
 - **RF-P4-07**: Insumo sin precio en el ingrediente → precio marcado "incompleto" (badge), sin bloquear el guardado. (UC-01)
 - **RF-P4-08**: Eliminar producto: soft delete si tiene pedidos históricos; advertencia con confirmación. (UC-04)
+- **RF-P4-09**: **Switch de publicación**: `available` (bool, default `false`). `PATCH /products/{id} {available: true}` publica el producto en la tienda del portal (P11); `false` lo retira. Cambiar otros campos no toca la disponibilidad. Publicar un producto incompleto (insumo sin precio) → 409 `{detail: missing_ingredients, missing: [...]}` — la tienda nunca muestra un producto sin precio. Retirar no toca pedidos ni presupuestos históricos. (P12)
+- **RF-P4-10**: **Imagen del producto** (P12): `POST /products/{id}/image` (multipart, admin) / `DELETE /products/{id}/image`; las respuestas de producto incluyen `image_url` (string | null). Contrato completo en `p12_product_media.md`.
+- **RF-P4-11**: **Detalle de tienda** (contrato dual del mismo recurso): `GET /products/{id}?audience=revendedores|consumidor_final` devuelve solo `{id, name, category, description, image_url, price, servings?, prep_time_min}` — sin receta, costos ni margen (security #17). Sin `audience` sigue siendo el detalle admin con desglose completo.
 
 ## Requerimientos no funcionales
 - **RNF-P4-01**: Recálculo < 50 ms para recetas de hasta 50 insumos.
@@ -52,6 +55,7 @@ La pantalla más densa del producto: datos del producto + receta (insumos con ca
 - [ ] Web: draft local + confirmación de salida con cambios
 - [ ] Tests: pytest del motor con casos de conversión (250g harina a $2.800/kg = $700), redondeo, insumo sin precio; Vitest de tabs y editor
 - [ ] GA4: `product_saved`, `recipe_updated`
+- [ ] API P12: `available` en Create/Update/Detail + 409 al publicar incompleto; `POST|DELETE /products/{id}/image` (multipart); detalle de tienda `?audience=`
 
 ## UI (Chakra v3 + DESIGN.md)
 - Componentes: `Tabs.Root` (underline en desktop, pills en mobile), `Field.Root`, `InputNumber`/stepper, `Select.Root` (unidad), `Combobox` (autocompletado de insumos + multi-select de tags), `Table` (desglose en Costos), `Badge`, `Button`.

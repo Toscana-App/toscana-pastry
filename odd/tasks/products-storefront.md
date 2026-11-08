@@ -1,0 +1,98 @@
+# Tienda sobre productos: publicación, imagen y guards de rol (toscana-pastry)
+
+La tienda del portal vende **productos** de harina de almendras (budines, tortas, pasta frola). El panel de admin carga cada producto con su receta para derivar el costo de producción y, desde ahí, el precio de revendedores (dietéticas) y de consumidor final. Un **switch de publicación por producto** decide qué se muestra en la tienda del portal de clientes. Cada producto lleva **imagen** (upload multipart en FastAPI). Y **ningún endpoint de admin puede responderse con un token de cliente**: la fuga es 403, no ocultación.
+
+Baseline: `origin/main` @ `6aed6e3` (2026-11-08). Auditoría estática del código y de las specs; sin e2e ejecutado.
+
+## Estado actual (evidencia)
+
+1. **El alta de producto existe y está completa**: `POST /products` (admin), form `/productos/new` (nombre, categoría, descripción, prep_time, porciones, dificultad, receta 1–30 líneas). El precio nunca se persiste: se deriva de insumos + settings (`domain/product_price.py`).
+2. **La tienda no muestra productos, muestra insumos**: `GET /products?audience=` resuelve contra `ingredient_repo` (`_build_audience_rows` en `api/v1/products/router.py`) y devuelve `{id, name, unit, price_per_unit, status}` del **insumo**. El catálogo del portal (`frontend/src/components/catalog/ProductsCatalog.tsx`) y el carrito/checkout operan sobre `ingredient_id` (`api/v1/cart/router.py`, `POST /orders` portal). Un producto cargado en admin **nunca aparece en la tienda**.
+3. **No existe switch de publicación**: `Product` no tiene flag de disponibilidad (`domain/models.py`, `data/models.py` → `ProductORM`). Todo producto activo es visible en la vitrina interna; nada controla la tienda.
+4. **No existe imagen**: no hay columna, endpoint ni UI. `python-multipart` ya es dependencia del backend y hay un patrón multipart funcionando en `api/v1/imports/router.py` (`UploadFile` + `File`).
+5. **Fugas de datos de admin a roles de portal** (todas con `get_current_user`, sin rol): ver matriz en S4. La más grave: `GET /products/{id}` devuelve receta con costo por línea, materiales, mano de obra y margen a cualquier usuario logueado.
+6. **Campos muertos en el catálogo**: `ProductsCatalog` renderiza `tags` (no existe en el backend) y no renderiza `status` (que sí se devuelve). Un insumo sin stock se muestra igual.
+7. **Los exports de lista de precios también salen de insumos** (`/products/pricelist/csv|pdf`): con la tienda sobre productos quedan inconsistentes si no se migran.
+
+## Specs
+
+S1 — **La tienda vende productos** (user, verbatim): *"la tienda vende productos de harina de almendras(budines,tortas,pasta frola,etc)"*.
+- `GET /products?audience=revendedores|consumidor_final` devuelve **productos** (no insumos): `{id, name, category, description, image_url, price, price_per_serving?, complete}` con el precio derivado en lectura.
+- Precio de la audiencia: base = precio comercial del motor (`PriceBreakdown.rounded`, costo + margen del tenant); `consumidor_final` = base × (1 + `consumer_markup_pct`/100), con `derive_audience_price` (única fuente de verdad, ya existente). Se aplica **en el punto donde el dominio aplica el margen** (`domain/order_pricing.py`), nunca multiplicando outputs ya formateados.
+- Producto incompleto (insumo sin precio / borrado) **no se publica a la tienda**: no aparece en el listado y su detalle de tienda da 404. La tienda nunca muestra precio null ni $0.
+- `GET /products/{id}?audience=…` sirve el detalle de tienda (nombre, categoría, descripción, imagen, precio de la audiencia, porciones) **sin** receta, costos ni margen. Sin `audience` sigue siendo el detalle P4 de admin.
+- `pricelist/csv|pdf` exportan productos con el precio de la audiencia (mismo gate por rol de hoy).
+
+S2 — **Switch de publicación** (user, verbatim): *"El objetivo es que ese flujo permita mediante un switch,decidir cuál producto se encuentra disponible para el cliente,para que éste realice su pedido desde el portal de clientes"*.
+- Campo `available` (bool) en `Product` / `products`, default **false**: el producto nace oculto y se publica con un acto explícito.
+- `PATCH /products/{id} {available: true}` (admin) publica; `false` lo retira de la tienda. Cambiar otros campos no toca la disponibilidad.
+- Publicar un producto incompleto → **409** `{missing_ingredients}`: no se puede publicar algo que la tienda no puede cobrar.
+- Retirar de la tienda **no toca pedidos ni presupuestos históricos** (los snapshots están congelados, RNF-P6-03).
+
+S3 — **Imagen del producto** (user, verbatim): *"Tambien tienes que tener en cuenta la incorporación de una imagen del producto,utilizando multipart en su envio por fast-api"*.
+- `POST /products/{id}/image` — `multipart/form-data`, `file: UploadFile = File(...)`, **admin only**. Valida tipo real (magic bytes JPEG/PNG/WebP), tamaño (≤5 MB) y dimensiones mínimas; reemplaza la existente borrando el archivo anterior.
+- `DELETE /products/{id}/image` → 204, borra archivo y limpia `image_url`.
+- Archivo en disco: `backend/media/products/<product_id>.<ext>` (gitignoreado), servido por `StaticFiles` montado en `/media`. La DB guarda la ruta relativa (`image_url`), no el binario.
+- Respuestas de producto incluyen `image_url` (string | null). Frontend: subida con `FormData` vía `apiFetch` (ya soporta FormData y no setea `Content-Type`, `src/lib/api.ts`), preview local, estados de carga y error.
+
+S4 — **Guard de rol en todo endpoint de admin** (user, verbatim): *"Es importante que cada endpoint utilizado en la sección de admin tenga el guarda del rol.NO DEBE OCURRIR NUNCA que un cliente pueda obtener datos que solo el admin tiene acceso"*.
+- Todo endpoint que sirve datos de gestión (costos, recetas, márgenes, stock, precios de compra, PII de clientes, pedidos ajenos, settings, calculadora) exige `require_admin` (403 explícito).
+- Los endpoints de portal (`/cart`, `/orders/mine*`, `/customers/me/addresses`, `pricelist` por audiencia, catálogo por audiencia) siguen con `require_role(...)` y su verificación de pertenencia (404 anti-sondeo).
+- Matriz obligatoria (estado actual → requerido):
+
+| Endpoint | Guard hoy | Dato que expone | Guard requerido |
+|---|---|---|---|
+| `GET /ingredients`, `GET /ingredients/{id}` | sesión | precio de compra, stock, umbrales | admin |
+| `GET /ingredients/{id}/movements` | sesión | historial de stock y compras | admin |
+| `GET /tenant/settings` | sesión | hora de trabajo, margen, markup, branding | admin |
+| `GET /products` (sin `audience`) | sesión | receta, desglose, margen | admin |
+| `GET /products/{id}` (sin `audience`) | sesión | receta con costo por línea + materiales + mano de obra + margen | admin |
+| `GET /customers`, `GET /customers/{id}` | sesión | PII de todos los clientes | admin |
+| `GET /orders`, `GET /orders/{id}` | sesión | pedidos de todos, margen, PII | admin |
+| `GET /budgets`, `GET /budgets/{id}` | sesión | presupuestos con costos | admin |
+| `GET /api/v1/pdf/budgets/{id}/pdf` | sesión | presupuesto en PDF con costos | admin |
+| `GET /calc/settings`, `/calc/material-categories`, `/calc/product-categories`, `/calc/suppliers`, `/calc/products`, `/calc/products/price-list`, `/calc/products/price-list/export`, `/calc/products/{id}`, `/calc/products/{id}/versions`, `/calc/dashboard` (10) | sesión | costos, proveedores, precios de materiales, dashboard de márgenes | admin |
+| `POST /orders/{id}/payment`, `GET /orders/{id}/payment` | sesión | pedido ajeno | rol portal + pertenencia (404) |
+| `GET /products?audience=`, `pricelist/*`, `/cart*`, `/orders/mine*`, `/customers/me/addresses` | rol de portal | precio de la audiencia propia | mantener (verificar no-fuga) |
+
+- Test de regresión permanente: por **cada** fila de la matriz, un token de `customer` (y de `negocio` donde aplique) contra el endpoint → 403 (o 404 en pertenencia), y un token admin → 200. El test vive en `backend/tests/integration/api/` y corre en CI.
+
+S5 — **El pedido del portal se arma sobre productos** (derivado de S1/S2).
+- `cart_items.product_id` referencia **productos** (hoy apunta a insumos por convención, sin FK). El carrito deriva el precio de la audiencia con el motor de producto, no con `ingredient.price_per_unit`.
+- `POST /orders` (portal): reutiliza el camino de admin (`_price_items` en `api/v1/orders/router.py`, que ya construye items + snapshots con receta) con `margin_pct` del tenant + markup de audiencia, y `customer_id` derivado de la sesión (422 si viene en el body).
+- Al confirmar, el descuento de stock explota la receta: `plan_order_deductions(order.snapshots)` ya trabaja sobre líneas de insumos, así que los snapshots de un pedido de producto deben contener las líneas de su receta. Cancelar repone lo mismo.
+- 409 de stock insuficiente se mantiene igual (`InsufficientStockResponse`).
+
+## Decisiones
+
+- **D1 — Precio de tienda**: base = `rounded` del motor; consumidor final = base × (1 + markup). Revendedores paga el precio del motor. *Recomendado* (consistente con insumos y con lo ya vendido). Alternativa (margen distinto por audiencia) queda fuera de alcance.
+- **D2 — `available` default false**: producto nuevo nace oculto. Evita publicar productos incompletos y convierte la publicación en un acto deliberado.
+- **D3 — Publicar exige producto completo**: 409 con `missing_ingredients`. *Recomendado*: la tienda degradada (precio null) es peor que el bloqueo.
+- **D4 — Imagen en disco + `StaticFiles` en `/media`**, no S3 en v1. Requiere volumen persistente en el deploy (documentarlo en el PR; `/media` es público, sin auth, igual que la tienda).
+- **D5 — Dos contratos en el mismo recurso** (`/products` con y sin `audience`, ya establecido en el repo) en lugar de un segundo namespace de tienda. Evita una segunda vía de cálculo.
+- **Pendiente de OK de Gaspar**: (a) D3 tal cual; (b) si el detalle de tienda expone `servings` y `prep_time_min` (recomendado: sí, sirven al cliente; no expone costos); (c) si `/media` debe estar detrás de Cloudflare/caché en prod.
+
+## Tasks
+
+- **T0 — `feat/p12-docs`** (S1–S5): fan-out de specs antes de tocar código. `docs/specs/p03_products_list.md` (catálogo = productos, filtros `audience`), `p04_product_detail.md` (dos representaciones + switch + imagen), `p11_portal_checkout.md` (catálogo/carrito/pedido sobre productos), `p12_product_media.md` (nuevo, upload multipart contrato y límites), `api_endpoints.md` (filas nuevas: `POST|DELETE /products/{id}/image`, `available` en payloads, **recalcular conteo por fase y total**), `security.md` (matriz de roles de S4), `master_plan.md` (fase + decisión). Commit: `docs(specs): tienda sobre productos, publicación e imagen`.
+- **T1 — `feat/p12-backend-guards`** (S4, bloqueante): aplicar la matriz columna "Guard requerido" en `api/v1/{products,ingredients,customers,orders,budgets,pdf,calc,settings}/router.py`; pertenencia en los dos endpoints de pago del portal. Tests negativos por endpoint (`test_rbac_matrix.py` se extiende; suite completa verde). Commit: `fix(rbac): guard admin en endpoints de gestión + matriz de no-fuga`.
+- **T2 — `feat/p12-backend-publishing`** (S2, sobre T1): `available` + `image_url` en `domain/models.py` (`Product`), `data/models.py` (`ProductORM`), `api/v1/products/schemas.py` (`ProductCreate/Update/List/Detail`), `use_cases/{create,update}_product.py` (default false; 409 si se publica incompleto), `api/v1/products/router.py` (propagar en list/detail). Migración `backend/migrations/0009_products_available_image.sql` (`ALTER TABLE products ADD COLUMN available …`, `ADD COLUMN image_url …`, índice por `available`) — `create_all` no altera tablas existentes. Tests: default oculto, publicar/retirar, 409 por insumo sin precio. Commit: `feat(products): switch de publicación en tienda`.
+- **T3 — `feat/p12-backend-storefront`** (S1, sobre T2): `GET /products?audience=` pasa a productos disponibles (búsqueda `q` con `build_search_pattern`, categorías derivadas, paginación, `price` por audiencia, `complete` filtrando incompletos); `GET /products/{id}?audience=` como detalle de tienda (404 si no disponible o incompleto); `pricelist/csv|pdf` sobre productos. Tests de contrato: precios por audiencia con markup numérico esperado (dejar la aritmética del fixture comentada), no-fuga de costos en la rama audience, producto oculto ausente. Commit: `feat(products): catálogo de tienda por audiencia sobre productos`.
+- **T4 — `feat/p12-backend-image`** (S3, sobre T2): `POST /products/{id}/image` + `DELETE /products/{id}/image` (admin, `UploadFile`, validación magic bytes/tamaño, reemplazo limpio), mount `StaticFiles` en `/media` (`main.py`), dir `backend/media/.gitkeep` + entrada en `.gitignore`. Tests: 201 con archivo, 422 tipo/tamaño inválido, 403 con token de cliente, reemplazo borra el anterior. Commit: `feat(products): imagen de producto por multipart`.
+- **T5 — `feat/p12-backend-portal-orders`** (S5, sobre T3+T4): `cartService` backend (`api/v1/cart/router.py`) y `POST /orders` portal sobre productos con snapshots de receta; `cart_items` sin FK pero validando producto existente y disponible (422 si no disponible); descuento/reposición de stock vía snapshots. Tests: pedido de producto descuenta insumos de la receta, producto oculto no se puede pedir, cancelación repone. Commit: `feat(portal): carrito y pedido sobre productos publicados`.
+- **T6 — `feat/p12-frontend-admin`** (S2/S3, branch desde `feat/p12-docs`): switch "Disponible en tienda" en `ProductFormPage` + `ProductDetailPage`, badge en `ProductsPage`/`ProductCard`, uploader de imagen (FormData, preview, reemplazo, borrado) en `modules/products`, `image_url` en `types.ts`, zod `.strict()` actualizado. Tests Vitest: schema (switch, imagen) + servicio (FormData, endpoints). Commit: `feat(products): UI de publicación e imagen en admin`.
+- **T7 — `feat/p12-frontend-portal`** (S1/S5, sobre T6): catálogo del portal con imagen, categoría y precio por audiencia; detalle de producto en el portal (`/(portal)/productos/[id]`); carrito por producto; eliminar los campos muertos `tags`/`status` de `types/pricing.ts` y del render. Commit: `feat(portal): tienda con imagen y detalle de producto`.
+- **T8 — Limpieza y despliegue** (cualquier branch de T6): mover "Productos" del navbar al nav de `/admin` (hoy vive fuera de la sección admin), documentar `/media` (volumen persistente) en el PR, y `.gitignore` de `backend/media/products/*`.
+- **T9 — Cero comentarios en el código** (chore, último commit de la branch; regla permanente): eliminar **todos** los comentarios de `backend/src`, `backend/tests`, `frontend/src` y `scripts/` — líneas `#`/`//`, bloques `/* */` y docstrings — incluidos los 151 `# type: ignore` (la gate pytest+ruff / tsc no corre mypy: borrarlos no cambia nada en CI). Ejecución mecánica por script, diff revisado por tipo de archivo, y **commit propio y final** para que el diff funcional de T1–T8 siga siendo revisable. Regla de implementación: a partir de ahora, ningún comentario en el código nuevo (la spec es el contrato).
+
+Gates por PR: `pytest` (backend, Postgres vivo) · `tsc + eslint + vitest + next build` (frontend). El PR de T1 declara la matriz completa con la salida de los tests negativos; ningún PR de este ODD se apoya en "el frontend lo oculta".
+
+## Status
+
+Baseline `origin/main` @ `6aed6e3`. Orden sugerido: **T1 (seguridad, primero y solo)** → T0 docs → T2 → T4 → T3 → T5 → T6 → T7 → T8. T1 puede ir solo porque no depende de nada y cierra la fuga hoy abierta; T0 puede mergear en paralelo. Decisiones pendientes (D3, S1 `servings`/`prep_time_min`, `/media` en prod) se confirman antes del PR de T3.
+
+## Log
+
+L1 — User request (verbatim, 2026-11-08): *"la tienda vende productos de harina de almendras(budines,tortas,pasta frola,etc).El panel de Admin es necesario para poder cargar nuevos productos con el objetivo de sacar los costos de producirlo y así definir un precio a los clientes finales y los revendedores(dietéticas).El objetivo es que ese flujo permita mediante un switch,decidir cuál producto se encuentra disponible para el cliente,para que éste realice su pedido desde el portal de clientes.Es importante que cada endpoint utilizado en la sección de admin tenga el guarda del rol.NO DEBE OCURRIR NUNCA que un cliente pueda obtener datos que solo el admin tiene acceso.Genera el odd con las tasks para realizar estos cambios.Tambien tienes que tener en cuenta la incorporación de una imagen del producto,utilizando multipart en su envio por fast-api"*
+
+L2 — Hallazgo previo (auditoría 2026-11-08, `6aed6e3`): el catálogo de audiencia del portal sirve insumos (`_build_audience_rows` corre sobre `ingredient_repo`), carrito y `POST /orders` portal operan con `ingredient_id`, y **23 endpoints de gestión** se responden con `get_current_user` sin rol (3 ingredientes, 1 settings, 2 productos, 2 clientes, 2 pedidos, 2 presupuestos, 1 PDF de presupuesto, 10 de la calculadora `calc`), más 2 de pago del portal sin verificación de pertenencia.
