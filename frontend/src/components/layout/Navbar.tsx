@@ -1,31 +1,68 @@
 "use client";
 
-import { Badge, Box, Button, Container, Flex } from "@chakra-ui/react";
+import { Box, Button, Container, Flex } from "@chakra-ui/react";
 import NextLink from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { isPortalRole } from "@/lib/portalRoutes";
+import { useCartCount } from "@/hooks/useCartCount";
 import { ColorModeButton } from "@/components/ui/color-mode";
+import { PortalSearch } from "@/components/layout/PortalSearch";
 import { BrandLogo } from "./BrandLogo";
 
-const ROLE_LABELS: Record<string, string> = {
-  admin: "Admin",
-  negocio: "Negocio",
-  customer: "Cliente",
-};
-
 /**
- * Global navbar with the visible role (p11 "UI — portal shell").
+ * Navbar global (única navegación del sitio, p11 "UI — portal shell").
  *
- * - admin: Productos / Pedidos / Presupuestos / Catálogo / Admin / Settings / Profile
- * - portal (business/customer): Profile + Logout — portal navigation
- *   lives in the tab bar of the `(portal)` route group; no access to /admin.
- * - no session: Login.
+ * - portal (negocio/customer): logo · search grande (búsqueda REST por
+ *   colección: `GET /api/v1/products?audience=...&q=...`) · "Mi cuenta" +
+ *   carrito (SVG con badge de unidades) arriba a la derecha.
+ * - admin: logo · enlaces de administración · Profile · Logout.
+ * - sin sesión: logo · Login.
+ *
+ * El rol del usuario nunca se muestra como etiqueta: solo el logo.
  */
+function CartButton() {
+  const count = useCartCount();
+  return (
+    <Button variant="ghost" size="sm" px={3} asChild aria-label="Carrito">
+      <NextLink href="/carrito">
+        <Box position="relative" display="inline-flex" alignItems="center">
+          <svg className="icon-inline" width={22} height={22} aria-hidden="true">
+            <use xlinkHref="#cart" />
+          </svg>
+          {count > 0 && (
+            <Box
+              as="span"
+              position="absolute"
+              top={-2}
+              right={-6}
+              minW="16px"
+              h="16px"
+              px="4px"
+              borderRadius="full"
+              bg="brand.400"
+              color="white"
+              fontSize="10px"
+              fontWeight="bold"
+              display="inline-flex"
+              alignItems="center"
+              justifyContent="center"
+              aria-hidden="true"
+            >
+              {count > 99 ? "99+" : count}
+            </Box>
+          )}
+        </Box>
+      </NextLink>
+    </Button>
+  );
+}
+
 export function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
 
   const role = user?.role;
   const isAdmin = role === "admin";
+  const isPortal = isPortalRole(role);
 
   return (
     <Box
@@ -41,19 +78,20 @@ export function Navbar() {
       w="full"
     >
       <Container maxW="container.xl">
-        <Flex h="auto" align="center" justify="space-between" gap={3} wrap="wrap">
-          <Flex align="center" gap={3}>
+        <Flex h="auto" align="center" justify="space-between" gap={4} wrap="wrap">
+          <Box flexShrink={0} display="inline-flex">
             <NextLink href="/">
               <BrandLogo variant="horizontal" height={36} priority />
             </NextLink>
-            {isAuthenticated && (
-              <Badge colorPalette={isAdmin ? "red" : "brand"}>
-                {ROLE_LABELS[role ?? ""] ?? role}
-              </Badge>
-            )}
-          </Flex>
+          </Box>
 
-          <Flex align="center" gap={2} wrap="wrap">
+          {isPortal && (
+            <Box as="div" flex="1" minW="240px" display="flex" justifyContent="center">
+              <PortalSearch />
+            </Box>
+          )}
+
+          <Flex align="center" gap={2} wrap="wrap" flexShrink={0}>
             {isAuthenticated ? (
               <>
                 {isAdmin && (
@@ -76,15 +114,29 @@ export function Navbar() {
                     <Button variant="ghost" asChild>
                       <NextLink href="/admin/settings">Settings</NextLink>
                     </Button>
+                    <Button variant="ghost" asChild>
+                      <NextLink href="/profile">Profile</NextLink>
+                    </Button>
                   </>
                 )}
-                {!isPortalRole(role) && !isAdmin && null}
-                <Button variant="ghost" asChild>
-                  <NextLink href="/profile">Profile</NextLink>
-                </Button>
-                <Button onClick={logout} colorPalette="red" size="sm" variant="outline">
-                  Logout
-                </Button>
+                {isPortal && (
+                  <>
+                    <Button variant="ghost" size="sm" asChild>
+                      <NextLink href="/profile">
+                        <svg className="icon-inline" width={18} height={18} aria-hidden="true">
+                          <use xlinkHref="#user" />
+                        </svg>
+                        Mi cuenta
+                      </NextLink>
+                    </Button>
+                    <CartButton />
+                  </>
+                )}
+                {isAdmin && (
+                  <Button onClick={logout} colorPalette="red" size="sm" variant="outline">
+                    Logout
+                  </Button>
+                )}
               </>
             ) : (
               <Button colorPalette="brand" asChild>

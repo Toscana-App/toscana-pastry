@@ -10,6 +10,7 @@ import {
   Table,
   Text,
 } from "@chakra-ui/react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CatalogSkeleton } from "@/components/ui/skeleton";
 
 import { useAuth } from "@/contexts/AuthContext";
@@ -59,11 +60,20 @@ function formatPrice(value: string): string {
  */
 export function ProductsCatalog() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [audience, setAudience] = useState<Audience>("revendedores");
   const [addingId, setAddingId] = useState<string | null>(null);
+
+  // Búsqueda por nombre desde la navbar del portal (PortalSearch navega a
+  // "/" con ?q=term): se envía al backend como `q` de la misma colección
+  // (accent-fold en el repo) — GET /api/v1/products?audience=&q=.
+  // El backend es la autoridad (validación estricta: 422 si inválido); el
+  // slice a 120 solo evita 422 por términos pegados manualmente en la URL.
+  const q = (searchParams.get("q") ?? "").trim().slice(0, 120);
 
   const role = user?.role ?? "";
   const allowedAudiences = roleAllowedAudiences(role);
@@ -104,10 +114,11 @@ export function ProductsCatalog() {
     }
   }, [role, allowedAudiences]);
 
-  // Fetch products for the selected audience. Until the auth role is known
-  // (or the role does not allow the current audience) no request is fired:
-  // otherwise a customer mounting the page would trigger a guaranteed-403
-  // fetch against "revendedores" before the role effect switches the audience.
+  // Fetch products for the selected audience (y la búsqueda `q` cuando hay).
+  // Until the auth role is known (or the role does not allow the current
+  // audience) no request is fired: otherwise a customer mounting the page
+  // would trigger a guaranteed-403 fetch against "revendedores" before the
+  // role effect switches the audience.
   useEffect(() => {
     let cancelled = false;
 
@@ -115,8 +126,11 @@ export function ProductsCatalog() {
 
     async function fetchProducts() {
       try {
+        const params = new URLSearchParams();
+        params.set("audience", audience);
+        if (q) params.set("q", q);
         const response = await apiFetch<ProductListResponse>(
-          `/products?audience=${audience}`
+          `/products?${params.toString()}`
         );
         if (!cancelled) setProducts(response.products ?? []);
       } catch (error) {
@@ -134,7 +148,7 @@ export function ProductsCatalog() {
     return () => {
       cancelled = true;
     };
-  }, [audience, allowedAudiences]);
+  }, [audience, allowedAudiences, q]);
 
   if (loading) {
     return <CatalogSkeleton />;
@@ -164,13 +178,32 @@ export function ProductsCatalog() {
           <Badge colorPalette="brand" size="lg">{audienceLabel(audience)}</Badge>
         )}
 
-        <Flex gap={2}>
-          <Button variant="outline" size="sm" onClick={() => downloadPricelistCSV(audience)}>
-            Exportar CSV
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => downloadPricelistPDF(audience)}>
-            Exportar PDF
-          </Button>
+        <Flex gap={2} align="center" wrap="wrap">
+          {q && (
+            <Badge colorPalette="brand" variant="subtle" size="lg" px={3} py={1}>
+              Búsqueda: {q}
+            </Badge>
+          )}
+          {q && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.replace("/")}
+              aria-label={`Quitar búsqueda ${q}`}
+            >
+              Quitar
+            </Button>
+          )}
+          {role === "admin" && (
+            <>
+              <Button variant="outline" size="sm" onClick={() => downloadPricelistCSV(audience)}>
+                Exportar CSV
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => downloadPricelistPDF(audience)}>
+                Exportar PDF
+              </Button>
+            </>
+          )}
         </Flex>
       </Flex>
 
@@ -183,7 +216,11 @@ export function ProductsCatalog() {
           py={10}
           textAlign="center"
         >
-          <Text color="fg.muted">No hay productos para esta audiencia.</Text>
+          <Text color="fg.muted">
+            {q
+              ? `No hay productos que coincidan con «${q}».`
+              : "No hay productos para esta audiencia."}
+          </Text>
         </Box>
       ) : (
         <Table.ScrollArea rounded="md">
