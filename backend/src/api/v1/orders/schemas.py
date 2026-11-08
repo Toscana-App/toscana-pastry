@@ -189,8 +189,8 @@ class OrderItemResponse(BaseModel):
 
 class OrderCustomerResponse(BaseModel):
     id: str
-    name: str
-    phone: str
+    name: str = ""
+    phone: str = ""
 
 
 class OrderListItem(BaseModel):

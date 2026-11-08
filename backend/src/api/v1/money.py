@@ -24,6 +24,13 @@ def decimal_to_cents(value: Decimal | int | float | str) -> int:
     return int(_to_cents(value))
 
 
+_CENT = Decimal("0.01")
+
+
+def money_str(value: Decimal) -> str:
+    return str(value.quantize(_CENT, rounding=ROUND_HALF_UP))
+
+
 def format_money_cents(cents: int) -> str:
     sign = "-" if cents < 0 else ""
     c = abs(int(cents))

@@ -26,6 +26,7 @@ from api.v1.dependencies import (
     require_role,
 )
 from api.v1.ingredients.dependencies import get_ingredient_repository
+from api.v1.money import money_str
 from api.v1.pdf.dependencies import get_pdf_client
 from api.v1.pricing.schemas import Audience
 from data.accent import accent_fold, validate_search_term
@@ -293,8 +294,8 @@ async def list_products(
                     "category": product.category,
                     "description": product.description,
                     "image_url": product.image_url,
-                    "price": str(audience_price),
-                    "price_per_serving": str(price.per_serving),
+                    "price": money_str(audience_price),
+                    "price_per_serving": money_str(price.per_serving),
                     "complete": True,
                 }
                 for product, audience_price, price in priced
@@ -356,7 +357,7 @@ async def get_product(
             "category": product.category,
             "description": product.description,
             "image_url": product.image_url,
-            "price": str(
+            "price": money_str(
                 derive_audience_price(
                     price.breakdown.rounded, settings.consumer_markup_pct, resolved
                 )

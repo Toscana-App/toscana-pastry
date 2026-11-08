@@ -322,7 +322,7 @@ MANAGEMENT_ENDPOINTS = [
     "/api/v1/orders",
     "/api/v1/orders/{order_id}",
     "/api/v1/tenant/settings",
-    "/api/v1/pdf/budgets/{budget_id}/pdf",
+    "/api/v1/budgets/{budget_id}/pdf",
     "/api/v1/products",
     "/api/v1/products/{product_id}",
     "/api/v1/calc/settings",

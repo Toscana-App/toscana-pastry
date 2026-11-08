@@ -373,6 +373,8 @@ async def create_order_portal(
     try:
         new_order = Order.place_portal(
             customer_id=user.id,
+            customer_name=user.email,
+            customer_phone="",
             date=body.date,
             items=items,
             payment_method=payment_method,
@@ -579,8 +581,8 @@ def _detail_response(
         id=order.id or "",
         customer=OrderCustomerResponse(
             id=order.customer_id,
-            name=order.customer_name,
-            phone=order.customer_phone,
+            name=order.customer_name or "",
+            phone=order.customer_phone or "",
         ),
         date=order.date,
         status=cast(P6OrderStatus, order.status),

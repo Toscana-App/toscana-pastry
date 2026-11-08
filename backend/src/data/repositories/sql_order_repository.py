@@ -225,6 +225,8 @@ class SQLOrderRepository:
         orm = OrderORM(
             id=order.id,
             customer_id=order.customer_id,
+            customer_name=order.customer_name or None,
+            customer_phone=order.customer_phone or None,
             code=order.code,
             date=order.date,
             status=order.status.value,

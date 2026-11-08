@@ -88,6 +88,8 @@ class Order:
     customer_id: str
     date: datetime.datetime
     items: list[OrderItem]
+    customer_name: str = ""
+    customer_phone: str = ""
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     code: str = field(default_factory=_generate_code)
     status: OrderStatus = OrderStatus.NUEVO
@@ -126,6 +128,8 @@ class Order:
         payment_method: PaymentMethod,
         delivery_mode: DeliveryMode,
         delivery_address: str | None,
+        customer_name: str = "",
+        customer_phone: str = "",
         coupon_code: str | None = None,
         now: datetime.datetime | None = None,
     ) -> Order:
@@ -144,6 +148,8 @@ class Order:
             customer_id=customer_id,
             date=order_date,
             items=items,
+            customer_name=customer_name,
+            customer_phone=customer_phone,
             payment_method=payment_method,
             delivery_mode=delivery_mode,
             delivery_address=delivery_address or "",

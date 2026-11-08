@@ -13,6 +13,7 @@ from api.v1.cart.schemas import (
 from api.v1.coupons.dependencies import get_coupon_repository
 from api.v1.dependencies import require_role
 from api.v1.ingredients.dependencies import get_ingredient_repository
+from api.v1.money import money_str
 from api.v1.products.dependencies import get_product_repository
 from api.v1.settings.dependencies import get_settings_repository
 from data.repositories.sql_cart_repository import SQLCartRepository
@@ -96,9 +97,9 @@ async def _build_cart(
             CartItemOut(
                 product_id=product.id,
                 name=product.name,
-                unit_price=str(unit_price),
+                unit_price=money_str(unit_price),
                 qty=qty,
-                total=str(line.total),
+                total=money_str(line.total),
             )
         )
 
