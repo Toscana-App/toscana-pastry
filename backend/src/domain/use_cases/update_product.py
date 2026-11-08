@@ -6,8 +6,12 @@ from domain.repositories import (
     ProductRepository,
     SettingsRepository,
 )
+from domain.product_price import derive_product_price
 from domain.use_cases.get_settings import GetSettings
-from domain.use_cases.product_assembly import assemble_product
+from domain.use_cases.product_assembly import (
+    ProductPublishBlockedError,
+    assemble_product,
+)
 
 
 class UpdateProduct:
@@ -35,6 +39,7 @@ class UpdateProduct:
         servings: Optional[int] = None,
         difficulty: Optional[str] = None,
         recipe: Optional[Sequence[RecipeItem]] = None,
+        available: Optional[bool] = None,
     ) -> Optional[Product]:
         existing = await self._products.get(product_id)
         if existing is None:
@@ -55,5 +60,10 @@ class UpdateProduct:
             existing=existing,
             settings=settings,
             ingredients_by_id={i.id: i for i in ingredients},
+            available=available,
         )
+        if available is True:
+            price = derive_product_price(product, {i.id: i for i in ingredients}, settings)
+            if not price.complete:
+                raise ProductPublishBlockedError(list(price.missing))
         return await self._products.update(product)

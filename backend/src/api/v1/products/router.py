@@ -80,6 +80,7 @@ from domain.repositories import (
 from domain.use_cases import (
     CreateProduct,
     GetSettings,
+    ProductPublishBlockedError,
     ProductValidationError,
     UpdateProduct,
 )
@@ -226,6 +227,8 @@ def _list_item(product: Product, price: ProductPrice) -> ProductListItem:
         price_final=price.breakdown.rounded if price.complete else None,
         price_per_serving=price.per_serving,
         complete=price.complete,
+        available=product.available,
+        image_url=product.image_url,
     )
 
 
@@ -244,6 +247,8 @@ def _detail_response(
         difficulty=product.difficulty,
         complete=price.complete,
         missing_ingredients=list(price.missing),
+        available=product.available,
+        image_url=product.image_url,
         price=_breakdown_response(price.breakdown if price.complete else None),
         price_per_serving=price.per_serving,
         recipe=[
@@ -430,9 +435,15 @@ async def update_product(
             recipe=(
                 _to_recipe_items(payload.recipe) if "recipe" in provided else None
             ),
+            available=provided.get("available"),
         )
     except ProductValidationError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ProductPublishBlockedError as e:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={"detail": str(e), "missing_ingredients": e.missing},
+        )
     if saved is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado"

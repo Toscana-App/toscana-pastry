@@ -32,6 +32,8 @@ def _to_domain(orm: ProductORM) -> Product:
         prep_time_min=orm.prep_time_min,  # type: ignore[arg-type]
         servings=orm.servings,  # type: ignore[arg-type]
         difficulty=orm.difficulty,  # type: ignore[arg-type]
+        available=orm.available,
+        image_url=orm.image_url,
         id=orm.id,  # type: ignore[arg-type]
         deleted_at=orm.deleted_at,  # type: ignore[arg-type]
     )
@@ -105,6 +107,8 @@ class SQLProductRepository(ProductRepository):
             prep_time_min=product.prep_time_min,
             servings=product.servings,
             difficulty=product.difficulty,
+            available=product.available,
+            image_url=product.image_url,
         )
         orm.recipe_items = [
             RecipeItemORM(
@@ -136,6 +140,8 @@ class SQLProductRepository(ProductRepository):
         orm.prep_time_min = product.prep_time_min  # type: ignore[arg-type]
         orm.servings = product.servings  # type: ignore[arg-type]
         orm.difficulty = product.difficulty  # type: ignore[arg-type]
+        orm.available = product.available
+        orm.image_url = product.image_url
         # La receta se reemplaza en bloque (RF-P4-02): cascade
         # delete-orphan limpia las lineas viejas.
         orm.recipe_items = [

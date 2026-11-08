@@ -215,6 +215,8 @@ class Product:
     prep_time_min: int = 0
     servings: int = 1
     difficulty: str = "simple"
+    available: bool = False
+    image_url: Optional[str] = None
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     deleted_at: Optional[datetime.datetime] = None
 

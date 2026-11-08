@@ -133,6 +133,8 @@ class ProductORM(Base):
     prep_time_min = Column(Integer, nullable=False, default=0)
     servings = Column(Integer, nullable=False, default=1)
     difficulty = Column(String, nullable=False, default="simple")
+    available = Column(Boolean, nullable=False, default=False, index=True)
+    image_url = Column(String, nullable=True)
     deleted_at = Column(DateTime(timezone=True), nullable=True)
     recipe_items = relationship(
         "RecipeItemORM",

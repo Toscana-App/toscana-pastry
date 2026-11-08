@@ -8,6 +8,12 @@ class ProductValidationError(ValueError):
     """La receta o los datos del producto violan una regla de dominio."""
 
 
+class ProductPublishBlockedError(ValueError):
+    def __init__(self, missing: List[str]):
+        self.missing = missing
+        super().__init__("producto incompleto: no se puede publicar")
+
+
 def assemble_product(
     name: Optional[str],
     category: Optional[str],
@@ -19,6 +25,8 @@ def assemble_product(
     existing: Optional[Product],
     settings: BusinessSettings,
     ingredients_by_id: Dict[str, Ingredient],
+    available: Optional[bool] = None,
+    image_url: Optional[str] = None,
 ) -> Product:
     """Arma el Product de dominio y valida la receta contra los insumos
     corrientes. En create, los campos omitidos vienen de los default de
@@ -32,6 +40,8 @@ def assemble_product(
         )
         servings = settings.default_servings if servings is None else servings
         difficulty = settings.default_difficulty if difficulty is None else difficulty
+        available = False
+        image_url = None
     else:
         name = name if name is not None else existing.name
         category = category if category is not None else existing.category
@@ -41,6 +51,8 @@ def assemble_product(
         )
         servings = servings if servings is not None else existing.servings
         difficulty = difficulty if difficulty is not None else existing.difficulty
+        available = available if available is not None else existing.available
+        image_url = image_url if image_url is not None else existing.image_url
 
     if recipe is not None:
         recipe_items: List[RecipeItem] = list(recipe)
@@ -79,6 +91,8 @@ def assemble_product(
             prep_time_min=prep_time_min,
             servings=servings,
             difficulty=difficulty,
+            available=available,
+            image_url=image_url,
             **({"id": existing.id, "deleted_at": existing.deleted_at} if existing else {}),
         )
         # Validacion de unidades con el mismo codigo que /pricing/preview

@@ -56,6 +56,7 @@ class ProductUpdate(BaseModel):
     recipe: Optional[List[RecipeItemInput]] = Field(
         default=None, min_length=1, max_length=30
     )
+    available: Optional[bool] = None
 
 
 class ProductListItem(BaseModel):
@@ -68,6 +69,8 @@ class ProductListItem(BaseModel):
     price_final: Optional[Money] = None
     price_per_serving: Optional[Money] = None
     complete: bool
+    available: bool
+    image_url: Optional[str] = None
 
 
 class ProductListResponse(BaseModel):
@@ -118,6 +121,8 @@ class ProductDetailResponse(BaseModel):
     difficulty: str
     complete: bool
     missing_ingredients: List[str]
+    available: bool
+    image_url: Optional[str] = None
     price: Optional[PriceBreakdownResponse] = None
     price_per_serving: Optional[Money] = None
     recipe: List[RecipeItemResponse]
