@@ -11,7 +11,6 @@ quoting, `text/csv` + attachment headers, no pagination).
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -29,7 +28,6 @@ from api.v1.calc.dependencies import (
 )
 from data.accent import accent_fold
 from data.db import get_db
-from data.models import Base
 from data.repositories.calc.sql_calc_material_category_repository import (
     SQLCalcMaterialCategoryRepository,
 )

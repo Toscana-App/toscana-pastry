@@ -30,11 +30,6 @@ import type {
   Supplier,
 } from "@/types/calc";
 
-// Tokens de DESIGN.md (hex directo, sin sombras): danger para acciones
-// destructivas, success (accent light green) y surface-soft para chips.
-const ACCENT_DANGER = "#e23b4a";
-const SUCCESS_GREEN = "#428619";
-const SURFACE_SOFT = "#f4f4f4";
 // page_size fijo (decisión F1 en PREGUNTAS.md): escala admin, sin selector.
 const PAGE_SIZE = 50;
 
@@ -53,11 +48,11 @@ const STATUS_COLLECTION = createListCollection({
 // Chip de estado read-only: nunca se envía al backend.
 function StatusChip({ status }: { status: MaterialStatus }) {
   return status === "active" ? (
-    <Tag.Root size="sm" bg={SUCCESS_GREEN} color="white">
+    <Tag.Root size="sm" colorPalette="green" variant="subtle">
       <Tag.Label>Activo</Tag.Label>
     </Tag.Root>
   ) : (
-    <Tag.Root size="sm" bg={SURFACE_SOFT} color="fg.muted">
+    <Tag.Root size="sm" bg="bg.muted" color="fg.muted">
       <Tag.Label>Incompleto</Tag.Label>
     </Tag.Root>
   );
@@ -309,8 +304,8 @@ export default function MaterialsAbm() {
   if (loadError) {
     return (
       <Flex align="center" direction="column" gap={4} py={16}>
-        <Text color={ACCENT_DANGER}>No se pudo cargar la lista.</Text>
-        <Button
+        <Text color="red.fg">No se pudo cargar la lista.</Text>
+        <Button variant="outline"
           rounded="full"
           onClick={() => setReloadKey((key) => key + 1)}
         >
@@ -521,7 +516,7 @@ export default function MaterialsAbm() {
                       <Button
                         size="sm"
                         variant="outline"
-                        color={ACCENT_DANGER}
+                        color="red.fg"
                         rounded="full"
                         onClick={() => setDeleting(material)}
                       >
@@ -612,9 +607,7 @@ export default function MaterialsAbm() {
                   Cancelar
                 </Button>
               </Dialog.ActionTrigger>
-              <Button
-                bg={ACCENT_DANGER}
-                color="white"
+              <Button colorPalette="red"
                 rounded="full"
                 loading={deletingBusy}
                 onClick={handleDelete}

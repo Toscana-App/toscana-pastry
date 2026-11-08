@@ -26,8 +26,6 @@ import type {
   DefaultCostUpdatePayload,
 } from "@/types/calc";
 
-// Tokens de DESIGN.md: danger para acciones destructivas (hex directo).
-const ACCENT_DANGER = "#e23b4a";
 // page_size fijo (decisión F1 en PREGUNTAS.md): escala admin, sin selector.
 const PAGE_SIZE = 50;
 
@@ -156,7 +154,7 @@ export default function DefaultCostsAbm() {
         default_quantity_or_minutes: newQuantity,
         status: newStatus,
       };
-      const created = await calcSettingsService.createDefaultCost(payload);
+      await calcSettingsService.createDefaultCost(payload);
       // Refetch de la página actual: respeta filtro, orden y PAGE_SIZE del server.
       setReloadKey((key) => key + 1);
       setNewName("");
@@ -275,8 +273,8 @@ export default function DefaultCostsAbm() {
   if (loadError) {
     return (
       <Flex align="center" direction="column" gap={4} py={16}>
-        <Text color={ACCENT_DANGER}>No se pudo cargar la lista.</Text>
-        <Button
+        <Text color="red.fg">No se pudo cargar la lista.</Text>
+        <Button variant="outline"
           rounded="full"
           onClick={() => setReloadKey((key) => key + 1)}
         >
@@ -387,7 +385,7 @@ export default function DefaultCostsAbm() {
               </Select.Content>
             </Select.Positioner>
           </Select.Root>
-          <Button
+          <Button colorPalette="brand"
             rounded="full"
             loading={creating}
             disabled={!canCreate}
@@ -523,7 +521,7 @@ export default function DefaultCostsAbm() {
                     </Table.Cell>
                     <Table.Cell>
                       <Flex gap={2}>
-                        <Button
+                        <Button colorPalette="brand"
                           size="sm"
                           rounded="full"
                           loading={savingEdit}
@@ -562,7 +560,7 @@ export default function DefaultCostsAbm() {
                         <Button
                           size="sm"
                           variant="outline"
-                          color={ACCENT_DANGER}
+                          color="red.fg"
                           rounded="full"
                           onClick={() => setDeleting(cost)}
                         >
@@ -625,9 +623,7 @@ export default function DefaultCostsAbm() {
                   Cancelar
                 </Button>
               </Dialog.ActionTrigger>
-              <Button
-                bg={ACCENT_DANGER}
-                color="white"
+              <Button colorPalette="red"
                 rounded="full"
                 loading={deletingBusy}
                 onClick={handleDelete}

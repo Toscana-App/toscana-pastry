@@ -23,8 +23,6 @@ import type {
   SupplierUpdatePayload,
 } from "@/types/calc";
 
-// Tokens de DESIGN.md: danger para acciones destructivas (hex directo).
-const ACCENT_DANGER = "#e23b4a";
 // page_size fijo (decisión F1 en PREGUNTAS.md): escala admin, sin selector.
 const PAGE_SIZE = 50;
 
@@ -133,7 +131,7 @@ export default function SupplierAbm() {
       if (form.email.trim()) payload.email = form.email.trim();
       if (form.notes.trim()) payload.notes = form.notes.trim();
 
-      const created = await calcSettingsService.createSupplier(payload);
+      await calcSettingsService.createSupplier(payload);
       // Refetch de la página actual: respeta filtro, orden y PAGE_SIZE del server.
       setReloadKey((key) => key + 1);
       setForm(EMPTY_FORM);
@@ -262,8 +260,8 @@ export default function SupplierAbm() {
   if (loadError) {
     return (
       <Flex align="center" direction="column" gap={4} py={16}>
-        <Text color={ACCENT_DANGER}>No se pudo cargar la lista.</Text>
-        <Button
+        <Text color="red.fg">No se pudo cargar la lista.</Text>
+        <Button variant="outline"
           rounded="full"
           onClick={() => setReloadKey((key) => key + 1)}
         >
@@ -346,7 +344,7 @@ export default function SupplierAbm() {
           align="center"
         >
           {createInputs}
-          <Button
+          <Button colorPalette="brand"
             rounded="full"
             loading={creating}
             disabled={!form.name.trim()}
@@ -438,7 +436,7 @@ export default function SupplierAbm() {
                     </Table.Cell>
                     <Table.Cell>
                       <Flex gap={2}>
-                        <Button
+                        <Button colorPalette="brand"
                           size="sm"
                           rounded="full"
                           loading={savingEdit}
@@ -477,7 +475,7 @@ export default function SupplierAbm() {
                         <Button
                           size="sm"
                           variant="outline"
-                          color={ACCENT_DANGER}
+                          color="red.fg"
                           rounded="full"
                           onClick={() => setDeleting(supplier)}
                         >
@@ -540,9 +538,7 @@ export default function SupplierAbm() {
                   Cancelar
                 </Button>
               </Dialog.ActionTrigger>
-              <Button
-                bg={ACCENT_DANGER}
-                color="white"
+              <Button colorPalette="red"
                 rounded="full"
                 loading={deletingBusy}
                 onClick={handleDelete}

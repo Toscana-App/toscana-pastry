@@ -2,7 +2,7 @@ import datetime
 import uuid
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 from enum import Enum
 
 from domain.pricing import PricingSettings

@@ -10,7 +10,7 @@ import { ProductsCatalog } from "@/components/catalog/ProductsCatalog";
  */
 export default function PortalHome() {
   return (
-    <Container maxW="container.lg" py={8}>
+    <Container maxW="5xl" py={8}>
       <Heading size="2xl" mb={6}>
         Catálogo
       </Heading>

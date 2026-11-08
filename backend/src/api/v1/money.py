@@ -49,6 +49,19 @@ def decimal_to_cents(value: Decimal | int | float | str) -> int:
     return int(_to_cents(value))
 
 
+def format_money_cents(cents: int) -> str:
+    """Centavos (long de la API) → dinero legible "$1.234,56" (es-AR).
+
+    Solo para salidas legibles (CSV de export). El PDF formatea por su cuenta
+    en pdfgenerator; la función vive aquí para no arrastrar al core-api el
+    binario de render (ADR-0001)."""
+    sign = "-" if cents < 0 else ""
+    c = abs(int(cents))
+    pesos, centavos = divmod(c, 100)
+    s = f"{pesos:,}".replace(",", ".")
+    return f"{sign}${s},{centavos:02d}"
+
+
 def _coerce_qty(value) -> Decimal:
     """Qty: cantidad, no dinero. Decimal(str(v)) exacto, sin centavos."""
     if isinstance(value, Decimal):

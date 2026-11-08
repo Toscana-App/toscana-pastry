@@ -21,6 +21,10 @@ class Settings:
     # arman en wa.me y en el link temporal). En producción: el dominio
     # real de la app.
     PUBLIC_BASE_URL: str = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000")
+    # Servicio de PDF (pdfgenerator, ADR-0001): base URL HTTP del binario que
+    # renderiza presupuesto, reportes y pricelist. Sin él esos endpoints
+    # devuelven 503 controlado (PdfServiceError).
+    PDFGEN_URL: str = os.getenv("PDFGEN_URL", "http://localhost:8100")
 
     def validate_for_startup(self) -> None:
         """Refuse to start with an invalid ENVIRONMENT, or in prod with the

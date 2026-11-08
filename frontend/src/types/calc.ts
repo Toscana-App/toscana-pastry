@@ -1,7 +1,13 @@
 // Tipos de las respuestas de la API de la calculadora de costos
-// (backend/src/api/v1/calc/schemas.py). Los montos y cantidades viajan
-// como `string` (serialización de api/v1/money.py): no convertirlos a
-// number "para aritmética" (no hay aritmética de precios en F1).
+// (backend/src/api/v1/calc/schemas.py).
+//
+// Contrato de dinero (odd/tasks/calc-money-and-editor-fixes.md, M1):
+// - Respuestas: `Money` viaja como **int de centavos** (number en TS);
+//   los últimos 2 dígitos son centavos. La UI los muestra con
+//   `formatCents`/`centsToPesos` de `lib/format` (nunca dividir "a mano").
+// - Entradas: los inputs de la UI trabajan en pesos (string) y el
+//   service los convierte a ctvs con `pesosToCents` en el borde.
+// - Qty/Pct siguen siendo string decimal ("500", "100").
 
 export type RoundingMode =
   | "none"
@@ -135,15 +141,18 @@ export type ProductLineMaterialIn = {
   quantity_used: string;
 };
 
+// In (nivel UI): los montos se editan en PESOS (string). El service
+// los convierte a int de centavos en el borde (pesosToCents). Nunca
+// mandar pesos al API: el backend espera ctvs y rechaza str/float (S3).
 export type ProductLineLaborIn = {
   activity_name: string;
-  hourly_rate: string;
+  hourly_rate: string; // pesos
   minutes_required: string;
 };
 
 export type ProductLineExtraCostIn = {
   concept_name: string;
-  unit_cost: string;
+  unit_cost: string; // pesos
   quantity: string;
 };
 
@@ -152,24 +161,24 @@ export type ProductLineMaterialOut = {
   material_name: string;
   quantity_used: string;
   unit_of_measure_snapshot: string | null;
-  unit_cost_snapshot: string;
-  line_total_cost: string;
+  unit_cost_snapshot: number;
+  line_total_cost: number;
   sort_order: number;
 };
 
 export type ProductLineLaborOut = {
   activity_name: string;
-  hourly_rate: string;
+  hourly_rate: number;
   minutes_required: string;
-  line_total_cost: string;
+  line_total_cost: number;
   sort_order: number;
 };
 
 export type ProductLineExtraCostOut = {
   concept_name: string;
-  unit_cost: string;
+  unit_cost: number;
   quantity: string;
-  line_total_cost: string;
+  line_total_cost: number;
   sort_order: number;
 };
 
@@ -195,8 +204,8 @@ export interface ProductListItem {
   sku: string | null;
   category_name: string | null;
   status: ProductStatus;
-  product_total_cost: string;
-  final_sale_price: string;
+  product_total_cost: number;
+  final_sale_price: number;
   margin_percent: string;
   last_recalculated_at: string | null;
 }
@@ -209,14 +218,17 @@ export interface ProductListResponse {
 }
 
 export interface ProductCostsResponse {
-  product_total_cost: string;
-  profit_amount: string;
-  discount_amount: string;
-  adjusted_profit_amount: string;
-  tax_amount: string;
-  final_sale_price: string;
+  // Money como int de centavos (S1): formatear con formatCents.
+  product_total_cost: number;
+  profit_amount: number;
+  discount_amount: number;
+  adjusted_profit_amount: number;
+  tax_amount: number;
+  final_sale_price: number;
 }
 
+// Respuesta de POST /calc/products, PATCH /{id} y /{id}/recalculate:
+// las lineas van envueltas en `product_lines`.
 export interface ProductWithLines {
   product: Product;
   product_lines: {
@@ -227,14 +239,25 @@ export interface ProductWithLines {
   costs: ProductCostsResponse;
 }
 
+// Respuesta de GET /calc/products/{id} (RF-P4CC-05): las lineas van a
+// nivel superior (materials/labor/extra_costs), SIN el envoltorio
+// product_lines. Montos en int de centavos.
+export interface ProductDetail {
+  product: Product;
+  materials: ProductLineMaterialOut[];
+  labor: ProductLineLaborOut[];
+  extra_costs: ProductLineExtraCostOut[];
+  costs: ProductCostsResponse;
+}
+
 export interface ProductVersion {
   version_number: number;
-  product_total_cost: string;
-  profit_amount: string;
-  discount_amount: string;
-  adjusted_profit_amount: string;
-  tax_amount: string;
-  final_sale_price: string;
+  product_total_cost: number;
+  profit_amount: number;
+  discount_amount: number;
+  adjusted_profit_amount: number;
+  tax_amount: number;
+  final_sale_price: number;
   changed_at: string;
 }
 
@@ -261,8 +284,8 @@ export type PriceListItem = {
   sku: string | null;
   category_id: string | null;
   category_name: string | null;
-  product_total_cost: string;
-  final_sale_price: string;
+  product_total_cost: number;
+  final_sale_price: number;
   margin_percent: string;
 }
 
@@ -276,14 +299,14 @@ export interface PriceListResponse {
 export interface DashboardTopItem {
   id: string;
   name: string;
-  final_sale_price: string;
+  final_sale_price: number;
   margin_percent: string;
 }
 
 export interface DashboardBottomItem {
   id: string;
   name: string;
-  product_total_cost: string;
+  product_total_cost: number;
   margin_percent: string;
 }
 
@@ -292,8 +315,8 @@ export interface DashboardResponse {
   active_products: number;
   draft_products: number;
   incomplete_materials: number;
-  avg_product_cost: string;
-  avg_final_price: string;
+  avg_product_cost: number;
+  avg_final_price: number;
   top_by_price: DashboardTopItem[];
   bottom_by_margin: DashboardBottomItem[];
 }

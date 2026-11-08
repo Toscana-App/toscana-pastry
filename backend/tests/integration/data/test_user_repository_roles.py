@@ -2,10 +2,9 @@
 
 import pytest
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy import text
 
-from data.models import Base, UserORM
+from data.models import UserORM
 from domain.models import User, UserRole
 from data.repositories.sql_user_repository import SQLUserRepository
 

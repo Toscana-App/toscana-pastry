@@ -15,7 +15,7 @@ import {
 } from "@chakra-ui/react";
 import { SettingsSkeleton } from "@/components/ui/skeleton";
 
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { EnumSelect } from "@/components/ui/enum-select";
 import { toaster } from "@/lib/toaster";
@@ -84,7 +84,7 @@ export function SettingsPage() {
     register,
     handleSubmit,
     reset,
-    watch,
+    control,
     setValue,
     formState: { errors, isDirty },
   } = useForm<SettingsFormValues>({
@@ -97,8 +97,9 @@ export function SettingsPage() {
     if (settings) reset(settings);
   }, [settings, reset]);
 
-  const includeGas = watch("include_gas");
-  const includeWaste = watch("include_waste");
+  const includeGas = useWatch({ control, name: "include_gas" });
+  const includeWaste = useWatch({ control, name: "include_waste" });
+  const includeLabor = useWatch({ control, name: "include_labor" });
 
   function zeroOnNaN(event: Event, field: "gas_pct" | "waste_pct") {
     const target = event.target as HTMLInputElement;
@@ -139,7 +140,7 @@ export function SettingsPage() {
         <Flex direction="column" gap={6} maxW="44rem">
           <Fieldset.Root
             borderWidth="1px"
-            borderColor="gray.200"
+            borderColor="border"
             rounded="md"
             p={5}
           >
@@ -174,7 +175,7 @@ export function SettingsPage() {
 
             <Flex align="center" gap={3} mt={5}>
               <Switch.Root
-                checked={watch("include_labor")}
+                checked={includeLabor}
                 onCheckedChange={(details) =>
                   setValue("include_labor", details.checked, {
                     shouldDirty: true,
@@ -193,7 +194,7 @@ export function SettingsPage() {
 
           <Fieldset.Root
             borderWidth="1px"
-            borderColor="gray.200"
+            borderColor="border"
             rounded="md"
             p={5}
           >
@@ -308,7 +309,7 @@ export function SettingsPage() {
 
           <Fieldset.Root
             borderWidth="1px"
-            borderColor="gray.200"
+            borderColor="border"
             rounded="md"
             p={5}
           >

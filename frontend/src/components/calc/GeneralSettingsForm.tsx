@@ -228,7 +228,7 @@ export default function GeneralSettingsForm() {
         </Select.Root>
       </Field.Root>
 
-      <Button
+      <Button colorPalette="brand"
         rounded="full"
         loading={saving}
         disabled={!canSave}

@@ -64,7 +64,7 @@ describe("ordersService — GET /orders", () => {
   });
 
   it("list respeta el total en centavos que emite la API", async () => {
-    const fetchMock = mockFetch(200, {
+    mockFetch(200, {
       items: [
         {
           id: "o1",
@@ -148,7 +148,7 @@ describe("ordersService — GET /orders/{id}", () => {
   });
 
   it("getDetail: margin_pct null queda null (margen del tenant)", async () => {
-    const fetchMock = mockFetch(200, {
+    mockFetch(200, {
       id: "o2",
       customer: { id: "c1", name: "María", phone: "11" },
       date: "2026-10-01",
@@ -394,7 +394,7 @@ describe("customersService", () => {
   });
 
   it("create: 409 (dedupe) adopta el cliente existente sin lanzar", async () => {
-    const fetchMock = mockFetch(409, {
+    mockFetch(409, {
       existing: {
         id: "c1",
         name: "María",
@@ -418,7 +418,7 @@ describe("customersService", () => {
 
 describe("insufficientStockOf", () => {
   it("extrae el 409 de stock insuficiente como cantidad (Qty)", async () => {
-    const fetchMock = mockFetch(409, {
+    mockFetch(409, {
       insufficient_stock: [
         {
           ingredient_id: "i1",

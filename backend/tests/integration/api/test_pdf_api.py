@@ -1,23 +1,22 @@
 """PDF de presupuesto (Fase 8, P9) + WhatsApp outbound (P10): API.
 
 Cubre:
-- GET /budgets/{id}/pdf: PDF real (ReportLab), ETag por hash de
-  contenido, 304, regeneración tras edición, sin auth 401.
+- GET /budgets/{id}/pdf: PDF (pdfgenerator, ADR-0001), ETag por hash,
+  304, regeneración tras edición, sin auth 401.
 - POST /budgets/{id}/pdf: link firmado 72 h; admin-only.
 - GET /pdf/{token}: público; token inválido/alterado/vencido → 404.
-- Seguridad: el PDF no contiene costo/ganancia/margen.
+- Seguridad: el snapshot enviado a pdfgenerator no contiene
+  costo/ganancia/margen.
 - POST /budgets/{id}/whatsapp-link: wa.me E.164, plantilla con ítems y
   total, registro auditado (teléfono enmascarado), 400 con teléfono
   inválido, 429 al pasar el límite de 30/día.
 """
 from datetime import datetime, timedelta, timezone
 from urllib.parse import unquote
-from io import BytesIO
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
-from pypdf import PdfReader
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
@@ -224,11 +223,6 @@ async def _make_budget(
     return response.json()["id"]
 
 
-def _pdf_text(body: bytes) -> str:
-    reader = PdfReader(BytesIO(body))
-    return "\n".join((p.extract_text() or "") for p in reader.pages)
-
-
 class TestBudgetPdfEndpoint:
     async def test_get_pdf_devuelve_pdf_valido(self, client):
         token = await _login(client)
@@ -267,7 +261,7 @@ class TestBudgetPdfEndpoint:
         )
         assert second.status_code == 304
 
-    async def test_editar_el_presupuesto_regenera_el_pdf(self, client):
+    async def test_editar_el_presupuesto_regenera_el_pdf(self, client, pdf_fake):
         token = await _login(client)
         product_id = await _setup(client, token)
         customer_id = await _make_customer(client, token, "María", "5493571234567")
@@ -288,13 +282,14 @@ class TestBudgetPdfEndpoint:
         second = await client.get(f"/api/v1/budgets/{budget_id}/pdf", headers=headers)
         assert second.status_code == 200
         assert second.headers["etag"] != etag_1
-        text = _pdf_text(second.content)
-        assert "$4.650,00" in text  # 3 x 1.550
+        # El snapshot enviado a pdfgenerator refleja la nueva cantidad (3 x 1550).
+        assert pdf_fake.last_budget_payload["items"][0]["qty"] == 3
+        assert pdf_fake.last_budget_payload["items"][0]["line_selling"] == "4650.00"
 
     async def test_get_pdf_sin_auth_es_401(self, client):
         assert (await client.get("/api/v1/budgets/cualquiera/pdf")).status_code == 401
 
-    async def test_pdf_no_expose_costos_ni_ganancia(self, client):
+    async def test_pdf_no_expose_costos_ni_ganancia(self, client, pdf_fake):
         """Seguridad de P9: el documento del cliente no contiene los
         números internos (costo unitario 775, ganancia 1.000, ni las
         palabras costo/ganancia/margen)."""
@@ -307,14 +302,22 @@ class TestBudgetPdfEndpoint:
             f"/api/v1/budgets/{budget_id}/pdf",
             headers={"Authorization": f"Bearer {token}"},
         )
-        text = _pdf_text(response.content).lower()
-        assert "costo" not in text
-        assert "ganancia" not in text
-        assert "margen" not in text
-        assert "$775,00" not in text
-        assert "$1.000,00" not in text
+        payload = pdf_fake.last_budget_payload
+        # Ni las palabras internas como claves del snapshot.
+        internal = {"costo", "ganancia", "margen", "unit_cost"}
+        assert not internal & set(payload.keys())
+        for item in payload["items"]:
+            assert not internal & set(item.keys())
+        # Ni los números internos como valores (costo 775, ganancia 1000).
+        values = [str(v) for k, v in payload.items() if k != "items"]
+        for item in payload["items"]:
+            values.extend(str(v) for v in item.values())
+        assert "775" not in values
+        assert "1000" not in values
+        # El precio de venta (1550) SÍ se envía.
+        assert "1550.00" in values
 
-    async def test_pdf_incluye_direccion_de_entrega(self, client):
+    async def test_pdf_incluye_direccion_de_entrega(self, client, pdf_fake):
         """RF-P7-07: el documento muestra la direccion del snapshot si
         esta presente."""
         token = await _login(client)
@@ -332,10 +335,9 @@ class TestBudgetPdfEndpoint:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 200, response.text
-        text = _pdf_text(response.content)
-        assert "Calle Falsa 1234" in text
+        assert pdf_fake.last_budget_payload["delivery_address"] == "Calle Falsa 1234, San Francisco"
 
-    async def test_pdf_sin_direccion_no_muestra_la_linea(self, client):
+    async def test_pdf_sin_direccion_no_muestra_la_linea(self, client, pdf_fake):
         token = await _login(client)
         product_id = await _setup(client, token)
         customer_id = await _make_customer(client, token, "María", "5493571234567")
@@ -344,8 +346,7 @@ class TestBudgetPdfEndpoint:
             f"/api/v1/budgets/{budget_id}/pdf",
             headers={"Authorization": f"Bearer {token}"},
         )
-        text = _pdf_text(response.content).lower()
-        assert "entrega" not in text
+        assert pdf_fake.last_budget_payload["delivery_address"] is None
 
 
 class TestShareLink:

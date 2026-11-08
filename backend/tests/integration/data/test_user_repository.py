@@ -1,12 +1,8 @@
 
 import pytest
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-from data.models import Base, UserORM
 from domain.models import User
 from data.repositories.sql_user_repository import SQLUserRepository
-import datetime
 
 @pytest_asyncio.fixture
 async def user_repository(db_session):

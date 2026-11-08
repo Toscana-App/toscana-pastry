@@ -15,7 +15,6 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from data.models import Base
 from data.repositories.sql_whatsapp_send_repository import (
     SQLWhatsAppSendRepository,
 )

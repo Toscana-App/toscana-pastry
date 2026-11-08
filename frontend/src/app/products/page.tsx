@@ -9,7 +9,7 @@ import { ProductsCatalog } from "@/components/catalog/ProductsCatalog";
  */
 export default function ProductsPage() {
   return (
-    <Container py={10} maxW="container.lg">
+    <Container py={10} maxW="5xl">
       <Flex direction="column" gap={6}>
         <Heading size="3xl">Lista de precios</Heading>
         <ProductsCatalog />

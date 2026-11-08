@@ -37,7 +37,6 @@ from api.v1.dependencies import require_admin
 from api.v1.orders.dependencies import get_checkout_provider
 from api.v1.orders.dependencies import get_order_repository as get_order_repo_fn
 from data.db import get_db as get_db_orig
-from data.models import Base
 from data.payments.mercadopago import MercadoPagoCheckoutProvider
 from data.repositories.sql_order_repository import SQLOrderRepository
 from data.repositories.sql_user_repository import SQLUserRepository

@@ -10,7 +10,6 @@ search + pagination, and validation (422) for:
 """
 import pytest
 import pytest_asyncio
-from decimal import Decimal
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import (
     AsyncSession,

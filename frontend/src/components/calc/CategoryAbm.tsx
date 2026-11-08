@@ -24,9 +24,6 @@ import type {
   CategoryUpdatePayload,
 } from "@/types/calc";
 
-// Tokens de DESIGN.md: danger para acciones destructivas (hex directo,
-// sin sombras).
-const ACCENT_DANGER = "#e23b4a";
 // page_size fijo (decisión F1 en PREGUNTAS.md): escala admin, sin selector.
 const PAGE_SIZE = 50;
 
@@ -115,7 +112,7 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
     try {
       const payload: CategoryCreatePayload = { name };
       if (newDescription.trim()) payload.description = newDescription.trim();
-      const created = await calcSettingsService.createCategory(endpoint, payload);
+      await calcSettingsService.createCategory(endpoint, payload);
       // Refetch de la página actual: respeta filtro, orden y PAGE_SIZE del server.
       setReloadKey((key) => key + 1);
       setNewName("");
@@ -226,8 +223,8 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
   if (loadError) {
     return (
       <Flex align="center" direction="column" gap={4} py={16}>
-        <Text color={ACCENT_DANGER}>No se pudo cargar la lista.</Text>
-        <Button
+        <Text color="red.fg">No se pudo cargar la lista.</Text>
+        <Button variant="outline"
           rounded="full"
           onClick={() => setReloadKey((key) => key + 1)}
         >
@@ -272,7 +269,7 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
             value={newDescription}
             onChange={(e) => setNewDescription(e.target.value)}
           />
-          <Button
+          <Button colorPalette="brand"
             rounded="full"
             loading={creating}
             disabled={!newName.trim()}
@@ -337,7 +334,7 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
                     </Table.Cell>
                     <Table.Cell>
                       <Flex gap={2}>
-                        <Button
+                        <Button colorPalette="brand"
                           size="sm"
                           rounded="full"
                           loading={savingEdit}
@@ -373,7 +370,7 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
                         <Button
                           size="sm"
                           variant="outline"
-                          color={ACCENT_DANGER}
+                          color="red.fg"
                           rounded="full"
                           onClick={() => setDeleting(category)}
                         >
@@ -436,9 +433,7 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
                   Cancelar
                 </Button>
               </Dialog.ActionTrigger>
-              <Button
-                bg={ACCENT_DANGER}
-                color="white"
+              <Button colorPalette="red"
                 rounded="full"
                 loading={deletingBusy}
                 onClick={handleDelete}

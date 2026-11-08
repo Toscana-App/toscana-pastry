@@ -13,6 +13,7 @@ import { CalcProductListSkeleton } from "@/components/ui/skeleton";
 
 import { calcProductsService } from "@/services/calcProductsService";
 import { toaster } from "@/lib/toaster";
+import { formatCents } from "@/lib/format";
 import type {
   ProductListItem,
   ProductListQuery,
@@ -141,20 +142,20 @@ export default function ProductList({ mode = "library" }: ProductListProps) {
                 <Table.Cell>{item.category_name || "-"}</Table.Cell>
                 {mode === "library" && isProductListItem(item) && (
                   <Table.Cell>
-                    <Text color={`${getStatusColor(item.status)}.500`} fontWeight="medium">
+                    <Text color={`${getStatusColor(item.status)}.fg`} fontWeight="medium">
                       {getStatusLabel(item.status)}
                     </Text>
                   </Table.Cell>
                 )}
-                <Table.Cell textAlign="right">{item.product_total_cost}</Table.Cell>
-                <Table.Cell textAlign="right">{item.final_sale_price}</Table.Cell>
+                <Table.Cell textAlign="right">{formatCents(item.product_total_cost)}</Table.Cell>
+                <Table.Cell textAlign="right">{formatCents(item.final_sale_price)}</Table.Cell>
                 <Table.Cell textAlign="right">{item.margin_percent}</Table.Cell>
                 <Table.Cell textAlign="center">
                   <IconButton
                     size="sm"
                     variant="ghost"
                     aria-label="Ver detalles"
-                    onClick={() => window.open(`/admin/calculadora/productos/${item.id}`, "_blank")}
+                    onClick={() => window.open(`/admin/calculator/products/${item.id}`, "_blank")}
                   >
                     👁️
                   </IconButton>
@@ -176,7 +177,7 @@ export default function ProductList({ mode = "library" }: ProductListProps) {
   return (
     <Flex direction="column" gap={4}>
       {/* Search and Filters */}
-      <Flex direction={{ base: "column", lg: "row" }} gap={4} p={4} bg="gray.50" borderRadius="md" align="end">
+      <Flex direction={{ base: "column", lg: "row" }} gap={4} p={4} bg="bg.subtle" borderRadius="md" align="end">
         <Flex direction="column" flex={1}>
           <Text fontSize="sm" mb={1}>Búsqueda</Text>
           <Flex gap={2}>
@@ -186,7 +187,7 @@ export default function ProductList({ mode = "library" }: ProductListProps) {
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             />
-            <Button onClick={handleSearch}>Buscar</Button>
+            <Button variant="outline" onClick={handleSearch}>Buscar</Button>
           </Flex>
         </Flex>
 
@@ -210,7 +211,7 @@ export default function ProductList({ mode = "library" }: ProductListProps) {
           >
             Anterior
           </Button>
-          <Text py={2} px={4} bg="gray.100" borderRadius="md">
+          <Text py={2} px={4} bg="bg.muted" borderRadius="md">
             Página {page} de {totalPages}
           </Text>
           <Button
