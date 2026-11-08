@@ -40,9 +40,8 @@ def _req(
     u1, l1 = _selling(cost, margin, qty)
     u2, l2 = _selling(Decimal("450"), margin, 1)
     subtotal = l1 + l2
-    total = (subtotal * (Decimal("100") + Decimal("21")) / Decimal("100")).quantize(
-        Decimal("0.01")
-    )
+    iva = (subtotal * Decimal("21") / Decimal("100")).quantize(Decimal("0.01"))
+    total = subtotal + iva
     return BudgetPdfRequest(
         seq=seq,
         version=version,
@@ -57,6 +56,7 @@ def _req(
                               unit_selling=u2, line_selling=l2),
         ],
         subtotal=subtotal,
+        iva=iva,
         total=total,
         iva_pct=Decimal("21"),
         business_name=business,
@@ -138,7 +138,8 @@ class TestPdfMarkupEscaping:
     def test_nombre_se_renderiza_literal(self, name):
         unit, line = _selling(Decimal("100"), Decimal("100"), 1)
         subtotal = line
-        total = (subtotal * Decimal("1.21")).quantize(Decimal("0.01"))
+        iva = (subtotal * Decimal("0.21")).quantize(Decimal("0.01"))
+        total = subtotal + iva
         req = BudgetPdfRequest(
             seq="#00001",
             version=1,
@@ -149,6 +150,7 @@ class TestPdfMarkupEscaping:
             items=[BudgetItemRequest(product_name=name, qty=1,
                                      unit_selling=unit, line_selling=line)],
             subtotal=subtotal,
+            iva=iva,
             total=total,
             iva_pct=Decimal("21"),
             business_name=name,

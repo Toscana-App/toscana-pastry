@@ -52,6 +52,7 @@ function summaryOf(raw: Record<string, unknown>): BudgetSummary {
     total_costos: raw.total_costos as number,
     ganancia: raw.ganancia as number,
     total_venta: raw.total_venta as number,
+    iva: raw.iva as number,
   };
 }
 

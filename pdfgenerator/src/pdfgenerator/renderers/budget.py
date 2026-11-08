@@ -104,8 +104,8 @@ def build_budget_pdf(req: BudgetPdfRequest) -> bytes:
     """
     business = req.business_name.strip() or "Toscana Pastry"
     subtotal = req.subtotal
-    total = req.total
-    iva_amount = (total - subtotal).quantize(Decimal("0.01"))
+    iva_amount = req.iva
+    total = subtotal + iva_amount
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(

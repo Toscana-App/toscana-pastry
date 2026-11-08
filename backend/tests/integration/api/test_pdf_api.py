@@ -488,7 +488,8 @@ class TestWhatsAppLink:
         assert "Hola María:" in message
         assert "Torta de Limón" in message
         assert "$3.100,00" in message
-        assert "Total (IVA incluido): $3.751,00" in message
+        assert "Total: $3.100,00" in message
+        assert "IVA (21%): $651,00 — costo aparte del total" in message
         assert "/api/v1/pdf/" in message
         assert "Toscana Pastry" in message
 

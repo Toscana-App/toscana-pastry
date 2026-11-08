@@ -44,6 +44,7 @@ def budget_pdf_payload(budget: Budget, business_name: str, footer_text: str) -> 
             for it in budget.items
         ],
         "subtotal": str(totals.subtotal),
+        "iva": str(totals.iva),
         "total": str(totals.total_venta),
         "iva_pct": str(IVA_PCT),
         "business_name": business_name,

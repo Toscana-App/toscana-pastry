@@ -191,17 +191,17 @@ def render_orders_export_pdf(
 
 def render_budgets_export_pdf(
     period_label: str,
-    budgets: Iterable[tuple[str, str, str, datetime.date, datetime.date | None, str, int]],
+    budgets: Iterable[tuple[str, str, str, datetime.date, datetime.date | None, str, int, int]],
 ) -> bytes:
     """PDF del export de presupuestos (mismo contenido que el CSV).
 
     ``budgets``: tuplas ``(seq, cliente, telefono, fecha, enviado,
-    estado, total_venta_cents)``.
+    estado, total_venta_cents, iva_cents)``.
     """
     budgets = list(budgets)
     columns = [
         "Secuencia", "Cliente", "Telefono", "Fecha", "Enviado", "Estado",
-        "Total venta",
+        "Total venta", "IVA",
     ]
     rows = [
         [
@@ -212,8 +212,9 @@ def render_budgets_export_pdf(
             enviado.strftime("%d/%m/%Y") if enviado else "",
             estado,
             format_money_cents(total_cents),
+            format_money_cents(iva_cents),
         ]
-        for seq, cliente, telefono, fecha, enviado, estado, total_cents in budgets
+        for seq, cliente, telefono, fecha, enviado, estado, total_cents, iva_cents in budgets
     ]
     return render_report_pdf(
         title="Export de presupuestos",

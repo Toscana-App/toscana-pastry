@@ -166,7 +166,7 @@ def test_render_budgets_export_pdf():
     budgets = [
         ("00042", "María Gómez", "+54 9 11 5555-0100",
          datetime.date(2026, 11, 1), datetime.date(2026, 11, 1),
-         "enviado", 452000),
+         "enviado", 452000, 94920),
     ]
     pdf_bytes = render_budgets_export_pdf("todos", budgets)
     assert pdf_bytes.startswith(b"%PDF")
