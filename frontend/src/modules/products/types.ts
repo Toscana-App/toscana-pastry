@@ -30,6 +30,10 @@ export interface ProductListItem {
   price_per_serving: number | null;
   /** false → la receta tiene insumos sin precio (badge "sin precio", RF-P3-05). */
   complete: boolean;
+  /** true → se vende en la tienda del portal (RF-P3-09). */
+  available: boolean;
+  /** URL pública de la imagen (/media/products/<id>.<ext>) o null. */
+  image_url: string | null;
 }
 
 /** GET /products — respuesta con categorías derivadas de los productos activos. */
@@ -89,6 +93,10 @@ export interface ProductDetail {
   difficulty: string;
   complete: boolean;
   missing_ingredients: string[];
+  /** true → se vende en la tienda del portal (RF-P3-09). */
+  available: boolean;
+  /** URL pública de la imagen (/media/products/<id>.<ext>) o null. */
+  image_url: string | null;
   price: PriceBreakdown | null;
   /** Precio por porción, en centavos. */
   price_per_serving: number | null;
@@ -119,6 +127,13 @@ export interface ProductUpdateInput
   extends Partial<Omit<ProductCreateInput, "recipe">> {
   /** Cuando se envía, reemplaza la receta completa. */
   recipe?: RecipeItemInput[];
+  /** Switch de publicación (P12): solo admin; publicar incompleto → 409. */
+  available?: boolean;
+}
+
+/** POST /products/{id}/image — respuesta 201 con la URL servida. */
+export interface ProductImageResponse {
+  image_url: string;
 }
 
 /** 409 de DELETE /products/{id} (UC-07): el producto tiene pedidos históricos. */

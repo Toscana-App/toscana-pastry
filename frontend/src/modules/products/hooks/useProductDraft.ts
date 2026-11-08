@@ -14,6 +14,7 @@ export const PRODUCT_CREATE_DEFAULTS: ProductFormValues = {
   servings: 1,
   difficulty: "simple",
   recipe: [],
+  available: false,
 };
 
 interface UseProductDraftArgs {

@@ -114,6 +114,43 @@ describe("productsService — DELETE (RF-P4-08)", () => {
   });
 });
 
+describe("productsService — imagen (P12)", () => {
+  it("uploadImage manda multipart FormData sin Content-Type JSON", async () => {
+    const fetchMock = mockFetch(201, { image_url: "/media/products/abc.jpg" });
+    const file = new File([new Uint8Array([1, 2, 3])], "foto.jpg", {
+      type: "image/jpeg",
+    });
+
+    const result = await productsService.uploadImage("abc", file);
+    const { url, init } = lastCall(fetchMock);
+    expect(url).toBe(`${API_BASE}/products/abc/image`);
+    expect(init.method).toBe("POST");
+    expect(init.body).toBeInstanceOf(FormData);
+    expect((init.body as FormData).get("file")).toBe(file);
+    expect(
+      (init.headers as Record<string, string> | undefined)?.["Content-Type"],
+    ).toBeUndefined();
+    expect(result).toEqual({ image_url: "/media/products/abc.jpg" });
+  });
+
+  it("removeImage hace DELETE y acepta el 204", async () => {
+    const fetchMock = mockFetch(204, undefined);
+
+    await productsService.removeImage("abc");
+    const { url, init } = lastCall(fetchMock);
+    expect(url).toBe(`${API_BASE}/products/abc/image`);
+    expect(init.method).toBe("DELETE");
+  });
+
+  it("update envía el switch available", async () => {
+    const fetchMock = mockFetch(200, { id: "abc" });
+
+    await productsService.update("abc", { available: true });
+    const { init } = lastCall(fetchMock);
+    expect(JSON.parse(String(init.body))).toEqual({ available: true });
+  });
+});
+
 describe("productsService — preview de costos (RF-P4-04)", () => {
   it("preview usa el contrato de /pricing/preview", async () => {
     const fetchMock = mockFetch(200, { rounded: 155000 });

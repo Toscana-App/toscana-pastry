@@ -10,6 +10,7 @@ import {
   Flex,
   Heading,
   Input,
+  Switch,
   Table,
   Tabs,
   Text,
@@ -78,6 +79,7 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
     register,
     handleSubmit,
     reset,
+    setValue,
     watch,
     control,
     formState: { errors, isDirty },
@@ -119,6 +121,7 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
           )
             ? (detail.difficulty as ProductDifficulty)
             : "simple",
+          available: detail.available,
           recipe: detail.recipe.map((item) => ({
             ingredient_id: item.ingredient_id,
             qty: Number(item.qty),
@@ -159,6 +162,7 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
   const recipeValues = useWatch({ control, name: "recipe" });
   const prepMinutes = useWatch({ control, name: "prep_time_min" });
   const servings = useWatch({ control, name: "servings" });
+  const availableValue = useWatch({ control, name: "available" });
   const ingredientById = useMemo(
     () => new Map(ingredients.map((item) => [item.id, item])),
     [ingredients],
@@ -200,7 +204,10 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
 
     try {
       if (isEdit && productId) {
-        await productsService.update(productId, payload);
+        await productsService.update(productId, {
+          ...payload,
+          available: values.available ?? false,
+        });
         clearDraft();
         toaster.create({ title: "Cambios guardados", type: "success" });
         router.push(`/productos/${productId}`);
@@ -319,6 +326,44 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
                 />
                 <Field.ErrorText>{errors.description?.message}</Field.ErrorText>
               </Field.Root>
+
+              {isEdit ? (
+                <Flex
+                  align="center"
+                  gap={3}
+                  borderWidth="1px"
+                  borderColor="border"
+                  rounded="md"
+                  p={3}
+                >
+                  <Switch.Root
+                    checked={availableValue ?? false}
+                    onCheckedChange={(details) =>
+                      setValue("available", details.checked, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }
+                  >
+                    <Switch.HiddenInput />
+                    <Switch.Control>
+                      <Switch.Thumb />
+                    </Switch.Control>
+                  </Switch.Root>
+                  <Flex direction="column" gap={0.5}>
+                    <Text fontWeight="500">Disponible en tienda</Text>
+                    <Text fontSize="sm" color="fg.muted">
+                      {availableValue
+                        ? "Los clientes lo ven en el catálogo del portal."
+                        : "Oculto: no aparece en la tienda."}
+                    </Text>
+                  </Flex>
+                </Flex>
+              ) : (
+                <Text fontSize="sm" color="fg.muted">
+                  El producto se crea oculto; se publica desde su detalle.
+                </Text>
+              )}
             </Flex>
           </Tabs.Content>
 

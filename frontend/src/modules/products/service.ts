@@ -5,6 +5,7 @@ import type {
   ProductCreateInput,
   ProductDeleteImpact,
   ProductDetail,
+  ProductImageResponse,
   ProductListParams,
   ProductListResponse,
   ProductUpdateInput,
@@ -66,6 +67,21 @@ export const productsService = {
     return apiFetch<ProductDeleteImpact | void>(`${BASE}/${id}`, {
       method: "DELETE",
     }).then((body) => (body ?? null) as ProductDeleteImpact | null);
+  },
+
+  /** POST /products/{id}/image — multipart admin (P12). 201 · 403 · 422 · 413. */
+  uploadImage(id: string, file: File): Promise<ProductImageResponse> {
+    const form = new FormData();
+    form.append("file", file);
+    return apiFetch<ProductImageResponse>(`${BASE}/${id}/image`, {
+      method: "POST",
+      body: form,
+    });
+  },
+
+  /** DELETE /products/{id}/image — borra la imagen y deja image_url null. */
+  removeImage(id: string): Promise<void> {
+    return apiFetch<void>(`${BASE}/${id}/image`, { method: "DELETE" });
   },
 
   /**

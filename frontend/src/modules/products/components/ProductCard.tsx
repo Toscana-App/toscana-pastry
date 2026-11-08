@@ -59,9 +59,18 @@ export function ProductCard({ product }: ProductCardProps) {
             </Badge>
           )}
         </Flex>
-        <Text fontSize="xs" color="fg.muted">
-          {product.category}
-        </Text>
+        <Flex align="center" gap={2}>
+          <Text fontSize="xs" color="fg.muted">
+            {product.category}
+          </Text>
+          <Badge
+            size="sm"
+            variant="subtle"
+            colorPalette={product.available ? "green" : "gray"}
+          >
+            {product.available ? "En tienda" : "Oculto"}
+          </Badge>
+        </Flex>
       </Flex>
     </NextLink>
   );

@@ -62,6 +62,7 @@ export const productFormSchema = z
     recipe: z
       .array(recipeItemSchema)
       .min(1, "La receta necesita al menos un insumo"),
+    available: z.boolean().optional(),
   })
   .strict();
 
@@ -89,5 +90,6 @@ export const productDraftSchema = z
         unit: z.enum(RECIPE_UNITS),
       }),
     ),
+    available: z.boolean(),
   })
   .partial();

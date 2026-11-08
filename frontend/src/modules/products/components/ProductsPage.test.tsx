@@ -23,6 +23,8 @@ const mocks = vi.hoisted(() => ({
       price_final: number | null;
       price_per_serving: number | null;
       complete: boolean;
+      available: boolean;
+      image_url: string | null;
     }>,
     total: 0,
     page: 1,
@@ -141,6 +143,8 @@ describe("ProductsPage", () => {
         price_final: 155000,
         price_per_serving: 19375,
         complete: true,
+        available: true,
+        image_url: null,
       },
       {
         id: "2",
@@ -149,6 +153,8 @@ describe("ProductsPage", () => {
         price_final: null,
         price_per_serving: null,
         complete: false,
+        available: false,
+        image_url: null,
       },
     ];
     renderPage();
@@ -156,5 +162,35 @@ describe("ProductsPage", () => {
     expect(screen.getByText("Torta de chocolate")).toBeInTheDocument();
     expect(screen.getByText("ARS 1.550")).toBeInTheDocument();
     expect(screen.getByText("sin precio")).toBeInTheDocument();
+  });
+
+  it("muestra el badge de publicación en cada card (RF-P3-09)", () => {
+    mocks.state.total = 2;
+    mocks.state.items = [
+      {
+        id: "1",
+        name: "Torta de chocolate",
+        category: "Tortas",
+        price_final: 155000,
+        price_per_serving: 19375,
+        complete: true,
+        available: true,
+        image_url: null,
+      },
+      {
+        id: "2",
+        name: "Cheesecake",
+        category: "Postres",
+        price_final: 90000,
+        price_per_serving: null,
+        complete: true,
+        available: false,
+        image_url: null,
+      },
+    ];
+    renderPage();
+
+    expect(screen.getByText("En tienda")).toBeInTheDocument();
+    expect(screen.getByText("Oculto")).toBeInTheDocument();
   });
 });
