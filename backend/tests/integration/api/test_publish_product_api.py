@@ -3,8 +3,16 @@ import os
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import event
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from main import app
+from data.accent import accent_fold
+from data.models import Base
 from data.repositories.sql_user_repository import SQLUserRepository
 from data.repositories.sql_settings_repository import SQLSettingsRepository
 from data.repositories.sql_ingredient_repository import SQLIngredientRepository
@@ -15,6 +23,25 @@ from api.v1.settings.dependencies import get_settings_repository
 from api.v1.ingredients.dependencies import get_ingredient_repository
 from api.v1.products.dependencies import get_product_repository
 from domain.models import User, UserRole
+
+
+@pytest_asyncio.fixture
+async def db_session():
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _register_sqlite_functions(dbapi_connection, connection_record):
+        dbapi_connection.create_function(
+            "accent_fold", 1, accent_fold, deterministic=True
+        )
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
+        engine, expire_on_commit=False, class_=AsyncSession
+    )
+    async with factory() as session:
+        yield session
 
 
 @pytest_asyncio.fixture

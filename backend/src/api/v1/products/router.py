@@ -29,11 +29,22 @@ tiene un unico hogar.
 import asyncio
 import csv as csv_module
 import logging
+from dataclasses import replace as replace_domain
 from decimal import Decimal
 from io import StringIO
+from pathlib import Path, PurePosixPath
 from typing import Dict, Iterable, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi.responses import JSONResponse
 
 from api.v1.dependencies import (
@@ -46,7 +57,14 @@ from api.v1.ingredients.dependencies import get_ingredient_repository
 from api.v1.pdf.dependencies import get_pdf_client
 from api.v1.pricing.schemas import Audience
 from data.pdf.client import PdfClient
-from api.v1.products.dependencies import get_product_repository
+from api.v1.products.dependencies import (
+    get_media_root,
+    get_product_repository,
+)
+from api.v1.products.image_service import (
+    ImageValidationError,
+    validate_image,
+)
 from api.v1.products.schemas import (
     PriceBreakdownResponse,
     ProductCreate,
@@ -478,6 +496,65 @@ async def delete_product(
             status_code=status.HTTP_200_OK,
             content={"impacted_orders": impacted},
         )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+def _stored_image_path(media_root: Path, image_url: str) -> Path:
+    name = PurePosixPath(image_url).name
+    return media_root / "products" / name
+
+
+@router.post(
+    "/{product_id}/image", status_code=status.HTTP_201_CREATED
+)
+async def upload_product_image(
+    product_id: str,
+    file: UploadFile = File(...),
+    repo: ProductRepository = Depends(get_product_repository),
+    media_root: Path = Depends(get_media_root),
+    _admin: User = Depends(require_admin),
+):
+    product = await repo.get(product_id)
+    if product is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado"
+        )
+    data = await file.read()
+    try:
+        image_type = validate_image(data)
+    except ImageValidationError as e:
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={"code": e.code, "detail": e.detail},
+        )
+    products_dir = media_root / "products"
+    products_dir.mkdir(parents=True, exist_ok=True)
+    if product.image_url is not None:
+        _stored_image_path(media_root, product.image_url).unlink(missing_ok=True)
+    target = products_dir / f"{product_id}.{image_type}"
+    target.write_bytes(data)
+    saved = replace_domain(
+        product, image_url=f"/media/products/{product_id}.{image_type}"
+    )
+    await repo.update(saved)
+    return {"image_url": saved.image_url}
+
+
+@router.delete("/{product_id}/image", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_product_image(
+    product_id: str,
+    repo: ProductRepository = Depends(get_product_repository),
+    media_root: Path = Depends(get_media_root),
+    _admin: User = Depends(require_admin),
+):
+    product = await repo.get(product_id)
+    if product is None or product.image_url is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="El producto no tiene imagen",
+        )
+    _stored_image_path(media_root, product.image_url).unlink(missing_ok=True)
+    await repo.update(replace_domain(product, image_url=None))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

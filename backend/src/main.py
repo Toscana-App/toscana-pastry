@@ -1,9 +1,11 @@
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from api.v1.admin.router import router as admin_router
 from api.v1.auth.router import router as auth_router
@@ -79,6 +81,10 @@ app.include_router(budgets_router, prefix="/api/v1")
 app.include_router(pdf_router, prefix="/api/v1")
 
 app.include_router(calc_router, prefix="/api/v1")
+
+_media_dir = Path(app_settings.MEDIA_ROOT)
+_media_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/media", StaticFiles(directory=_media_dir), name="media")
 
 
 @app.exception_handler(PdfServiceError)

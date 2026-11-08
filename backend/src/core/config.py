@@ -25,6 +25,15 @@ class Settings:
     # renderiza presupuesto, reportes y pricelist. Sin él esos endpoints
     # devuelven 503 controlado (PdfServiceError).
     PDFGEN_URL: str = os.getenv("PDFGEN_URL", "http://localhost:8100")
+    # P12 (RF-P12-03): raiz de medios de producto. Los archivos viven en
+    # <MEDIA_ROOT>/products/<product_id>.<ext>; el mount StaticFiles sirve
+    # <MEDIA_ROOT> en /media. En tests se sobreescribe por dependencia.
+    MEDIA_ROOT: str = os.getenv(
+        "MEDIA_ROOT",
+        os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "media")
+        ),
+    )
 
     def validate_for_startup(self) -> None:
         """Refuse to start with an invalid ENVIRONMENT, or in prod with the
