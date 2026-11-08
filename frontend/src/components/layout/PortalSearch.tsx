@@ -52,10 +52,14 @@ function PortalSearchInner() {
   }, [term, urlQ, navigate]);
 
   // URL -> input: la q de la URL cambió por fuera (p. ej. el botón
-  // "Quitar" del catálogo) y el input la refleja.
-  useEffect(() => {
+  // "Quitar" del catálogo) y el input la refleja. Se ajusta durante el
+  // render (patrón que React recomienda al cambiar un prop), no en un
+  // effect: sin cascading renders ni react-hooks/set-state-in-effect.
+  const [lastUrlQ, setLastUrlQ] = useState(urlQ);
+  if (urlQ !== lastUrlQ) {
+    setLastUrlQ(urlQ);
     setTerm(urlQ);
-  }, [urlQ]);
+  }
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();

@@ -15,11 +15,17 @@ export function useCartCount(): number {
   const { isAuthenticated } = useAuth();
   const [count, setCount] = useState(0);
 
+  // Al salir de sesión el badge vuelve a 0, ajustado durante el render
+  // (patrón que React recomienda al cambiar un prop); el effect de abajo
+  // solo maneja el sistema externo (fetch + evento cart:changed).
+  const [lastAuth, setLastAuth] = useState(isAuthenticated);
+  if (isAuthenticated !== lastAuth) {
+    setLastAuth(isAuthenticated);
+    if (!isAuthenticated) setCount(0);
+  }
+
   useEffect(() => {
-    if (!isAuthenticated) {
-      setCount(0);
-      return;
-    }
+    if (!isAuthenticated) return;
     let active = true;
     const load = () => {
       fetchCart()

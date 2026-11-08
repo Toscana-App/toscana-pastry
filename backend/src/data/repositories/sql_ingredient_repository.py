@@ -61,7 +61,7 @@ class SQLIngredientRepository:
         page_size: int,
     ) -> Tuple[List[Ingredient], int]:
         filters = _not_deleted()
-        if q and q.strip():
+        if q is not None:  # estricto: blank/control/>120 → 422 (min_length=1 evita q="")
             # accent_fold esta registrada en el engine (data/db.py): "cafe"
             # encuentra "Cafe" sin importar acentos. build_search_pattern
             # valida el término (422 vía SearchQueryError), pliega acentos y

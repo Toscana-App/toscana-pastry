@@ -56,7 +56,7 @@ class SQLProductRepository(ProductRepository):
         page_size: int,
     ) -> tuple[list[Product], int]:
         filters: list = _not_deleted()
-        if q and q.strip():
+        if q is not None:  # estricto: blank/control/>120 → 422 (min_length=1 evita q="")
             # accent_fold registrada en el engine (data/db.py): "limon"
             # encuentra "Limón" sin importar acentos (RF-P3-01).
             # build_search_pattern valida, pliega y escapa los metacaracteres
