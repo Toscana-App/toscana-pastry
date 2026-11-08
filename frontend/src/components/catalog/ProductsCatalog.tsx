@@ -215,7 +215,7 @@ export function ProductsCatalog() {
                       </Box>
                       <Flex direction="column" gap={1}>
                         <NextLink
-                          href={`/productos/${product.id}`}
+                          href={`/tienda/${product.id}`}
                           style={{
                             color: "inherit",
                             fontWeight: 500,

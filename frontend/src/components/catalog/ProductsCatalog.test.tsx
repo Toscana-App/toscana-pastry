@@ -80,7 +80,7 @@ describe("ProductsCatalog (contrato de tienda T3)", () => {
     renderWithProviders(<ProductsCatalog />)
 
     const link = await screen.findByRole("link", { name: "Torta de chocolate" })
-    expect(link).toHaveAttribute("href", "/productos/p1")
+    expect(link).toHaveAttribute("href", "/tienda/p1")
   })
 
   it("muestra el precio de la audiencia elegida y pide esa lista (admin)", async () => {
