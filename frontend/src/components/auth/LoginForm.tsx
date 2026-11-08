@@ -4,8 +4,6 @@ import { useState } from "react";
 import {
   Box,
   Button,
-  Field,
-  Input,
   Stack,
   Heading,
   Text,
@@ -18,20 +16,6 @@ import { gooeyToast } from "goey-toast";
 import { useSearchParams } from "next/navigation";
 import { postLoginTarget, safeRedirectTarget } from "@/lib/portalRoutes";
 import { UserRole } from "@/types/auth";
-
-/**
- * Client-side email validation for the login form (P1, spec line 77):
- * the error renders inline under the input (Alert danger via Field.Error),
- * so the native browser bubble is disabled with noValidate.
- */
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const validateEmail = (value: string): string | null => {
-  if (!value.trim()) return "El email es obligatorio.";
-  if (!EMAIL_PATTERN.test(value.trim()))
-    return "¡Ups! El email no es válido.";
-  return null;
-};
 
 /** Server-side failures are never shown verbatim (they can be English). */
 const describeApiError = (error: unknown): string => {
@@ -53,8 +37,6 @@ const goPostLogin = (target: string) => {
 };
 
 export default function LoginForm() {
-  const [email, setEmail] = useState("");
-  const [emailError, setEmailError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const searchParams = useSearchParams();
 
@@ -65,31 +47,6 @@ export default function LoginForm() {
    */
   const resolvePostLogin = (role: UserRole): string =>
     safeRedirectTarget(searchParams.get("from"), postLoginTarget(role));
-
-  const handleMagicLink = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const error = validateEmail(email);
-    if (error) {
-      setEmailError(error);
-      return;
-    }
-    setEmailError(null);
-    setLoading(true);
-    try {
-      // authService persiste access_token y refresh_token en cookies.
-      const data = await authService.loginWithMagicLink(email);
-      gooeyToast.success("¡Link de acceso enviado!", {
-        description: "Revisa tu correo para ingresar.",
-      });
-      goPostLogin(resolvePostLogin(data.role));
-    } catch (error) {
-      gooeyToast.error("¡Ups! No se pudo iniciar sesión", {
-        description: describeApiError(error),
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -122,43 +79,9 @@ export default function LoginForm() {
           Iniciar sesión
         </Heading>
         <Text color="fg.muted" textAlign="center">
-          Elige un método para continuar
+          Continúa con tu cuenta de Google
         </Text>
         <Separator />
-
-        <form onSubmit={handleMagicLink} noValidate style={{ width: "100%" }}>
-          <Stack gap={4}>
-            <Field.Root required invalid={emailError !== null}>
-              <Field.Label>
-                Correo electrónico
-                <Field.RequiredIndicator />
-              </Field.Label>
-              <Input
-                type="email"
-                placeholder="you@example.com"
-                aria-describedby={emailError ? "email-error" : undefined}
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  if (emailError) setEmailError(null);
-                }}
-              />
-              {emailError && (
-                <Field.ErrorText id="email-error">{emailError}</Field.ErrorText>
-              )}
-            </Field.Root>
-            <Button
-              type="submit"
-              colorPalette="brand"
-              loading={loading}
-              width="full"
-            >
-              Enviar link de acceso
-            </Button>
-          </Stack>
-        </form>
-
-        <Text fontSize="sm" color="fg.muted">o</Text>
 
         <Button
           onClick={handleGoogleLogin}

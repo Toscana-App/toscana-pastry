@@ -1,45 +1,8 @@
 import jwt
 import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from core.config import settings
-
-
-# --- Magic Link -------------------------------------------------------------
-
-class MagicLinkToken:
-    """Token de un solo uso enviado por email para autenticar sin contraseña."""
-
-    def __init__(self, user_email: str, ttl_minutes: int = 15):
-        self.user_email = user_email
-        self.expiry = datetime.datetime.utcnow() + datetime.timedelta(minutes=ttl_minutes)
-        self._token: Optional[str] = None
-        self._issued_for: Optional[str] = None
-
-    def generate(self) -> str:
-        self._issued_for = self.user_email
-        self._token = jwt.encode(
-            {"sub": self.user_email, "exp": self.expiry, "type": "magic_link"},
-            settings.SECRET_KEY,
-            algorithm=settings.ALGORITHM,
-        )
-        return self._token
-
-    def validate(self) -> bool:
-        if not self._token:
-            return False
-        if datetime.datetime.utcnow() > self.expiry:
-            return False
-        # El email no puede cambiar entre emisión y validación (anti-tampering).
-        if self._issued_for != self.user_email:
-            return False
-        try:
-            payload = jwt.decode(
-                self._token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
-            )
-        except jwt.PyJWTError:
-            return False
-        return payload.get("sub") == self.user_email
 
 
 # --- Google Sign-In ---------------------------------------------------------

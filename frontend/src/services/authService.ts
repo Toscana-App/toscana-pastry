@@ -2,15 +2,6 @@ import { apiFetch, persistSession, clearSession } from "@/lib/api";
 import { AuthResponse, UserInfo } from "@/types/auth";
 
 export const authService = {
-  async loginWithMagicLink(email: string): Promise<AuthResponse> {
-    const data = await apiFetch<AuthResponse>("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    });
-    persistSession(data.access_token, data.refresh_token);
-    return data;
-  },
-
   async loginWithGoogle(googleId: string): Promise<AuthResponse> {
     const data = await apiFetch<AuthResponse>("/auth/login", {
       method: "POST",
