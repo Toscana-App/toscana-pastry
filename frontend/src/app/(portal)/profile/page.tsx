@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Box, Container, Heading, Flex } from "@chakra-ui/react";
+import { Box, Button, Container, Heading, Flex } from "@chakra-ui/react";
 import { ProfileSkeleton } from "@/components/ui/skeleton";
 
 import { authService } from "@/services/authService";
+import { useAuth } from "@/contexts/AuthContext";
 import AddressBook from "@/components/profile/AddressBook";
 import { ProfileCard } from "@/components/profile/ProfileCard";
 import { User } from "@/types/auth";
@@ -15,6 +16,7 @@ import { toaster } from "@/lib/toaster";
 export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const { logout } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -62,6 +64,11 @@ export default function ProfilePage() {
           <Box w="100%">
             <AddressBook />
           </Box>
+          {/* La navbar del portal no muestra Logout (solo "Mi cuenta" +
+              carrito): la salida de sesión vive en la cuenta. */}
+          <Button variant="outline" colorPalette="red" size="sm" onClick={logout}>
+            Cerrar sesión
+          </Button>
         </Flex>
       </Container>
     </ProtectedRoute>

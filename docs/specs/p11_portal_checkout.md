@@ -57,7 +57,7 @@ El portal es la sección self-service de la app (Next.js, raíz) para los roles 
 - [ ] Tests: RNF-P11-06 (cross-tenant/audencia), idempotencia del webhook, cupones (vigencia, max_uses, percent/fixed), lead con hCaptcha, carrito (límites).
 
 ## UI (Chakra v3 + DESIGN.md)
-- **Shell del portal**: tab bar (Inicio · Mis pedidos · Carrito · Cuenta) + CTA "Nuevo pedido"; navbar con rol visible; sin acceso a `/admin`.
+- **Shell del portal**: navbar global única (logo · search grande con debounce que navega a `?q=` · "Mi cuenta" + carrito con badge) · footer de contacto · botón flotante de WhatsApp; rol del usuario nunca visible como etiqueta; sin acceso a `/admin`. **Search estricto**: término ≤120, substring literal (accent-fold); `%`,`_`,`\` se tratan como texto (no wildcards); vacío/espacios, control/invisible (NUL, bidi, zero-width) o >120 → 422. El backend es la autoridad (`data/accent`); el frontend aplica `maxLength` + `slice` solo para evitar 422.
 - **Checkout**: stepper de 5 pasos (progreso visible, back permitido), resumen lateral (cards surface outline, sin sombras), errores inline con `aria-describedby` (zod + react-hook-form).
 - **Pago**: tarjetas de selección (Mercado Pago / Efectivo) con estado `pending` (spinner + "Esperando confirmación…") y estados finales `approved` (success) / `rejected|failed` (danger + motivo) sobre el polling.
 - **Mis pedidos**: tabla mobile-first (cards en móvil) con badges de estado y pago (texto, no solo color); detalle con ítems + tags de restricción.

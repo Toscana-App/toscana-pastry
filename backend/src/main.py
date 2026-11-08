@@ -24,6 +24,7 @@ from api.v1.settings.router import router as settings_router
 from api.v1.webhooks.router import router as webhooks_router
 from api.v1.whatsapp.router import router as whatsapp_router
 from data.db import init_db
+from data.accent import SearchQueryError
 from data.pdf.client import PdfServiceError
 from core.config import settings as app_settings
 from data.models import Base
@@ -93,6 +94,17 @@ async def pdf_service_error_handler(request: Request, exc: PdfServiceError):
             "detail": "El render de PDF está temporalmente caído. Reintentá en unos minutos.",
         },
     )
+
+
+@app.exception_handler(SearchQueryError)
+async def search_query_error_handler(request: Request, exc: SearchQueryError):
+    """Término de búsqueda inválido (vacío, control/invisible, largo) → 422.
+
+    Cobertura global: cualquier endpoint que pase `q` a un repositorio
+    (products, calc, customers, budgets, ingredients) responde 422 sin
+    filtrar: la búsqueda es solo dato inerte (ver data.accent).
+    """
+    return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 
 @app.get("/health")

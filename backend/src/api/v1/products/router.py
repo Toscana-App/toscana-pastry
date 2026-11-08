@@ -124,23 +124,24 @@ async def _build_audience_rows(
     ingredient_repo: IngredientRepository,
     settings_repo: SettingsRepository,
     resolved: str,
+    q: str | None = None,
     page: int | None = None,
     page_size: int | None = None,
 ) -> tuple[list[tuple], int]:
     """Devuelve ``(filas, total)`` con ``(ingredient, precio_para_la_audiencia)``;
     unico lugar donde se aplica ``derive_audience_price``.
 
-    Sin ``page``/``page_size`` devuelve TODOS los productos (exports, y el
-    listado por defecto). Con alguno de los dos, devuelve solo esa pagina y
-    ``total`` sigue siendo el total de productos.
+    Sin ``q``/``page``/``page_size`` devuelve TODOS los productos (exports, y el
+    listado por defecto). Con alguno, filtra (``q`` por nombre, insensible a
+    acentos, RF-P3-01) y pagina; ``total`` sigue siendo el total de productos.
     """
     settings = await GetSettings(settings_repo).execute()
-    if page is None and page_size is None:
+    if q is None and page is None and page_size is None:
         products = await _list_all_ingredients(ingredient_repo)
         total = len(products)
     else:
         products, total = await ingredient_repo.list(
-            q=None, status=None, page=page or 1, page_size=page_size or _DEFAULT_PAGE_SIZE
+            q=q, status=None, page=page or 1, page_size=page_size or _DEFAULT_PAGE_SIZE
         )
     rows = [
         (
@@ -298,13 +299,16 @@ async def list_products(
     - Con `audience`: catalogo S3 para el portal — insumos con precio
       derivado para la audiencia del rol. Guard: admin ambas audiencias,
       negocio solo revendedores, cliente solo consumidor_final (403 si no).
-      `page` / `page_size` opcionales; sin ellos se devuelven todos;
-      `total` es el total de productos, no el de la pagina.
+      `q` filtra por nombre (insensible a acentos, RF-P3-01); `page` /
+      `page_size` opcionales; sin filtros se devuelven todos; `total` es el
+      total de productos, no el de la pagina. (Búsqueda basada en recursos:
+      coleccion base + filtros, estandar REST.)
     """
     if audience is not None:
         resolved = _resolve_or_403(current_user, audience)
         priced, total = await _build_audience_rows(
-            ingredient_repo, settings_repo, resolved, page, page_size
+            ingredient_repo, settings_repo, resolved, q=q,
+            page=page, page_size=page_size,
         )
         return {
             "audience": resolved,
