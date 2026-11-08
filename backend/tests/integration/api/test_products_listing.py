@@ -23,11 +23,8 @@ from decimal import Decimal
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
-from sqlalchemy import event
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from main import app
-from data.accent import accent_fold
 from data.db import get_db
 from data.models import Base
 from data.repositories.sql_ingredient_repository import SQLIngredientRepository

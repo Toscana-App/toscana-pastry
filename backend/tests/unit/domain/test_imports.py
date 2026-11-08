@@ -3,7 +3,7 @@
 Sin I/O: solo se prueban estados, totales, TTL (7 dias) y la regla de
 coincidencia exacta de columnas (RF-CSV-02/13).
 """
-from datetime import UTC, timedelta
+from datetime import timedelta
 
 import pytest
 

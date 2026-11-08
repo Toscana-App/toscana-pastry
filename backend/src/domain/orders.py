@@ -24,7 +24,7 @@ import unicodedata
 import uuid
 
 from dataclasses import dataclass, field
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 from typing import Optional, Tuple, Dict
 
 ORDER_STATUSES: Tuple[str, ...] = ("nuevo", "confirmado", "entregado", "cancelado")

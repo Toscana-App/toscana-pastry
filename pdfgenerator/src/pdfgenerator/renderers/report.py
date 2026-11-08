@@ -1,22 +1,9 @@
-"""Renderizador de reportes PDF con PyMuPDF (Fase 5).
+"""Render de reportes de export (PyMuPDF).
 
-Patrón "buffer" (artículo oficial de PyMuPDF, 187cae545e9c):
-
-  - ``doc = pymupdf.open()`` → documento NUEVO en memoria (sin archivo;
-    para abrir bytes existentes sería ``pymupdf.open(stream=bytes)``).
-  - ``page.insert_text(pymupdf.Point(x, y), ...)`` para títulos/footers.
-  - ``page.insert_htmlbox(rect, html, css=...)`` para la tabla: el
-    PyMuPDF de este entorno (1.28.6) no expone ``Page.insert_table``
-    (verificado contra ``dir(Page)``); ``insert_htmlbox`` es la API
-    equivalente estable para tablas, con ``doc.new_page()`` extra
-    cuando la tabla no cabe (la cabecera se repite en cada página).
-  - ``doc.tobytes(garbage=3, deflate=True)`` → ESTO es el buffer:
-    ``tobytes()`` es la versión de ``save()`` que guarda en memoria, no
-    en disco (garbage=3 + deflate=True recomendados por el artículo).
-  - ``doc.close()`` al terminar (o ``with pymupdf.open() as doc:``).
-
-Nunca se escribe un archivo intermedio en disco: el endpoint recibe los
-bytes y los sirve directamente en la respuesta HTTP.
+Movido de ``backend/src/data/pdf_export/pymupdf_renderer.py`` al binario
+``pdfgenerator``: funciones puras de datos -> bytes, sin dependencia del
+dominio de core-api. Patrón "buffer" de PyMuPDF (documento en memoria,
+``tobytes(garbage=3, deflate=True)``, sin archivo intermedio en disco).
 """
 from __future__ import annotations
 
@@ -24,7 +11,7 @@ import datetime
 import html
 from typing import Iterable, List, Sequence
 
-import pymupdf  # PyMuPDF (fitz)
+import pymupdf
 
 # Geometría A4 en puntos (new_page() por defecto = 595 x 842).
 _PAGE_W = 595.0
@@ -46,12 +33,7 @@ _TABLE_CSS = (
 
 
 def format_money_cents(cents: int) -> str:
-    """Centavos (long de la API) → dinero legible "$1.234,56" (es-AR).
-
-    El wire de la API viaja en centavos (RF-07); los exports lo
-    muestran en pesos con separador de miles (punto) y centavos
-    (coma), según el requerimiento de export PDF de la Fase 5.
-    """
+    """Centavos (long de la API) -> dinero legible "$1.234,56" (es-AR)."""
     sign = "-" if cents < 0 else ""
     c = abs(int(cents))
     pesos, centavos = divmod(c, 100)
@@ -60,7 +42,7 @@ def format_money_cents(cents: int) -> str:
 
 
 def _page_count_needed(n_rows: int) -> int:
-    """Páginas necesarias para n_rows de tabla (1 si no hay filas)."""
+    """Paginas necesarias para n_rows de tabla (1 si no hay filas)."""
     usable = _TABLE_BOTTOM - _TABLE_TOP
     per_page = max(int(usable // _ROW_HEIGHT), 1)
     return max(1, (n_rows + per_page - 1) // per_page)
@@ -83,16 +65,10 @@ def render_report_pdf(
     rows: List[List[str]],
     footer: str = "",
 ) -> bytes:
-    """Renderiza un reporte genérico (título + tabla + footer) y
-    devuelve los bytes del PDF.
+    """Renderiza un reporte genérico (titulo + tabla + footer) a bytes.
 
-    - ``columns``: cabecera (una fila, estilo header).
-    - ``rows``: filas de datos (todas con ``len(columns)`` celdas str).
-    - Paginación automática: si la tabla no cabe en la página A4 se
-      abre una página nueva y se repite la cabecera.
-
-    El documento se construye ENTERAMENTE en memoria (patrón buffer)
-    y se serializa con ``tobytes(garbage=3, deflate=True)``.
+    Paginacion automatica: si la tabla no cabe en la pagina A4 se abre una
+    pagina nueva y se repite la cabecera.
     """
     if not columns:
         raise ValueError("columns no puede estar vacio")
@@ -119,14 +95,14 @@ def render_report_pdf(
             _PAGE_W - _MARGIN_X,
             _TABLE_BOTTOM,
         )
-        # La cabecera (thead) se repite en cada página.
+        # La cabecera (thead) se repite en cada pagina.
         page.insert_htmlbox(rect, _table_html(columns, chunk), css=_TABLE_CSS)
 
     if footer:
         last = doc[-1]
         last.insert_text(pymupdf.Point(_MARGIN_X, _FOOTER_Y), footer, fontsize=8)
 
-    # Buffer: serializa en memoria (versión de save() sin disco).
+    # Buffer: serializa en memoria (version de save() sin disco).
     pdf_bytes = doc.tobytes(garbage=3, deflate=True)
     doc.close()
     return pdf_bytes
@@ -145,11 +121,8 @@ def render_weekly_pdf(
     """PDF del resumen semanal (RF-P6-11).
 
     ``orders``: tuplas ``(fecha, cliente, items_count, total_cents,
-    paid, metodo)``. Los totales van en el footer (monto total, pagado
-    y pendiente), formateados en pesos.
+    paid, metodo)``.
     """
-    # orders puede ser un iterable; lo materializo una sola vez para
-    # contar las filas del subtitle y armar la tabla.
     orders = list(orders)
     subtitle = (
         f"Semana del {monday.strftime('%d/%m/%Y')} al {sunday.strftime('%d/%m/%Y')}"

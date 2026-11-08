@@ -3,6 +3,7 @@
 Namespace: /api/v1/orders.
 """
 
+import asyncio
 import datetime
 import io
 import re
@@ -48,7 +49,9 @@ from api.v1.orders.schemas import (
     WeeklyTotals,
     WhatsAppLinkResponse,
 )
-from api.v1.money import decimal_to_cents
+from api.v1.money import decimal_to_cents, format_money_cents
+from api.v1.pdf.dependencies import get_pdf_client
+from data.pdf.client import PdfClient
 from api.v1.orders.schemas import OrderStatus as P6OrderStatus
 from api.v1.orders.schemas import (
     OrderDetailSchema,
@@ -914,8 +917,6 @@ async def _fetch_all_orders(
 def _orders_csv_rows(orders: List[P6Order]) -> List[List[str]]:
     """Filas CSV (con cabecera) del export de pedidos, dinero en
     formato legible $1.234,56 (format_money_cents, Fase 5)."""
-    from data.pdf_export.pymupdf_renderer import format_money_cents
-
     rows: List[List[str]] = [
         ["id", "cliente", "fecha", "items", "total", "estado", "pago", "metodo"]
     ]
@@ -993,25 +994,37 @@ async def weekly_summary(
 async def weekly_summary_pdf(
     week: Optional[str] = Query(default=None, max_length=10),
     repo: OrderRepository = Depends(get_order_repository),
+    pdf: PdfClient = Depends(get_pdf_client),
     _admin: User = Depends(require_admin),
 ):
-    """PDF (PyMuPDF, en memoria) del resumen semanal — mismo dato que
+    """PDF del resumen semanal (pdfgenerator, ADR-0001) — mismo dato que
     GET /orders/weekly (Fase 5, nuevo requerimiento de export)."""
     monday, sunday = _parse_week(week)
     orders: List[P6Order] = []
     for st in ("confirmado", "entregado"):
         orders.extend(await _fetch_all_orders(repo, st, monday, sunday, None))
     orders.sort(key=lambda o: (o.date, o.customer_name))
-    from data.pdf_export.pymupdf_renderer import render_weekly_pdf
 
     total_cents = sum((decimal_to_cents(o.total) for o in orders), 0)
     paid_cents = sum((decimal_to_cents(o.total) for o in orders if o.paid), 0)
-    data = [
-        (o.date, o.customer_name, len(o.items), decimal_to_cents(o.total),
-         o.paid, o.payment_method)
-        for o in orders
-    ]
-    pdf_bytes = render_weekly_pdf(monday, sunday, data, total_cents, paid_cents)
+    payload = {
+        "monday": monday.isoformat(),
+        "sunday": sunday.isoformat(),
+        "orders": [
+            {
+                "fecha": o.date.isoformat(),
+                "cliente": o.customer_name,
+                "items": len(o.items),
+                "total_cents": decimal_to_cents(o.total),
+                "paid": o.paid,
+                "metodo": o.payment_method,
+            }
+            for o in orders
+        ],
+        "total_cents": total_cents,
+        "paid_cents": paid_cents,
+    }
+    pdf_bytes = await asyncio.to_thread(pdf.render_weekly, payload)
     iso_week = monday.isocalendar()
     filename = f"resumen_semanal_{iso_week[0]}-W{iso_week[1]:02d}.pdf"
     return Response(
@@ -1031,12 +1044,13 @@ async def export_orders(
     paid: Optional[bool] = Query(default=None),
     fmt: Literal["csv", "pdf"] = Query(default="csv", alias="format"),
     repo: OrderRepository = Depends(get_order_repository),
+    pdf: PdfClient = Depends(get_pdf_client),
     _admin: User = Depends(require_admin),
 ):
     """Export del listado de pedidos con los mismos filtros que
     GET /orders (fecha, estado, pago). CSV por defecto (backward-
-    compatible); ``format=pdf`` genera PDF con PyMuPDF en memoria
-    (Fase 5, sin archivo intermedio)."""
+    compatible); ``format=pdf`` genera PDF vía pdfgenerator (ADR-0001,
+    sin archivo intermedio)."""
     orders = await _fetch_all_orders(repo, status_, from_, to_, paid)
     orders.sort(key=lambda o: (o.date, o.customer_name))
     if from_ and to_:
@@ -1045,15 +1059,24 @@ async def export_orders(
         period = "todos"
     if fmt == "csv":
         return _csv_response(_orders_csv_rows(orders), f"pedidos_{period}.csv")
-    # PDF
-    from data.pdf_export.pymupdf_renderer import render_orders_export_pdf
-
-    data = [
-        (o.id or "", o.customer_name, o.date, len(o.items),
-         decimal_to_cents(o.total), o.status, o.paid, o.payment_method)
-        for o in orders
-    ]
-    pdf_bytes = render_orders_export_pdf(period, data)
+    # PDF (pdfgenerator, ADR-0001)
+    payload = {
+        "period_label": period,
+        "orders": [
+            {
+                "id": o.id or "",
+                "cliente": o.customer_name,
+                "fecha": o.date.isoformat(),
+                "items": len(o.items),
+                "total_cents": decimal_to_cents(o.total),
+                "estado": o.status,
+                "paid": o.paid,
+                "metodo": o.payment_method,
+            }
+            for o in orders
+        ],
+    }
+    pdf_bytes = await asyncio.to_thread(pdf.render_orders_export, payload)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

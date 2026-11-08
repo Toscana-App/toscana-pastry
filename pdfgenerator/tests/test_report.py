@@ -1,22 +1,15 @@
-"""Tests de UNIDAD del renderer PDF con PyMuPDF (Fase 5).
+"""Tests del renderer de reportes PyMuPDF (movido de core-api).
 
-Estos tests SÍ se ejecutan en el entorno sin Postgres: el renderer no
-toca la base de datos (solo bytes en memoria, patrón "buffer").
-
-Cobertura:
-- format_money_cents (centavos → $X.XXX,XX es-AR).
-- render_report_pdf genérico: magic bytes %PDF, re-open con
-  ``pymupdf.open(stream=bytes)``, page_count, extracción de texto
-  (título, cliente, monto), paginación con repetición de cabecera.
-- Wrappers específicos: resumen semanal, export pedidos, export
-  presupuestos.
+Verifica magic bytes %PDF, re-open en memoria, paginacion con repeticion de
+cabecera y los wrappers especificos (semanal, export pedidos, export
+presupuestos).
 """
 import datetime
 
 import pymupdf
 import pytest
 
-from data.pdf_export.pymupdf_renderer import (
+from pdfgenerator.renderers import (
     format_money_cents,
     render_budgets_export_pdf,
     render_orders_export_pdf,
@@ -43,8 +36,6 @@ def test_format_money_cents(cents, expected):
     assert format_money_cents(cents) == expected
 
 
-# ─── render_report_pdf (genérico) ────────────────────────────────────
-
 COLUMNS = ["Fecha", "Cliente", "Items", "Total", "Pago", "Metodo"]
 ROWS = [
     ["02/11/2026", "Juan Pérez", "3", "$12.345,67", "Pagado", "efectivo"],
@@ -53,18 +44,10 @@ ROWS = [
 
 
 def _open(pdf_bytes: bytes) -> pymupdf.Document:
-    """Reabre los bytes en memoria (verifica que el buffer es un PDF
-    válido y que no se dependió de ningún archivo intermedio)."""
     return pymupdf.open(stream=pdf_bytes)
 
 
 def _text_of(doc: pymupdf.Document, page: int | None = None) -> str:
-    """Texto extraído normalizando las ligaduras tipográficas.
-
-    insert_htmlbox renderiza con la fuente Fira Sans integrada, que
-    liga "fi" (U+FB01): visualmente correcto, pero get_text() extrae
-    la ligadura en vez de "fi". Para los asserts se normaliza.
-    """
     raw = doc[page].get_text() if page is not None else "".join(p.get_text() for p in doc)
     return raw.replace("\ufb01", "fi")
 
@@ -83,7 +66,6 @@ def test_render_report_pdf_bytes_and_text():
     doc = _open(pdf_bytes)
     assert doc.page_count >= 1
     text = _text_of(doc, 0)
-    # Título, subtítulo, cabecera, una fila (cliente + monto) y footer.
     assert "Resumen semanal de pedidos" in text
     assert "02/11/2026 al 08/11/2026" in text
     assert "Cliente" in text
@@ -95,7 +77,6 @@ def test_render_report_pdf_bytes_and_text():
 
 
 def test_render_report_pdf_empty_rows_single_page():
-    """Sin filas de datos: una sola página con solo la cabecera."""
     pdf_bytes = render_report_pdf(
         title="Export de pedidos",
         subtitle="Periodo: todos — 0 pedidos",
@@ -110,24 +91,17 @@ def test_render_report_pdf_empty_rows_single_page():
 
 
 def test_render_report_pdf_multipage_repeats_header():
-    """Tabla larga: paginación A4 + repetición de la cabecera."""
     rows = [
-        [f"02/11/2026", f"Cliente {i:02d}", "1", "$1.000,00", "Pagado", "efectivo"]
+        ["02/11/2026", f"Cliente {i:02d}", "1", "$1.000,00", "Pagado", "efectivo"]
         for i in range(120)
     ]
     pdf_bytes = render_report_pdf(
-        title="Reporte largo",
-        subtitle="120 filas",
-        columns=COLUMNS,
-        rows=rows,
-        footer="fin",
+        title="Reporte largo", subtitle="120 filas", columns=COLUMNS, rows=rows, footer="fin"
     )
     doc = _open(pdf_bytes)
     assert doc.page_count > 1
-    # La cabecera se repite en la segunda página.
     assert "Cliente" in _text_of(doc, 1)
     assert "Cliente 40" in _text_of(doc, 1) or "Cliente 60" in _text_of(doc, 1)
-    # La última fila cae en la última página.
     assert "Cliente 119" in _text_of(doc, -1)
     doc.close()
 
@@ -135,9 +109,6 @@ def test_render_report_pdf_multipage_repeats_header():
 def test_render_report_pdf_requires_columns():
     with pytest.raises(ValueError):
         render_report_pdf(title="t", subtitle="", columns=[], rows=[])
-
-
-# ─── Wrappers específicos ────────────────────────────────────────────
 
 
 def test_render_weekly_pdf():
@@ -157,7 +128,6 @@ def test_render_weekly_pdf():
     assert "$12.345,67" in text
     assert "Pagado" in text
     assert "Pendiente" in text
-    # Footer con totales formateados.
     full_text = _text_of(doc)
     assert "Totales: $13.145,67" in full_text
     assert "Pagado: $12.345,67" in full_text
@@ -166,7 +136,6 @@ def test_render_weekly_pdf():
 
 
 def test_render_weekly_pdf_accepts_iterator():
-    """orders como iterable (no lista): se materializa una sola vez."""
     monday = datetime.date(2026, 11, 2)
     sunday = datetime.date(2026, 11, 8)
     gen = iter([(monday, "Solo Uno", 1, 10050, True, "efectivo")])

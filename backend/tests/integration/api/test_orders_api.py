@@ -8,12 +8,8 @@ con margen 100% -> 1.550.
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import event
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from main import app
-from data.models import Base
-from data.accent import accent_fold
 from data.db import get_db
 from data.repositories.sql_user_repository import SQLUserRepository
 from data.repositories.sql_settings_repository import SQLSettingsRepository

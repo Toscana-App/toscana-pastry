@@ -6,7 +6,7 @@ Reglas cubiertas:
   3) cliente → consumidor_final OK; revendedores → 403
   4) audience inválida → 422
   5) CSV: filas de productos con precio de la audiencia
-  6) PDF: content-type application/pdf + bytes %PDF (skip if weasyprint libs missing)
+  6) PDF: content-type application/pdf + bytes %PDF (via pdfgenerator; en tests, fake)
 """
 
 import csv
@@ -28,19 +28,6 @@ from api.v1.auth.dependencies import get_user_repository
 from api.v1.ingredients.dependencies import get_ingredient_repository
 from api.v1.settings.dependencies import get_settings_repository
 from domain.models import User, UserRole, Ingredient
-
-# Check weasyprint rendering capability at import time.
-# WeasyPrint on Windows requires Pango/GObject system libraries.
-# If unavailable, PDF tests skip with an explicit reason.
-_WEASYPRINT_RENDER_OK = False
-try:
-    from weasyprint import HTML
-
-    # Try a minimal render to confirm the full stack works
-    HTML(string="<html><body>test</body></html>").render()
-    _WEASYPRINT_RENDER_OK = True
-except OSError:
-    _WEASYPRINT_RENDER_OK = False
 
 PRICELIST_CSV = "/api/v1/products/pricelist/csv"
 PRICELIST_PDF = "/api/v1/products/pricelist/pdf"
@@ -134,10 +121,6 @@ async def test_admin_csv_consumidor_final(client):
 
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(
-    not _WEASYPRINT_RENDER_OK,
-    reason="WeasyPrint cannot render on this system (missing Pango/GObject libraries)",
-)
 async def test_admin_pdf_revendedores(client):
     """T4-1: admin puede exportar PDF para revendedores → 200."""
     token = await _token_for(client, "admin@example.com")
@@ -150,10 +133,6 @@ async def test_admin_pdf_revendedores(client):
 
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(
-    not _WEASYPRINT_RENDER_OK,
-    reason="WeasyPrint cannot render on this system (missing Pango/GObject libraries)",
-)
 async def test_admin_pdf_consumidor_final(client):
     """T4-1: admin puede exportar PDF para consumidor_final → 200."""
     token = await _token_for(client, "admin@example.com")
@@ -178,10 +157,6 @@ async def test_negocio_csv_revendedores(client):
 
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(
-    not _WEASYPRINT_RENDER_OK,
-    reason="WeasyPrint cannot render on this system (missing Pango/GObject libraries)",
-)
 async def test_negocio_pdf_revendedores(client):
     """T4-2: negocio puede exportar PDF para revendedores → 200."""
     token = await _token_for(client, "negocio@example.com")
@@ -230,10 +205,6 @@ async def test_cliente_csv_consumidor_final(client):
 
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(
-    not _WEASYPRINT_RENDER_OK,
-    reason="WeasyPrint cannot render on this system (missing Pango/GObject libraries)",
-)
 async def test_cliente_pdf_consumidor_final(client):
     """T4-3: cliente puede exportar PDF para consumidor_final → 200."""
     token = await _token_for(client, "cliente@example.com")
@@ -413,15 +384,11 @@ async def test_csv_contains_product_rows_with_audience_price():
 
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(
-    not _WEASYPRINT_RENDER_OK,
-    reason="WeasyPrint cannot render on this system (missing Pango/GObject libraries)",
-)
 async def test_pdf_content_type_and_bytes():
     """T4-6: el PDF devuelve content-type application/pdf y bytes que empiezan con %PDF.
 
-    Nota: WeasyPrint en Windows requiere Pango. Si no está disponible,
-    este test se salta con razón explícita.
+    El render lo hace pdfgenerator (ADR-0001); en tests un fake de PdfClient
+    devuelve bytes %PDF, así que no depende de WeasyPrint en el sistema.
     """
     engine = make_test_engine()
 
@@ -572,43 +539,4 @@ async def test_csv_escapes_commas_and_quotes_in_product_names():
             app.dependency_overrides.clear()
 
 
-# ─── Test: HTML escaping in PDF template ──────────────────────────────────
 
-
-@pytest.mark.asyncio
-async def test_pdf_html_escapes_product_names():
-    """T4-fix2: _build_pdf_html must escape product names/units to prevent
-    HTML injection (e.g. <script> or <img> tags).
-
-    No weasyprint render needed — we assert the raw HTML output.
-    """
-    from api.v1.products.router import _build_pdf_html
-
-    product_rows = [
-        {
-            "name": '<script>alert("xss")</script>',
-            "unit": '<img src=x onerror=alert(1)>',
-            "price": "$100",
-            "audience_label": "Revendedores",
-        },
-        {
-            "name": "Normal product",
-            "unit": "kg",
-            "price": "$50",
-            "audience_label": "Revendedores",
-        },
-    ]
-
-    html = _build_pdf_html(product_rows)
-
-    # The raw script tag must NOT appear in the output
-    assert '<script>alert("xss")</script>' not in html
-    assert '<img src=x onerror=alert(1)>' not in html
-
-    # The escaped versions MUST appear
-    assert "&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;" in html
-    assert "&lt;img src=x onerror=alert(1)&gt;" in html
-
-    # Normal product should be unchanged
-    assert "<td>Normal product</td>" in html
-    assert "<td>kg</td>" in html

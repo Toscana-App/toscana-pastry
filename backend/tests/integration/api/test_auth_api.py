@@ -1,15 +1,9 @@
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from main import app
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-from data.models import Base
 from data.repositories.sql_user_repository import SQLUserRepository
 from data.db import get_db
-import datetime
 import asyncio
-from fastapi import Depends
 
 @pytest.mark.asyncio
 async def test_health():

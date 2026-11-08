@@ -13,7 +13,7 @@ from pg_support import make_test_engine
 import pytest
 from decimal import Decimal
 from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from main import app
 from data.models import Base

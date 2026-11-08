@@ -19,7 +19,7 @@ from decimal import Decimal
 from typing import Dict, Optional, Tuple
 
 from domain.models import BusinessSettings, Ingredient, Product, PricingSettings
-from domain.orders import OrderItem, OrderItemSnapshot, OrderItemSnapshotLine
+from domain.orders import OrderItemSnapshot, OrderItemSnapshotLine
 from domain.pricing import (
     CostBreakdown,
     UnitConversionError,

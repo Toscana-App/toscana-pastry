@@ -1,8 +1,9 @@
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from api.v1.admin.router import router as admin_router
 from api.v1.auth.router import router as auth_router
@@ -23,6 +24,7 @@ from api.v1.settings.router import router as settings_router
 from api.v1.webhooks.router import router as webhooks_router
 from api.v1.whatsapp.router import router as whatsapp_router
 from data.db import init_db
+from data.pdf.client import PdfServiceError
 from core.config import settings as app_settings
 from data.models import Base
 
@@ -76,6 +78,21 @@ app.include_router(budgets_router, prefix="/api/v1")
 app.include_router(pdf_router, prefix="/api/v1")
 
 app.include_router(calc_router, prefix="/api/v1")
+
+
+@app.exception_handler(PdfServiceError)
+async def pdf_service_error_handler(request: Request, exc: PdfServiceError):
+    """pdfgenerator no respondió → 503 controlado (ADR-0001)."""
+    return JSONResponse(
+        status_code=503,
+        media_type="application/problem+json",
+        content={
+            "type": "https://toscana.app/problems/pdf-service-unavailable",
+            "title": "El servicio de PDF no está disponible",
+            "status": 503,
+            "detail": "El render de PDF está temporalmente caído. Reintentá en unos minutos.",
+        },
+    )
 
 
 @app.get("/health")

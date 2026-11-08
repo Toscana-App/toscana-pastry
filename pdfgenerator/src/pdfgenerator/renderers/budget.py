@@ -1,11 +1,16 @@
-"""Adaptador ReportLab del puerto PdfRenderer (Fase 8, P9).
+"""Render del PDF de presupuesto individual (ReportLab, Platypus).
 
-ReportLab (A4, Helvetica estándar: sin dependencias de fuentes).
-Solo toca el snapshot del cliente — NUNCA unit_cost, total_costos,
-ganancia ni margen (la suite verifica el texto extraído del PDF).
+Movido de ``backend/src/data/pdf/reportlab_renderer.py`` al binario
+``pdfgenerator``. Diferencia respecto al original: en vez del objeto de
+dominio ``Budget``, recibe un ``BudgetPdfRequest`` plano (DTO por HTTP) para
+que el renderer sea autonomo de core-api. El layout es identico: solo se
+pinta el snapshot del cliente (nunca costo, ganancia ni margen).
 """
+from __future__ import annotations
+
 import io
-from decimal import Decimal
+from datetime import datetime
+from decimal import ROUND_HALF_UP, Decimal
 from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
@@ -13,10 +18,15 @@ from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import (
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 
-from domain.budgets import Budget, IVA_PCT
-from domain.pdf import PdfRenderer, format_money_peso
+from ..schemas import BudgetPdfRequest
 
 _MARGIN = 16 * mm
 _BRAND = colors.HexColor("#1F3A2D")  # verde oscuro, identidad Toscana
@@ -25,9 +35,27 @@ _MUTED = colors.HexColor("#5A5A5A")
 _GRID = colors.HexColor("#C9C9C9")
 
 
-def _format_date(value) -> str:
+def _format_date(value: datetime) -> str:
     """dd/mm/aaaa (es-AR). Acepta datetime con o sin timezone."""
     return value.strftime("%d/%m/%Y")
+
+
+def format_money_peso(amount: Decimal) -> str:
+    """Dinero en formato es-AR para el documento: $1.550,00
+    (punto separador de miles, coma decimales).
+
+    Movido de ``domain.pdf`` al binario: funcion pura de formateo.
+    """
+    q = amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    sign = "-" if q < 0 else ""
+    q = abs(q)
+    integer, cents = f"{q:.2f}".split(".")
+    groups: list[str] = []
+    while len(integer) > 3:
+        groups.insert(0, integer[-3:])
+        integer = integer[:-3]
+    groups.insert(0, integer)
+    return f"{sign}${'.'.join(groups)},{cents}"
 
 
 def _styles() -> dict:
@@ -67,16 +95,17 @@ def _styles() -> dict:
     }
 
 
-def build_budget_pdf(budget: Budget, business_name: str, footer_text: str) -> bytes:
-    """Renderiza el presupuesto en PDF (A4).
+def build_budget_pdf(req: BudgetPdfRequest) -> bytes:
+    """Renderiza el presupuesto (DTO plano) en PDF A4.
 
-    Solo el snapshot del cliente (P9): productos, cantidades, precios
-    de venta, subtotal, IVA (21%) y total. No aparecen costos, ganancia
-    ni margen — ni como dato ni como palabra.
+    Solo el snapshot del cliente (P9): productos, cantidades, precios de
+    venta, subtotal, IVA y total. No aparecen costos, ganancia ni margen —
+    ni como dato ni como palabra.
     """
-    business = business_name.strip() or "Toscana Pastry"
-    totals = budget.totals
-    iva_amount = (totals.total_venta - totals.subtotal).quantize(Decimal("0.01"))
+    business = req.business_name.strip() or "Toscana Pastry"
+    subtotal = req.subtotal
+    total = req.total
+    iva_amount = (total - subtotal).quantize(Decimal("0.01"))
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -86,12 +115,12 @@ def build_budget_pdf(budget: Budget, business_name: str, footer_text: str) -> by
         rightMargin=_MARGIN,
         topMargin=_MARGIN,
         bottomMargin=_MARGIN,
-        title=f"Presupuesto {budget.seq}",
+        title=f"Presupuesto {req.seq}",
         author=business,
         subject="Presupuesto",
     )
     s = _styles()
-    now = budget.created_at
+    now = req.created_at
     fecha = _format_date(now) if now is not None else ""
 
     elements = [
@@ -101,17 +130,17 @@ def build_budget_pdf(budget: Budget, business_name: str, footer_text: str) -> by
             [
                 [
                     Paragraph(
-                        f"PRESUPUESTO {budget.seq}<br/>"
-                        f"Versión {budget.version}<br/>"
+                        f"PRESUPUESTO {req.seq}<br/>"
+                        f"Versión {req.version}<br/>"
                         f"Fecha: {fecha}",
                         s["title"],
                     ),
                     Paragraph(
-                        f"<b>Cliente</b><br/>{escape(budget.customer_name)}<br/>"
-                        f"Tel: {escape(budget.customer_phone)}"
+                        f"<b>Cliente</b><br/>{escape(req.customer_name)}<br/>"
+                        f"Tel: {escape(req.customer_phone)}"
                         + (
-                            f"<br/>Entrega: {escape(budget.delivery_address)}"
-                            if budget.delivery_address
+                            f"<br/>Entrega: {escape(req.delivery_address)}"
+                            if req.delivery_address
                             else ""
                         ),
                         s["cell"],
@@ -131,7 +160,7 @@ def build_budget_pdf(budget: Budget, business_name: str, footer_text: str) -> by
             Paragraph("Subtotal", s["header_cell"]),
         ]
     ]
-    for item in budget.items:
+    for item in req.items:
         rows.append(
             [
                 Paragraph(escape(item.product_name), s["cell"]),
@@ -166,9 +195,9 @@ def build_budget_pdf(budget: Budget, business_name: str, footer_text: str) -> by
     elements.append(Spacer(1, 8 * mm))
 
     total_rows = [
-        [Paragraph("Subtotal", s["cell"]), Paragraph(format_money_peso(totals.subtotal), s["cell"])],
-        [Paragraph(f"IVA ({IVA_PCT.quantize(Decimal('1'))}%)", s["cell"]), Paragraph(format_money_peso(iva_amount), s["cell"])],
-        [Paragraph("Total", s["total"]), Paragraph(format_money_peso(totals.total_venta), s["total"])],
+        [Paragraph("Subtotal", s["cell"]), Paragraph(format_money_peso(subtotal), s["cell"])],
+        [Paragraph(f"IVA ({req.iva_pct.quantize(Decimal('1'))}%)", s["cell"]), Paragraph(format_money_peso(iva_amount), s["cell"])],
+        [Paragraph("Total", s["total"]), Paragraph(format_money_peso(total), s["total"])],
     ]
     totals_table = Table(
         total_rows, colWidths=[60 * mm, 66 * mm], hAlign="RIGHT"
@@ -188,18 +217,13 @@ def build_budget_pdf(budget: Budget, business_name: str, footer_text: str) -> by
     elements.append(totals_table)
     elements.append(Spacer(1, 14 * mm))
 
-    footer = footer_text.strip() or f"{business} — presupuesto {budget.seq}"
+    footer = req.footer_text.strip() or f"{business} — presupuesto {req.seq}"
     elements.append(Paragraph(escape(footer), s["footer"]))
     elements.append(Spacer(1, 2 * mm))
     elements.append(Paragraph(
-        f"Presupuesto {budget.seq} · Versión {budget.version} · Documento generado el {fecha}",
+        f"Presupuesto {req.seq} · Versión {req.version} · Documento generado el {fecha}",
         s["footer"],
     ))
 
     doc.build(elements)
     return buffer.getvalue()
-
-
-class ReportLabPdfRenderer(PdfRenderer):
-    def render(self, budget: Budget, business_name: str, footer_text: str) -> bytes:
-        return build_budget_pdf(budget, business_name, footer_text)
