@@ -1,11 +1,70 @@
 "use client"
 
 import { Suspense } from "react"
-import { Container, VStack } from "@chakra-ui/react";
-import { LoginFormSkeleton } from "@/components/ui/skeleton";
+import {
+  Box,
+  Button,
+  Container,
+  Field,
+  Heading,
+  Input,
+  Separator,
+  Stack,
+  Text,
+  VStack,
+} from "@chakra-ui/react";
 
 import LoginForm from "@/components/auth/LoginForm"
 import { BrandLogo } from "@/components/layout/BrandLogo"
+import { GoogleIcon } from "@/components/ui/google-icon"
+
+/**
+ * Static stand-in for the login card while Next hydrates the form
+ * (Suspense is required because LoginForm uses `useSearchParams`).
+ * The form is fully static — no endpoint data — so the fallback mirrors
+ * the real card one-to-one (same heading, field and buttons with the same
+ * sizes) instead of a skeleton: nothing on this screen loads from an
+ * endpoint, so no element here may shimmer.
+ */
+function LoginFormPlaceholder() {
+  return (
+    <Box
+      width="100%"
+      maxW="400px"
+      p={8}
+      borderRadius="lg"
+      borderWidth="1px"
+      borderColor="border"
+      boxShadow="lg"
+      bg="bg.panel"
+    >
+      <Stack gap={6} align="center">
+        <Heading fontSize="2xl">Iniciar sesión</Heading>
+        <Text color="fg.muted" textAlign="center">
+          Elige un método para continuar
+        </Text>
+        <Separator />
+        <Stack gap={4} width="full" as="div">
+          <Field.Root>
+            <Field.Label>
+              Correo electrónico
+              <Field.RequiredIndicator />
+            </Field.Label>
+            <Input type="email" placeholder="you@example.com" disabled aria-hidden="true" />
+          </Field.Root>
+          <Button colorPalette="brand" width="full" disabled aria-hidden="true">
+            Enviar link de acceso
+          </Button>
+        </Stack>
+        <Text fontSize="sm" color="fg.muted">o</Text>
+        <Button variant="outline" width="full" disabled aria-hidden="true">
+          <GoogleIcon />
+          Continuar con Google
+        </Button>
+      </Stack>
+    </Box>
+  )
+}
 
 export default function LoginPage() {
   return (
@@ -20,7 +79,7 @@ export default function LoginPage() {
       <VStack gap={8} width="full" align="center">
         <BrandLogo variant="vertical" height={150} priority />
         {/* Suspense obligatorio: LoginForm usa useSearchParams (requisito de prerender de Next). */}
-        <Suspense fallback={<LoginFormSkeleton />}>
+        <Suspense fallback={<LoginFormPlaceholder />}>
           <LoginForm />
         </Suspense>
       </VStack>

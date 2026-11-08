@@ -2,6 +2,7 @@
 
 import { Badge, Box, Button, Container, Flex } from "@chakra-ui/react";
 import NextLink from "next/link";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { isPortalRole } from "@/lib/portalRoutes";
 import { ColorModeButton } from "@/components/ui/color-mode";
@@ -23,9 +24,17 @@ const ROLE_LABELS: Record<string, string> = {
  */
 export function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
+  const pathname = usePathname();
 
   const role = user?.role;
   const isAdmin = role === "admin";
+
+  // /login is a standalone screen with its own centered brand lockup:
+  // rendering the navbar there duplicates the logo and adds a
+  // redundant "Login" link to a page that already IS the login.
+  if (pathname === "/login") {
+    return null;
+  }
 
   return (
     <Box

@@ -153,32 +153,6 @@ export function FullPageSkeleton() {
   );
 }
 
-/** Login: card con título, email y dos botones (acceso + Google). */
-export function LoginFormSkeleton() {
-  return (
-    <Card.Root
-      width="full"
-      maxW="25rem"
-      borderRadius="2xl"
-      boxShadow="md"
-      role="status"
-      aria-label="Cargando"
-    >
-      <Card.Body p="8">
-        <Stack gap="4" align="center">
-          <Skeleton h="8" w="55%" />
-          <Skeleton h="3" w="80%" />
-          <Skeleton h="1px" w="100%" mt="2" />
-          <FieldSkeleton labelWidth="100%" />
-          <Skeleton h="9" borderRadius="lg" w="100%" />
-          <Skeleton h="3" w="12%" />
-          <Skeleton h="9" borderRadius="lg" w="100%" />
-        </Stack>
-      </Card.Body>
-    </Card.Root>
-  );
-}
-
 /** Perfil del portal: título, card de cuenta y libro de direcciones. */
 export function ProfileSkeleton() {
   return (
