@@ -1,20 +1,7 @@
 import { z } from "zod";
 import { PRODUCT_DIFFICULTIES, RECIPE_UNITS } from "./types";
 
-/**
- * Esquemas zod del módulo de productos (Fase 5, RF-P4-06: validación por
- * campo, errores inline).
- *
- * El client es la PRIMERA línea de validación; el backend sigue siendo la
- * última (422 si algo se cuela). `.strict()` porque el backend usa
- * `extra="forbid"`: un typo muere acá, no en el payload.
- *
- * El formulario (crear/editar) usa `productFormSchema` con los tres campos de
- * preparación SIEMPRE presentes: así el Costos (preview en vivo) siempre tiene
- * datos, y en editar el backend los recibe como campos definidos.
- */
 
-/** Línea de receta (RF-P4-02): insumo + cantidad > 0 + unidad del contrato. */
 export const recipeItemSchema = z
   .object({
     ingredient_id: z
@@ -68,13 +55,6 @@ export const productFormSchema = z
 
 export type ProductFormValues = z.infer<typeof productFormSchema>;
 
-/**
- * Esquema laxo para restaurar borradores (RNF-P4-02): un borrador interrumpido
- * a mitad de carga tiene campos en blanco, receta vacía o `prep_time_min: 0`,
- * así que no se valida con las reglas de negocio de `productFormSchema`, solo
- * con la forma/tipos. Todos los campos son opcionales y se mezclan sobre los
- * defaults del alta.
- */
 export const productDraftSchema = z
   .object({
     name: z.string(),

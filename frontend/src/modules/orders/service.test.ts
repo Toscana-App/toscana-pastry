@@ -5,14 +5,6 @@ import {
   ordersService,
 } from "./service";
 
-/**
- * Tests del service de pedidos (Fase 6): verifican el contrato HTTP
- * (path, método, body) y el contrato Money long de centavos.
- * Se mockea fetch — nada de red.
- *
- * Money: la API emite long de centavos (310000); el service lo pasa tal cual.
- * Margen: porcentaje plano ("100" = 100%), no money.
- */
 const API_BASE = "http://localhost:8000/api/v1";
 
 function mockFetch(status: number, body: unknown) {
@@ -356,7 +348,6 @@ describe("ordersService — preview y whatsapp", () => {
     });
 
     const res = await ordersService.whatsapp("o1");
-    // backend/src/api/v1/orders/router.py: POST /orders/{order_id}/whatsapp-link
     expect(lastCall(fetchMock).url).toBe(
       `${API_BASE}/orders/o1/whatsapp-link`,
     );
@@ -504,7 +495,6 @@ describe("ordersService — GET /orders/export (UC-08)", () => {
   }
 
   beforeEach(() => {
-    // jsdom no implementa object URLs.
     URL.createObjectURL = vi.fn().mockReturnValue("blob:mock");
     URL.revokeObjectURL = vi.fn();
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});

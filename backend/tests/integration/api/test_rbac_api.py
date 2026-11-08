@@ -88,7 +88,6 @@ async def test_admin_users_allowed_for_admin(client, db_session):
     assert body["users"][0]["role"] == "admin"
 
 
-# --- Escritura de configuración, catálogo y pricing: sólo ADMIN ------------
 
 _SETTINGS_PAYLOAD = {
     "hourly_rate": 300000,
@@ -140,7 +139,6 @@ async def test_settings_write_forbidden_for_customer(client):
 
 @pytest.mark.asyncio
 async def test_settings_read_allowed_for_customer(client):
-    # La lectura de la config no se restringe por rol (spec: autenticado).
     token = await _token_for(client, "customer@example.com")
     response = await client.get(
         "/api/v1/tenant/settings", headers={"Authorization": f"Bearer {token}"}
@@ -183,7 +181,6 @@ async def test_ingredient_write_forbidden_for_customer(client):
 
 @pytest.mark.asyncio
 async def test_ingredient_read_allowed_for_customer(client):
-    # La lectura del catálogo no se restringe por rol (spec: autenticado).
     token = await _token_for(client, "customer@example.com")
     headers = {"Authorization": f"Bearer {token}"}
     assert (await client.get("/api/v1/ingredients", headers=headers)).status_code == 200

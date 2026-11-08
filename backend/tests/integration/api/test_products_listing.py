@@ -1,17 +1,3 @@
-"""Tests del catalogo de portal: GET /api/v1/products?audience= (T3).
-
-Contrato:
-  GET /api/v1/products?audience=revendedores|consumidor_final
-  Respuesta: {"audience", "products", "total", "categories"}
-  Fila: {id, name, category, description, image_url, price, price_per_serving, complete}
-  Solo productos con available=True y receta completa (con precio).
-  Precio = base del motor (redondeo) + derive_audience_price
-  (revendedores = base; consumidor_final = base × (1 + markup/100)).
-
-Fixtures:
-  db_session (Postgres, conftest) + siembra directa de usuarios,
-  BusinessSettings, insumos y productos (ORM).
-"""
 
 import uuid
 from decimal import Decimal
@@ -213,14 +199,12 @@ def _by_name(data: dict) -> dict[str, dict]:
 
 @pytest.mark.asyncio
 async def test_requires_auth(client):
-    """T3-0: sin token → 401."""
     response = await client.get("/api/v1/products", params={"audience": "revendedores"})
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
 async def test_admin_can_access_both_audiences(client):
-    """T3-1: admin → 200 en ambas audiencias."""
     token = await _token_for(client, "admin@example.com")
     r_rev = await _list(client, token, "revendedores")
     r_cons = await _list(client, token, "consumidor_final")
@@ -232,7 +216,6 @@ async def test_admin_can_access_both_audiences(client):
 
 @pytest.mark.asyncio
 async def test_admin_revendedores_sees_engine_prices(client):
-    """T3-2: revendedores = base del motor (margen 25%, redondeo 0.01)."""
     token = await _token_for(client, "admin@example.com")
     r = await _list(client, token, "revendedores")
     assert r.status_code == 200
@@ -247,7 +230,6 @@ async def test_admin_revendedores_sees_engine_prices(client):
 
 @pytest.mark.asyncio
 async def test_admin_consumidor_final_applies_markup(client):
-    """T3-3: consumidor_final = base × 1.40 (markup 40%)."""
     token = await _token_for(client, "admin@example.com")
     r = await _list(client, token, "consumidor_final")
     assert r.status_code == 200
@@ -259,7 +241,6 @@ async def test_admin_consumidor_final_applies_markup(client):
 
 @pytest.mark.asyncio
 async def test_negocio_revendedores_200(client):
-    """T3-4: negocio + revendedores → 200."""
     token = await _token_for(client, "negocio@example.com")
     r = await _list(client, token, "revendedores")
     assert r.status_code == 200
@@ -268,7 +249,6 @@ async def test_negocio_revendedores_200(client):
 
 @pytest.mark.asyncio
 async def test_negocio_consumidor_final_403(client):
-    """T3-5: negocio + consumidor_final → 403."""
     token = await _token_for(client, "negocio@example.com")
     r = await _list(client, token, "consumidor_final")
     assert r.status_code == 403
@@ -276,7 +256,6 @@ async def test_negocio_consumidor_final_403(client):
 
 @pytest.mark.asyncio
 async def test_cliente_revendedores_403(client):
-    """T3-6: cliente + revendedores → 403."""
     token = await _token_for(client, "cliente@example.com")
     r = await _list(client, token, "revendedores")
     assert r.status_code == 403
@@ -284,7 +263,6 @@ async def test_cliente_revendedores_403(client):
 
 @pytest.mark.asyncio
 async def test_cliente_consumidor_final_200_with_prices(client):
-    """T3-7: cliente + consumidor_final → 200 con precios de consumidor."""
     token = await _token_for(client, "cliente@example.com")
     r = await _list(client, token, "consumidor_final")
     assert r.status_code == 200
@@ -294,7 +272,6 @@ async def test_cliente_consumidor_final_200_with_prices(client):
 
 @pytest.mark.asyncio
 async def test_invalid_audience_422(client):
-    """T3-8: audience inválida → 422."""
     token = await _token_for(client, "admin@example.com")
     r = await _list(client, token, "inválida")
     assert r.status_code == 422
@@ -302,7 +279,6 @@ async def test_invalid_audience_422(client):
 
 @pytest.mark.asyncio
 async def test_audience_shape(client):
-    """T3-9: forma exacta de la respuesta y de las filas."""
     token = await _token_for(client, "admin@example.com")
     r = await _list(client, token, "revendedores")
     assert r.status_code == 200
@@ -318,7 +294,6 @@ async def test_audience_shape(client):
 
 @pytest.mark.asyncio
 async def test_hidden_and_incomplete_products_not_exposed(client):
-    """T3-10: ocultos e incompletos no aparecen en ninguna audiencia."""
     admin_token = await _token_for(client, "admin@example.com")
     cliente_token = await _token_for(client, "cliente@example.com")
     combos = [
@@ -337,7 +312,6 @@ async def test_hidden_and_incomplete_products_not_exposed(client):
 
 @pytest.mark.asyncio
 async def test_q_filters_by_name(client):
-    """T3-11: q filtra por nombre de producto."""
     token = await _token_for(client, "admin@example.com")
     r = await _list(client, token, "revendedores", q="pan")
     assert r.status_code == 200
@@ -348,7 +322,6 @@ async def test_q_filters_by_name(client):
 
 @pytest.mark.asyncio
 async def test_q_is_accent_insensitive(client):
-    """T3-12: q sin acentos encuentra nombres con acento."""
     token = await _token_for(client, "admin@example.com")
     r = await _list(client, token, "revendedores", q="cafe")
     assert r.status_code == 200
@@ -359,7 +332,6 @@ async def test_q_is_accent_insensitive(client):
 
 @pytest.mark.asyncio
 async def test_q_no_match_returns_empty(client):
-    """T3-13: sin coincidencias → total 0 y categories vacío."""
     token = await _token_for(client, "admin@example.com")
     r = await _list(client, token, "revendedores", q="zzz")
     assert r.status_code == 200
@@ -371,7 +343,6 @@ async def test_q_no_match_returns_empty(client):
 
 @pytest.mark.asyncio
 async def test_q_percent_is_literal(client):
-    """T3-14: '%' literal (sin ILIKE)."""
     token = await _token_for(client, "admin@example.com")
     r = await _list(client, token, "revendedores", q="%")
     assert r.status_code == 200
@@ -380,7 +351,6 @@ async def test_q_percent_is_literal(client):
 
 @pytest.mark.asyncio
 async def test_q_underscore_is_literal(client):
-    """T3-15: '_' literal (sin ILIKE)."""
     token = await _token_for(client, "admin@example.com")
     r = await _list(client, token, "revendedores", q="_")
     assert r.status_code == 200
@@ -389,7 +359,6 @@ async def test_q_underscore_is_literal(client):
 
 @pytest.mark.asyncio
 async def test_q_backslash_is_literal(client):
-    """T3-16: '\\' literal (sin escape)."""
     token = await _token_for(client, "admin@example.com")
     r = await _list(client, token, "revendedores", q="\\")
     assert r.status_code == 200
@@ -398,7 +367,6 @@ async def test_q_backslash_is_literal(client):
 
 @pytest.mark.asyncio
 async def test_q_mixed_special_is_literal(client):
-    """T3-17: mezcla de caracteres especiales como literal."""
     token = await _token_for(client, "admin@example.com")
     r = await _list(client, token, "revendedores", q="a%b_c")
     assert r.status_code == 200
@@ -407,7 +375,6 @@ async def test_q_mixed_special_is_literal(client):
 
 @pytest.mark.asyncio
 async def test_q_rejects_null_byte(client):
-    """T3-18: NUL byte → 422."""
     token = await _token_for(client, "admin@example.com")
     r = await _list(client, token, "revendedores", q="harina\x00x")
     assert r.status_code == 422
@@ -415,7 +382,6 @@ async def test_q_rejects_null_byte(client):
 
 @pytest.mark.asyncio
 async def test_q_rejects_bidirectional_control(client):
-    """T3-19: control bidireccional U+202E → 422."""
     token = await _token_for(client, "admin@example.com")
     r = await _list(client, token, "revendedores", q="pan\u202evolver")
     assert r.status_code == 422
@@ -423,7 +389,6 @@ async def test_q_rejects_bidirectional_control(client):
 
 @pytest.mark.asyncio
 async def test_q_rejects_oversized_and_whitespace(client):
-    """T3-20: 121 caracteres → 422; solo espacios → 422."""
     token = await _token_for(client, "admin@example.com")
     r_long = await _list(client, token, "revendedores", q="a" * 121)
     assert r_long.status_code == 422
@@ -433,7 +398,6 @@ async def test_q_rejects_oversized_and_whitespace(client):
 
 @pytest.mark.asyncio
 async def test_q_with_pagination_returns_slice_and_full_total(client):
-    """T3-21: q + paginación → slice de 2, total 3."""
     token = await _token_for(client, "admin@example.com")
     r = await _list(client, token, "revendedores", q="a", page_size=2)
     assert r.status_code == 200
@@ -444,7 +408,6 @@ async def test_q_with_pagination_returns_slice_and_full_total(client):
 
 @pytest.mark.asyncio
 async def test_admin_pagination_slice_and_total(client):
-    """T3-22: paginación por páginas + total estable; 501 → 422."""
     token = await _token_for(client, "admin@example.com")
     r1 = await _list(client, token, "revendedores", page_size=2, page=1)
     r2 = await _list(client, token, "revendedores", page_size=2, page=2)
@@ -467,7 +430,6 @@ async def test_admin_pagination_slice_and_total(client):
 
 @pytest.mark.asyncio
 async def test_no_cost_data_leaks_in_store_rows(client):
-    """T3-23: las filas del portal no traen datos de costo ni de insumos."""
     token = await _token_for(client, "admin@example.com")
     r = await _list(client, token, "consumidor_final")
     assert r.status_code == 200
@@ -508,7 +470,6 @@ async def _detail(
 
 @pytest.mark.asyncio
 async def test_store_detail_cliente_consumidor_final_shape_and_price(client, db_session):
-    """T3-24: detalle de tienda del cliente: 8 campos, precio con markup, sin costos."""
     product_id = await _product_id(db_session, "Pan de campo")
     token = await _token_for(client, "cliente@example.com")
     r = await _detail(client, product_id, token, "consumidor_final")
@@ -527,7 +488,6 @@ async def test_store_detail_cliente_consumidor_final_shape_and_price(client, db_
 
 @pytest.mark.asyncio
 async def test_store_detail_negocio_revendedores_base_price(client, db_session):
-    """T3-25: detalle de tienda del negocio: precio base del motor."""
     product_id = await _product_id(db_session, "Pan de campo")
     token = await _token_for(client, "negocio@example.com")
     r = await _detail(client, product_id, token, "revendedores")
@@ -537,7 +497,6 @@ async def test_store_detail_negocio_revendedores_base_price(client, db_session):
 
 @pytest.mark.asyncio
 async def test_store_detail_negocio_consumidor_final_403(client, db_session):
-    """T3-26: negocio no puede pedir el detalle en consumidor_final."""
     product_id = await _product_id(db_session, "Pan de campo")
     token = await _token_for(client, "negocio@example.com")
     r = await _detail(client, product_id, token, "consumidor_final")
@@ -546,7 +505,6 @@ async def test_store_detail_negocio_consumidor_final_403(client, db_session):
 
 @pytest.mark.asyncio
 async def test_store_detail_cliente_revendedores_403(client, db_session):
-    """T3-27: cliente no puede pedir el detalle en revendedores."""
     product_id = await _product_id(db_session, "Pan de campo")
     token = await _token_for(client, "cliente@example.com")
     r = await _detail(client, product_id, token, "revendedores")
@@ -555,7 +513,6 @@ async def test_store_detail_cliente_revendedores_403(client, db_session):
 
 @pytest.mark.asyncio
 async def test_store_detail_requires_auth(client, db_session):
-    """T3-28: sin token → 401."""
     product_id = await _product_id(db_session, "Pan de campo")
     r = await _detail(client, product_id, None, "consumidor_final")
     assert r.status_code == 401
@@ -563,7 +520,6 @@ async def test_store_detail_requires_auth(client, db_session):
 
 @pytest.mark.asyncio
 async def test_store_detail_portal_role_without_audience_403(client, db_session):
-    """T3-29: sin audience el detalle es admin-only."""
     product_id = await _product_id(db_session, "Pan de campo")
     token = await _token_for(client, "cliente@example.com")
     r = await _detail(client, product_id, token, None)
@@ -572,7 +528,6 @@ async def test_store_detail_portal_role_without_audience_403(client, db_session)
 
 @pytest.mark.asyncio
 async def test_store_detail_hidden_product_404(client, db_session):
-    """T3-30: producto oculto → 404 en el detalle de tienda."""
     product_id = await _product_id(db_session, "Torta oculta")
     token = await _token_for(client, "cliente@example.com")
     r = await _detail(client, product_id, token, "consumidor_final")
@@ -581,7 +536,6 @@ async def test_store_detail_hidden_product_404(client, db_session):
 
 @pytest.mark.asyncio
 async def test_store_detail_incomplete_product_404(client, db_session):
-    """T3-31: producto con receta incompleta → 404 en el detalle de tienda."""
     product_id = await _product_id(db_session, "Torta incompleta")
     token = await _token_for(client, "cliente@example.com")
     r = await _detail(client, product_id, token, "consumidor_final")
@@ -590,7 +544,6 @@ async def test_store_detail_incomplete_product_404(client, db_session):
 
 @pytest.mark.asyncio
 async def test_store_detail_unknown_product_404(client):
-    """T3-32: producto inexistente → 404 sin distinguirse del oculto."""
     token = await _token_for(client, "cliente@example.com")
     r = await _detail(client, str(uuid.uuid4()), token, "consumidor_final")
     assert r.status_code == 404
@@ -598,7 +551,6 @@ async def test_store_detail_unknown_product_404(client):
 
 @pytest.mark.asyncio
 async def test_store_detail_admin_with_audience_gets_store_shape(client, db_session):
-    """T3-33: admin + audience → misma forma de tienda (sin costos)."""
     product_id = await _product_id(db_session, "Pan de campo")
     token = await _token_for(client, "admin@example.com")
     r = await _detail(client, product_id, token, "consumidor_final")
@@ -610,7 +562,6 @@ async def test_store_detail_admin_with_audience_gets_store_shape(client, db_sess
 
 @pytest.mark.asyncio
 async def test_store_detail_admin_without_audience_keeps_admin_contract(client, db_session):
-    """T3-34: admin sin audience → contrato P4 completo con costos y receta."""
     product_id = await _product_id(db_session, "Pan de campo")
     token = await _token_for(client, "admin@example.com")
     r = await _detail(client, product_id, token, None)

@@ -42,7 +42,6 @@ async def get_current_user(
 
 
 def require_admin(current_user: User = Depends(get_current_user)) -> User:
-    """Authorization by role: only ADMIN passes. 403 explicit, not 404."""
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -64,10 +63,6 @@ def require_admin_or_audience(
 
 
 def require_role(*roles: UserRole):
-    """Generic role guard: only users whose role is in *roles pass.
-
-    Returns 403 with a clear message listing the required role(s).
-    """
     role_names = ", ".join(r.value for r in roles)
 
     def _guard(current_user: User = Depends(get_current_user)) -> User:

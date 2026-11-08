@@ -1,7 +1,3 @@
-/** Tipos del flujo de pedidos/carrito del portal (p11 F2/F3, backend C4/C6).
-
-Los montos viajan como string (Money, RNF-P4-02): nunca float en la API.
-*/
 
 export type DeliveryMode = "delivery" | "pickup";
 
@@ -51,7 +47,6 @@ export interface AddressEnvelope {
   address: Address;
 }
 
-/** Order line in the backend response (snapshot). */
 export interface OrderItemOut {
   product_id: string;
   product_name: string;
@@ -79,7 +74,6 @@ export interface OrderDetail {
   created_at: string;
 }
 
-/** Payload de POST /orders (portal creation, C6 — PortalOrderCreateRequest). */
 export interface PortalOrderPayload {
   items: {
     product_id: string;
@@ -93,7 +87,6 @@ export interface PortalOrderPayload {
   coupon_code: string | null;
 }
 
-/** Formatea un address (libro) como la string plana que espera POST /orders. */
 export function addressToLine(a: Address): string {
   const parts = [
     a.street_line_1,

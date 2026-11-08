@@ -1,10 +1,3 @@
-"""Router del carrito server-side (RF-P11-03/14, C4).
-
-Namespace: /api/v1/cart.
-Roles: CUSTOMER y NEGOCIO (self-service del portal; admin → 403).
-El precio se deriva en cada lectura via ``derive_audience_price``
-(RNF-P11-03): nunca se persiste como fuente.
-"""
 import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -68,7 +61,6 @@ async def _build_cart(
     coupon_repo: SQLCouponRepository,
     user: User,
 ) -> CartResponse:
-    """Snapshotea el carrito con los precios derivados de la audiencia."""
     audience = resolve_audience(user.role, None)
     settings = await GetSettings(settings_repo).execute()
     lines_state, coupon_code = await cart_repo.get_state(user.id)
@@ -87,7 +79,6 @@ async def _build_cart(
     for product, qty in products:
         price = derive_product_price(product, ingredients_by_id, settings)
         if not product.available or not price.complete or price.breakdown is None:
-            # Retirado o incompleto: la linea deja de contribuir al total.
             continue
         unit_price = derive_audience_price(
             price.breakdown.rounded,
@@ -115,7 +106,6 @@ async def _build_cart(
     if coupon_code is not None:
         coupon = await coupon_repo.get_by_code(coupon_code)
         if coupon is None:
-            # Cupon borrado/pausado a posteriori: sin efecto.
             coupon = None
 
     totals = cart_totals(cart_lines, coupon, settings.round_step)
@@ -141,7 +131,6 @@ async def get_cart(
     coupon_repo: SQLCouponRepository = Depends(get_coupon_repository),
     current_user: User = Depends(_CART_GUARD),
 ):
-    """GET /cart: carrito del usuario con precios de su audiencia."""
     return await _build_cart(
         cart_repo, product_repo, ingredient_repo, settings_repo, coupon_repo, current_user
     )
@@ -159,11 +148,6 @@ async def add_cart_item(
     coupon_repo: SQLCouponRepository = Depends(get_coupon_repository),
     current_user: User = Depends(_CART_GUARD),
 ):
-    """POST /cart/items: agrega o altera la cantidad de una linea.
-
-    404 si el producto no existe; 422 si se superan las 50 lineas
-    (solo al agregar una nueva; alterar cantidad no cuenta).
-    """
     product = await product_repo.get(payload.product_id)
     if product is None:
         raise HTTPException(
@@ -208,7 +192,6 @@ async def remove_cart_item(
     coupon_repo: SQLCouponRepository = Depends(get_coupon_repository),
     current_user: User = Depends(_CART_GUARD),
 ):
-    """DELETE /cart/items/{product_id}: quita la linea (404 si no existe)."""
     removed = await cart_repo.remove_item(current_user.id, product_id)
     if not removed:
         raise HTTPException(
@@ -233,13 +216,6 @@ async def apply_coupon(
     coupon_repo: SQLCouponRepository = Depends(get_coupon_repository),
     current_user: User = Depends(_CART_GUARD),
 ):
-    """POST /cart/coupon: aplica un cupon (max 1 por carrito).
-
-    422 con razon explícita: coupon_not_found / coupon_inactive /
-    coupon_expired / coupon_limit_reached. Aplicar otro cupon reemplaza
-    al vigente (nunca se incrementa ``uses`` aqui: es al confirmar el
-    pedido, RF-P11-14).
-    """
     coupon = await coupon_repo.get_by_code(payload.code)
     if coupon is None:
         raise HTTPException(
@@ -272,7 +248,6 @@ async def remove_coupon(
     coupon_repo: SQLCouponRepository = Depends(get_coupon_repository),
     current_user: User = Depends(_CART_GUARD),
 ):
-    """DELETE /cart/coupon: quita el cupon aplicado (no-op si no hay)."""
     await cart_repo.clear_coupon(current_user.id)
     await cart_repo.commit()
     return await _build_cart(

@@ -1,9 +1,3 @@
-"""Tests del adapter de insumos (T-CSV-3/5, RF-CSV-04/08/11, RNF-CSV-09/10).
-
-Solo la capa pura: validacion fila por fila (mensajes en espanol, decimales
-con coma convencion argentina) y el round-trip plantilla -> parse -> validacion.
-La aplicacion (find_duplicate/insert) toca la DB y se cubre en integracion.
-"""
 from domain.imports import ColumnMismatchError, check_columns
 
 from api.v1.imports.adapters.ingredients_adapter import IngredientsAdapter
@@ -98,7 +92,6 @@ class TestValidacion:
 
 class TestRoundTrip:
     def test_plantilla_pasa_la_validacion(self):
-        """RNF-CSV-09: la plantilla parseada con el parser pasa el adapter sin errores."""
         adapter = _adapter()
         text = adapter.template()
         delimiter = detect_delimiter(text)
@@ -114,7 +107,6 @@ class TestRoundTrip:
 class TestColumnas:
     def test_coincide_set_orden_irrelevante(self):
         adapter = _adapter()
-        # check_columns no lanza si el set coincide (orden distinto).
         check_columns(adapter.columns, ["precio", "nombre", "unidad", "cantidad"])
 
     def test_columna_desconocida(self):

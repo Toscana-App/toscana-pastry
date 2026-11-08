@@ -1,9 +1,3 @@
-"""Domain validation tests for CalcMaterial entities (RF-P2CC-01..04).
-
-Cubre computo de unit_cost (Decimal + ROUND_HALF_UP), derivacion de
-status (active|incomplete), validacion de rangos y el hecho de que
-unit_cost/status nunca provienen del cliente (security #8).
-"""
 import pytest
 from decimal import Decimal
 
@@ -18,18 +12,15 @@ from domain.calc_material import (
 )
 
 
-# ─── compute_unit_cost (RF-P2CC-02) ────────────────────────────────────
 
 class TestComputeUnitCost:
     def test_divides_price_by_quantity(self):
         assert compute_unit_cost(Decimal("100"), Decimal("2")) == Decimal("50.00")
 
     def test_rounds_half_up_to_cents(self):
-        # 0.125 -> 0.13 (ROUND_HALF_UP; con banker's quedaria 0.12)
         assert compute_unit_cost(Decimal("1"), Decimal("8")) == Decimal("0.13")
 
     def test_rounds_down_when_below_half(self):
-        # 0.124 -> 0.12
         assert compute_unit_cost(Decimal("124"), Decimal("1000")) == Decimal("0.12")
 
     def test_third_decimal_truncates_to_two(self):
@@ -57,7 +48,6 @@ class TestComputeUnitCost:
             compute_unit_cost(Decimal("-1"), Decimal("2"))
 
 
-# ─── derive_status (RF-P2CC-03) ────────────────────────────────────────
 
 class TestDeriveStatus:
     def test_missing_price_is_incomplete(self):
@@ -73,7 +63,6 @@ class TestDeriveStatus:
         assert derive_status(Decimal("5"), Decimal("2")) == "active"
 
 
-# ─── CalcMaterial validation (RF-P2CC-01) ──────────────────────────────
 
 def _material(**overrides):
     base = {"name": "Azucar Moreno"}
@@ -129,7 +118,6 @@ class TestCalcMaterialValidation:
             _material(package_quantity=Decimal("-1"))
 
 
-# ─── unit_cost / status are server-derived (RF-P2CC-02/03, security #8) ─
 
 class TestDerivedFields:
     def test_unit_cost_and_status_derived_when_complete(self):

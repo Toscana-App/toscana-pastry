@@ -1,8 +1,3 @@
-"""Router para los endpoints de la calculadora de costos (FASE CC).
-
-Todos los endpoints son admin-only (RF-P5CC-08).
-Namespace: /api/v1/calc.
-"""
 import csv
 import datetime
 from decimal import Decimal
@@ -115,7 +110,6 @@ from domain.calc_settings import (
 router = APIRouter(prefix="/calc", tags=["calc"])
 
 
-# ─── Helpers ────────────────────────────────────────────────────────────
 
 def _category_response(cat) -> CategoryResponse:
     return CategoryResponse(
@@ -171,7 +165,6 @@ def _material_response(material: CalcMaterial) -> MaterialResponse:
     )
 
 
-# ─── Settings (singleton: GET/PUT) ──────────────────────────────────────
 
 PAGINATION_MAX = 100
 
@@ -181,9 +174,7 @@ async def get_calc_settings(
     repo: SQLCalcSettingsRepository = Depends(get_calc_settings_repository),
     current_user: User = Depends(require_admin),
 ):
-    """GET /calc/settings: devuelve la fila persistida o defaults (RF-P5CC-02)."""
     settings = await repo.get()
-    # repo.get() nunca devuelve None: si no hay fila, retorna DEFAULT_CALC_SETTINGS.
     assert settings is not None
     return CalcSettingsResponse(
         business_name=settings.business_name,
@@ -202,7 +193,6 @@ async def update_calc_settings(
     repo: SQLCalcSettingsRepository = Depends(get_calc_settings_repository),
     _admin: User = Depends(require_admin),
 ):
-    """PUT /calc/settings: reemplazo completo atomico (RF-P5CC-02)."""
     try:
         settings = CalcSettings(
             business_name=payload.business_name,
@@ -229,7 +219,6 @@ async def update_calc_settings(
     )
 
 
-# ─── Material Categories ────────────────────────────────────────────────
 
 @router.get(
     "/material-categories",
@@ -242,7 +231,6 @@ async def list_material_categories(
     repo: SQLCalcMaterialCategoryRepository = Depends(get_calc_material_category_repository),
     current_user: User = Depends(require_admin),
 ):
-    """GET /calc/material-categories: lista con busqueda + paginacion (RF-P5CC-07)."""
     items, total = await repo.list(q, page, page_size)
     return CategoryListResponse(
         items=[_category_response(item) for item in items],
@@ -262,8 +250,6 @@ async def create_material_category(
     repo: SQLCalcMaterialCategoryRepository = Depends(get_calc_material_category_repository),
     _admin: User = Depends(require_admin),
 ):
-    """POST /calc/material-categories: crea categoria (RF-P5CC-03)."""
-    # Check duplicate name (case-insensitive)
     existing = await repo.get_by_name(payload.name)
     if existing is not None:
         raise HTTPException(
@@ -290,14 +276,12 @@ async def update_material_category(
     repo: SQLCalcMaterialCategoryRepository = Depends(get_calc_material_category_repository),
     _admin: User = Depends(require_admin),
 ):
-    """PATCH /calc/material-categories/{id}: edita (RF-P5CC-03)."""
     existing = await repo.get(category_id)
     if existing is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Categoria no encontrada",
         )
-    # Check empty body (422)
     updates = {
         key: value
         for key, value in payload.model_dump(exclude_unset=True).items()
@@ -337,14 +321,12 @@ async def delete_material_category(
     repo: SQLCalcMaterialCategoryRepository = Depends(get_calc_material_category_repository),
     _admin: User = Depends(require_admin),
 ):
-    """DELETE /calc/material-categories/{id}: elimina (RF-P5CC-03)."""
     existing = await repo.get(category_id)
     if existing is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Categoria no encontrada",
         )
-    # Check if in use (stub: returns 0 for now, B8 wires it)
     in_use = await repo.count_in_use(category_id)
     if in_use > 0:
         return JSONResponse(
@@ -360,7 +342,6 @@ async def delete_material_category(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# ─── Product Categories ─────────────────────────────────────────────────
 
 @router.get(
     "/product-categories",
@@ -373,7 +354,6 @@ async def list_product_categories(
     repo: SQLCalcProductCategoryRepository = Depends(get_calc_product_category_repository),
     current_user: User = Depends(require_admin),
 ):
-    """GET /calc/product-categories: lista con busqueda + paginacion (RF-P5CC-07)."""
     items, total = await repo.list(q, page, page_size)
     return CategoryListResponse(
         items=[_category_response(item) for item in items],
@@ -393,7 +373,6 @@ async def create_product_category(
     repo: SQLCalcProductCategoryRepository = Depends(get_calc_product_category_repository),
     _admin: User = Depends(require_admin),
 ):
-    """POST /calc/product-categories: crea categoria (RF-P5CC-04)."""
     existing = await repo.get_by_name(payload.name)
     if existing is not None:
         raise HTTPException(
@@ -420,7 +399,6 @@ async def update_product_category(
     repo: SQLCalcProductCategoryRepository = Depends(get_calc_product_category_repository),
     _admin: User = Depends(require_admin),
 ):
-    """PATCH /calc/product-categories/{id}: edita (RF-P5CC-04)."""
     existing = await repo.get(category_id)
     if existing is None:
         raise HTTPException(
@@ -466,7 +444,6 @@ async def delete_product_category(
     repo: SQLCalcProductCategoryRepository = Depends(get_calc_product_category_repository),
     _admin: User = Depends(require_admin),
 ):
-    """DELETE /calc/product-categories/{id}: elimina (RF-P5CC-04)."""
     existing = await repo.get(category_id)
     if existing is None:
         raise HTTPException(
@@ -488,7 +465,6 @@ async def delete_product_category(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# ─── Suppliers ──────────────────────────────────────────────────────────
 
 @router.get(
     "/suppliers",
@@ -501,7 +477,6 @@ async def list_suppliers(
     repo: SQLCalcSupplierRepository = Depends(get_calc_supplier_repository),
     current_user: User = Depends(require_admin),
 ):
-    """GET /calc/suppliers: lista con busqueda + paginacion (RF-P5CC-07)."""
     items, total = await repo.list(q, page, page_size)
     return SupplierListResponse(
         items=[_supplier_response(item) for item in items],
@@ -521,7 +496,6 @@ async def create_supplier(
     repo: SQLCalcSupplierRepository = Depends(get_calc_supplier_repository),
     _admin: User = Depends(require_admin),
 ):
-    """POST /calc/suppliers: crea proveedor (RF-P5CC-05)."""
     try:
         supplier = CalcSupplier(
             name=payload.name,
@@ -548,7 +522,6 @@ async def update_supplier(
     repo: SQLCalcSupplierRepository = Depends(get_calc_supplier_repository),
     _admin: User = Depends(require_admin),
 ):
-    """PATCH /calc/suppliers/{id}: edita (RF-P5CC-05)."""
     existing = await repo.get(supplier_id)
     if existing is None:
         raise HTTPException(
@@ -597,7 +570,6 @@ async def delete_supplier(
     repo: SQLCalcSupplierRepository = Depends(get_calc_supplier_repository),
     _admin: User = Depends(require_admin),
 ):
-    """DELETE /calc/suppliers/{id}: elimina (RF-P5CC-05)."""
     existing = await repo.get(supplier_id)
     if existing is None:
         raise HTTPException(
@@ -619,7 +591,6 @@ async def delete_supplier(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# ─── Default Costs ──────────────────────────────────────────────────────
 
 @router.get(
     "/default-costs",
@@ -633,7 +604,6 @@ async def list_default_costs(
     repo: SQLCalcDefaultCostRepository = Depends(get_calc_default_cost_repository),
     current_user: User = Depends(require_admin),
 ):
-    """GET /calc/default-costs: lista con busqueda + filtro type + paginacion (RF-P5CC-07)."""
     items, total = await repo.list(q, type_filter, page, page_size)
     return DefaultCostListResponse(
         items=[_default_cost_response(item) for item in items],
@@ -653,7 +623,6 @@ async def create_default_cost(
     repo: SQLCalcDefaultCostRepository = Depends(get_calc_default_cost_repository),
     _admin: User = Depends(require_admin),
 ):
-    """POST /calc/default-costs: crea costo por defecto (RF-P5CC-06)."""
     try:
         cost = CalcDefaultCost(
             name=payload.name,
@@ -682,7 +651,6 @@ async def update_default_cost(
     repo: SQLCalcDefaultCostRepository = Depends(get_calc_default_cost_repository),
     _admin: User = Depends(require_admin),
 ):
-    """PATCH /calc/default-costs/{id}: edita (RF-P5CC-06)."""
     existing = await repo.get(cost_id)
     if existing is None:
         raise HTTPException(
@@ -737,7 +705,6 @@ async def delete_default_cost(
     repo: SQLCalcDefaultCostRepository = Depends(get_calc_default_cost_repository),
     _admin: User = Depends(require_admin),
 ):
-    """DELETE /calc/default-costs/{id}: elimina (RF-P5CC-06)."""
     existing = await repo.get(cost_id)
     if existing is None:
         raise HTTPException(
@@ -753,7 +720,6 @@ async def delete_default_cost(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# ─── Materials (RF-P2CC-01..05) ─────────────────────────────────────────
 
 @router.post(
     "/materials",
@@ -769,11 +735,6 @@ async def create_material(
     supplier_repo: SQLCalcSupplierRepository = Depends(get_calc_supplier_repository),
     _admin: User = Depends(require_admin),
 ):
-    """POST /calc/materials: crea material (RF-P2CC-01).
-
-    unit_cost y status son derivados del servidor (RF-P2CC-02/03);
-    FK invalida -> 404; rangos -> 422.
-    """
     if payload.category_id is not None:
         category = await category_repo.get(payload.category_id)
         if category is None:
@@ -825,8 +786,6 @@ async def list_materials(
     repo: SQLCalcMaterialRepository = Depends(get_calc_material_repository),
     current_user: User = Depends(require_admin),
 ):
-    """GET /calc/materials: lista con busqueda (nombre y codigo), filtros
-    por categoria/proveedor/status y paginacion (RF-P2CC-05)."""
     items, total = await repo.list(q, category_id, supplier_id, status_filter, page, page_size)
     return MaterialListResponse(
         items=[_material_response(item) for item in items],
@@ -845,7 +804,6 @@ async def get_material(
     repo: SQLCalcMaterialRepository = Depends(get_calc_material_repository),
     current_user: User = Depends(require_admin),
 ):
-    """GET /calc/materials/{id}: detalle (RF-P2CC-01)."""
     material = await repo.get(material_id)
     if material is None:
         raise HTTPException(
@@ -869,12 +827,6 @@ async def update_material(
     supplier_repo: SQLCalcSupplierRepository = Depends(get_calc_supplier_repository),
     _admin: User = Depends(require_admin),
 ):
-    """PATCH /calc/materials/{id}: edita (RF-P2CC-01).
-
-    A diferencia de B4-B7, un null explicito EN un campo de precio o
-    cantidad lo elimina (unit_cost -> None, status -> incomplete, y se
-    registra en el historial si cambio, RF-P2CC-04).
-    """
     existing = await repo.get(material_id)
     if existing is None:
         raise HTTPException(
@@ -944,11 +896,6 @@ async def delete_material(
     repo: SQLCalcMaterialRepository = Depends(get_calc_material_repository),
     _admin: User = Depends(require_admin),
 ):
-    """DELETE /calc/materials/{id}: elimina (S4).
-
-    Usado en lineas de productos -> 409 + {impacted_products: N}.
-    Con historial de costos -> 409 + {detail: "has_cost_history"}.
-    """
     existing = await repo.get(material_id)
     if existing is None:
         raise HTTPException(
@@ -961,7 +908,6 @@ async def delete_material(
             status_code=status.HTTP_409_CONFLICT,
             content={"impacted_products": in_use},
         )
-    # El historial de costos es append-only: no se borra ni se deja huerfano.
     if await repo.count_cost_history(material_id) > 0:
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,
@@ -987,8 +933,6 @@ async def list_material_cost_history(
     repo: SQLCalcMaterialRepository = Depends(get_calc_material_repository),
     current_user: User = Depends(require_admin),
 ):
-    """GET /calc/materials/{id}/cost-history: historial paginado,
-    mas recientes primero (RF-P2CC-04)."""
     material = await repo.get(material_id)
     if material is None:
         raise HTTPException(
@@ -1011,7 +955,6 @@ async def list_material_cost_history(
     )
 
 
-# ─── Products (RF-P4CC-01..08) ─────────────────────────────────────────
 
 def _product_response(p: CalcProduct) -> ProductResponse:
     return ProductResponse(
@@ -1034,8 +977,6 @@ def _product_response(p: CalcProduct) -> ProductResponse:
 def _product_list_item(
     product: CalcProduct, costs: CalcProductCosts, category_name: str | None
 ) -> ProductListItem:
-    """Item enriquecido del listado (RF-P3CC-01): montos siempre del
-    motor (cost pre-redondeo, final con el rounding_mode de settings)."""
     return ProductListItem(
         id=product.id,
         name=product.name,
@@ -1102,8 +1043,6 @@ def _product_lines_out(
 def _settings_defaults(
     settings: CalcSettings | None,
 ) -> tuple[Decimal, Decimal, Decimal, str]:
-    """Defaults de percents + rounding_mode (RF-P5CC-01): sin fila de
-    settings -> 30/0/19 y `none` del dominio."""
     if settings is None:
         return (
             DEFAULT_MARGIN_PERCENT,
@@ -1119,8 +1058,6 @@ def _settings_defaults(
     )
 
 
-# Campos de ProductUpdate que admiten `None` en el schema pero no pueden
-# quedar nulos en el producto: `null` explicito -> 422 (no 500).
 _PRODUCT_NON_NULLABLE_FIELDS = frozenset(
     {"name", "margin_percent", "discount_percent", "tax_percent", "status"}
 )
@@ -1129,9 +1066,6 @@ _PRODUCT_NON_NULLABLE_FIELDS = frozenset(
 async def _build_material_lines(
     payload_lines, repo: SQLCalcProductRepository
 ) -> list[CalcProductMaterialLine]:
-    """Resuelve los snapshots SIEMPRE por el servidor (RF-P4CC-02,
-    security #8): material inexistente -> 404; material incomplete
-    (unit_cost None) -> snapshot en 0.00 sin error (D4)."""
     lines: list[CalcProductMaterialLine] = []
     for index, line in enumerate(payload_lines):
         material = await repo.get_material(line.material_id)
@@ -1187,8 +1121,6 @@ async def _raise_sku_conflict(
     sku: str | None,
     exclude_product_id: str | None = None,
 ) -> None:
-    """SKU unica entre productos no eliminados, case/acento-insensitive
-    (regla 7). Duplicada -> 409 + {detail: 'SKU ya en uso'}."""
     if sku is None:
         return
     if await repo.find_sku_owner(sku, exclude_product_id) is not None:
@@ -1213,13 +1145,6 @@ async def create_product(
     ),
     _admin: User = Depends(require_admin),
 ):
-    """POST /calc/products: crea producto con lineas (RF-P4CC-01..05).
-
-    Snapshots, line_total_cost y costs son SIEMPRE derivados del
-    servidor (security #8); percents omitidos -> defaults de
-    CalcSettings; material/categoria inexistente -> 404; SKU
-    duplicada -> 409; rangos -> 422.
-    """
     if payload.category_id is not None:
         category = await product_category_repo.get(payload.category_id)
         if category is None:
@@ -1298,10 +1223,6 @@ async def list_products(
     ),
     current_user: User = Depends(require_admin),
 ):
-    """GET /calc/products: lista con busqueda por nombre Y SKU (D5),
-    filtros, sort (name/cost/price/margin + dir) y paginacion
-    (RF-P3CC-01). Item enriquecido con `category_name` y montos
-    siempre calculados por el motor (nunca del cliente)."""
     settings = await settings_repo.get()
     _, _, _, rounding_mode = _settings_defaults(settings)
     items, total = await repo.list(
@@ -1318,9 +1239,6 @@ async def list_products(
     )
 
 
-# OJO route-order (prohibicion 6): price-list, price-list/export y
-# recalculate-all se registran ANTES de GET /products/{product_id},
-# sino FastAPI resuelve `price-list` como product_id -> 404.
 
 @router.get(
     "/products/price-list",
@@ -1337,9 +1255,6 @@ async def list_price_list(
     ),
     current_user: User = Depends(require_admin),
 ):
-    """GET /calc/products/price-list: solo activos no eliminados,
-    misma busqueda/filtro que el listado, orden fijo por nombre (D5);
-    montos del motor con el redondeo de settings (RF-P3CC-04)."""
     settings = await settings_repo.get()
     _, _, _, rounding_mode = _settings_defaults(settings)
     items, total = await repo.list_price_list(
@@ -1366,7 +1281,6 @@ async def list_price_list(
 
 
 def _csv_safe(value: str) -> str:
-    """Evita que Excel/Sheets interprete la celda como formula."""
     if value[:1] in ("=", "+", "-", "@", "\t", "\r"):
         return "'" + value
     return value
@@ -1382,10 +1296,6 @@ async def export_price_list_csv(
     ),
     current_user: User = Depends(require_admin),
 ):
-    """GET /calc/products/price-list/export: CSV del set completo
-    filtrado (sin paginacion) (RF-P3CC-04). Header exacto de la spec:
-    id,name,category,cost,margin_pct,final_price; `cost` NUNCA se
-    redondea; filename `lista_precios.csv` (paridad legacy)."""
     settings = await settings_repo.get()
     _, _, _, rounding_mode = _settings_defaults(settings)
     rows, _total = await repo.list_price_list(
@@ -1423,17 +1333,11 @@ async def recalculate_all_products(
     ),
     _admin: User = Depends(require_admin),
 ):
-    """POST /calc/products/recalculate-all: recalcula todos los
-    productos activos en una transaccion unica y devuelve
-    {recalculated: N} (RF-P3CC-03); `rounding_mode` de settings, nunca
-    del cliente."""
     settings = await settings_repo.get()
     _, _, _, rounding_mode = _settings_defaults(settings)
     products = await repo.list_active()
     now = datetime.datetime.now(datetime.UTC)
     try:
-        # Mismo cuerpo que el recalculate individual, en UNA sola
-        # transaccion (un unico commit al final).
         for product in products:
             material_lines, labor_lines, extra_lines = await repo.get_lines(
                 product.id
@@ -1483,9 +1387,6 @@ async def get_product(
     ),
     current_user: User = Depends(require_admin),
 ):
-    """GET /calc/products/{id}: detalle con lineas + costs
-    (RF-P4CC-05/06). `versions` solo presente con include_versions=true
-    (listado completo, version_number desc)."""
     product = await repo.get(product_id)
     if product is None:
         raise HTTPException(
@@ -1579,12 +1480,6 @@ async def update_product(
     ),
     _admin: User = Depends(require_admin),
 ):
-    """PATCH /calc/products/{id}: edita (RF-P4CC-01/02).
-
-    Semantica de lineas (regla 4): clave ausente -> no cambia;
-    clave [] -> vacia el set; lista -> reemplazo completo. Sin
-    campos -> 422.
-    """
     existing = await repo.get(product_id)
     if existing is None:
         raise HTTPException(
@@ -1622,8 +1517,6 @@ async def update_product(
     labor_lines = None
     extra_lines = None
     try:
-        # Lineas desde los campos tipados del payload (no del dump a
-        # dict): los builders esperan objetos Pydantic con attributes.
         if payload.materials is not None:
             material_lines = await _build_material_lines(payload.materials, repo)
         if payload.labor is not None:
@@ -1674,7 +1567,6 @@ async def update_product(
     )
 
 
-# ─── Dashboard (RF-P3CC-05) ────────────────────────────────────────────
 
 @router.get("/dashboard", response_model=DashboardResponse)
 async def get_dashboard(
@@ -1685,9 +1577,6 @@ async def get_dashboard(
     ),
     current_user: User = Depends(require_admin),
 ):
-    """GET /calc/dashboard: stats del admin (RF-P3CC-05). Los repos
-    aportan los datos crudos (counts por status + activos con costs
-    del motor) y la funcion pura del dominio arma las metricas."""
     settings = await settings_repo.get()
     _, _, _, rounding_mode = _settings_defaults(settings)
     product_counts, active_with_costs = await product_repo.dashboard_data(
@@ -1734,8 +1623,6 @@ async def delete_product(
     repo: SQLCalcProductRepository = Depends(get_calc_product_repository),
     _admin: User = Depends(require_admin),
 ):
-    """DELETE /calc/products/{id}: soft delete (regla 8); nunca borra
-    la fila ni las versiones."""
     deleted = await repo.soft_delete(product_id)
     if deleted is None:
         raise HTTPException(
@@ -1757,9 +1644,6 @@ async def recalculate_product(
     ),
     _admin: User = Depends(require_admin),
 ):
-    """POST /calc/products/{id}/recalculate: re-resolve snapshots y
-    recalcula lineas (regla 6); crea version solo si el final
-    redondeado cambio (regla 5, RF-P4CC-07)."""
     product = await repo.get(product_id)
     if product is None:
         raise HTTPException(
@@ -1802,8 +1686,6 @@ async def recalculate_product(
             await repo.add_version(product_id, result.new_costs)
         await repo.commit()
     except IntegrityError as e:
-        # Recalculo concurrente: otro request ya tomo ese version_number
-        # (uq_calc_product_versions_product_version).
         await repo.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="version_conflict"
@@ -1828,8 +1710,6 @@ async def list_product_versions(
     repo: SQLCalcProductRepository = Depends(get_calc_product_repository),
     current_user: User = Depends(require_admin),
 ):
-    """GET /calc/products/{id}/versions: versiones paginadas, mas
-    recientes primero (RF-P4CC-07). 404 si el producto no existe."""
     product = await repo.get(product_id)
     if product is None:
         raise HTTPException(

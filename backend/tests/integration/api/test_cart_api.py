@@ -1,16 +1,3 @@
-"""Integration tests for the server-side cart API (RF-P11-03/14, C4).
-
-Covers:
-- auth (401) and role guard (403 for admin: cart is portal self-service)
-- GET /cart: empty cart, audience-derived prices (cliente markup, negocio base)
-- POST /cart/items: qty bounds (422), unknown product (404), upsert qty,
-  max 50 lines (422)
-- DELETE /cart/items/{product_id}: 404 when absent
-- POST /cart/coupon: 422 with explicit reason codes (not found / inactive /
-  expired / max_uses), replacement of the single coupon
-- DELETE /cart/coupon
-- totals: discount on audience subtotal before the engine rounding
-"""
 
 import uuid
 from decimal import Decimal
@@ -50,7 +37,6 @@ _TEST_PRODUCTS = [
 
 @pytest_asyncio.fixture
 async def products(db_session):
-    """Product id by name for assertions (productos publicados y completos)."""
     created = {}
     for prod in _TEST_PRODUCTS:
         ingredient = IngredientORM(
@@ -171,7 +157,6 @@ def _line_for(data: dict, product_id: str) -> dict:
     raise AssertionError(f"product {product_id} not in cart: {data['items']}")
 
 
-# ─── Auth / roles ─────────────────────────────────────────────────────
 
 class TestCartAuth:
     async def test_unauthenticated_returns_401(self, client):
@@ -190,7 +175,6 @@ class TestCartAuth:
             assert response.status_code == 200
 
 
-# ─── GET /cart ────────────────────────────────────────────────────────
 
 class TestGetCart:
     async def test_empty_cart(self, client, db_session):
@@ -215,11 +199,9 @@ class TestGetCart:
         )
         data = (await client.get(CART, headers=headers)).json()
         line = _line_for(data, products["Torta"])
-        # 1000 * 1.40 (consumer markup) = 1400.00
         assert line["unit_price"] == "1400.00"
         assert line["qty"] == 2
         assert data["subtotal"] == "2800.00"
-        # no coupon → total = subtotal redondeado al paso (100)
         assert data["total"] == "2800"
 
     async def test_negocio_sees_base_price(
@@ -237,7 +219,6 @@ class TestGetCart:
         assert line["unit_price"] == "1000.00"
 
 
-# ─── POST /cart/items ─────────────────────────────────────────────────
 
 class TestPostCartItems:
     async def test_add_line(self, client, db_session, products):
@@ -251,7 +232,7 @@ class TestPostCartItems:
         data = response.json()
         line = _line_for(data, products["Alfajor"])
         assert line["qty"] == 3
-        assert data["subtotal"] == "840.00"  # 200 * 1.4 * 3
+        assert data["subtotal"] == "840.00"
 
     async def test_same_product_updates_qty(self, client, db_session, products):
         token = await _token_for(client, "cliente@example.com")
@@ -294,8 +275,6 @@ class TestPostCartItems:
         assert response.status_code == 404
 
     async def test_max_50_lines_returns_422(self, client, db_session):
-        # 50 productos adicionales + 2 base = 52 candidatos; la linea 51
-        # (de las nuevas) ya supera el tope.
         ids = []
         for index in range(51):
             ingredient = IngredientORM(
@@ -348,7 +327,6 @@ class TestPostCartItems:
         assert response.status_code == 422
 
 
-# ─── DELETE /cart/items/{product_id} ──────────────────────────────────
 
 class TestDeleteCartItems:
     async def test_remove_line(self, client, db_session, products):
@@ -375,7 +353,6 @@ class TestDeleteCartItems:
         assert response.status_code == 404
 
 
-# ─── Cupones ──────────────────────────────────────────────────────────
 
 class TestCartCoupon:
     async def _cart_with_torta(self, client, token, products):
@@ -456,7 +433,6 @@ class TestCartCoupon:
         )
         assert response.status_code == 200
         data = response.json()
-        # subtotal 1400 (cliente) → 10% = 140.00 → neto 1260 → paso 100
         assert data["discount_amount"] == "140.00"
         assert data["total"] == "1300"
         assert data["coupon"]["code"] == "VERANO10"
@@ -487,7 +463,6 @@ class TestCartCoupon:
         )
         assert response.status_code == 200
         data = response.json()
-        # fixed 5000 sobre subtotal 1400 → capped en 1400
         assert data["discount_amount"] == "1400.00"
         assert data["total"] == "0"
 
@@ -510,7 +485,6 @@ class TestCartCoupon:
         assert response.status_code == 200
         data = response.json()
         assert data["coupon"]["code"] == "B20"
-        # 20% de 1400 = 280.00 → neto 1120 → paso 100 → 1100
         assert data["discount_amount"] == "280.00"
         assert data["total"] == "1100"
 

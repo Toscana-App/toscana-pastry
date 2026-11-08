@@ -1,12 +1,3 @@
-"""Integration tests for POST /orders (portal creation, C6) review fixes.
-
-Covers:
-    - Prices and names are resolved server-side (client values are ignored)
-    - Unknown product / non-positive quantity are rejected
-    - Domain validation (delivery address, past date) maps to 422
-    - Closed window: 409 with a valid Retry-After
-    - Cash payment marks only paid_at (payment_status stays null)
-"""
 
 import datetime
 import uuid
@@ -141,7 +132,6 @@ class TestPortalOrderPricing:
         data = response.json()
         [item] = data["items"]
         assert item["product_name"] == "Torta"
-        # customer role => consumer audience (base price + markup), never 0
         assert Decimal(item["unit_price"]) >= Decimal("1000.00")
         assert Decimal(data["total"]) == Decimal(item["unit_price"]) * 2
 

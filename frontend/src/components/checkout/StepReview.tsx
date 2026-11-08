@@ -1,10 +1,5 @@
 "use client";
 
-/** Paso 5 — Revisar y confirmar (RF-P11-08 / UC-08).
-
-El pedido se crea SOLO acá (POST /orders, C6). 409 order_window_closed →
-banner + CTA deshabilitado. Éxito → confirmación con código de pedido.
-*/
 
 import {
   Alert,
@@ -226,7 +221,6 @@ export function StepReview({
   );
 }
 
-/** Post-order confirmation screen (UC-08: order code). */
 export function CheckoutSuccess({
   order,
 }: {

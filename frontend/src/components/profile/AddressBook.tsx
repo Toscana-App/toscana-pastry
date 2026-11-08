@@ -1,11 +1,5 @@
 "use client";
 
-/** Account address book (F4 — C2).
-
-CRUD with the backend invariants: max. 5 addresses (422), exactly one
-default (PATCH is_default=true undoes the other), DELETE 409 if it is
-the only one. Backend errors (422/409/404) are shown inline.
-*/
 
 import {
   Alert,
@@ -90,7 +84,6 @@ function AddressBook() {
         if (cancelled) return;
         setAddresses(res.items ?? []);
       } catch {
-        // on failure, the empty state with CTA is shown
       } finally {
         if (!cancelled) setLoading(false);
       }

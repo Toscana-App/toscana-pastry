@@ -2,11 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api";
 import { importsService } from "./service";
 
-/**
- * Tests del service de importación CSV (T-CSV-8): contrato HTTP de los 5
- * endpoints + el upload multipart (FormData) + la plantilla como texto.
- * Se mockea fetch — nada de red.
- */
 const API_BASE = "http://localhost:8000/api/v1";
 
 function mockFetch(status: number, body: unknown, text?: string) {
@@ -74,7 +69,6 @@ describe("importsService — upload multipart", () => {
     const fd = init.body as FormData;
     expect(fd.get("entity")).toBe("ingredients");
     expect(fd.get("file")).toBeInstanceOf(File);
-    // Multipart: NO se setea Content-Type application/json.
     expect(init.headers).not.toHaveProperty("Content-Type");
   });
 

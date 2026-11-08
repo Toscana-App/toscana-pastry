@@ -1,10 +1,3 @@
-"""Dominio de la importacion CSV con staging (RF-CSV-01/02/07/10/11).
-
-Capa pura: sin I/O. Aqui se modelan la sesion de importacion, sus filas y la
-regla de negocio de coincidencia exacta de columnas. El parsing del archivo
-(encoding, separador) vive en ``api.v1.imports.parsers`` y la persistencia en
-``data.repositories.sql_import_repository``.
-"""
 from __future__ import annotations
 
 import uuid
@@ -13,12 +6,10 @@ from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Any, Mapping, Sequence
 
-# RF-CSV-07: TTL de la tabla de staging (7 dias).
 STAGING_TTL = timedelta(days=7)
 
 
 class ImportStatus(str, Enum):
-    """Estado del ciclo de vida de una importacion (RF-CSV-05/06/07)."""
 
     RECEIVED = "received"
     IN_REVIEW = "in_review"
@@ -27,18 +18,12 @@ class ImportStatus(str, Enum):
 
 
 class ImportRowStatus(str, Enum):
-    """Estado de una fila estadiada (RF-CSV-03)."""
 
     VALID = "valid"
     INVALID = "invalid"
 
 
 class ColumnMismatchError(ValueError):
-    """El set de columnas del CSV no coincide con la plantilla (RF-CSV-02/13).
-
-    Lleva las columnas faltantes y las sobrantes para armar el 422 sin crear
-    ``import_id`` ni staging (el archivo completo se rechaza).
-    """
 
     def __init__(self, missing: Sequence[str], extra: Sequence[str]):
         self.missing = list(missing)
@@ -52,13 +37,6 @@ class ColumnMismatchError(ValueError):
 def check_columns(
     template_columns: Sequence[str], file_columns: Sequence[str]
 ) -> None:
-    """Valida que el set de columnas del archivo sea IDENTICO al de la
-    plantilla.
-
-    El orden no importa (RF-CSV-02). Una columna ajena o faltante levanta
-    :class:`ColumnMismatchError` con el listado de las columnas en falta (y las
-    sobrantes).
-    """
     file_set = set(file_columns)
     missing = [c for c in template_columns if c not in file_set]
     extra = [c for c in file_columns if c not in set(template_columns)]
@@ -68,7 +46,6 @@ def check_columns(
 
 @dataclass
 class ImportRow:
-    """Una fila del CSV ya estadiada (RF-CSV-03)."""
 
     row_number: int
     status: ImportRowStatus
@@ -78,7 +55,6 @@ class ImportRow:
 
 @dataclass
 class ImportSession:
-    """Sesion de importacion: metadatos + totales (RF-CSV-01/04)."""
 
     id: str
     tenant_id: str
@@ -126,9 +102,7 @@ class ImportSession:
         )
 
     def totals(self) -> tuple[int, int, int]:
-        """(total, validas, invalidas)."""
         return (self.total_rows, self.valid_rows, self.invalid_rows)
 
     def is_expired(self, now: datetime) -> bool:
-        """RF-CSV-07: la sesion expira a los 7 dias de creada."""
         return now - self.created_at > STAGING_TTL

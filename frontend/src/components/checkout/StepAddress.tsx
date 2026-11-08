@@ -1,11 +1,5 @@
 "use client";
 
-/** Step 2 — Address (RF-P11-05): pick from the book or create a new one.
-
-The new address is created against the book (C2) when this step is
-confirmed. The address is optional here: step 3 (delivery mode) decides
-whether it is required, per the spec.
-*/
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -82,7 +76,6 @@ export function StepAddress({
         province: data.province || null,
         phone: data.phone || null,
       });
-      // Stored in the book (C2): the order picks it by its line.
       onNext({ addressId: address.id, line: addressToLine(address) });
     } catch (error) {
       toaster.create({
@@ -173,7 +166,7 @@ export function StepAddress({
         </Text>
       )}
 
-      {/* New address form */}
+      {}
       {showNewForm && (
         <Box
           borderWidth="1px"

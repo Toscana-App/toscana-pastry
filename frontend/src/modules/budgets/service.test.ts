@@ -1,14 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { budgetsService } from "./service";
 
-/**
- * Tests del service de presupuestos (Fase 7, P7/P8): verifican el contrato
- * HTTP (path, método, body) contra `backend/src/api/v1/budgets/schemas.py`
- * y el contrato Money long de centavos (RF-P8-03). Se mockea fetch — nada de red.
- *
- * Money: la API emite y recibe centavos; el service los pasa tal cual.
- * Margen: string numérico en el wire ("100" = 100%), number|null en el tipo.
- */
 const API_BASE = "http://localhost:8000/api/v1";
 
 function mockFetch(status: number, body: unknown) {
@@ -26,7 +18,6 @@ function lastCall(fetchMock: ReturnType<typeof mockFetch>) {
   return { url, init };
 }
 
-/** Detalle válido mínimo para mockear las respuestas del CRUD. */
 function detailBody(over: Record<string, unknown> = {}) {
   return {
     id: "b1",
@@ -274,7 +265,6 @@ describe("budgetsService — GET /budgets/export (Fase 5)", () => {
   }
 
   beforeEach(() => {
-    // jsdom no implementa object URLs.
     URL.createObjectURL = vi.fn().mockReturnValue("blob:mock");
     URL.revokeObjectURL = vi.fn();
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
@@ -315,7 +305,6 @@ describe("budgetsService — PDF y WhatsApp (Fase 8, P9/P10)", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     const createSpy = vi.fn(() => "blob:obj-1");
-    // No reemplazar el global URL: jsdom (tough-cookie) usa `new URL(...)`.
     (URL as unknown as { createObjectURL: unknown }).createObjectURL = createSpy;
     (URL as unknown as { revokeObjectURL: unknown }).revokeObjectURL = vi.fn();
 

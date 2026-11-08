@@ -4,11 +4,6 @@ import userEvent from "@testing-library/user-event";
 import { Provider } from "@/providers/ChakraProvider";
 import { BudgetDetailPage } from "./BudgetDetailPage";
 
-/**
- * Detalle de presupuesto (Fase 8, P9/P10): preview PDF (GET binario →
- * objectURL → iframe), "Enviar por WhatsApp" (wa.me + límite 30/día) y
- * link temporal firmado de 72 h (copiable + vencimiento + regeneración).
- */
 const mocks = vi.hoisted(() => ({
   getDetail: vi.fn(),
   send: vi.fn(),
@@ -38,7 +33,6 @@ vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ user: { id: "u1", role: "admin", email: "admin@toscana.local" } }),
 }));
 
-/** Detalle mínimo válido (mismo espejo que service.test.ts). */
 function detailBody(over: Record<string, unknown> = {}) {
   return {
     id: "b1",
@@ -80,8 +74,6 @@ function renderDetail() {
 }
 
 async function loadDetail() {
-  // Espera a que el detalle termine de cargarse (skeleton → contenido).
-  // El h2 divide el texto en nodos ("Presupuesto #" + seq con #).
   await screen.findByRole("heading", { name: /Presupuesto/ });
 }
 

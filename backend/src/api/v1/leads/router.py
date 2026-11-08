@@ -1,9 +1,3 @@
-"""Router de leads (RF-P11-13, C5).
-
-POST /leads — public (hCaptcha + rate limit placeholder).
-Admin: GET /leads, PATCH /leads/{id}/read, POST /leads/read-all.
-Namespace: /api/v1/leads.
-"""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -28,7 +22,7 @@ def _response(lead: Lead) -> LeadResponse:
         id=lead.id,
         name=lead.name,
         email=lead.email,
-        customer_type=lead.customer_type,  # type: ignore[arg-type]
+        customer_type=lead.customer_type,
         message=lead.message,
         phone=lead.phone,
         business_name=lead.business_name,
@@ -37,22 +31,16 @@ def _response(lead: Lead) -> LeadResponse:
     )
 
 
-# ─── POST /leads (public) ───────────────────────────────────────────
 
 @router.post("", status_code=status.HTTP_202_ACCEPTED)
 async def create_lead(
     body: LeadCreateRequest,
     repo: SQLLeadRepository = Depends(get_lead_repository),
 ):
-    """POST /leads: captura publica de contacto (RF-P11-13).
-
-    hCaptcha + rate limit pendientes de implementacion en el gateway.
-    Por ahora, valida el cuerpo y persiste.
-    """
     lead = Lead(
         name=body.name.strip(),
         email=body.email.strip(),
-        customer_type=body.customer_type,  # type: ignore[arg-type]
+        customer_type=body.customer_type,
         message=body.message.strip(),
         phone=body.phone,
         business_name=body.business_name,
@@ -63,7 +51,6 @@ async def create_lead(
     return {"id": created.id}
 
 
-# ─── Admin endpoints ─────────────────────────────────────────────────
 
 @router.get("", response_model=LeadListResponse)
 async def list_leads(
@@ -75,7 +62,6 @@ async def list_leads(
     repo: SQLLeadRepository = Depends(get_lead_repository),
     _admin: User = Depends(require_admin),
 ):
-    """GET /leads: listado admin con ?q (name/email), ?read, ?customer_type."""
     items, total = await repo.list(q, read, customer_type, page, page_size)
     return LeadListResponse(
         items=[_response(item) for item in items],
@@ -92,7 +78,6 @@ async def patch_lead_read(
     repo: SQLLeadRepository = Depends(get_lead_repository),
     _admin: User = Depends(require_admin),
 ):
-    """PATCH /leads/{id}/read: marca un lead como leido/no-leido."""
     lead = await repo.get(id)
     if lead is None:
         raise HTTPException(
@@ -101,7 +86,7 @@ async def patch_lead_read(
         )
 
     updated = await repo.set_read(id, body.read)
-    assert updated is not None  # DB should have the row
+    assert updated is not None
     return _response(updated)
 
 
@@ -110,6 +95,5 @@ async def mark_all_read(
     repo: SQLLeadRepository = Depends(get_lead_repository),
     _admin: User = Depends(require_admin),
 ):
-    """POST /leads/read-all: marca todos los leads como leidos."""
     count = await repo.mark_all_read()
     return LeadReadAllResponse(updated=count)

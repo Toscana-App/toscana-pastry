@@ -1,18 +1,3 @@
-"""Integration tests for payment API endpoints (C1.4/C1.5).
-
-Covers:
-    POST /orders/{id}/payment:
-        - 200 creates a Checkout Pro preference for the real order amount
-        - 503 when Mercado Pago is not configured, 502 on provider errors
-        - 422 for cash orders
-        - owner/admin allowed, other customers 404 (S6)
-        - Idempotency-Key persisted: replay, 409 payment_in_progress,
-          422 payment_finalized (S7)
-        - 409 for non-nuevo orders
-    GET /orders/{id}/payment:
-        - 200 with correct status/paid
-        - 404 for non-existent orders
-"""
 
 import datetime
 import json
@@ -42,7 +27,6 @@ from domain.models import User, UserRole
 from domain.order import Order, OrderItem, PaymentMethod, PaymentStatus
 from main import app
 
-# ─── Fixtures ─────────────────────────────────────────────────────────
 
 
 @pytest_asyncio.fixture
@@ -64,7 +48,6 @@ async def db_session():
         yield session
 
 
-# Bodies sent to the mocked Mercado Pago API (POST /checkout/preferences).
 _MP_REQUESTS: list[dict] = []
 
 
@@ -89,7 +72,6 @@ def _provider() -> MercadoPagoCheckoutProvider:
 
 
 async def _persist(db_session, order: Order) -> Order:
-    """Store the order with its line items (repo.create stores the header only)."""
     await SQLOrderRepository(db_session).create(order)
     for item in order.items:
         db_session.add(
@@ -110,12 +92,10 @@ ADMIN = User(email="admin@example.com", role=UserRole.ADMIN)
 OWNER = User(email="owner@example.com", role=UserRole.CUSTOMER)
 STRANGER = User(email="stranger@example.com", role=UserRole.CUSTOMER)
 
-# User returned by get_current_user; tests switch it.
 _CURRENT = {"user": ADMIN}
 
 
 async def _admin_user():
-    """Return a fake admin user for dependency overrides."""
     return ADMIN
 
 
@@ -145,7 +125,6 @@ async def client(db_session):
     _CURRENT["user"] = ADMIN
     _MP_REQUESTS.clear()
 
-    # Create admin user
     admin = User(email="admin@example.com", role=UserRole.ADMIN)
     await SQLUserRepository(db_session).save(admin)
 
@@ -160,7 +139,6 @@ async def client(db_session):
 
 @pytest_asyncio.fixture
 async def mercadopago_order(db_session):
-    """Create an order with payment_method=mercadopago, status=nuevo."""
     order = Order(
         customer_id=OWNER.id,
         date=datetime.datetime.now(datetime.UTC),
@@ -179,7 +157,6 @@ async def mercadopago_order(db_session):
 
 @pytest_asyncio.fixture
 async def cash_order(db_session):
-    """Create an order with payment_method=cash, status=nuevo."""
     order = Order(
         customer_id=str(uuid.uuid4()),
         date=datetime.datetime.now(datetime.UTC),
@@ -198,11 +175,9 @@ async def cash_order(db_session):
     return order
 
 
-# ─── Tests ────────────────────────────────────────────────────────────
 
 
 class TestPostOrderPayment:
-    """Tests for POST /orders/{id}/payment (C1.4)."""
 
     async def test_mercadopago_payment_returns_checkout_pro_preference(
         self, client, mercadopago_order
@@ -300,7 +275,6 @@ class TestPostOrderPayment:
 
 
 class TestGetOrderPayment:
-    """Tests for GET /orders/{id}/payment (C1.5)."""
 
     async def test_payment_status_returns_null_for_uninitiated(self, client, cash_order):
         response = await client.get(f"/api/v1/orders/{cash_order.id}/payment")
@@ -332,7 +306,6 @@ async def _set_payment_status(db_session, order_id: str, status: PaymentStatus, 
 
 
 class TestPaymentOwnership:
-    """S6: the order owner (or an admin) pays; other customers get 404."""
 
     async def test_owner_can_initiate_payment(self, client, mercadopago_order):
         _CURRENT["user"] = OWNER
@@ -363,7 +336,6 @@ class TestPaymentOwnership:
 
 
 class TestPaymentIdempotency:
-    """S7: Idempotency-Key is persisted (C1.4)."""
 
     async def test_same_key_replays_saved_response_without_new_preference(
         self, client, mercadopago_order
@@ -408,7 +380,7 @@ class TestPaymentIdempotency:
         stored = await SQLOrderRepository(db_session).get("explode")
         assert stored.payment_status is None
         again = await _pay(client, "explode", "key-2")
-        assert again.status_code == 502  # not 409 payment_in_progress
+        assert again.status_code == 502
 
     async def test_claim_is_row_guarded(self, db_session, mercadopago_order):
         repo = SQLOrderRepository(db_session)

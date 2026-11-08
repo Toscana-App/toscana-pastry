@@ -9,16 +9,6 @@ interface ProductCardProps {
   product: ProductListItem;
 }
 
-/**
- * Card del listado P3 (RF-P3: nombre, categoría y precio final).
- *
- * RNF-P3-03: interactiva pero sin scale/translate — el hover solo fortalece
- * el outline, y el focus de teclado es visible. El precio usa tabular-nums
- * para que las columnas de la grilla queden alineadas.
- *
- * Producto incompleto (RF-P3-05): badge "sin precio" en lugar del monto; el
- * detalle explica qué insumos lo bloquean.
- */
 export function ProductCard({ product }: ProductCardProps) {
   return (
     <NextLink

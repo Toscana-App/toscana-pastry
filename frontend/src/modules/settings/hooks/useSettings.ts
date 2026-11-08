@@ -12,18 +12,14 @@ import {
 export type SettingsFieldErrors = Partial<Record<keyof SettingsFormValues, string>>;
 
 export interface UseSettingsResult {
-  /** Configuración vigente (numérica), ya mapeada al formulario. */
   settings: SettingsFormValues | null;
   loading: boolean;
   saving: boolean;
-  /** Error general de carga o guardado. */
   error: string | null;
-  /** Errores por campo devueltos por el backend (422). */
   fieldErrors: SettingsFieldErrors;
   save: (values: SettingsFormValues) => Promise<boolean>;
 }
 
-/** Extrae los errores por campo del 422 de FastAPI (detail: [{loc, msg}]). */
 function parseFieldErrors(payload: unknown): SettingsFieldErrors {
   const detail = (payload as { detail?: unknown } | null)?.detail;
   if (!Array.isArray(detail)) return {};
@@ -39,13 +35,6 @@ function parseFieldErrors(payload: unknown): SettingsFieldErrors {
   return errors;
 }
 
-/**
- * Estado de la configuración del negocio (Fase 4, WU7).
- *
- * Carga la configuración al montar y expone `save` (PUT con los 12 campos).
- * Los errores 422 se traducen a errores por campo para mostrarlos en el
- * formulario; el 403 se explica como falta de permisos.
- */
 export function useSettings(): UseSettingsResult {
   const [settings, setSettings] = useState<SettingsFormValues | null>(null);
   const [loading, setLoading] = useState(true);

@@ -1,9 +1,3 @@
-"""Repository para CustomerAddress (RF-P11-09, C2).
-
-Las operaciones mutan con flush (sin commit) para que el router pueda
-encadenar varios pasos (ej. demover la default anterior + marcar la nueva)
-y cerrar con un unico commit atomico por request.
-"""
 import datetime
 from typing import List, Optional
 
@@ -35,7 +29,6 @@ class SQLCustomerAddressRepository(CustomerAddressRepository):
         self.session = session
 
     async def list_by_user(self, user_id: str) -> List[CustomerAddress]:
-        """Todas las direcciones del usuario, de la mas antigua a la mas nueva."""
         rows = (
             await self.session.execute(
                 select(CustomerAddressORM)
@@ -48,8 +41,6 @@ class SQLCustomerAddressRepository(CustomerAddressRepository):
     async def get_for_user(
         self, address_id: str, user_id: str
     ) -> Optional[CustomerAddress]:
-        """Direccion por id SOLO si pertenece al usuario (anti-sondeo:
-        direcciones ajenas se indistinguibles de inexistentes -> None)."""
         result = await self.session.execute(
             select(CustomerAddressORM).where(
                 CustomerAddressORM.id == address_id,
@@ -60,7 +51,6 @@ class SQLCustomerAddressRepository(CustomerAddressRepository):
         return _to_domain(orm) if orm else None
 
     async def lock_book(self, user_id: str) -> None:
-        """SELECT ... FOR UPDATE sobre el usuario: serializa count + insert."""
         await self.session.execute(
             select(UserORM.id).where(UserORM.id == user_id).with_for_update()
         )
@@ -86,7 +76,6 @@ class SQLCustomerAddressRepository(CustomerAddressRepository):
     async def set_fields(
         self, address: CustomerAddress, user_id: str
     ) -> None:
-        """Aplica todos los campos de `address` a la fila del usuario."""
         result = await self.session.execute(
             select(CustomerAddressORM).where(
                 CustomerAddressORM.id == address.id,
@@ -109,7 +98,6 @@ class SQLCustomerAddressRepository(CustomerAddressRepository):
     async def set_default_flag(
         self, address_id: str, user_id: str, is_default: bool
     ) -> None:
-        """Cambia solo el flag is_default (para demover/promover la default)."""
         result = await self.session.execute(
             update(CustomerAddressORM)
             .where(

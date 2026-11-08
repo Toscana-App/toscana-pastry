@@ -1,8 +1,3 @@
-"""Dominio de la configuracion de la calculadora de costos (P5-CC).
-
-Entidades frozen con __post_init__ para validacion de rangos y listas
-permitidas. Money siempre Decimal, nunca float (RNF-P5CC-01).
-"""
 import re
 import uuid
 import datetime
@@ -14,7 +9,6 @@ ALLOWED_ROUNDING_MODES = ("none", "integer", "multiple_10", "commercial_99")
 ALLOWED_DEFAULT_COST_TYPES = ("labor", "extra_cost")
 ALLOWED_DEFAULT_COST_STATUSES = ("active", "inactive")
 
-# Default values (RF-P5CC-01)
 DEFAULT_BUSINESS_NAME = "Mi Negocio"
 DEFAULT_MAIN_CURRENCY_NAME = "Peso"
 DEFAULT_MAIN_CURRENCY_SYMBOL = "$"
@@ -23,7 +17,6 @@ DEFAULT_DISCOUNT_PERCENT = Decimal("0")
 DEFAULT_TAX_PERCENT = Decimal("19")
 DEFAULT_ROUNDING_MODE = "none"
 
-# String length limits (RF-P5CC-01..05)
 MAX_BUSINESS_NAME = 120
 MAX_CURRENCY_NAME = 40
 MAX_CURRENCY_SYMBOL = 8
@@ -38,7 +31,6 @@ MAX_SUPPLIER_EMAIL = 120
 MAX_SUPPLIER_NOTES = 500
 MAX_DEFAULT_COST_NAME = 120
 
-# Email regex (basic)
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
@@ -48,10 +40,6 @@ def _is_valid_email(value: str) -> bool:
 
 @dataclass(frozen=True)
 class CalcSettings:
-    """Configuracion general de la calculadora (singleton).
-
-    RF-P5CC-01: campos, rangos y valores por defecto.
-    """
 
     business_name: str = DEFAULT_BUSINESS_NAME
     main_currency_name: str = DEFAULT_MAIN_CURRENCY_NAME
@@ -96,13 +84,11 @@ class CalcSettings:
             )
 
 
-# Constante de defaults del sistema (RF-P5CC-01)
 DEFAULT_CALC_SETTINGS = CalcSettings()
 
 
 @dataclass(frozen=True)
 class CalcMaterialCategory:
-    """Categoria de materiales (RF-P5CC-03)."""
 
     name: str
     description: Optional[str] = None
@@ -131,7 +117,6 @@ class CalcMaterialCategory:
 
 @dataclass(frozen=True)
 class CalcProductCategory:
-    """Categoria de productos (RF-P5CC-04). Mismas reglas que RF-P5CC-03."""
 
     name: str
     description: Optional[str] = None
@@ -160,7 +145,6 @@ class CalcProductCategory:
 
 @dataclass(frozen=True)
 class CalcSupplier:
-    """Proveedor (RF-P5CC-05)."""
 
     name: str
     contact_name: Optional[str] = None
@@ -207,7 +191,6 @@ class CalcSupplier:
 
 @dataclass(frozen=True)
 class CalcDefaultCost:
-    """Costo por defecto (RF-P5CC-06)."""
 
     name: str
     type: Literal["labor", "extra_cost"]

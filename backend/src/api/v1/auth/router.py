@@ -48,8 +48,6 @@ async def refresh_token(request: RefreshRequest):
         payload = decode_refresh_token(request.refresh_token)
         user_id = payload["sub"]
         
-        # Generate new access token
-        # Note: In a production app, we would check if the refresh token is revoked
         new_access_token = create_access_token({"sub": user_id})
         
         return {"access_token": new_access_token}

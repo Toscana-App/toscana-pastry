@@ -1,11 +1,5 @@
 "use client";
 
-/** Coupon CRUD for admin (F4).
-
-List with status badges and usage counters, create dialog
-(code, type, value, max_uses), active/paused toggle and delete.
-`value` as a string (Money). 409 → inline error.
-*/
 
 import {
   Alert,
@@ -83,7 +77,6 @@ function CouponsAdmin() {
         setCoupons(res.items ?? []);
         setTotal(res.total);
       } catch {
-        // the empty state is shown without an error
       } finally {
         if (!cancelled) setLoading(false);
       }

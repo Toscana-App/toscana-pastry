@@ -1,10 +1,5 @@
 "use client";
 
-/** 5-step checkout (F2 — p11 RF-P11-02…08).
-
-The order is created ONLY on step 5 (StepReview → POST /orders, C6).
-Forward/back navigation with a side summary (server-side cart, C4).
-*/
 
 import {
   Box,
@@ -208,7 +203,7 @@ export function CheckoutFlow() {
           </Steps.Root>
         </Box>
 
-        {/* Resumen lateral (RF-P11-02) */}
+        {}
         <Box flex="1 1 280px" maxW="360px" minW="260px">
           <OrderSummaryPanel cart={cart} />
         </Box>

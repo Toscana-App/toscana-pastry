@@ -1,10 +1,3 @@
-"""Unit tests for Order domain entity (C1.0).
-
-Covers:
-    - Basic order creation (id, status, items, total)
-    - OrderItem total calculation
-    - Frozen dataclass (immutability of core fields)
-"""
 
 from __future__ import annotations
 
@@ -15,7 +8,6 @@ from domain.order import Order, OrderItem, OrderStatus
 
 
 def _make_order(**overrides):
-    """Build a minimal Order with optional field overrides."""
     kwargs = {
         "customer_id": "cust-1",
         "date": datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC),
@@ -28,12 +20,11 @@ def _make_order(**overrides):
 
 
 class TestOrderCreation:
-    """Tests for basic order creation (C1.0)."""
 
     def test_default_id_is_uuid(self):
         order = _make_order()
         assert order.id is not None
-        assert len(order.id) == 36  # UUID format
+        assert len(order.id) == 36
 
     def test_default_status_is_nuevo(self):
         order = _make_order()
@@ -50,7 +41,6 @@ class TestOrderCreation:
 
 
 class TestOrderItemTotal:
-    """Tests for OrderItem total calculation."""
 
     def test_single_item_total(self):
         item = OrderItem(product_id="p1", product_name="Torta", quantity=1, unit_price=Decimal(1000))
@@ -66,7 +56,6 @@ class TestOrderItemTotal:
 
 
 class TestOrderTotal:
-    """Tests for Order total calculation."""
 
     def test_single_item_order_total(self):
         order = _make_order()

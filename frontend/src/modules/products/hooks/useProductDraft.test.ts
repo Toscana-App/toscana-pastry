@@ -59,7 +59,6 @@ describe("useProductDraft", () => {
     act(() => {
       result.current.form.setValue("name", "Brown", { shouldDirty: true });
     });
-    // The dirty flag reaches the watcher after the first render commit.
     act(() => {
       result.current.form.setValue("name", "Brownie", { shouldDirty: true });
     });

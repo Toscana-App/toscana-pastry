@@ -31,9 +31,6 @@ from data.pdf.client import PdfServiceError
 from core.config import settings as app_settings
 from data.models import Base
 
-# El frontend llama a la API desde otro origen (puerto distinto), así que el
-# navegador exige CORS. Orígenes explícitos: con allow_credentials=True no se
-# admite "*". Configurable por env para staging/producción.
 ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
@@ -43,9 +40,7 @@ ALLOWED_ORIGINS = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Fail fast when the config is not safe for the environment.
     app_settings.validate_for_startup()
-    # Idempotent: creates accent_fold and the schema if missing.
     await init_db(Base)
     yield
 
@@ -77,7 +72,6 @@ app.include_router(webhooks_router, prefix="/api/v1")
 app.include_router(whatsapp_router, prefix="/api/v1")
 
 app.include_router(budgets_router, prefix="/api/v1")
-# El router de PDF ya lleva sus prefijos internos (/budgets/.../pdf y /pdf/...).
 app.include_router(pdf_router, prefix="/api/v1")
 
 app.include_router(calc_router, prefix="/api/v1")
@@ -89,7 +83,6 @@ app.mount("/media", StaticFiles(directory=_media_dir), name="media")
 
 @app.exception_handler(PdfServiceError)
 async def pdf_service_error_handler(request: Request, exc: PdfServiceError):
-    """pdfgenerator no respondió → 503 controlado (ADR-0001)."""
     return JSONResponse(
         status_code=503,
         media_type="application/problem+json",
@@ -104,12 +97,6 @@ async def pdf_service_error_handler(request: Request, exc: PdfServiceError):
 
 @app.exception_handler(SearchQueryError)
 async def search_query_error_handler(request: Request, exc: SearchQueryError):
-    """Término de búsqueda inválido (vacío, control/invisible, largo) → 422.
-
-    Cobertura global: cualquier endpoint que pase `q` a un repositorio
-    (products, calc, customers, budgets, ingredients) responde 422 sin
-    filtrar: la búsqueda es solo dato inerte (ver data.accent).
-    """
     return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 

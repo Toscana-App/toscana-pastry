@@ -1,12 +1,4 @@
-"""Repository para CalcProductCategory (RF-P5CC-04).
 
-Mismas reglas que CalcMaterialCategory.
-"""
-
-# pyright: reportArgumentType=false, reportAttributeAccessIssue=false
-# El ORM usa el estilo Column legacy (mismo que B1-B8): pyright tipa los
-# atributos de instancia como Column[T], no como el valor. En runtime son
-# los valores; el mapeo ORM->dominio pasa por str() explicitos.
 
 from typing import List, Optional, Tuple
 from sqlalchemy import func, select
@@ -111,7 +103,6 @@ class SQLCalcProductCategoryRepository:
         return _to_domain(orm)
 
     async def count_in_use(self, category_id: str) -> int:
-        """Productos no eliminados que referencian esta categoria (B9)."""
         result = await self.session.execute(
             select(func.count())
             .select_from(CalcProductORM)

@@ -1,9 +1,3 @@
-"""Tests de parsers puros de CSV (T-CSV-2, RF-CSV-10, RNF-CSV-08).
-
-Sin I/O ni DB: encoding (BOM/UTF-8/Latin-1), deteccion de separador (; vs ,)
-y parsing de filas. El parser debe tolerar los dos separadores mas usados en
-Argentina y los dos encodings mas comunes en planillas de Excel.
-"""
 from api.v1.imports.parsers import (
     decode_text,
     detect_delimiter,
@@ -26,14 +20,13 @@ class TestEncoding:
         assert detect_encoding(raw) == "utf-8"
 
     def test_latin1(self):
-        # 0xE9 = é en Latin-1 (inválido como UTF-8).
         assert detect_encoding(b"caf\xe9;1\n") == "latin-1"
 
     def test_decode_text_retira_bom(self):
         raw = "nombre\na\n".encode("utf-8-sig")
         text, enc = decode_text(raw)
         assert enc == "utf-8-sig"
-        assert text.startswith("nombre")  # sin BOM
+        assert text.startswith("nombre")
 
 
 class TestDelimitador:

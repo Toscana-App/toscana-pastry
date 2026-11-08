@@ -1,4 +1,3 @@
-"""Lead API schemas (RF-P11-13, C5)."""
 
 from __future__ import annotations
 
@@ -8,7 +7,6 @@ from pydantic import BaseModel, Field
 
 
 class LeadCreateRequest(BaseModel):
-    """Public POST /leads request body."""
 
     name: str = Field(..., min_length=1, max_length=200)
     email: str = Field(..., min_length=1, max_length=320)
@@ -20,7 +18,6 @@ class LeadCreateRequest(BaseModel):
 
 
 class LeadResponse(BaseModel):
-    """Lead detail response."""
 
     id: str
     name: str
@@ -35,7 +32,6 @@ class LeadResponse(BaseModel):
 
 
 class LeadListResponse(BaseModel):
-    """Paginated lead list for admin."""
 
     items: list[LeadResponse]
     total: int
@@ -44,12 +40,10 @@ class LeadListResponse(BaseModel):
 
 
 class LeadReadPatch(BaseModel):
-    """PATCH /leads/{id}/read body."""
 
     read: bool
 
 
 class LeadReadAllResponse(BaseModel):
-    """POST /leads/read-all response."""
 
     updated: int

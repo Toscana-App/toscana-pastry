@@ -1,15 +1,3 @@
-"""Adapter de clientes (T-CSV-7, RF-CSV-10, RNF-CSV-06).
-
-Columnas: nombre, teléfono. DECISIÓN v1 (documentada en el PR): el dominio
-``Customer`` (``domain.orders``) solo soporta nombre + teléfono ("Sin email:
-el canal de contacto es WhatsApp, RF-P6-06"); el plan mencionaba email y
-dirección, que el modelo actual no persiste. Para no perder datos ni crear
-registros rotos, la plantilla lleva las 2 columnas que el dominio sí soporta.
-
-Dedup por (nombre, teléfono) normalizados, mismo criterio que
-``CustomerRepository.get_or_create`` (``normalize_customer_name`` +
-``normalize_phone``): duplicados → skipped en el confirm.
-"""
 from __future__ import annotations
 
 import uuid
@@ -29,7 +17,6 @@ MIN_PHONE, MAX_PHONE = 5, 20
 
 
 class CustomerRow(BaseModel):
-    """Fuente de las columnas de la plantilla (RF-CSV-04)."""
 
     nombre: str = ""
     telefono: str = ""

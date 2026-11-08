@@ -1,23 +1,3 @@
-"""Tests de exportación de pricelist (T3).
-
-Contrato:
-  GET /api/v1/products/pricelist/csv?audience=revendedores|consumidor_final
-  GET /api/v1/products/pricelist/pdf?audience=revendedores|consumidor_final
-
-  - Vende productos (no insumos): una fila por producto disponible
-    (available=true) y con receta completa.
-  - CSV: header fijo `name,category,price`; precio por audiencia
-    (revendedores = base del motor; consumidor_final = base × (1 + markup/100)).
-  - CSV: values con `=`, `+`, `-`, `@` al inicio son neutralizados
-    prefijando `'` (injection de hoja de cálculo, RFC-6267).
-  - PDF: `Content-Type: application/pdf`, `Content-Disposition: attachment`,
-    body = bytes renderizados; las filas llevan la categoría en `unit`.
-  - RBAC: admin ambas audiencias; negocio → solo revendedores;
-    cliente → solo consumidor_final (lo otro 403).
-
-El cliente PDF se fakea con el doble autouse del conftest de integración
-(`get_pdf_client`); la renderización real se prueba en pdfgenerator/tests.
-"""
 
 import csv
 import uuid
@@ -185,7 +165,6 @@ def _csv_price(rows: list[dict], name: str) -> Decimal:
 
 @pytest.mark.asyncio
 async def test_csv_header_and_rows(client):
-    """CSV: header name,category,price y una fila por producto visible."""
     token = await _token_for(client, "admin@example.com")
     r = await client.get(
         "/api/v1/products/pricelist/csv",
@@ -207,7 +186,6 @@ async def test_csv_header_and_rows(client):
 
 @pytest.mark.asyncio
 async def test_csv_filename_header(client):
-    """CSV: Content-Disposition attachment con el nombre por audiencia."""
     token = await _token_for(client, "admin@example.com")
     r = await client.get(
         "/api/v1/products/pricelist/csv",
@@ -227,7 +205,6 @@ async def test_csv_filename_header(client):
 
 @pytest.mark.asyncio
 async def test_csv_revendedores_uses_base(client):
-    """Precio revendedor = base del motor (margen 25%, redondeo 0.01)."""
     token = await _token_for(client, "admin@example.com")
     r = await client.get(
         "/api/v1/products/pricelist/csv",
@@ -243,7 +220,6 @@ async def test_csv_revendedores_uses_base(client):
 
 @pytest.mark.asyncio
 async def test_csv_consumidor_applies_markup(client):
-    """Precio consumidor = base × 1.40 (markup 40%)."""
     token = await _token_for(client, "admin@example.com")
     r = await client.get(
         "/api/v1/products/pricelist/csv",
@@ -259,7 +235,6 @@ async def test_csv_consumidor_applies_markup(client):
 
 @pytest.mark.asyncio
 async def test_csv_excludes_hidden_and_incomplete(client):
-    """Ocultos e incompletos nunca aparecen en el pricelist."""
     token = await _token_for(client, "admin@example.com")
     for audience in ("revendedores", "consumidor_final"):
         r = await client.get(
@@ -275,7 +250,6 @@ async def test_csv_excludes_hidden_and_incomplete(client):
 
 @pytest.mark.asyncio
 async def test_pdf_returns_pdf_bytes(client):
-    """PDF: application/pdf + Content-Disposition attachment + bytes PDF."""
     token = await _token_for(client, "admin@example.com")
     r = await client.get(
         "/api/v1/products/pricelist/pdf",
@@ -291,7 +265,6 @@ async def test_pdf_returns_pdf_bytes(client):
 
 @pytest.mark.asyncio
 async def test_pdf_rows_carry_category_and_price(client, pdf_fake):
-    """PDF: filas con la categoría en `unit` y precio por audiencia."""
     token = await _token_for(client, "admin@example.com")
     r = await client.get(
         "/api/v1/products/pricelist/pdf",
@@ -314,7 +287,6 @@ async def test_pdf_rows_carry_category_and_price(client, pdf_fake):
 
 @pytest.mark.asyncio
 async def test_pdf_revendedores_label(client, pdf_fake):
-    """PDF revendedores: label y precio base."""
     token = await _token_for(client, "admin@example.com")
     r = await client.get(
         "/api/v1/products/pricelist/pdf",
@@ -331,7 +303,6 @@ async def test_pdf_revendedores_label(client, pdf_fake):
 
 @pytest.mark.asyncio
 async def test_csv_neutralizes_formula_injection(client, db_session):
-    """Names con =, +, -, @ al inicio → prefijo ' en CSV (RFC-6267)."""
     token = await _token_for(client, "admin@example.com")
     ingredient_id = (
         await db_session.execute(
@@ -358,7 +329,6 @@ async def test_csv_neutralizes_formula_injection(client, db_session):
 
 @pytest.mark.asyncio
 async def test_csv_escapes_commas_and_quotes(client, db_session):
-    """Names con comas/comillas hacen round-trip exacto."""
     token = await _token_for(client, "admin@example.com")
     ingredient_id = (
         await db_session.execute(
@@ -384,7 +354,6 @@ async def test_csv_escapes_commas_and_quotes(client, db_session):
 
 @pytest.mark.asyncio
 async def test_admin_csv_and_pdf_both_audiences(client):
-    """Admin exporta las dos audiencias sin restricciones."""
     token = await _token_for(client, "admin@example.com")
     for audience in ("revendedores", "consumidor_final"):
         r = await client.get(

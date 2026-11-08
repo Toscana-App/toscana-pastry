@@ -1,9 +1,3 @@
-"""Repositorio SQL de la importacion CSV con staging (T-CSV-1/4).
-
-Sigue el patron de los demas repos (constructor con AsyncSession; los metodos
-de staging commitan por cuenta propia; set_status/delete_staging_rows NO
-commitan para que el confirm sea una sola transaccion, RNF-CSV-05).
-"""
 from __future__ import annotations
 
 import json
@@ -36,7 +30,6 @@ class SQLImportRepository(ImportRepository):
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    # ------------------------------------------------------------- staging
     async def create_session(self, session: ImportSession) -> ImportSession:
         self.session.add(
             ImportSessionORM(
@@ -81,7 +74,6 @@ class SQLImportRepository(ImportRepository):
         await self.session.commit()
         return len(rows)
 
-    # -------------------------------------------------------------- lectura
     async def get_session(
         self, import_id: str, tenant_id: str
     ) -> ImportSession | None:
@@ -123,7 +115,6 @@ class SQLImportRepository(ImportRepository):
         )
         return [self._to_row(orm) for orm in rows], total
 
-    # ---------------------------------------- confirm/discard (sin commit)
     async def set_status(
         self,
         import_id: str,
@@ -153,7 +144,6 @@ class SQLImportRepository(ImportRepository):
         await self.session.commit()
         return result.rowcount
 
-    # ------------------------------------------------------------ mapeo ORM
     @staticmethod
     def _to_session(orm: ImportSessionORM) -> ImportSession:
         return ImportSession(

@@ -10,7 +10,6 @@ export interface UseAllIngredientsResult {
   error: string | null;
 }
 
-/** Carga el catálogo completo de insumos (todas las páginas) para el editor de receta. */
 export function useAllIngredients(): UseAllIngredientsResult {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [loading, setLoading] = useState(true);

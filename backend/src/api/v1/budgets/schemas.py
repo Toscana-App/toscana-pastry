@@ -1,17 +1,3 @@
-"""Schemas Pydantic de la API de presupuestos (Fase 7, P7/P8).
-
-Reglas del contrato (api_endpoints.md §F3):
-- Money viaja como long de centavos (int) en el wire (RF-P8-03); el
-  dominio trabaja en Decimal y la conversion vive en el borde (money.py).
-- `margin_pct` es Pct (string decimal), 0-200; null = margen del tenant.
-- `calculation_mode`: "cost_plus" (margen sobre costo) o "manual"
-  (precio de venta personalizado por item; RF-P7-05/RF-P8).
-- El create viene del wizard completo (P7): customer_id resuelto por el
-  frontend (POST /customers con 409+X-Customer-Id en duplicados) + items
-  + margen + modo.
-- La respuesta nunca recalcula contra el catalogo: los totales se derivan
-  de los items guardados (borde puro, dominio).
-"""
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -23,8 +9,6 @@ CalculationMode = Literal["cost_plus", "manual"]
 
 
 class BudgetItemInput(BaseModel):
-    """Linea del wizard. `price_override` solo tiene efecto en modo
-    manual; en cost_plus debe venir nulo (el backend la ignora)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -52,10 +36,6 @@ class BudgetCreate(BaseModel):
 
 
 class BudgetUpdate(BaseModel):
-    """PUT /budgets/{id}: parcial. Borrador y enviado (reenviar, RF-P8-05).
-
-    `delivery_address` ausente conserva el snapshot; presente (o null
-    explicito) lo reemplaza (RNF-P7-04)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -75,7 +55,6 @@ class BudgetUpdate(BaseModel):
 
 
 class BudgetItemsPatch(BaseModel):
-    """PATCH /budgets/{id}/items: reemplaza lineas y recalcula."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -114,7 +93,7 @@ class BudgetListItem(BaseModel):
     customer_phone: str
     status: BudgetStatus
     item_count: int
-    total: Money  # subtotal (sin IVA)
+    total: Money
     version: int
     created_at: str
     sent_at: Optional[str] = None
@@ -145,18 +124,15 @@ class BudgetDetailResponse(BaseModel):
 
 class RecalculateResponse(BaseModel):
     summary: BudgetSummary
-    margin_applied: Pct  # override o tenant (el que se uso)
+    margin_applied: Pct
 
 
 class ConvertToOrderResponse(BaseModel):
     order_id: str
-    seq: str  # del presupuesto, para el log del frontend
+    seq: str
 
 
 class WhatsAppLinkResponse(BaseModel):
-    """POST /budgets/{id}/whatsapp-link (P10): link wa.me prellenado.
-
-    `sent_at` es el momento del registro de auditoría (RF-P10-02)."""
 
     url: str
-    sent_at: str  # ISO 8601 UTC
+    sent_at: str

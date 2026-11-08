@@ -1,11 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { productsService } from "./service";
 
-/**
- * Tests del service de productos: verifican el contrato HTTP (path, método,
- * body) y las respuestas especiales del DELETE (204 sin pedidos · 200 con
- * `impacted_orders`). Se mockea fetch — nada de red.
- */
 const API_BASE = "http://localhost:8000/api/v1";
 
 function mockFetch(status: number, body: unknown) {

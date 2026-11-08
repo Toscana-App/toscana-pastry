@@ -1,5 +1,3 @@
-"""Dominio de presupuestos (Fase 7, P7/P8): derivacion de items,
-totales, maquina de estados y secuencia."""
 import datetime
 from dataclasses import replace
 from decimal import Decimal
@@ -22,9 +20,6 @@ from domain.models import BusinessSettings, Ingredient, Product, RecipeItem
 from domain.budget_pricing import unit_product_cost
 
 
-# ---------------------------------------------------------------------------
-# Helpers (mismos numeros que la Fase 6: harina 2.800/kg, 250g, 30 min)
-# ---------------------------------------------------------------------------
 
 
 def tenant(**overrides) -> BusinessSettings:
@@ -76,16 +71,12 @@ def make_budget(**overrides) -> Budget:
     return Budget(**base)
 
 
-# ---------------------------------------------------------------------------
-# Costo de unidad (derivado contra el catalogo)
-# ---------------------------------------------------------------------------
 
 
 class TestUnitProductCost:
     def test_costo_sin_margen(self):
         product = make_torta()
         cost = unit_product_cost(product, {"flour": make_flour()}, tenant())
-        # 250g * 2800 = 700 (materiales) + 75 (mano de obra) = 775
         assert cost == Decimal("775")
 
     def test_costo_segue_el_precio_del_insumo(self):
@@ -93,19 +84,16 @@ class TestUnitProductCost:
         cost = unit_product_cost(
             product, {"flour": make_flour("5600")}, tenant()
         )
-        assert cost == Decimal("1475")  # 1400 + 75
+        assert cost == Decimal("1475")
 
     def test_insumo_sin_precio_aporta_cero(self):
         product = make_torta()
         cost = unit_product_cost(
             product, {"flour": make_flour("0")}, tenant()
         )
-        assert cost == Decimal("75")  # solo mano de obra
+        assert cost == Decimal("75")
 
 
-# ---------------------------------------------------------------------------
-# Derivacion de items y totales
-# ---------------------------------------------------------------------------
 
 
 class TestDerive:
@@ -123,7 +111,6 @@ class TestDerive:
         assert totals.subtotal == Decimal("3100")
         assert totals.total_costos == Decimal("1550")
         assert totals.ganancia == Decimal("1550")
-        # total_venta = subtotal (sin IVA); el iva viaja aparte
         assert totals.total_venta == Decimal("3100")
         assert totals.iva == Decimal("651")
 
@@ -140,10 +127,9 @@ class TestDerive:
         )
         assert items[0].unit_selling == Decimal("500")
         assert items[0].price_overridden is True
-        # ganancia negativa permitida: 500 - 775
         assert totals.ganancia == Decimal("-275")
-        assert totals.total_venta == Decimal("500")  # sin IVA
-        assert totals.iva == Decimal("105")  # 500 * 0.21
+        assert totals.total_venta == Decimal("500")
+        assert totals.iva == Decimal("105")
 
     def test_manual_sin_override_usa_cost_plus(self):
         items, _ = derive_budget_items(
@@ -179,9 +165,6 @@ class TestDerive:
         assert totals.ganancia == Decimal("0")
 
 
-# ---------------------------------------------------------------------------
-# Maquina de estados (RF-P8-05)
-# ---------------------------------------------------------------------------
 
 
 class TestStateMachine:
@@ -193,7 +176,6 @@ class TestStateMachine:
         assert sent.status == "enviado"
         assert sent.version == 1
         assert sent.sent_at is not None
-        # el dominio original no muta (frozen)
         assert budget.status == "borrador"
 
     def test_reenviar_sin_cambios_da_error(self):
@@ -221,9 +203,6 @@ class TestStateMachine:
             )
 
 
-# ---------------------------------------------------------------------------
-# Secuencia (RNF-P8-04)
-# ---------------------------------------------------------------------------
 
 
 class TestSequence:

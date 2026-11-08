@@ -4,7 +4,6 @@ import { renderWithProviders as render } from "../../test-utils";
 import GeneralSettingsForm from "./GeneralSettingsForm";
 import type { CalcSettingsResponse } from "@/types/calc";
 
-// Seams: el service y el toaster. Sin backend real (PREGUNTAS.md → F1).
 vi.mock("@/services/calcSettingsService", () => ({
   calcSettingsService: {
     getSettings: vi.fn(),
@@ -53,8 +52,6 @@ describe("GeneralSettingsForm", () => {
     expect(
       screen.getByLabelText("Impuesto por defecto (%)")
     ).toHaveDisplayValue("19");
-    // rounding_mode "none" → su label en español (trigger del select y
-    // opción del select nativo de a11y que Ark UI mantiene en el DOM).
     expect(screen.getAllByText("Sin redondeo").length).toBeGreaterThanOrEqual(
       1
     );

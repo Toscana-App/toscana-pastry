@@ -1,18 +1,3 @@
-"""Adapter de productos (T-CSV-6, RF-CSV-09, RNF-CSV-06).
-
-Columnas (plan): nombre, categoría, unidad, costo unitario, precio venta,
-stock inicial.
-
-DECISIÓN v1 (documentada en el PR): el dominio ``Product`` no persiste
-costo/precio/stock/unidad y exige una receta con al menos un insumo
-(``domain.models.Product.__post_init__``). Un CSV plano de 6 columnas no puede
-crear un producto cargable (``sql_product_repository.list`` usa ``_to_domain``
-que requiere receta). Por eso el adapter valida/estadia/previsualiza las 6
-columnas (el flujo UI completo funciona) pero el confirm NO inserta registros:
-marca la sesion como confirmada con un mensaje claro (``inserts_on_confirm``
-False). Cuando el modelo de producto soporte datos planos, basta con activar
-los inserts sin tocar el flujo.
-"""
 from __future__ import annotations
 
 from typing import Any
@@ -36,8 +21,6 @@ _NUMERIC_COLUMNS = (
 
 
 class ProductRow(BaseModel):
-    """Fuente de las columnas de la plantilla (RF-CSV-04). Valores como string
-    (el CSV es texto); la validacion los normaliza."""
 
     nombre: str = ""
     categoria: str = ""
@@ -127,5 +110,4 @@ class ProductsAdapter(ImportAdapter):
         return result.scalars().first()
 
     async def insert(self, session: AsyncSession, data: dict[str, Any]) -> None:
-        # v1: no-op (ver el docstring del modulo).
         return None

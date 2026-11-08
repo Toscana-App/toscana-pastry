@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { budgetClientSchema, budgetItemsSchema } from "./schema";
 
-/**
- * Tests de los schemas del wizard (Fase 7, P7/P8): validaciones de cliente,
- * líneas, modo y margen — espejo de las restricciones del dominio backend.
- */
 
 describe("budgetClientSchema", () => {
   it("acepta nombre + teléfono válidos", () => {

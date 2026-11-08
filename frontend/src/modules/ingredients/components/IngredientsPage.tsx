@@ -26,14 +26,6 @@ import { StockBadge } from "./StockBadge";
 
 const PAGE_SIZE = 50;
 
-/**
- * Lista de ingredientes (Fase 4, WU4) — /admin/ingredients.
- *
- * RF-P2-01: búsqueda por nombre con debounce 250 ms + paginación server-side.
- * RF-P2-04: badge de stock por fila. RF-P2-05: tabla en desktop, tarjetas en
- * mobile. Estados: loading (spinner), error (alert), vacío con acción,
- * "sin resultados" con la query en el título.
- */
 export function IngredientsPage() {
   const { items, total, page, query, loading, error, setQuery, goToPage, reload } =
     useIngredients();
@@ -116,7 +108,7 @@ export function IngredientsPage() {
         />
       ) : (
         <>
-          {/* Tabla (desktop) */}
+          {}
           <Box display={{ base: "none", md: "block" }}>
             <Table.ScrollArea borderWidth="1px" rounded="md">
               <Table.Root size="sm">
@@ -154,7 +146,7 @@ export function IngredientsPage() {
             </Table.ScrollArea>
           </Box>
 
-          {/* Tarjetas (mobile, RF-P2-05) */}
+          {}
           <Flex direction="column" gap={3} display={{ base: "flex", md: "none" }}>
             {items.map((ing) => (
               <NextLink key={ing.id} href={`/admin/ingredients/${ing.id}`}>

@@ -7,7 +7,6 @@ import type {
   Material,
 } from "@/types/calc";
 
-// Seams: el service (fetch del endpoint) y el toaster.
 vi.mock("@/services/calcMaterialsService", () => ({
   calcMaterialsService: {
     listCostHistory: vi.fn(),
@@ -43,8 +42,6 @@ function historyResponse(
   return { items, total, page: 1, page_size: 50 };
 }
 
-// El backend devuelve el historial en orden desc (más recientes primero);
-// el diálogo lo muestra tal cual.
 const historyItems: CostHistoryListResponse["items"] = [
   {
     previous_unit_cost: "95.00",
@@ -77,11 +74,9 @@ describe("CostHistoryDialog", () => {
     );
 
     const rows = await screen.findAllByRole("row");
-    // rows[0] = header; los datos llegan del endpoint ya en desc.
     expect(rows[1]).toHaveTextContent("95.00");
     expect(rows[1]).toHaveTextContent("100.00");
     expect(rows[2]).toHaveTextContent("95.00");
-    // previous_unit_cost null → "—"
     expect(rows[2].textContent).toContain("—");
   });
 
@@ -119,7 +114,7 @@ describe("CostHistoryDialog", () => {
   it("paginates with prev/next when there is more than one page", async () => {
     vi.mocked(calcMaterialsService.listCostHistory)
       .mockResolvedValueOnce(
-        historyResponse(historyItems, 120) // total 120 → 3 páginas
+        historyResponse(historyItems, 120)
       )
       .mockResolvedValueOnce(
         historyResponse([{ previous_unit_cost: "10", new_unit_cost: "12", changed_at: "2025-12-01T00:00:00Z" }], 120)
@@ -127,7 +122,6 @@ describe("CostHistoryDialog", () => {
     render(<CostHistoryDialog material={harina} onClose={vi.fn()} />);
 
     await screen.findByText("100.00");
-    // Página 1: "Anterior" deshabilitado, "Siguiente" habilitado.
     expect(
       screen.getByRole("button", { name: "Anterior" })
     ).toBeDisabled();

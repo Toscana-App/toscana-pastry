@@ -15,9 +15,6 @@ from domain.use_cases.product_assembly import (
 
 
 class UpdateProduct:
-    """Actualizacion parcial; `recipe` (si se envia) reemplaza la receta
-    completa. Devuelve None si el producto no existe. Lanza
-    ProductValidationError."""
 
     def __init__(
         self,

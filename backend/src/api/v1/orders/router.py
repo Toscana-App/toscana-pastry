@@ -1,7 +1,3 @@
-"""Router de pagos para pedidos (RF-P6-12/13/14, C1.0-C1.5 / RF-P11-06/08, C6).
-
-Namespace: /api/v1/orders.
-"""
 
 import asyncio
 import dataclasses
@@ -103,11 +99,9 @@ from domain.use_cases import GetSettings
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
-# Mercado Pago app is MLA (Argentina): orders are charged in ARS.
 _PAYMENT_CURRENCY = "ARS"
 
 
-# ─── PATCH /orders/{id}/paid (C1.0) ─────────────────────────────────
 
 @router.patch("/{id}/paid", response_model=PaidResponse)
 async def mark_order_paid(
@@ -115,26 +109,18 @@ async def mark_order_paid(
     repo: SQLOrderRepository = Depends(get_order_repository),
     _admin: User = Depends(require_admin),
 ):
-    """PATCH /orders/{id}/paid: marca el pedido como pagado (manual, admin only).
-
-    Monotonic: paid only transitions false → true.
-    Cash orders: OK.
-    MercadoPago orders: only if not already approved (409 if pending/approved).
-    """
     order = await repo.get(id)
     if order is None:
         raise HTTPException(
             status_code=http_status.HTTP_404_NOT_FOUND, detail="Order not found"
         )
 
-    # Already paid
     if order.paid:
         raise HTTPException(
             status_code=http_status.HTTP_409_CONFLICT,
             detail="order_already_paid",
         )
 
-    # MercadoPago with pending/approved status → let webhook handle it
     if (
         order.payment_method == PaymentMethod.MERCADOPAGO
         and order.payment_status is not None
@@ -145,10 +131,8 @@ async def mark_order_paid(
             detail="payment_in_progress",
         )
 
-    # Apply payment
     if order.payment_method == PaymentMethod.CASH:
         order.mark_cash_payment()
-        # Cash orders: only paid_at changes (payment_status stays None)
         marked = await repo.mark_paid_at(order.id, order.paid_at)
         if not marked:
             raise HTTPException(
@@ -190,7 +174,6 @@ async def _load_recipe_ingredients(
 
 
 async def _get_own_order(repo: SQLOrderRepository, order_id: str, user: User) -> Order:
-    """Order visible to ``user`` (owner or admin); 404 otherwise (anti-probing)."""
     order = await repo.get(order_id)
     if order is None or (user.role != UserRole.ADMIN and order.customer_id != user.id):
         raise HTTPException(
@@ -202,13 +185,11 @@ async def _get_own_order(repo: SQLOrderRepository, order_id: str, user: User) ->
 async def _expire_if_due(
     repo: SQLOrderRepository, order: Order, now: datetime.datetime
 ) -> Order:
-    """Lazy 24 h expiry: cancel the order and release its coupon use."""
     if is_payment_expired(order, now) and await repo.expire_pending_payment(order.id):
         return await repo.get(order.id) or order
     return order
 
 
-# ─── POST /orders/{id}/payment (C1.4) ───────────────────────────────
 
 @router.post("/{id}/payment", response_model=PaymentInitResponse)
 async def initiate_payment(
@@ -219,29 +200,21 @@ async def initiate_payment(
     provider: CheckoutProvider = Depends(get_checkout_provider),
     now: datetime.datetime = Depends(get_now),
 ):
-    """POST /orders/{id}/payment: inicia pago Mercado Pago (Checkout Pro).
-
-    Dueño del pedido o admin. Solo pedidos status=nuevo +
-    payment_method=mercadopago. Idempotencia por Idempotency-Key.
-    """
     order = await _get_own_order(repo, id, user)
     order = await _expire_if_due(repo, order, now)
 
-    # Same key → same saved response.
     saved = await repo.get_payment_attempt(order.id, idempotency_key)
     if saved is not None:
         return PaymentInitResponse(
             reference=saved.reference, checkout_url=saved.checkout_url
         )
 
-    # payment_method=cash → 422
     if order.payment_method == PaymentMethod.CASH:
         raise HTTPException(
             status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="payment_method_not_mercadopago",
         )
 
-    # status≠nuevo → 409
     if order.status != OrderStatus.NUEVO:
         raise HTTPException(
             status_code=http_status.HTTP_409_CONFLICT,
@@ -259,8 +232,6 @@ async def initiate_payment(
             detail="payment_in_progress",
         )
 
-    # Row-guarded claim: exactly one concurrent initiation moves the order
-    # to ``pending`` (RF-P6-12, RNF-P6-10); the others see 409/422.
     if not await repo.claim_payment_pending(order.id):
         current = await repo.get(order.id)
         if current is not None and (
@@ -295,7 +266,6 @@ async def initiate_payment(
     )
 
 
-# ─── GET /orders/{id}/payment (C1.5) ────────────────────────────────
 
 @router.get("/{id}/payment", response_model=PaymentStatusResponse)
 async def get_payment_status(
@@ -304,10 +274,6 @@ async def get_payment_status(
     user: User = Depends(get_current_user),
     now: datetime.datetime = Depends(get_now),
 ):
-    """GET /orders/{id}/payment: estado del pago (polling del portal).
-
-    Dueño del pedido o admin; pedidos ajenos → 404.
-    """
     order = await _get_own_order(repo, id, user)
     order = await _expire_if_due(repo, order, now)
 
@@ -320,7 +286,6 @@ async def get_payment_status(
 
 
 def _retry_after_header(reopens_at: datetime.datetime | None) -> dict[str, str] | None:
-    """``Retry-After`` (HTTP-date) when the window has a reopening time."""
     if reopens_at is None:
         return None
     if reopens_at.tzinfo is None:
@@ -328,7 +293,6 @@ def _retry_after_header(reopens_at: datetime.datetime | None) -> dict[str, str] 
     return {"Retry-After": format_datetime(reopens_at, usegmt=True)}
 
 
-# ─── C6 Portal endpoints: POST /orders, GET /orders/mine ────────────
 
 @router.post("/", response_model=OrderDetailSchema)
 async def create_order_portal(
@@ -339,15 +303,6 @@ async def create_order_portal(
     ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo=Depends(get_settings_repository),
 ):
-    """POST /orders: crea un pedido desde el portal (C6, RF-P11-06/08).
-
-    Checks:
-        - order_window.open → 409 if closed
-        - delivery_mode=delivery requires non-empty delivery_address → 422
-        - date >= today
-        - payment_method ∈ {mercadopago, cash}
-    """
-    # Check order window
     window = await repo.get_order_window()
     if not window.open:
         raise HTTPException(
@@ -356,7 +311,6 @@ async def create_order_portal(
             headers=_retry_after_header(window.reopens_at),
         )
 
-    # Validate payment_method
     try:
         payment_method = PaymentMethod(body.payment_method)
     except ValueError:
@@ -370,7 +324,6 @@ async def create_order_portal(
     except ValueError:
         delivery_mode = DeliveryMode.DELIVERY
 
-    # Price and name come from the catalog, never from the request.
     audience = resolve_audience(user.role, None)
     business = await GetSettings(settings_repo).execute()
     items: list[OrderItem] = []
@@ -435,7 +388,6 @@ async def create_order_portal(
     new_order.snapshots = snapshots
     await repo.add(new_order)
 
-    # Fetch back and return
     result = await repo.get(new_order.id)
     if result is None:
         raise HTTPException(
@@ -479,7 +431,6 @@ async def list_my_orders(
     user: User = Depends(get_current_user),
     repo: SQLOrderRepository = Depends(get_order_repository),
 ):
-    """GET /orders/mine: lista de pedidos del usuario (RF-P11-08)."""
     orders, total = await repo.list_by_customer(
         user.id, page=page, page_size=page_size
     )
@@ -526,10 +477,6 @@ async def get_my_order(
     user: User = Depends(get_current_user),
     repo: SQLOrderRepository = Depends(get_order_repository),
 ):
-    """GET /orders/mine/{code}: detalle de un pedido por su código (RF-P11-08).
-
-    Anti-spoofing: 404 if the order does not belong to the user.
-    """
     order = await repo.get_by_code(code)
     if order is None or order.customer_id != user.id:
         raise HTTPException(
@@ -566,9 +513,6 @@ async def get_my_order(
     )
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 
 def _iso(dt: Optional[datetime.datetime]) -> Optional[str]:
@@ -576,13 +520,11 @@ def _iso(dt: Optional[datetime.datetime]) -> Optional[str]:
 
 
 def _iso_required(dt: Optional[datetime.datetime]) -> str:
-    """Timestamps que la ORM siempre rellena (created_at/updated_at)."""
     assert dt is not None
     return dt.isoformat()
 
 
 def _fmt_money(value: Decimal) -> str:
-    """$81.000: entero sin decimales, separador de miles (display solo)."""
     integer = value.quantize(Decimal("1"))
     return f"${integer:,}".replace(",", ".")
 
@@ -670,8 +612,6 @@ async def _load_products(
 
 
 async def _load_ingredients(repo: SQLIngredientRepository) -> Dict[str, Ingredient]:
-    """Insumos activos paginados (los borrados quedan "missing" en el
-    snapshot, mismo criterio que el costo de producto)."""
     by_id: Dict[str, Ingredient] = {}
     page = 1
     while True:
@@ -691,7 +631,6 @@ def _price_items(
     inputs: List[OrderItemInput],
     margin_override: Optional[Decimal],
 ) -> Tuple[List[P6OrderItem], Dict[str, OrderItemSnapshot]]:
-    """Congela los snapshots de cada linea (RNF-P6-03)."""
     items: List[P6OrderItem] = []
     snapshots: Dict[str, OrderItemSnapshot] = {}
     for entry in inputs:
@@ -737,9 +676,6 @@ def _whatsapp_message(order: P6Order) -> str:
     return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
 
 
 @router.get("", response_model=OrderListResponse)
@@ -757,9 +693,6 @@ async def list_orders(
     repo: OrderRepository = Depends(get_order_repository),
     current_user: User = Depends(require_admin),
 ):
-    """Listado con filtros combinables: estado, cliente, nombre (sin
-    acentos, RF-P2-02), rango de fechas (RF-P6-05) y estado de pago
-    (RF-P6-10: `paid=true` solo pagados, `paid=false` solo sin pagar)."""
     orders, total = await repo.list_orders(
         status=status_,
         customer_id=customer_id,
@@ -804,9 +737,6 @@ async def create_order(
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     _admin: User = Depends(require_admin),
 ):
-    """UC-02: pedido nuevo con snapshots de precios congelados
-    (RNF-P6-03). Cliente debe existir; los productos incompletos entran
-    con costo 0 y desglose parcial (decision de negocio, 17/10)."""
     customer = await customer_repo.get(payload.customer_id)
     if customer is None:
         raise HTTPException(
@@ -846,9 +776,6 @@ async def preview_order(
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     _admin: User = Depends(require_admin),
 ):
-    """Cotizacion en vivo del wizard (admin): mismo calculo que el create,
-    sin persistir. Devuelve el margen aplicado (override o tenant) y el
-    total del pedido."""
     settings = await GetSettings(settings_repo).execute()
     try:
         products = await _load_products(
@@ -885,17 +812,11 @@ async def preview_order(
     )
 
 
-# ─── Fase 5: resumen semanal + export (RF-P6-11) ────────────────────
 
 _WEEK_ISO_RE = re.compile(r"^(\d{4})-W(\d{1,2})$")
 
 
 def _parse_week(week: Optional[str]) -> Tuple[datetime.date, datetime.date]:
-    """Resuelve la semana natural (Lun-Dom) a reportar (RF-P6-11).
-
-    Acepta ISO week ``2026-W44`` o cualquier fecha ``2026-11-02`` dentro
-    de la semana; ``None`` = semana actual del servidor.
-    """
     if week is None or not week.strip():
         ref = datetime.date.today()
     else:
@@ -930,7 +851,6 @@ async def _fetch_all_orders(
     date_to: Optional[datetime.date],
     paid: Optional[bool],
 ) -> List[P6Order]:
-    """Recorre todas las paginas del listado filtrado (export/resumen)."""
     orders: List[P6Order] = []
     page = 1
     while True:
@@ -952,8 +872,6 @@ async def _fetch_all_orders(
 
 
 def _orders_csv_rows(orders: List[P6Order]) -> List[List[str]]:
-    """Filas CSV (con cabecera) del export de pedidos, dinero en
-    formato legible $1.234,56 (format_money_cents, Fase 5)."""
     rows: List[List[str]] = [
         ["id", "cliente", "fecha", "items", "total", "estado", "pago", "metodo"]
     ]
@@ -974,8 +892,6 @@ def _orders_csv_rows(orders: List[P6Order]) -> List[List[str]]:
 
 
 def _csv_response(rows: List[List[str]], filename: str) -> StreamingResponse:
-    """CSV streaming con csv.writer (escape correcto, mismo patron que
-    la pricelist de productos)."""
     buf = io.StringIO()
     w = csv_writer(buf, lineterminator="\n")
     for row in rows:
@@ -993,9 +909,6 @@ async def weekly_summary(
     repo: OrderRepository = Depends(get_order_repository),
     _admin: User = Depends(require_admin),
 ):
-    """Resumen semanal (RF-P6-11): pedidos confirmados/entregados de la
-    semana natural (Lun-Dom) con totales de monto y estado de pago.
-    Solo admin; `week` opcional (2026-W44 o fecha dentro de la semana)."""
     monday, sunday = _parse_week(week)
     orders: List[P6Order] = []
     for st in ("confirmado", "entregado"):
@@ -1034,8 +947,6 @@ async def weekly_summary_pdf(
     pdf: PdfClient = Depends(get_pdf_client),
     _admin: User = Depends(require_admin),
 ):
-    """PDF del resumen semanal (pdfgenerator, ADR-0001) — mismo dato que
-    GET /orders/weekly (Fase 5, nuevo requerimiento de export)."""
     monday, sunday = _parse_week(week)
     orders: List[P6Order] = []
     for st in ("confirmado", "entregado"):
@@ -1084,10 +995,6 @@ async def export_orders(
     pdf: PdfClient = Depends(get_pdf_client),
     _admin: User = Depends(require_admin),
 ):
-    """Export del listado de pedidos con los mismos filtros que
-    GET /orders (fecha, estado, pago). CSV por defecto (backward-
-    compatible); ``format=pdf`` genera PDF vía pdfgenerator (ADR-0001,
-    sin archivo intermedio)."""
     orders = await _fetch_all_orders(repo, status_, from_, to_, paid)
     orders.sort(key=lambda o: (o.date, o.customer_name))
     if from_ and to_:
@@ -1096,7 +1003,6 @@ async def export_orders(
         period = "todos"
     if fmt == "csv":
         return _csv_response(_orders_csv_rows(orders), f"pedidos_{period}.csv")
-    # PDF (pdfgenerator, ADR-0001)
     payload = {
         "period_label": period,
         "orders": [
@@ -1127,8 +1033,6 @@ async def get_order(
     repo: OrderRepository = Depends(get_order_repository),
     current_user: User = Depends(require_admin),
 ):
-    """UC-03/UC-05: el desglose viene del snapshot congelado
-    (RNF-P6-03), nunca recalculado contra el catalogo."""
     order = await repo.get_full(order_id)
     if order is None:
         raise HTTPException(
@@ -1148,9 +1052,6 @@ async def update_order(
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     _admin: User = Depends(require_admin),
 ):
-    """UC-02: edicion parcial, solo estado `nuevo` (confirmado ya
-    compromete stock y snapshot). Cambios de items o margin re-congelan
-    los snapshots."""
     existing = await order_repo.get_full(order_id)
     if existing is None:
         raise HTTPException(
@@ -1237,10 +1138,6 @@ async def patch_order_status(
     ingredient_repo: SQLIngredientRepository = Depends(get_ingredient_repository),
     _admin: User = Depends(require_admin),
 ):
-    """RNF-P6-01: nuevo->confirmado->entregado; cancelado solo desde
-    confirmado. Confirmar descuenta stock atomicamente (RNF-P6-02): si no
-    alcanza, 409 con el detalle y cero cambios (RNF-P6-04). Cancelar
-    reposiciona."""
     order = await order_repo.get_full(order_id)
     if order is None:
         raise HTTPException(
@@ -1254,7 +1151,6 @@ async def patch_order_status(
     try:
         return await _apply_status(order, payload.status, order_repo, ingredient_repo)
     except InvalidStatusTransitionError as e:
-        # Revalidado bajo lock en el repositorio (carrera con otro PATCH).
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
@@ -1270,7 +1166,6 @@ async def _apply_status(
         details: List[InsufficientStockItem] = []
         for ingredient_id, faltante in e.shortage.items():
             row = await ingredient_repo.get(ingredient_id)
-            # available/required capturados bajo lock (RNF-P6-04).
             available = e.available.get(ingredient_id, Decimal("0"))
             required = e.required.get(ingredient_id, available + faltante)
             details.append(
@@ -1287,8 +1182,6 @@ async def _apply_status(
             status_code=status.HTTP_409_CONFLICT,
             content={
                 "error": "Stock insuficiente para confirmar el pedido",
-                # JSONResponse no sabe serializar Decimal (RNF-P4-02):
-                # el dinero viaja como str.
                 "insufficient_stock": [
                     {
                         "ingredient_id": d.ingredient_id,
@@ -1309,8 +1202,6 @@ async def whatsapp_link(
     repo: OrderRepository = Depends(get_order_repository),
     _admin: User = Depends(require_admin),
 ):
-    """UC-03 CTA (RF-P6-06): link wa.me con el resumen del pedido; se
-    registra el evento de auditoria."""
     order = await repo.get_full(order_id)
     if order is None:
         raise HTTPException(

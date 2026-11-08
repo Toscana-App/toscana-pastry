@@ -1,7 +1,3 @@
-"""MercadoPagoCheckoutProvider (S3): Checkout Pro preference + payment lookup.
-
-The Mercado Pago API is replaced by an httpx.MockTransport; no network.
-"""
 
 from __future__ import annotations
 
@@ -33,7 +29,6 @@ def test_implements_checkout_provider_contract() -> None:
     assert isinstance(_provider(lambda r: httpx.Response(200)), CheckoutProvider)
 
 
-# ─── create_payment ──────────────────────────────────────────────────
 
 
 async def test_create_payment_creates_checkout_pro_preference() -> None:
@@ -116,7 +111,6 @@ async def test_create_payment_http_error_raises_provider_error() -> None:
         await provider.create_payment("order-1", 10.0, "ARS")
 
 
-# ─── get_payment ─────────────────────────────────────────────────────
 
 
 @pytest.mark.parametrize(
@@ -165,7 +159,6 @@ async def test_network_error_raises_provider_error() -> None:
         await _provider(handler).get_payment("987")
 
 
-# ─── verify_webhook ──────────────────────────────────────────────────
 
 
 def _signed(data_id: str, request_id: str, ts: str | None = None) -> str:

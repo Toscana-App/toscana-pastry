@@ -1,8 +1,3 @@
-"""Mercado Pago adapter (Checkout Pro) for the CheckoutProvider contract.
-
-Talks to the Mercado Pago REST API with async httpx (no SDK: the official
-Python SDK is synchronous).
-"""
 
 from __future__ import annotations
 
@@ -25,10 +20,8 @@ from domain.checkout_provider import (
 MP_API_URL = "https://api.mercadopago.com"
 _HTTP_TIMEOUT_SECONDS = 10.0
 _ITEM_TITLE = "Toscana Pastry order"
-# Anti-replay: a webhook whose signed ``ts`` is further than this from now is stale.
 SIGNATURE_TOLERANCE_SECONDS = 5 * 60
 
-# Mercado Pago payment status -> CheckoutProvider status.
 _STATUS_MAP = {
     "approved": "approved",
     "pending": "pending",
@@ -43,7 +36,6 @@ _STATUS_MAP = {
 
 
 class MercadoPagoCheckoutProvider:
-    """CheckoutProvider backed by Mercado Pago Checkout Pro."""
 
     def __init__(
         self,
@@ -98,8 +90,6 @@ class MercadoPagoCheckoutProvider:
             }
             body["auto_return"] = "approved"
         data = await self._request("POST", "/checkout/preferences", json=body)
-        # ponytail: TEST- tokens only work on the sandbox checkout; APP_USR-
-        # tokens (prod or test-user) use init_point.
         if self._access_token.startswith("TEST-"):
             checkout_url = data.get("sandbox_init_point") or data["init_point"]
         else:
@@ -108,7 +98,6 @@ class MercadoPagoCheckoutProvider:
 
     async def get_payment(self, reference: str) -> PaymentStatusResult:
         data = await self._request("GET", f"/v1/payments/{reference}")
-        # Unknown statuses stay non-terminal: they can never mark an order paid.
         status = _STATUS_MAP.get(str(data.get("status")), "pending")
         order_id = data.get("external_reference") or None
         return PaymentStatusResult(
@@ -148,13 +137,6 @@ def verify_mp_signature(
     x_signature: str | None,
     now: float | None = None,
 ) -> bool:
-    """Validate the ``x-signature`` header of a Mercado Pago webhook.
-
-    ``x-signature`` is ``ts=<ts>,v1=<hex>`` where ``v1`` is the HMAC-SHA256
-    of ``id:<data.id>;request-id:<x-request-id>;ts:<ts>;`` keyed with the
-    webhook secret. ``ts`` must be within ``SIGNATURE_TOLERANCE_SECONDS`` of
-    ``now`` (epoch seconds; default: current time) to block replays.
-    """
     if not secret or not data_id or not request_id or not x_signature:
         return False
     parts: dict[str, str] = {}
@@ -168,14 +150,13 @@ def verify_mp_signature(
         return False
     manifest = f"id:{data_id};request-id:{request_id};ts:{ts};"
     expected = hmac.new(secret.encode(), manifest.encode(), hashlib.sha256).hexdigest()
-    # Compare bytes: compare_digest raises TypeError on non-ASCII str.
     if not hmac.compare_digest(expected.encode(), v1.encode("utf-8", "surrogateescape")):
         return False
     try:
         signed_at = float(ts)
     except ValueError:
         return False
-    if signed_at > 1e11:  # milliseconds epoch
+    if signed_at > 1e11:
         signed_at /= 1000
     current = time.time() if now is None else now
     return abs(current - signed_at) <= SIGNATURE_TOLERANCE_SECONDS

@@ -1,12 +1,3 @@
-"""Integration tests for PATCH /orders/{id}/paid (C1.0).
-
-Covers:
-    200 for cash orders
-    200 for mercadopago orders without terminal status
-    409 for already paid orders
-    409 for mercadopago orders with terminal status (approved/rejected/failed)
-    404 for non-existent orders
-"""
 
 import datetime
 import uuid
@@ -29,7 +20,6 @@ from domain.models import User, UserRole
 from domain.order import Order, OrderItem, PaymentMethod
 from main import app
 
-# ─── Fixtures ─────────────────────────────────────────────────────────
 
 
 async def _admin_user():
@@ -104,11 +94,9 @@ async def mercadopago_order(db_session):
     return order
 
 
-# ─── Tests ────────────────────────────────────────────────────────────
 
 
 class TestPatchOrderPaid:
-    """Tests for PATCH /orders/{id}/paid (C1.0)."""
 
     async def test_cash_order_marks_paid(self, client, cash_order):
         response = await client.patch(f"/api/v1/orders/{cash_order.id}/paid")
@@ -134,9 +122,7 @@ class TestPatchOrderPaid:
         assert data["paid"] is True
 
     async def test_already_paid_returns_409(self, client, cash_order):
-        # First mark as paid
         await client.patch(f"/api/v1/orders/{cash_order.id}/paid")
-        # Second attempt should fail
         response = await client.patch(f"/api/v1/orders/{cash_order.id}/paid")
         assert response.status_code == 409
         assert response.json()["detail"] == "order_already_paid"

@@ -2,13 +2,6 @@ import { Badge } from "@chakra-ui/react";
 import { formatQty } from "@/lib/format";
 import type { IngredientStatus } from "../types";
 
-/**
- * Badge de stock (Fase 4, RF-P2-04): color + texto según el status
- * computado por el servidor.
- *
- * OK (verde) "12 kg disponibles" · LOW (naranja) "2 kg restantes" ·
- * EMPTY (rojo) "Agotado".
- */
 const STATUS_STYLE: Record<
   IngredientStatus,
   { palette: "green" | "orange" | "red"; label: (qty: string, unit: string) => string }

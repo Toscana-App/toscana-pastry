@@ -1,11 +1,5 @@
 "use client";
 
-/** Carrito del portal (F3 — C4, RF-P11-03/14).
-
-Lee el carrito server-side (audiencia + pricing en backend), permite
-alterar cantidades, quitar líneas, aplicar/quitar cupón (422 inline) y
-llevar a checkout. Montos como string (Money).
-*/
 
 import {
   Alert,
@@ -113,7 +107,6 @@ function CartPage() {
       setCart(next);
       setCouponInput("");
     } catch (error) {
-      // 422 del backend: detail descriptivo (RF-P5-10)
       setCouponError(
         error instanceof Error ? error.message : "Cupón no válido"
       );
@@ -137,7 +130,7 @@ function CartPage() {
     return (
       <Card.Root as="main">
         <Card.Body>
-          {/* role=status: anuncia el estado de carga a lectores de pantalla */}
+          {}
           <Stack gap={3} py={4} role="status">
             <Text srOnly>Cargando tu carrito</Text>
             <Skeleton h="20px" />
@@ -191,7 +184,7 @@ function CartPage() {
           <Heading as="h1" size="md">
             Tu carrito
           </Heading>
-          {/* Región live permanente: anuncia cambios dinámicos del carrito */}
+          {}
           <Text srOnly role="status">
             {cart.items.length} {cart.items.length === 1 ? "producto" : "productos"} en el carrito
           </Text>

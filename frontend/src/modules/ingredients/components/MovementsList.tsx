@@ -2,26 +2,14 @@ import { Flex, Text } from "@chakra-ui/react";
 import { formatDateTime, formatSignedQty } from "@/lib/format";
 import type { StockMovement } from "../types";
 
-/**
- * Etiquetas legibles de los motivos del contrato. El alta y la importación
- * registran el stock inicial como `compra` con ref "inicial", así que también
- * se muestra como "Compra · inicial".
- */
 const REASON_LABEL: Record<string, string> = {
   compra: "Compra",
   merma: "Merma",
   ajuste: "Ajuste",
 };
 
-/** El detalle trae como máximo los últimos 50 movimientos (límite del backend). */
 const DETAIL_LIMIT = 50;
 
-/**
- * Historial de movimientos de stock (Fase 4, WU6).
- *
- * Cada fila: delta con signo (verde entra, rojo sale), motivo, referencia
- * opcional y fecha local. Vienen del más reciente al más antiguo.
- */
 export function MovementsList({ movements }: { movements: StockMovement[] }) {
   if (movements.length === 0) {
     return (

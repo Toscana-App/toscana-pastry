@@ -1,4 +1,3 @@
-"""Budget use cases (derive items, convert to order) against in-memory fakes."""
 import dataclasses
 from decimal import Decimal
 

@@ -1,9 +1,3 @@
-"""Order window domain (RF-P5-07, C6).
-
-La ventana de pedidos controla si el portal acepta nuevos pedidos.
-Cuando estÃ¡ cerrada, la creaciÃ³n de pedido debe fallar con un cÃ³digo
-de error explÃ­cito para que el frontend muestre el banner y el mensaje.
-"""
 
 import datetime
 
@@ -12,11 +6,6 @@ MAX_WINDOW_MESSAGE = 200
 
 
 class OrderWindow:
-    """Ventana de pedidos del portal (RF-P5-07).
-
-    ``open`` por defecto True. Si se cierra, ``reopens_at`` es requerido y
-    el mensaje opcional (mÃ¡ximo 200 caracteres).
-    """
 
     MAX_WINDOW_MESSAGE = 200
 
@@ -35,7 +24,6 @@ class OrderWindow:
             raise ValueError(
                 f"message must be <= {self.MAX_WINDOW_MESSAGE} chars"
             )
-        # Strip timezone info (naive storage; RF-P5-07).
         if reopens_at is not None and reopens_at.tzinfo is not None:
             reopens_at = reopens_at.replace(tzinfo=None)
         self.open = open

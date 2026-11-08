@@ -166,7 +166,6 @@ async def _seed_published(client: AsyncClient):
     return headers, product
 
 
-# --- Default: nace oculto ---------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -188,7 +187,6 @@ async def test_create_product_hidden_by_default(client):
     assert item["image_url"] is None
 
 
-# --- Publicar / retirar ------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -242,7 +240,6 @@ async def test_partial_update_preserves_availability(client):
     assert response.json()["description"] == "Sin gluten"
 
 
-# --- 409 publicar incompleto --------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -283,7 +280,6 @@ async def test_publish_nonexistent_is_404(client):
     assert response.status_code == 404
 
 
-# --- RBAC ---------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -300,7 +296,6 @@ async def test_publish_forbidden_for_customer(client):
     assert response.status_code == 403
 
 
-# --- Migracion -----------------------------------------------------------------
 
 
 def test_migration_0009_adds_available_and_image_url():

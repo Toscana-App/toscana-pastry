@@ -1,31 +1,3 @@
-"""Router de productos (Fase 5, P3/P4).
-
-Contrato:
-- Lectura (list/get): cualquier usuario autenticado. Mutaciones: admin.
-- El precio es derivado en cada lectura con los insumos y settings
-  actuales (RF-P3-04): nunca se persiste.
-- Producto incompleto (insumos sin precio/borrados): 200 con
-  complete=false, price null y missing_ingredients (no es error).
-- Validaciones de receta (insumo inexistente, unidades incompatibles,
-  duplicados) → 400, como POST /pricing/preview.
-- Borrado: UC-07 / RF-P4-08. Soft delete SIEMPRE: el producto sale del
-  catálogo pero los pedidos históricos quedan intactos. Con pedidos, la
-  response informa `impacted_orders` (200); sin pedidos, 204. A diferencia
-  de los insumos en recetas activas, no se bloquea con 409.
-
-Exports de lista de precios por audiencia (S3 — T4):
-  GET /products/pricelist/csv?audience=revendedores|consumidor_final
-  GET /products/pricelist/pdf?audience=revendedores|consumidor_final
-
-Role gate:
-  - admin: ambas audiencias
-  - negocio: solo revendedores (consumidor_final -> 403)
-  - cliente: solo consumidor_final (revendedores -> 403)
-
-El precio por audiencia delega en ``derive_audience_price`` /
-``resolve_audience`` de ``domain.pricing_service`` — la regla de negocio
-tiene un unico hogar.
-"""
 import asyncio
 import csv as csv_module
 import logging
@@ -114,15 +86,12 @@ _FORMULA_PREFIXES = ("=", "+", "-", "@", "	")
 
 
 def _csv_safe(value: str) -> str:
-    """Neutraliza formula injection: un texto que empieza con ``= + - @`` o
-    tab se prefija con ``'`` para que Excel/Sheets no lo ejecuten."""
     if value.startswith(_FORMULA_PREFIXES):
         return "'" + value
     return value
 
 
 async def _list_all_products(product_repo: ProductRepository) -> list:
-    """Recorre todas las paginas del repositorio: sin truncado silencioso."""
     products: list = []
     page = 1
     while True:
@@ -154,14 +123,6 @@ async def _build_store_rows(
     page: int | None = None,
     page_size: int | None = None,
 ) -> tuple[list[tuple], int, list[str]]:
-    """Devuelve ``(filas, total, categorias)`` con filas
-    ``(product, precio_para_la_audiencia, price)``; unico lugar donde se aplica
-    ``derive_audience_price`` sobre la tienda.
-
-    Solo productos disponibles con receta completa; ``q`` filtra por nombre
-    (insensible a acentos, RF-P3-01); ``page``/``page_size`` pagina sobre el
-    catalogo visible; ``total`` y ``categories`` reflejan ese catalogo.
-    """
     settings = await GetSettings(settings_repo).execute()
     products = await _list_all_products(product_repo)
     ingredients_by_id = await _load_ingredients(ingredient_repo, products)
@@ -200,7 +161,6 @@ async def _build_store_rows(
 async def _load_ingredients(
     repo: IngredientRepository, products: Iterable[Product]
 ) -> Dict[str, Ingredient]:
-    """Solo los insumos usados por las recetas de `products` (una consulta)."""
     ids = {item.ingredient_id for product in products for item in product.recipe}
     return {ingredient.id: ingredient for ingredient in await repo.get_many(list(ids))}
 
@@ -293,9 +253,6 @@ def _detail_response(
 
 
 def _build_csv(rows: list[dict[str, str]]) -> str:
-    """Construye un CSV usando ``csv.writer`` para escapar correctamente
-    comas, comillas y saltos de línea en los valores.
-    """
     output = StringIO()
     header = list(rows[0].keys()) if rows else ["name", "category", "price"]
     writer = csv_module.writer(output, lineterminator="\n")
@@ -321,18 +278,6 @@ async def list_products(
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     current_user: User = Depends(require_admin_or_audience),
 ):
-    """Dos contratos (integracion P3 + S3):
-
-    - Sin `audience`: listado P3 (busqueda insensible a acentos RF-P3-01,
-      filtro por categoria y categorias derivadas) con PriceBreakdown de
-      cada producto. `page` por defecto 1, `page_size` por defecto 20 (max 100).
-    - Con `audience`: catalogo del portal — productos disponibles y
-      completos con precio derivado para la audiencia del rol. Guard:
-      admin ambas audiencias, negocio solo revendedores, cliente solo
-      consumidor_final (403 si no). `q` filtra por nombre (insensible a
-      acentos, RF-P3-01); `page` / `page_size` opcionales; `total` y
-      `categories` reflejan el catalogo visible.
-    """
     if audience is not None:
         resolved = _resolve_or_403(current_user, audience)
         priced, total, categories = await _build_store_rows(
@@ -391,8 +336,6 @@ async def get_product(
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     current_user: User = Depends(require_admin_or_audience),
 ):
-    """Detalle P4: informacion + receta con costo por linea + desglose
-    completo del motor (o missing_ingredients si es incompleto)."""
     product = await repo.get(product_id)
     if product is None:
         raise HTTPException(
@@ -463,7 +406,6 @@ async def update_product(
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     _admin: User = Depends(require_admin),
 ):
-    """Parcial; `recipe` reemplaza la receta completa cuando se envia."""
     provided = payload.model_dump(exclude_unset=True)
     try:
         saved = await UpdateProduct(repo, ingredient_repo, settings_repo).execute(
@@ -504,10 +446,6 @@ async def delete_product(
     repo: ProductRepository = Depends(get_product_repository),
     _admin: User = Depends(require_admin),
 ):
-    """UC-07 / RF-P4-08: soft delete SIEMPRE (el producto sale del catálogo,
-    los pedidos históricos no se tocan). Si tiene pedidos históricos, la
-    response es 200 con `impacted_orders`; si no, 204. El bloqueo con 409
-    NO aplica a productos (a diferencia de insumos en recetas activas)."""
     existing = await repo.get(product_id)
     if existing is None:
         raise HTTPException(
@@ -592,12 +530,6 @@ async def pricelist_csv(
     ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
 ):
-    """Exporta la lista de precios en CSV para la audiencia del rol.
-
-    - admin: ambas audiencias.
-    - negocio: solo revendedores.
-    - cliente: solo consumidor_final.
-    """
     resolved = _resolve_or_403(current_user, audience)
     priced, _, _ = await _build_store_rows(
         repo, ingredient_repo, settings_repo, resolved
@@ -633,13 +565,6 @@ async def pricelist_pdf(
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     pdf: PdfClient = Depends(get_pdf_client),
 ):
-    """Exporta la lista de precios en PDF para la audiencia del rol
-    (render vía pdfgenerator, ADR-0001).
-
-    - admin: ambas audiencias.
-    - negocio: solo revendedores.
-    - cliente: solo consumidor_final.
-    """
     resolved = _resolve_or_403(current_user, audience)
     priced, _, _ = await _build_store_rows(
         repo, ingredient_repo, settings_repo, resolved

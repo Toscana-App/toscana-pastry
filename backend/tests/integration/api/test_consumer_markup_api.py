@@ -1,4 +1,3 @@
-"""Tests for consumer_markup_pct on tenant settings (S2)."""
 
 import pytest
 import pytest_asyncio
@@ -18,7 +17,6 @@ SETTINGS_PATH = "/api/v1/tenant/settings"
 
 @pytest_asyncio.fixture
 async def admin_client(db_session):
-    """Client with admin user pre-seeded."""
     await SQLUserRepository(db_session).save(
         User(email="admin@example.com", role=UserRole.ADMIN)
     )
@@ -45,7 +43,6 @@ async def admin_client(db_session):
 
 @pytest_asyncio.fixture
 async def customer_client(db_session):
-    """Client with customer user pre-seeded."""
     await SQLUserRepository(db_session).save(
         User(email="customer@example.com", role=UserRole.CUSTOMER)
     )
@@ -72,7 +69,6 @@ async def customer_client(db_session):
 
 @pytest_asyncio.fixture
 async def negocio_client(db_session):
-    """Client with negocio user pre-seeded."""
     await SQLUserRepository(db_session).save(
         User(email="negocio@example.com", role=UserRole.NEGOCIO)
     )
@@ -131,12 +127,10 @@ _BASE_PAYLOAD = {
 }
 
 
-# ---- S2: PUT consumer_markup_pct persists and round-trips ----
 
 
 @pytest.mark.asyncio
 async def test_put_consumer_markup_persists_and_rereads(admin_client):
-    """S2: PUT consumer_markup_pct='25' persists; GET returns it."""
     token = await _admin_token(admin_client)
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -154,7 +148,6 @@ async def test_put_consumer_markup_persists_and_rereads(admin_client):
 
 @pytest.mark.asyncio
 async def test_get_consumer_markup_default_is_40(admin_client):
-    """S2: consumer_markup_pct defaults to 40 when not set."""
     token = await _admin_token(admin_client)
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -163,12 +156,10 @@ async def test_get_consumer_markup_default_is_40(admin_client):
     assert Decimal(response.json()["consumer_markup_pct"]) == Decimal("40")
 
 
-# ---- S2: admin-only guard (PUT forbidden for non-admin) ----
 
 
 @pytest.mark.asyncio
 async def test_put_consumer_markup_forbidden_for_customer(customer_client):
-    """S2: customer cannot PUT settings → 403."""
     token = await _customer_token(customer_client)
     payload = dict(_BASE_PAYLOAD, consumer_markup_pct="50")
     response = await customer_client.put(
@@ -181,7 +172,6 @@ async def test_put_consumer_markup_forbidden_for_customer(customer_client):
 
 @pytest.mark.asyncio
 async def test_put_consumer_markup_forbidden_for_negocio(negocio_client):
-    """S2: negocio cannot PUT settings → 403."""
     token = await _negocio_token(negocio_client)
     payload = dict(_BASE_PAYLOAD, consumer_markup_pct="50")
     response = await negocio_client.put(
@@ -191,12 +181,10 @@ async def test_put_consumer_markup_forbidden_for_negocio(negocio_client):
     assert response.status_code == 403
 
 
-# ---- S2: range validation (0-100) ----
 
 
 @pytest.mark.asyncio
 async def test_put_consumer_markup_rejects_above_100(admin_client):
-    """S2: consumer_markup_pct=101 → 422."""
     token = await _admin_token(admin_client)
     payload = dict(_BASE_PAYLOAD, consumer_markup_pct="101")
     response = await admin_client.put(
@@ -209,7 +197,6 @@ async def test_put_consumer_markup_rejects_above_100(admin_client):
 
 @pytest.mark.asyncio
 async def test_put_consumer_markup_rejects_negative(admin_client):
-    """S2: consumer_markup_pct=-1 → 422."""
     token = await _admin_token(admin_client)
     payload = dict(_BASE_PAYLOAD, consumer_markup_pct="-1")
     response = await admin_client.put(
@@ -222,7 +209,6 @@ async def test_put_consumer_markup_rejects_negative(admin_client):
 
 @pytest.mark.asyncio
 async def test_put_consumer_markup_accepts_zero(admin_client):
-    """S2: consumer_markup_pct=0 is valid (edge)."""
     token = await _admin_token(admin_client)
     payload = dict(_BASE_PAYLOAD, consumer_markup_pct="0")
     response = await admin_client.put(
@@ -235,7 +221,6 @@ async def test_put_consumer_markup_accepts_zero(admin_client):
 
 @pytest.mark.asyncio
 async def test_put_consumer_markup_accepts_100(admin_client):
-    """S2: consumer_markup_pct=100 is valid (edge)."""
     token = await _admin_token(admin_client)
     payload = dict(_BASE_PAYLOAD, consumer_markup_pct="100")
     response = await admin_client.put(

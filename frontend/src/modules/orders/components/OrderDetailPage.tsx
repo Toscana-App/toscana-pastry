@@ -34,16 +34,6 @@ const STATUS_COLORS: Record<OrderStatus, "blue" | "green" | "gray" | "red"> = {
   cancelado: "red",
 };
 
-/**
- * Detalle de pedido (Fase 6, UC-03/UC-05/UC-06) — /pedidos/[id].
- *
- * Muestra el snapshot congelado (RNF-P6-03): líneas de costo, precios y
- * total tal como se calcularon al crear, sin recalcular en el cliente.
- *
- * Acciones (admin): transición de estado con confirmación (RNF-P6-01),
- * enlace de WhatsApp (UC-06) y edición (solo estado nuevo). Confirmar
- * descuenta stock atómicamente: un 409 no cambió nada.
- */
 interface OrderDetailPageProps {
   orderId: string;
 }
@@ -112,14 +102,12 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
     }
   }, [order]);
 
-  // Marcar pagado (RF-P6-10): el backend es monotónico (409 si ya pagado).
   const markPaid = useCallback(async () => {
     if (!order) return;
     setActionLoading(true);
     setActionError(null);
     try {
       const result = await ordersService.markPaid(order.id);
-      // El endpoint responde {id, paid}; el resto del detalle no cambia.
       setOrder({ ...order, paid: result.paid });
     } catch (e) {
       setActionError(
@@ -177,7 +165,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
         </Button>
       </Flex>
 
-      {/* Cliente + datos */}
+      {}
       <Box borderWidth="1px" borderColor="border" rounded="md" p={4}>
         <VStack align="start" gap={2}>
           <Text fontWeight="600">{order.customer.name}</Text>
@@ -194,7 +182,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
         </VStack>
       </Box>
 
-      {/* Snapshot de líneas */}
+      {}
       <Box borderWidth="1px" borderColor="border" rounded="md" overflowX="auto">
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
           <thead>
@@ -242,7 +230,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
         </table>
       </Box>
 
-      {/* Líneas de costo + faltantes del snapshot */}
+      {}
       {order.items.map((item, idx) =>
         item.lines.length > 0 || item.missing_ingredients.length > 0 ? (
           <Box
@@ -286,7 +274,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
         ) : null,
       )}
 
-      {/* Total */}
+      {}
       <HStack justify="flex-end" gap={2}>
         <Text fontWeight="600">Total</Text>
         <Text fontWeight="700" fontSize="xl" fontVariantNumeric="tabular-nums">
@@ -294,7 +282,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
         </Text>
       </HStack>
 
-      {/* Acciones admin */}
+      {}
       {isAdmin ? (
         <HStack gap={3} wrap="wrap">
           {order.status === "nuevo" ? (
@@ -367,7 +355,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
         </Alert.Root>
       ) : null}
 
-      {/* Confirmación de transición (Dialog v3, mismo patrón que F5) */}
+      {}
       <Dialog.Root
         open={pendingTransition !== null}
         onOpenChange={(e) => {

@@ -14,10 +14,6 @@ export interface UseCostPreviewResult {
   loading: boolean;
 }
 
-/**
- * Preview del costo en vivo (RF-P4-04): `POST /pricing/preview` con debounce
- * de 300 ms, sin guardar. Sin líneas válidas no llama al backend.
- */
 export function useCostPreview(
   recipe: ProductFormValues["recipe"] | undefined,
   prepMinutes: number,
@@ -44,14 +40,12 @@ export function useCostPreview(
   }, [recipe, ingredientById]);
 
   useEffect(() => {
-    // Sin líneas válidas no hay llamada: el resultado se deriva abajo.
     if (lines.length === 0) return;
 
     const prep = Number.isFinite(prepMinutes)
       ? Math.min(Math.max(prepMinutes, 0), 1440)
       : 0;
     let cancelled = false;
-    // Loading arranca con el debounce, antes de que responda el backend.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
 

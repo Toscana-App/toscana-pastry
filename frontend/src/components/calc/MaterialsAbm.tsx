@@ -30,13 +30,10 @@ import type {
   Supplier,
 } from "@/types/calc";
 
-// page_size fijo (decisión F1 en PREGUNTAS.md): escala admin, sin selector.
 const PAGE_SIZE = 50;
 
-// Valor centinela de la opción "todos" de cada filtro (= sin parámetro).
 const ALL = "__all__";
 
-// Estado (D1 de B8): solo los 2 valores derivados del servidor.
 const STATUS_COLLECTION = createListCollection({
   items: [
     { value: ALL, label: "Todos" },
@@ -45,7 +42,6 @@ const STATUS_COLLECTION = createListCollection({
   ],
 });
 
-// Chip de estado read-only: nunca se envía al backend.
 function StatusChip({ status }: { status: MaterialStatus }) {
   return status === "active" ? (
     <Tag.Root size="sm" colorPalette="green" variant="subtle">
@@ -62,39 +58,28 @@ export default function MaterialsAbm() {
   const [data, setData] = useState<MaterialListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  // Contador para forzar reintento sin cambios de parámetros.
   const [reloadKey, setReloadKey] = useState(0);
 
-  // Búsqueda: input crudo + valor con debounce (~300 ms) que manda ?q.
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  // Filtros ("" = sin parámetro).
   const [categoryFilter, setCategoryFilter] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<MaterialStatus | "">("");
 
-  // Opciones de categoría/proveedor: se cargan UNA sola vez al montar
-  // (endpoints F1). Un error acá no rompe la lista principal: los filtros
-  // quedan con solo la opción "todos".
   const [categoryOptions, setCategoryOptions] = useState<Category[]>([]);
   const [supplierOptions, setSupplierOptions] = useState<Supplier[]>([]);
 
-  // Creación (card encima de la tabla); el key remonta el form para
-  // limpiarlo tras un 201.
   const [createBusy, setCreateBusy] = useState(false);
   const [createFormKey, setCreateFormKey] = useState(0);
 
-  // Edición en diálogo (mismo form, material precargado).
   const [editing, setEditing] = useState<Material | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
-  // Eliminación con diálogo de confirmación.
   const [deleting, setDeleting] = useState<Material | null>(null);
   const [deletingBusy, setDeletingBusy] = useState(false);
 
-  // Historial de costos (RF-P2CC-04) en diálogo.
   const [historyFor, setHistoryFor] = useState<Material | null>(null);
 
   useEffect(() => {
@@ -140,7 +125,6 @@ export default function MaterialsAbm() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setSearch(searchInput);
-      // Un cambio de búsqueda vuelve a la primera página.
       setPage(1);
     }, 300);
     return () => clearTimeout(timer);
@@ -155,7 +139,6 @@ export default function MaterialsAbm() {
         if (!cancelled) setCategoryOptions(response.items);
       })
       .catch(() => {
-        // Un error en estas cargas no rompe la lista principal.
       });
     calcSettingsService
       .listSuppliers({ page: 1, page_size: 100 })
@@ -163,7 +146,6 @@ export default function MaterialsAbm() {
         if (!cancelled) setSupplierOptions(response.items);
       })
       .catch(() => {
-        // Un error en estas cargas no rompe la lista principal.
       });
 
     return () => {
@@ -171,8 +153,6 @@ export default function MaterialsAbm() {
     };
   }, []);
 
-  // Id→name maps para las columnas Categoría/Proveedor (el response trae
-  // solo ids). Id sin match → "—".
   const categoryNameById = useMemo(
     () => new Map(categoryOptions.map((c) => [c.id, c.name])),
     [categoryOptions]
@@ -199,9 +179,7 @@ export default function MaterialsAbm() {
     setCreateBusy(true);
     try {
       await calcMaterialsService.createMaterial(payload);
-      // Refetch: el servidor decide página, filtros y orden de la lista.
       setReloadKey((key) => key + 1);
-      // Limpia el form (remonte) recién confirmado el 201.
       setCreateFormKey((key) => key + 1);
       toaster.create({ title: "Material creado", type: "success" });
     } catch (error) {
@@ -222,7 +200,6 @@ export default function MaterialsAbm() {
     payload: MaterialCreatePayload | MaterialUpdatePayload
   ) {
     if (!editing) return;
-    // El form en modo edición siempre construye MaterialUpdatePayload.
     const updatePayload = payload as MaterialUpdatePayload;
     setSavingEdit(true);
     try {
@@ -243,7 +220,6 @@ export default function MaterialsAbm() {
       setEditing(null);
       toaster.create({ title: "Material actualizado", type: "success" });
     } catch (error) {
-      // 404/422: toast con el detail y el diálogo NO se cierra.
       toaster.create({
         title: "Error al actualizar",
         description:
@@ -262,7 +238,6 @@ export default function MaterialsAbm() {
     setDeletingBusy(true);
     try {
       await calcMaterialsService.deleteMaterial(deleting.id);
-      // Si se vació una página > 1, retrocede una; siempre refetch.
       if (page > 1 && (data?.items.length ?? 0) <= 1) {
         setPage(page - 1);
       }
@@ -270,10 +245,6 @@ export default function MaterialsAbm() {
       setDeleting(null);
       toaster.create({ title: "Material eliminado", type: "success" });
     } catch (error) {
-      // 409 "en uso": el body es {"impacted_products": N} sin `detail`,
-      // así que apiFetch cae en su fallback "Network error". Para ese
-      // caso usamos un mensaje propio; los demás errores traen su
-      // `detail` y se muestran como llegan.
       const inUse =
         error instanceof Error && error.message === "Network error";
       toaster.create({
@@ -321,7 +292,7 @@ export default function MaterialsAbm() {
 
   return (
     <Flex direction="column" gap={4}>
-      {/* Creación: card encima de la tabla */}
+      {}
       <Flex
         direction="column"
         gap={3}
@@ -343,7 +314,7 @@ export default function MaterialsAbm() {
         />
       </Flex>
 
-      {/* Búsqueda (?q) + 3 filtros + total */}
+      {}
       <Flex align="center" direction={{ base: "column", md: "row" }} gap={3}>
         <Input
           aria-label="Buscar"
@@ -357,7 +328,6 @@ export default function MaterialsAbm() {
           onValueChange={(details) => {
             const next = details.value[0];
             setCategoryFilter(!next || next === ALL ? "" : next);
-            // Un cambio de filtro vuelve a la primera página.
             setPage(1);
           }}
         >
@@ -484,7 +454,7 @@ export default function MaterialsAbm() {
                   <Table.Cell>
                     {material.unit_of_measure ?? "—"}
                   </Table.Cell>
-                  {/* Montos tal cual el str del servidor (sin formateo). */}
+                  {}
                   <Table.Cell>
                     {material.purchase_total_price ?? "—"}
                   </Table.Cell>
@@ -531,7 +501,7 @@ export default function MaterialsAbm() {
         </Table.ScrollArea>
       )}
 
-      {/* Paginación prev/next + total (page_size=50 fijo) */}
+      {}
       <Flex align="center" gap={3}>
         <Button
           size="sm"
@@ -553,7 +523,7 @@ export default function MaterialsAbm() {
         </Button>
       </Flex>
 
-      {/* Edición: diálogo con el mismo form precargado */}
+      {}
       {editing && (
         <Dialog.Root
           open
@@ -582,7 +552,7 @@ export default function MaterialsAbm() {
         </Dialog.Root>
       )}
 
-      {/* Confirmación de borrado */}
+      {}
       <Dialog.Root
         open={deleting !== null}
         onOpenChange={(details) => {
@@ -619,7 +589,7 @@ export default function MaterialsAbm() {
         </Dialog.Positioner>
       </Dialog.Root>
 
-      {/* Historial de costos (RF-P2CC-04) */}
+      {}
       {historyFor && (
         <CostHistoryDialog
           material={historyFor}

@@ -1,13 +1,3 @@
-"""Schemas Pydantic de la API de productos (Fase 5, P3/P4).
-
-Reglas del contrato (mismas que ingredientes):
-- Money viaja en centavos (long, int); Qty viaja como str en responses y
-  number en requests (money.py: coercion explicita, nunca float).
-- El precio NUNCA se persiste: las responses llevan la derivacion con los
-  insumos y settings actuales (RF-P3-04). `complete=false` = la receta
-  tiene insumos sin precio (0, borrado o inexistente) → price null y
-  missing_ingredients poblado.
-"""
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -27,8 +17,6 @@ class RecipeItemInput(BaseModel):
 
 
 class ProductCreate(BaseModel):
-    """POST /products. prep_time_min / servings / difficulty omitidos se
-    rellenan con los default de settings (RF-P4-01)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -42,8 +30,6 @@ class ProductCreate(BaseModel):
 
 
 class ProductUpdate(BaseModel):
-    """PATCH /products/{id}: parcial (extra=forbid). `recipe` reemplaza la
-    receta completa cuando se envía."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -60,8 +46,6 @@ class ProductUpdate(BaseModel):
 
 
 class ProductListItem(BaseModel):
-    """Item del listado P3. price_final es el precio comercial (redondeado
-    al paso por el motor); null cuando el producto es incompleto."""
 
     id: str
     name: str
@@ -78,12 +62,10 @@ class ProductListResponse(BaseModel):
     total: int
     page: int
     page_size: int
-    # Categorías derivadas de los productos activos (chips del P3).
     categories: List[str]
 
 
 class PriceBreakdownResponse(BaseModel):
-    """Desglose completo del motor de precios (tab Costos del P4)."""
 
     materials: Money
     waste: Money
@@ -97,9 +79,6 @@ class PriceBreakdownResponse(BaseModel):
 
 
 class RecipeItemResponse(BaseModel):
-    """Linea de receta con datos del insumo (tab Ingredientes del P4).
-    Con missing=true: el insumo no existe, está borrado o no tiene
-    precio → line_cost null, purchase_unit/price_per_unit pueden ser null."""
 
     ingredient_id: str
     ingredient_name: str

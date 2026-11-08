@@ -1,9 +1,3 @@
-"""Shared Postgres test database.
-
-The suite runs against a dedicated `toscana_test` database inside the
-docker-compose Postgres (`docker compose up -d`). The schema is rebuilt once
-per session; every test starts from empty tables.
-"""
 
 import asyncio
 

@@ -1,17 +1,3 @@
-"""Tests del portal sobre productos: carrito y pedidos (T5).
-
-Contrato:
-  - El carrito vende productos publicados y completos; precio derivado del
-    motor + markup de la audiencia del rol (nunca `price_per_unit` del insumo).
-  - Agregar un producto oculto o incompleto → 422 `product_not_available`.
-  - Las lineas de productos retirados/incompletos dejan de contribuir al total.
-  - POST /orders resuelve precio y nombre en el servidor y congela el
-    snapshot de receta; oculto/incompleto → 422.
-  - Confirmar descuenta stock explotando el snapshot; cancelar lo repone.
-
-Fixture: SQLite in-memory + siembra ORM (margen 25%, sin mano de obra:
-1 kg @ $10 → base $12.50; consumidor final ×1.40 = $17.50).
-"""
 
 import json
 import uuid
@@ -181,7 +167,7 @@ async def client(db_session):
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as ac:
-            ac.as_user = as_user  # type: ignore[attr-defined]
+            ac.as_user = as_user
             yield ac
     finally:
         app.dependency_overrides.clear()
@@ -209,7 +195,6 @@ async def _stock_of(db_session, ingredient_id: str) -> Decimal:
 
 @pytest.mark.asyncio
 async def test_cart_adds_published_product_with_audience_price(client, db_session):
-    """T5-1: cliente agrega producto publicado; precio con markup de audiencia."""
     product_id, _ = await _seed_product(db_session, "Pan de campo")
     r = await client.post(f"{CART}/items", json={"product_id": product_id, "qty": 2})
     assert r.status_code == 200, r.text
@@ -226,7 +211,6 @@ async def test_cart_adds_published_product_with_audience_price(client, db_sessio
 
 @pytest.mark.asyncio
 async def test_cart_negocio_uses_base_price(client, db_session):
-    """T5-2: negocio ve el precio base del motor (sin markup)."""
     product_id, _ = await _seed_product(db_session, "Pan de campo")
     client.as_user(NEGOCIO)
     r = await client.post(f"{CART}/items", json={"product_id": product_id, "qty": 1})
@@ -238,7 +222,6 @@ async def test_cart_negocio_uses_base_price(client, db_session):
 
 @pytest.mark.asyncio
 async def test_cart_rejects_hidden_product_422(client, db_session):
-    """T5-3: producto oculto → 422 product_not_available."""
     product_id, _ = await _seed_product(db_session, "Torta oculta", available=False)
     r = await client.post(f"{CART}/items", json={"product_id": product_id, "qty": 1})
     assert r.status_code == 422
@@ -247,7 +230,6 @@ async def test_cart_rejects_hidden_product_422(client, db_session):
 
 @pytest.mark.asyncio
 async def test_cart_rejects_incomplete_product_422(client, db_session):
-    """T5-4: receta incompleta → 422 product_not_available."""
     product_id, _ = await _seed_product(db_session, "Torta incompleta", complete=False)
     r = await client.post(f"{CART}/items", json={"product_id": product_id, "qty": 1})
     assert r.status_code == 422
@@ -256,7 +238,6 @@ async def test_cart_rejects_incomplete_product_422(client, db_session):
 
 @pytest.mark.asyncio
 async def test_cart_unknown_product_404(client):
-    """T5-5: producto inexistente → 404."""
     r = await client.post(
         f"{CART}/items", json={"product_id": str(uuid.uuid4()), "qty": 1}
     )
@@ -265,7 +246,6 @@ async def test_cart_unknown_product_404(client):
 
 @pytest.mark.asyncio
 async def test_cart_line_of_retired_product_stops_contributing(client, db_session):
-    """T5-6: una linea de producto retirado no suma al total ni aparece."""
     product_id, _ = await _seed_product(db_session, "Pan de campo")
     db_session.add(CartItemORM(user_id=CUSTOMER.id, product_id=product_id, qty=1))
     await db_session.commit()
@@ -286,7 +266,6 @@ async def test_cart_line_of_retired_product_stops_contributing(client, db_sessio
 
 @pytest.mark.asyncio
 async def test_portal_order_prices_from_engine_and_product_catalog(client, db_session):
-    """T5-7: POST /orders con producto: nombre y precio del catálogo."""
     product_id, _ = await _seed_product(db_session, "Pan de campo")
     r = await client.post(ORDERS, json=_order_body(product_id, quantity=2))
     assert r.status_code == 200, r.text
@@ -300,7 +279,6 @@ async def test_portal_order_prices_from_engine_and_product_catalog(client, db_se
 
 @pytest.mark.asyncio
 async def test_portal_order_rejects_hidden_product_422(client, db_session):
-    """T5-8: pedir un producto oculto → 422 product_not_available."""
     product_id, _ = await _seed_product(db_session, "Torta oculta", available=False)
     r = await client.post(ORDERS, json=_order_body(product_id))
     assert r.status_code == 422
@@ -309,7 +287,6 @@ async def test_portal_order_rejects_hidden_product_422(client, db_session):
 
 @pytest.mark.asyncio
 async def test_portal_order_rejects_incomplete_product_422(client, db_session):
-    """T5-9: pedir un producto incompleto → 422 product_not_available."""
     product_id, _ = await _seed_product(db_session, "Torta incompleta", complete=False)
     r = await client.post(ORDERS, json=_order_body(product_id))
     assert r.status_code == 422
@@ -318,7 +295,6 @@ async def test_portal_order_rejects_incomplete_product_422(client, db_session):
 
 @pytest.mark.asyncio
 async def test_portal_order_persists_recipe_snapshot(client, db_session):
-    """T5-10: el pedido congela el snapshot de receta de cada linea."""
     product_id, _ = await _seed_product(db_session, "Pan de campo")
     r = await client.post(ORDERS, json=_order_body(product_id, quantity=2))
     assert r.status_code == 200
@@ -340,7 +316,6 @@ async def test_portal_order_persists_recipe_snapshot(client, db_session):
 
 @pytest.mark.asyncio
 async def test_confirm_order_discounts_stock_from_snapshot(client, db_session):
-    """T5-11: confirmar explota la receta congelada y descuenta stock."""
     product_id, ingredient_id = await _seed_product(db_session, "Pan de campo")
     r = await client.post(ORDERS, json=_order_body(product_id, quantity=2))
     assert r.status_code == 200
@@ -354,7 +329,6 @@ async def test_confirm_order_discounts_stock_from_snapshot(client, db_session):
 
 @pytest.mark.asyncio
 async def test_cancel_order_replenishes_stock(client, db_session):
-    """T5-12: cancelar repone el stock descontado al confirmar."""
     product_id, ingredient_id = await _seed_product(db_session, "Pan de campo")
     r = await client.post(ORDERS, json=_order_body(product_id, quantity=2))
     order_id = r.json()["id"]
@@ -367,7 +341,6 @@ async def test_cancel_order_replenishes_stock(client, db_session):
 
 @pytest.mark.asyncio
 async def test_confirm_fails_409_when_stock_is_short(client, db_session):
-    """T5-13: stock insuficiente → 409 y el stock no cambia."""
     product_id, ingredient_id = await _seed_product(
         db_session, "Pan de campo", stock_qty="1"
     )

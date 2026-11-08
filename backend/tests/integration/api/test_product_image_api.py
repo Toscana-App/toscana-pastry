@@ -165,7 +165,6 @@ async def _upload(client: AsyncClient, product_id: str, data: bytes, headers, co
     )
 
 
-# --- Happy path ---------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -202,7 +201,6 @@ async def test_upload_valid_webp(client, media_root):
     assert response.json()["image_url"] == f"/media/products/{product['id']}.webp"
 
 
-# --- Validaciones ---------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -249,7 +247,6 @@ async def test_upload_small_dimensions_is_422(client, media_root):
     assert response.json()["code"] == "image_too_small"
 
 
-# --- RBAC y 404 -----------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -281,7 +278,6 @@ async def test_upload_nonexistent_product_is_404(client):
     assert response.status_code == 404
 
 
-# --- Reemplazo y borrado ---------------------------------------------------------
 
 
 @pytest.mark.asyncio

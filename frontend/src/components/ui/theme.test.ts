@@ -1,21 +1,17 @@
 import { describe, expect, it } from "vitest"
 import { system } from "./theme"
 
-// Chakra v3 colorPalette recipes read these semantic keys; without them
-// `colorPalette="brand"` renders with no fill or contrast color.
 const PALETTE_KEYS = ["solid", "contrast", "fg", "muted", "subtle", "emphasized", "focusRing"]
 
 type Mode = "_light" | "_dark"
 const MODES: Mode[] = ["_light", "_dark"]
 
-/** Resolves a color token to hex for one mode, following `{colors.x}` refs. */
 function resolve(name: string, mode: Mode): string {
   const token = system.tokens.getByName(name.startsWith("colors.") ? name : `colors.${name}`)
   if (!token) throw new Error(`unknown token ${name}`)
   const raw: string = token.extensions?.conditions?.[mode] ?? token.originalValue
   const ref = /^\{(.+)\}$/.exec(raw)
   if (ref) return resolve(ref[1], mode)
-  // Chakra also uses bare token names such as "white".
   return raw.startsWith("#") ? raw : resolve(raw, mode)
 }
 
@@ -33,7 +29,6 @@ function contrast(fg: string, bg: string, mode: Mode): number {
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
 }
 
-// Text pairs that ship in the UI; every one must reach WCAG AA (4.5:1) in both modes.
 const SURFACES = ["bg", "bg.panel", "bg.subtle", "bg.muted"]
 const TEXT_ON_SURFACES = ["fg", "fg.muted", "brand.fg", "red.fg", "green.fg", "orange.fg", "blue.fg", "fg.error", "fg.success", "fg.warning"]
 const PALETTES = ["brand", "red", "green", "orange", "blue", "gray"]

@@ -35,8 +35,6 @@ class PreviewResponse(BaseModel):
 
 
 class AudiencePriceResponse(BaseModel):
-    """Respuesta de preview/dual para roles no admin: solo la audiencia y su
-    precio, sin desglose de costos ni precio base."""
 
     audience: Audience
     price: Money

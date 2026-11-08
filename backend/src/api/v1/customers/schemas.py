@@ -1,18 +1,8 @@
-"""Schemas de la API de clientes: pedidos (Fase 6, P6) y libro de
-direcciones (RF-P11-09, C2).
-
-El cliente P6 es nombre + telefono (sin email: el canal es WhatsApp,
-RF-P6-06); la dedup por (nombre, telefono) la hace el repositorio
-(RF-P6-08): crear un duplicado devuelve al existente con 409.
-
-Pydantic v2 con extra="forbid" en todos los esquemas de escritura.
-"""
 from datetime import datetime
 from typing import List
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-# String length limits (RF-P11-09)
 MAX_STREET_LINE_1 = 120
 MAX_STREET_LINE_2 = 120
 MAX_CITY = 120
@@ -22,7 +12,6 @@ MAX_PHONE = 30
 
 
 def _strip_optional(value: str | None) -> str | None:
-    """Optional fields: trim whitespace; empty string normalizes to None."""
     if value is None:
         return None
     stripped = value.strip()
@@ -30,7 +19,6 @@ def _strip_optional(value: str | None) -> str | None:
 
 
 class AddressCreate(BaseModel):
-    """POST /customers/me/addresses (RF-P11-09)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -55,10 +43,6 @@ class AddressCreate(BaseModel):
 
 
 class AddressUpdate(BaseModel):
-    """PATCH /customers/me/addresses/{id} (RF-P11-09).
-
-    All fields optional; the router enforces at-least-one via exclude_unset.
-    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -86,7 +70,6 @@ class AddressUpdate(BaseModel):
 
 
 class AddressResponse(BaseModel):
-    """Direccion serializada para la API."""
 
     id: str
     street_line_1: str
@@ -101,13 +84,11 @@ class AddressResponse(BaseModel):
 
 
 class AddressEnvelope(BaseModel):
-    """Envoltorio {address} de POST/PATCH."""
 
     address: AddressResponse
 
 
 class AddressListResponse(BaseModel):
-    """GET /customers/me/addresses."""
 
     items: list[AddressResponse]
 
@@ -126,7 +107,6 @@ class CustomerCreate(BaseModel):
 
 
 class CustomerUpdate(BaseModel):
-    """PATCH /customers/{id} (RF-P7-06): actualizacion parcial."""
 
     model_config = ConfigDict(extra="forbid")
 

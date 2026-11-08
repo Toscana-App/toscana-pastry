@@ -1,14 +1,3 @@
-"""Integration tests for the Calc Products API (RF-P4CC-01..08).
-
-Covers: auth (401/403), CRUD with server-resolved snapshots and
-server-computed costs (never from the client, security #8), full line
-replacement on POST/PATCH (regla 4), soft delete (regla 8), SKU
-uniqueness 409 (regla 7), recalculate + append-only versions
-(reglas 5/6), settings-driven percents/rounding (RF-P5CC-01), search
-by name and SKU with fixed name ordering (D5), the mandatory pricing
-parity case against `pricing.js` legacy, and the two `count_in_use`
-queries completed by B9 (material + product category).
-"""
 
 import pytest
 import pytest_asyncio
@@ -51,7 +40,6 @@ from data.repositories.sql_user_repository import SQLUserRepository
 from domain.models import User, UserRole
 from main import app
 
-# ─── Fixtures ───────────────────────────────────────────────────────────
 
 
 @pytest_asyncio.fixture
@@ -111,7 +99,6 @@ async def client(db_session):
         app.dependency_overrides = {}
 
 
-# ─── Helpers ────────────────────────────────────────────────────────────
 
 
 async def _token_for(client: AsyncClient, email: str) -> str:
@@ -176,7 +163,6 @@ async def _create_product_category(
     return response.json()
 
 
-# Material A para el caso de paridad: 45680 / 100 = 456.80 por unidad.
 async def _parity_material(client: AsyncClient, token: str) -> dict:
     return await _create_material(
         client,
@@ -189,9 +175,6 @@ async def _parity_material(client: AsyncClient, token: str) -> dict:
 
 
 def _parity_payload(material_id: str, **overrides) -> dict:
-    """Payload del caso de paridad obligatorio contra pricing.js:
-    material 2.5 x 456.80 = 1142.00, labor 1500/h x 45 min = 1125.00,
-    extra 320.10 x 3 = 960.30 -> cost_total 3227.30."""
     payload = {
         "name": "Brownie Clasico",
         "discount_percent": "10",
@@ -211,8 +194,6 @@ def _parity_payload(material_id: str, **overrides) -> dict:
     return payload
 
 
-# Valores esperados del caso de paridad (verificados contra pricing.js):
-# margin=30, discount=10, tax=19, rounding none.
 PARITY_COSTS = {
     "product_total_cost": 322730,
     "profit_amount": 138313,
@@ -223,7 +204,6 @@ PARITY_COSTS = {
 }
 
 
-# ─── Auth (S3/D2: 401 sin sesion, 403 no-admin en writes) ──────────────
 
 
 class TestProductsAuth:
@@ -268,13 +248,10 @@ class TestProductsAuth:
         assert response.status_code == 403
 
 
-# ─── POST (RF-P4CC-01..05 + caso de paridad) ───────────────────────────
 
 
 class TestCreateProduct:
     async def test_parity_case_full_breakdown(self, client):
-        """Caso de paridad obligatorio: final_sale_price = 4937.77 con
-        rounding none (mismo valor que calcProductPricing de pricing.js)."""
         token = await _admin(client)
         material = await _parity_material(client, token)
         assert material["unit_cost"] == 45680
@@ -284,8 +261,6 @@ class TestCreateProduct:
         assert body["costs"] == PARITY_COSTS
         assert body["product"]["id"]
         assert body["product"]["status"] == "draft"
-        # margin/tax = defaults de CalcSettings sin fila persistida
-        # (RF-P5CC-01: 30/0/19); discount enviado explicito en el payload.
         from decimal import Decimal
 
         assert Decimal(body["product"]["margin_percent"]) == Decimal("30")
@@ -306,8 +281,6 @@ class TestCreateProduct:
         assert material_lines[0]["sort_order"] == 0
 
     async def test_parity_final_per_rounding_mode_via_settings(self, client):
-        """Final por modo de redondeo (solo final_sale_price, RF-P4CC-04):
-        none 4937.77 / integer 4938 / multiple_10 4940 / commercial_99 4999."""
         token = await _admin(client)
         material = await _parity_material(client, token)
         created = await _create_product(
@@ -327,14 +300,11 @@ class TestCreateProduct:
             assert response.status_code == 200, response.text
             body = response.json()
             assert body["costs"]["final_sale_price"] == expected_final
-            # Los demas 5 montos no tocan el redondeo comercial.
             for key, value in PARITY_COSTS.items():
                 if key != "final_sale_price":
                     assert body["costs"][key] == value
 
     async def test_incomplete_material_snapshots_zero_without_error(self, client):
-        """D4: material incomplete (unit_cost None) -> snapshot 0.00,
-        sin error; el producto sigue calculable."""
         token = await _admin(client)
         material = await _create_material(client, token, name="Harina")
         assert material["unit_cost"] is None
@@ -355,8 +325,6 @@ class TestCreateProduct:
         line = body["product_lines"]["materials"][0]
         assert line["unit_cost_snapshot"] == 0
         assert line["line_total_cost"] == 0
-        # cost 1000.00, margin 30, tax 19: pbd 1428.57, profit 428.57,
-        # tax 271.43 (1428.57 x 0.19), final 1700.00.
         assert body["costs"]["product_total_cost"] == 100000
         assert body["costs"]["final_sale_price"] == 170000
 
@@ -446,7 +414,6 @@ class TestCreateProduct:
         assert response.json() == {"detail": "SKU ya en uso"}
 
     async def test_costs_in_payload_rejected_422(self, client):
-        # security #8: costs nunca viene del cliente.
         token = await _admin(client)
         response = await client.post(
             "/api/v1/calc/products",
@@ -456,7 +423,6 @@ class TestCreateProduct:
         assert response.status_code == 422
 
     async def test_snapshot_field_in_material_line_rejected_422(self, client):
-        # security #8: campos *_snapshot nunca vienen del payload.
         token = await _admin(client)
         material = await _parity_material(client, token)
         response = await client.post(
@@ -553,7 +519,6 @@ class TestCreateProduct:
         assert response.status_code == 422
 
 
-# ─── GET (RF-P4CC-05/06 + D5) ──────────────────────────────────────────
 
 
 class TestGetProduct:
@@ -574,7 +539,6 @@ class TestGetProduct:
         assert len(body["labor"]) == 1
         assert len(body["extra_costs"]) == 1
         assert body["costs"] == PARITY_COSTS
-        # versions solo presente con include_versions=true.
         assert "versions" not in body
 
     async def test_detail_include_versions(self, client):
@@ -690,7 +654,6 @@ class TestGetProduct:
         assert body["items"][0]["id"] == other["product"]["id"]
 
 
-# ─── PATCH (RF-P4CC-02 regla 4: reemplazo completo de lineas) ──────────
 
 
 class TestPatchProduct:
@@ -781,15 +744,12 @@ class TestPatchProduct:
     async def test_patch_materials_replaces_set_and_refreshes_snapshots(
         self, client
     ):
-        """Regla 4: la lista enviada reemplaza el set completo; los
-        snapshots se re-resuelven con el precio actual del material."""
         token = await _admin(client)
         material = await _parity_material(client, token)
         created = await _create_product(
             client, token, **_parity_payload(material["id"])
         )
         product_id = created["product"]["id"]
-        # El material sube de precio: 10000 / 10 = 1000.00.
         await client.patch(
             f"/api/v1/calc/materials/{material['id']}",
             json={"purchase_total_price": 1000000, "package_quantity": "10"},
@@ -811,14 +771,10 @@ class TestPatchProduct:
         line = detail["materials"][0]
         assert line["unit_cost_snapshot"] == 100000
         assert line["line_total_cost"] == 100000
-        # cost 1000.00 + 1125.00 + 960.30 = 3085.30; final con 30/10/19:
-        # pbd 4407.57, profit 1322.27, discount -440.76, adjusted 881.51,
-        # tax 753.69, final 4720.50.
         assert body["costs"]["product_total_cost"] == 308530
         assert body["costs"]["final_sale_price"] == 472050
 
     async def test_patch_empty_list_empties_only_that_type(self, client):
-        """Regla 4: clave [] vacia ese tipo; claves ausentes no cambian."""
         token = await _admin(client)
         material = await _parity_material(client, token)
         created = await _create_product(
@@ -837,11 +793,8 @@ class TestPatchProduct:
             )
         ).json()
         assert detail["materials"] == []
-        # labor y extra no tocados.
         assert len(detail["labor"]) == 1
         assert len(detail["extra_costs"]) == 1
-        # cost 0 + 1125.00 + 960.30 = 2085.30; final none = 3190.51
-        # (mismo calculo que el caso D4 sin material).
         assert detail["costs"]["product_total_cost"] == 208530
         assert detail["costs"]["final_sale_price"] == 319051
 
@@ -867,7 +820,6 @@ class TestPatchProduct:
         assert len(detail["extra_costs"]) == 1
 
 
-# ─── DELETE (regla 8: soft delete) ─────────────────────────────────────
 
 
 class TestDeleteProduct:
@@ -902,7 +854,6 @@ class TestDeleteProduct:
         assert body["product"]["sku"] == "rel-1"
 
 
-# ─── Recalculate + versions (reglas 5/6, RF-P4CC-07) ───────────────────
 
 
 class TestRecalculate:
@@ -930,15 +881,12 @@ class TestRecalculate:
         assert versions["total"] == 0
 
     async def test_recalculate_after_price_change_creates_version(self, client):
-        """Regla 5: version solo si el final recalculado difiere del
-        final calculado antes de re-resolver."""
         token = await _admin(client)
         material = await _parity_material(client, token)
         created = await _create_product(
             client, token, **_parity_payload(material["id"])
         )
         product_id = created["product"]["id"]
-        # El material sube a 10000 / 10 = 1000.00.
         await client.patch(
             f"/api/v1/calc/materials/{material['id']}",
             json={"purchase_total_price": 1000000, "package_quantity": "10"},
@@ -950,8 +898,6 @@ class TestRecalculate:
         )
         assert response.status_code == 200
         body = response.json()
-        # Nueva linea: 2.5 x 1000.00 = 2500.00 -> cost 4585.30, final
-        # 7015.51 (paridad manual con margin 30 / discount 10 / tax 19).
         assert body["costs"]["product_total_cost"] == 458530
         assert body["costs"]["final_sale_price"] == 701551
         detail = (
@@ -989,7 +935,6 @@ class TestRecalculate:
             f"/api/v1/calc/products/{product_id}/recalculate",
             headers=_auth(token),
         )
-        # Segundo recalculate sin cambio: no genera version.
         await client.post(
             f"/api/v1/calc/products/{product_id}/recalculate",
             headers=_auth(token),
@@ -1040,7 +985,6 @@ class TestRecalculate:
         assert response.status_code == 404
 
 
-# ─── Versions (RF-P4CC-07) ─────────────────────────────────────────────
 
 
 class TestProductVersions:
@@ -1064,8 +1008,8 @@ class TestProductVersions:
             )
             assert response.status_code == 200
 
-        await bump_and_recalculate(1000000)  # version 1: final 7015.51
-        await bump_and_recalculate(2000000)  # version 2: final 10840.51
+        await bump_and_recalculate(1000000)
+        await bump_and_recalculate(2000000)
         body = (
             await client.get(
                 f"/api/v1/calc/products/{product_id}/versions",
@@ -1121,7 +1065,6 @@ class TestProductVersions:
         assert response.status_code == 404
 
 
-# ─── count_in_use (regla 9: los 2 stubs TODO(B9)) ──────────────────────
 
 
 class TestCountInUse:
@@ -1157,8 +1100,6 @@ class TestCountInUse:
         assert response.json() == {"impacted_products": 2}
 
     async def test_material_of_deleted_product_can_be_deleted(self, client):
-        """Regla 9: el producto no eliminado es parte del conteo; si el
-        unico usuario fue soft-deleted, el material vuelve a liberarse."""
         token = await _admin(client)
         material = await _create_material(client, token, name="Sal")
         product = await _create_product(
@@ -1212,7 +1153,6 @@ class TestCountInUse:
         assert response.status_code == 204
 
 
-# ─── Unique (product_id, version_number) + 409 version_conflict ────────
 
 
 class TestVersionUniqueness:
@@ -1225,7 +1165,6 @@ class TestVersionUniqueness:
 
         from data.models import CalcProductORM, CalcProductVersionORM
 
-        # Postgres enforces the FK: the product must exist first.
         db_session.add(
             CalcProductORM(
                 id="p1",
@@ -1283,8 +1222,6 @@ class TestVersionUniqueness:
         )
         assert first.status_code == 200
 
-        # Segundo cambio de precio -> nueva version; forzamos que el
-        # siguiente numero choque con la version 1 ya existente.
         await client.patch(
             f"/api/v1/calc/materials/{material['id']}",
             json={"purchase_total_price": 2000000, "package_quantity": "10"},

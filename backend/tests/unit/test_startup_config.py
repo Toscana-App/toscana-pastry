@@ -1,4 +1,3 @@
-"""Production startup validation (ENVIRONMENT flag)."""
 
 import pytest
 

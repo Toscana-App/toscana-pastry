@@ -1,4 +1,3 @@
-"""Order API dependencies (P6)."""
 
 import datetime
 
@@ -34,7 +33,6 @@ def get_product_repository(
 
 
 def get_checkout_provider() -> CheckoutProvider:
-    """Mercado Pago Checkout Pro provider; 503 when it is not configured."""
     if not settings.MP_ACCESS_TOKEN or not settings.MP_WEBHOOK_SECRET:
         raise HTTPException(
             status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -49,5 +47,4 @@ def get_checkout_provider() -> CheckoutProvider:
 
 
 def get_now() -> datetime.datetime:
-    """Current UTC time; overridable in tests (no sleeps)."""
     return datetime.datetime.now(datetime.UTC)

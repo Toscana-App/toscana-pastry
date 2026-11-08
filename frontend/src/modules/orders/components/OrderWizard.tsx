@@ -19,14 +19,9 @@ import { formatCents, formatPct } from "@/lib/format";
 import { useOrderWizard } from "../hooks/useOrderWizard";
 
 interface OrderWizardProps {
-  /** Cuando se pasa, el wizard edita ese pedido (solo estado nuevo). */
   orderId?: string;
 }
 
-/**
- * Select nativo estilizado (misma convención de EnumSelect de F5) para
- * pickers de registros (id + label): clientes y productos.
- */
 const StyledOptionSelect = chakra("select", {
   base: {
     width: "100%",
@@ -70,18 +65,6 @@ function OptionSelect({ value, onChange, placeholder, "aria-label": label, optio
   );
 }
 
-/**
- * Wizard de pedidos (Fase 6, UC-02/UC-04) — /pedidos/nuevo y edición.
- *
- * - Cliente: selector con búsqueda o alta inline (dedupe nombre+teléfono:
- *   un 409 del backend adopta el cliente existente, no es un error).
- * - Líneas: producto + qty + porciones (opcional) + nota. El precio NUNCA se
- *   edita: el backend lo calcula (RNF-P6-03).
- * - Preview en vivo (debounce 500 ms, admin): POST /orders/preview, mismo
- *   cálculo que el create, sin persistir.
- * - Crear/confirmar devuelve 409 con stock insuficiente → se muestra el
- *   detalle y no se descuenta nada (RNF-P6-04).
- */
 export function OrderWizard({ orderId }: OrderWizardProps) {
   const {
     isAdmin,
@@ -134,7 +117,7 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
       </Flex>
 
       <Stack gap={6} maxW="960px">
-        {/* Cliente */}
+        {}
         <Box borderWidth="1px" borderColor="border" rounded="md" p={4}>
           <Heading size="sm" mb={3}>
             Cliente
@@ -207,7 +190,7 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
           </Text>
         </Box>
 
-        {/* Fecha + margen */}
+        {}
         <HStack gap={3} wrap="wrap">
           <Field.Root w="100%" maxW="220px">
             <Field.Label>Fecha del pedido</Field.Label>
@@ -240,7 +223,7 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
           </Field.Root>
         </HStack>
 
-        {/* Líneas */}
+        {}
         <Box borderWidth="1px" borderColor="border" rounded="md" p={4}>
           <HStack mb={3}>
             <Heading size="sm">Ítems</Heading>
@@ -314,7 +297,7 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
           </Text>
         </Box>
 
-        {/* Preview en vivo */}
+        {}
         {isAdmin ? (
           <Box borderWidth="1px" borderColor="border" rounded="md" p={4}>
             <Heading size="sm" mb={3}>
@@ -373,7 +356,7 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
           </Box>
         ) : null}
 
-        {/* Stock insuficiente (409) */}
+        {}
         {stockError ? (
           <Alert.Root status="error">
             <Alert.Content>

@@ -1,14 +1,5 @@
 import { chakra } from "@chakra-ui/react";
 
-/**
- * Select nativo estilizado (Fase 4).
- *
- * Los enums del contrato son cortos y cerrados (unidad kg|g|L|ml|unidad,
- * motivo de stock, dificultad): un `<select>` nativo es más simple, accesible y
- * predecible que un listbox custom, y se integra directo con react-hook-form
- * (los props de `register` se esparcen sobre el propio elemento, sin
- * sincronizar estado a mano).
- */
 const StyledSelect = chakra("select", {
   base: {
     width: "100%",
@@ -30,9 +21,7 @@ const StyledSelect = chakra("select", {
 
 interface EnumSelectProps
   extends Omit<React.ComponentPropsWithoutRef<"select">, "children"> {
-  /** Opciones (una por valor del enum del contrato). */
   options: readonly string[];
-  /** Etiqueta vacía inicial; sin ella queda seleccionada la primera opción. */
   placeholder?: string;
 }
 

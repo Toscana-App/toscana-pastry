@@ -4,12 +4,6 @@ import userEvent from "@testing-library/user-event";
 import { Provider } from "@/providers/ChakraProvider";
 import { ProductsPage } from "./ProductsPage";
 
-/**
- * Tests del listado P3 sin red: el hook se mockea y se verifica lo que la
- * spec pide explícitamente (Vitest de chips + búsqueda, RF-P3-02/03):
- * "Todas" por defecto, aria-pressed en los chips, búsqueda combinable y
- * estado vacío con CTA.
- */
 const mocks = vi.hoisted(() => ({
   setQuery: vi.fn(),
   setCategory: vi.fn(),

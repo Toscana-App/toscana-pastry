@@ -1,16 +1,3 @@
-"""Order domain entity (RF-P6-12, C1.1 / RF-P11-06/08, C6).
-
-Fields added by Phase 5:
-    payment_method      – {mercadopago, cash}
-    payment_reference   – provider payment ID
-    paid_at             – server-managed timestamp
-    payment_status      – {pending, approved, rejected, failed} | None
-    code                – TP + 6 alphanumeric chars ("mis pedidos")
-    delivery_mode       – {delivery, pickup}
-    delivery_address    – required if delivery; normalised to None for pickup
-    coupon_code         – snapshot at confirmation
-    discount_amount     – snapshot at confirmation
-"""
 
 from __future__ import annotations
 
@@ -38,8 +25,6 @@ class PaymentStatus(StrEnum):
     FAILED = "failed"
 
 
-# Provider status priority: approved > rejected = failed > pending.
-# A notification only applies when it outranks the order's current status.
 _PAYMENT_STATUS_RANK: dict[PaymentStatus, int] = {
     PaymentStatus.PENDING: 0,
     PaymentStatus.REJECTED: 1,
@@ -49,10 +34,6 @@ _PAYMENT_STATUS_RANK: dict[PaymentStatus, int] = {
 
 
 def overridable_payment_statuses(new: PaymentStatus) -> frozenset[PaymentStatus]:
-    """Current payment statuses that a provider ``new`` status may replace.
-
-    ``None`` (never initiated) is always replaceable and is not listed.
-    """
     return frozenset(
         current
         for current, rank in _PAYMENT_STATUS_RANK.items()
@@ -60,12 +41,10 @@ def overridable_payment_statuses(new: PaymentStatus) -> frozenset[PaymentStatus]
     )
 
 
-# A pending Mercado Pago payment is cancelled automatically after 24 h.
 PAYMENT_EXPIRY = datetime.timedelta(hours=24)
 
 
 class OrderValidationError(ValueError):
-    """A portal order violates a business rule; ``code`` is the API detail."""
 
     def __init__(self, code: str) -> None:
         super().__init__(code)
@@ -81,7 +60,6 @@ class OrderStatus(StrEnum):
 
 @dataclass(frozen=True)
 class OrderItem:
-    """Line item snapshot inside an order."""
 
     product_id: str
     product_name: str
@@ -101,22 +79,11 @@ _CODE_LENGTH = 6
 
 
 def _generate_code() -> str:
-    """Generate a unique order code (RF-P11-08: TP + 6 alphanumeric)."""
     return f"{_CODE_PREFIX}{uuid.uuid4().hex[:_CODE_LENGTH].upper()}"
 
 
 @dataclass
 class Order:
-    """Order entity with payment tracking and portal fields.
-
-    Invariants:
-        - payment_method is immutable once status != "nuevo".
-        - paid (derived: paid_at is not None) is monotonic false → true.
-        - For cash orders, payment_status is always None.
-        - delivery_mode=pickup normalises delivery_address to None.
-        - delivery_mode=delivery with empty address → validated at portal
-          creation endpoint (C6); domain default is "" for backward compat.
-    """
 
     customer_id: str
     date: datetime.datetime
@@ -138,7 +105,6 @@ class Order:
     snapshots: dict = field(default_factory=dict, compare=False)
 
     def __post_init__(self) -> None:
-        # Pickup normalises address to None (admin orders may omit it).
         if self.delivery_mode == DeliveryMode.PICKUP:
             object.__setattr__(self, "delivery_address", None)
 
@@ -163,7 +129,6 @@ class Order:
         coupon_code: str | None = None,
         now: datetime.datetime | None = None,
     ) -> Order:
-        """Build a new portal order after validating its business rules."""
         now = now or datetime.datetime.now(datetime.UTC)
         if not items:
             raise OrderValidationError("order_requires_items")
@@ -187,10 +152,6 @@ class Order:
         )
 
     def confirm_payment(self, reference: str, status: PaymentStatus) -> None:
-        """Mark the order as paid (server-managed, monotonic).
-
-        Only transitions paid from False → True. Cannot revert.
-        """
         if self.paid:
             raise ValueError("Order is already paid; paid is monotonic")
         if self.payment_method == PaymentMethod.CASH:
@@ -200,7 +161,6 @@ class Order:
         self.payment_status = status
 
     def mark_cash_payment(self) -> None:
-        """Manual paid marking for cash orders (RF-P6-14)."""
         if self.paid:
             raise ValueError("Order is already paid")
         if self.payment_method != PaymentMethod.CASH:
@@ -208,18 +168,12 @@ class Order:
         self.paid_at = datetime.datetime.now(datetime.UTC)
 
     def init_mercadopago(self) -> None:
-        """Switch payment method to mercadopago (portal creation)."""
         if self.status != OrderStatus.NUEVO:
             raise ValueError("payment_method is immutable after order confirmation")
         self.payment_method = PaymentMethod.MERCADOPAGO
 
 
 def is_payment_expired(order: Order, now: datetime.datetime) -> bool:
-    """True when an unpaid order's pending payment outlived ``PAYMENT_EXPIRY``.
-
-    Pure: ``now`` is injected. Measured from ``order.created_at`` (there is no
-    separate "payment started" timestamp).
-    """
     if (
         order.payment_method != PaymentMethod.MERCADOPAGO
         or order.status != OrderStatus.NUEVO
@@ -228,6 +182,6 @@ def is_payment_expired(order: Order, now: datetime.datetime) -> bool:
     ):
         return False
     created_at = order.created_at
-    if created_at.tzinfo is None:  # SQLite returns naive UTC datetimes
+    if created_at.tzinfo is None:
         created_at = created_at.replace(tzinfo=datetime.UTC)
     return now - created_at >= PAYMENT_EXPIRY

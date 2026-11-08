@@ -1,4 +1,3 @@
-"""Esquemas (respuestas) de la API de importacion CSV (T-CSV-2/4)."""
 from __future__ import annotations
 
 from datetime import datetime
@@ -8,7 +7,6 @@ from pydantic import BaseModel
 
 
 class ImportUploadResponse(BaseModel):
-    """201 al subir: import_id + totales + primeras filas con error."""
 
     import_id: str
     entity: str
@@ -20,7 +18,7 @@ class ImportUploadResponse(BaseModel):
 
 class ImportRowOut(BaseModel):
     row_number: int
-    status: str  # "valid" | "invalid"
+    status: str
     data: dict[str, Any]
     errors: list[str]
 
@@ -41,7 +39,6 @@ class ImportSessionOut(BaseModel):
 
 
 class ImportRowsResponse(BaseModel):
-    """GET /imports/{id}/rows: sesion + pagina de filas."""
 
     session: ImportSessionOut
     rows: list[ImportRowOut]

@@ -24,7 +24,7 @@ export interface WizardItem {
   key: number;
   product_id: string;
   qty: string;
-  portions: string; // vacío = porciones del producto
+  portions: string;
   note: string;
 }
 
@@ -34,13 +34,8 @@ export interface PreviewState {
   error?: string;
 }
 
-// Fecha local (no UTC): evita que de noche el default sea el día siguiente.
 const todayIso = () => new Date().toLocaleDateString("sv-SE");
 
-/**
- * Estado, fetching, efectos y submit del wizard de pedidos (UC-02/UC-04).
- * El componente OrderWizard es solo presentacional.
- */
 export function useOrderWizard(orderId?: string) {
   const router = useRouter();
   const { user } = useAuth();
@@ -67,7 +62,6 @@ export function useOrderWizard(orderId?: string) {
 
   const debouncedCustomerQuery = useDebounce(customerQuery, 250);
 
-  // En edición el cliente actual puede quedar fuera de los primeros 50 resultados.
   const customerOptions = useMemo(() => {
     const list = customers.map((c) => ({ value: c.id, label: `${c.name} · ${c.phone}` }));
     const current = detail?.customer;
@@ -78,7 +72,6 @@ export function useOrderWizard(orderId?: string) {
   }, [customers, detail]);
   const previewSeq = useRef(0);
 
-  // Catálogo para el picker de líneas.
   useEffect(() => {
     let cancelled = false;
     productsService
@@ -87,14 +80,12 @@ export function useOrderWizard(orderId?: string) {
         if (!cancelled) setProducts(res.items);
       })
       .catch(() => {
-        /* sin catálogo: el wizard muestra el select vacío */
       });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // Clientes para el selector (búsqueda con debounce).
   useEffect(() => {
     let cancelled = false;
     customersService
@@ -103,14 +94,12 @@ export function useOrderWizard(orderId?: string) {
         if (!cancelled) setCustomers(res.items);
       })
       .catch(() => {
-        /* la UI se queda con lo último */
       });
     return () => {
       cancelled = true;
     };
   }, [debouncedCustomerQuery]);
 
-  // Modo edición: precarga el pedido (solo estado nuevo lo permite).
   useEffect(() => {
     if (!orderId) return;
     let cancelled = false;
@@ -145,7 +134,6 @@ export function useOrderWizard(orderId?: string) {
     };
   }, [orderId]);
 
-  // Preview en vivo (UC-02): 500 ms de quietud y al menos una línea completa.
   const previewItems = useMemo(
     () =>
       items
@@ -160,8 +148,6 @@ export function useOrderWizard(orderId?: string) {
   );
 
   useEffect(() => {
-    // React Compiler: nada de setState síncrono en el cuerpo del efecto.
-    // El reset y el "loading" entran por un timer (borde async).
     if (!isAdmin || previewItems.length === 0) {
       const reset = setTimeout(() => setPreview({ status: "idle" }), 0);
       return () => clearTimeout(reset);
@@ -209,7 +195,6 @@ export function useOrderWizard(orderId?: string) {
     setSubmitError(null);
     setStockError(null);
     try {
-      // Cliente: alta inline resuelta antes de mandar el payload.
       let resolvedCustomerId = customerId;
       if (customerMode === "new") {
         const parsed = newCustomerSchema.safeParse({ name: newName, phone: newPhone });

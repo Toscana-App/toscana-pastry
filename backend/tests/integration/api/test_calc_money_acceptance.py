@@ -1,14 +1,3 @@
-"""Acceptance + scale-parity tests for the calc money contract (S1/S3).
-
-Fixture "Torta corazón" (incident 2026-10-31, odd/tasks/
-calc-money-and-editor-fixes.md): all three line families enter as the
-same canonical unit — integer cents — and the engine must reproduce the
-business-expected total: cost $16.880,00 -> final $29.178,29
-(21% IVA, 30% margen, sin descuento, rounding none).
-
-M2: no single line family may drift in scale; snapshots and the
-recalculate endpoint must keep the three families comparable.
-"""
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -129,11 +118,6 @@ async def _create_material(client: AsyncClient, headers: dict, **overrides) -> d
     return response.json()
 
 
-# ─── M1-acceptance: fixture "Torta corazón" ─────────────────────────────
-#
-# 7 líneas de material (10.080,00 pesos) + trabajo 3.000/h × 120 min
-# (6.000,00) + gas y luz 800 × 1 (800,00) = 16.880,00 pesos de costo.
-# Margen 30%, descuento 0, IVA 21%, rounding none -> final 29.178,29.
 
 TORTA_MATERIALS = [
     ("Fondant de chocolate", 240000),
@@ -145,8 +129,6 @@ TORTA_MATERIALS = [
     ("Empaque corazon", 250000),
 ]
 
-# Derivado del motor B9 (price_base = cost / (1 - margen), redondeo
-# half-up a ctvs por etapa):
 TORTA_COSTS = {
     "product_total_cost": 1688000,
     "profit_amount": 723429,
@@ -194,8 +176,6 @@ async def _create_torta_corazon(client: AsyncClient, headers: dict) -> dict:
 
 class TestTortaCorazonAcceptance:
     async def test_full_flow_totals_match_business_expectation(self, client):
-        """M1-acceptance (S3): las tres familias en la misma escala
-        (integer centavos) -> costo 1.688.000 ctvs y final 2.917.829 ctvs."""
         headers = await _admin(client)
         await _set_settings(client, headers)
         body = await _create_torta_corazon(client, headers)
@@ -223,14 +203,10 @@ class TestTortaCorazonAcceptance:
         assert recalculated.json()["costs"] == TORTA_COSTS
 
 
-# ─── M2: paridad de escala entre las 3 familias de líneas ───────────────
 
 
 class TestLineFamilyScaleParity:
     async def test_snapshots_keep_single_scale(self, client):
-        """M2 (S1): unit_cost_snapshot (materiales), hourly_rate
-        (trabajo) y unit_cost (extras) viajan en la misma escala (ctvs);
-        recalculate reproduce el total sin deriva."""
         headers = await _admin(client)
         await _set_settings(client, headers)
         material = await _create_material(
@@ -238,7 +214,7 @@ class TestLineFamilyScaleParity:
             headers,
             name="Harina 000",
             unit_of_measure="kg",
-            purchase_total_price=150000,  # 1.500,00 pesos por kg
+            purchase_total_price=150000,
             package_quantity="1",
         )
         assert material["unit_cost"] == 150000
@@ -248,16 +224,16 @@ class TestLineFamilyScaleParity:
             "discount_percent": "0",
             "materials": [
                 {"material_id": material["id"], "quantity_used": "2"}
-            ],  # 3.000,00
+            ],
             "labor": [
                 {
                     "activity_name": "Coccion",
-                    "hourly_rate": 60000,  # 600,00/h
-                    "minutes_required": "60",  # 600,00
+                    "hourly_rate": 60000,
+                    "minutes_required": "60",
                 }
             ],
             "extra_costs": [
-                {"concept_name": "Envio", "unit_cost": 25000, "quantity": "1"}  # 250,00
+                {"concept_name": "Envio", "unit_cost": 25000, "quantity": "1"}
             ],
         }
         response = await client.post(
@@ -266,7 +242,6 @@ class TestLineFamilyScaleParity:
         assert response.status_code == 201, response.text
         created = response.json()
 
-        # 3.000 + 600 + 250 = 3.850 pesos = 385.000 ctvs.
         assert created["costs"]["product_total_cost"] == 385000
 
         detail = (
@@ -274,12 +249,10 @@ class TestLineFamilyScaleParity:
                 f"/api/v1/calc/products/{created['product']['id']}", headers=headers
             )
         ).json()
-        # GET detail: lineas a nivel superior (materials/labor/extra_costs).
         (mat,) = detail["materials"]
         (labor,) = detail["labor"]
         (extra,) = detail["extra_costs"]
 
-        # Mismas magnitudes que lo enviado: ninguna familia ×100/÷100.
         assert mat["unit_cost_snapshot"] == 150000
         assert mat["line_total_cost"] == 300000
         assert labor["hourly_rate"] == 60000
@@ -297,8 +270,6 @@ class TestLineFamilyScaleParity:
         )
 
     async def test_string_money_payload_is_rejected(self, client):
-        """S3: el borde de la API calc no adivina escalas: str/float en
-        campos Money -> 422 (el motor nunca recibe dos escalas)."""
         headers = await _admin(client)
         await _set_settings(client, headers)
         material = await _create_material(
@@ -312,7 +283,7 @@ class TestLineFamilyScaleParity:
             "labor": [
                 {
                     "activity_name": "Coccion",
-                    "hourly_rate": "60000",  # str: pesos? ctvs? -> 422
+                    "hourly_rate": "60000",
                     "minutes_required": "60",
                 }
             ],

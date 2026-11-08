@@ -36,19 +36,6 @@ interface ProductDetailPageProps {
   productId: string;
 }
 
-/**
- * Detalle de producto (Fase 5, P4) — /productos/{id}.
- *
- * Las 4 pestañas de la spec: Información · Ingredientes · Preparación ·
- * Costos. El desglose viene derivado del backend en cada lectura (RF-P3-04):
- * el cliente no recalcula nada ni cachea precios.
- *
- * Producto incompleto (RF-P4-07): las líneas sin precio se marcan y la
- * pestaña Costos explica qué insumos lo bloquean, en lugar de mostrar un
- * total engañoso.
- *
- * Editar y Eliminar son solo para admin (RBAC de mutaciones).
- */
 export function ProductDetailPage({ productId }: ProductDetailPageProps) {
   const router = useRouter();
   const { user } = useAuth();

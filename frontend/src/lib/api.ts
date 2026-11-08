@@ -5,20 +5,8 @@ export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost
 export const ACCESS_TOKEN_COOKIE = "auth_token";
 export const REFRESH_TOKEN_COOKIE = "refresh_token";
 
-// Event emitted by lib/api when a session is closed (logout or failed
-// refresh): AuthContext listens for it to clear the in-memory user so
-// ProtectedRoute can redirect. Without it, navigation depended on
-// something reloading the page.
 export const AUTH_SESSION_CLEARED_EVENT = "auth:session-cleared";
 
-/**
- * Typed API error.
- *
- * `status` and `payload` are needed for Phase 4 flows:
- * - DELETE /ingredients/{id} → 409 with `{"impacted_recipes": N}` (UC-05):
- *   the confirmation dialog shows the impact before deleting.
- * - Backend 422: `detail` is an array of issues (FastAPI), not a string.
- */
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -30,8 +18,6 @@ export class ApiError extends Error {
   }
 }
 
-// A single shared refresh promise: avoids N calls to /auth/refresh when
-// several requests fail with 401 at the same time.
 let refreshInFlight: Promise<string | null> | null = null;
 
 async function requestNewAccessToken(): Promise<string | null> {
@@ -61,11 +47,6 @@ async function requestNewAccessToken(): Promise<string | null> {
   return refreshInFlight;
 }
 
-/**
- * ¿El body es un FormData (multipart)? En ese caso NO se setea Content-Type:
- * el navegador debe generar el `multipart/form-data; boundary=...` solo.
- * (T-CSV: upload de archivos CSV a POST /imports.)
- */
 function bodyIsFormData(body: unknown): boolean {
   return typeof FormData !== "undefined" && body instanceof FormData;
 }
@@ -102,9 +83,6 @@ export async function apiFetch<T>(
       (body as { detail?: unknown } | null)?.detail ??
       (body as { message?: unknown } | null)?.message ??
       "An error occurred";
-    // FastAPI responde 422 con detail: [{loc, msg, type}] — se toma el primer
-    // msg en vez de serializar el cuerpo completo (el usuario no debe ver
-    // JSON de validación de Pydantic).
     let message: string;
     if (typeof candidate === "string") {
       message = candidate;
@@ -119,17 +97,11 @@ export async function apiFetch<T>(
     throw new ApiError(response.status, message, body);
   }
 
-  // 204 No Content (p. ej. DELETE /ingredients/{id}): no hay cuerpo que parsear.
   if (response.status === 204) return undefined as T;
 
   return response.json() as Promise<T>;
 }
 
-/**
- * Variante de apiFetch para respuestas que NO son JSON (T-CSV: la plantilla
- * de importación es `text/csv`). Maneja el mismo refresh de sesión y el
- * ApiError, pero devuelve el cuerpo como texto.
- */
 export async function apiFetchText(
   endpoint: string,
   options: RequestInit = {},
@@ -181,10 +153,6 @@ export function persistSession(accessToken: string, refreshToken: string) {
 export function clearSession() {
   removeCookie(ACCESS_TOKEN_COOKIE);
   removeCookie(REFRESH_TOKEN_COOKIE);
-  // Notifies the auth layer: removing the cookies does not change the
-  // in-memory state, and AuthContext only evaluates the session on mount.
-  // Without this notification the user keeps seeing an "authenticated" UI
-  // with no tokens and every following request fails.
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(AUTH_SESSION_CLEARED_EVENT));
   }

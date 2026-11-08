@@ -1,5 +1,3 @@
-"""Regression tests for PR #23 review fixes (no-leak, CSV injection, PDF 503,
-full-list pagination, resolve_audience)."""
 
 import csv
 import uuid
@@ -80,7 +78,7 @@ async def client():
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as ac:
-            ac.session = session  # type: ignore[attr-defined]
+            ac.session = session
             try:
                 yield ac
             finally:
@@ -197,8 +195,6 @@ async def test_lists_and_csv_are_not_truncated_by_page_size(client, monkeypatch)
 
 @pytest.mark.asyncio
 async def test_pdf_render_failure_is_generic_503(client, monkeypatch):
-    """Si pdfgenerator falla, el endpoint devuelve 503 genérico problem+json
-    sin filtrar detalles internos del error (path, lib, etc.)."""
     from api.v1.pdf.dependencies import get_pdf_client
     from data.pdf.client import PdfServiceError
 
