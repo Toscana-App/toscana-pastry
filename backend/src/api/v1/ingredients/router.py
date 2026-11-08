@@ -56,7 +56,7 @@ async def list_ingredients(
     page_size: int = Query(default=50, ge=1, le=100),
     status_: StockStatus | None = Query(default=None, alias="status"),
     repo: IngredientRepository = Depends(get_ingredient_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """List with accent/case-insensitive search (RF-P2-02) and a stock
     status filter (RF-P2-03)."""
@@ -136,7 +136,7 @@ async def get_ingredient(
     ingredient_id: str,
     include_movements: bool = Query(default=False),
     repo: IngredientRepository = Depends(get_ingredient_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     ingredient = await repo.get(ingredient_id)
     if ingredient is None:
@@ -238,7 +238,7 @@ async def list_movements(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
     repo: IngredientRepository = Depends(get_ingredient_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     ingredient = await repo.get(ingredient_id)
     if ingredient is None:

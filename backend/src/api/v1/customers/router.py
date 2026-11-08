@@ -66,7 +66,7 @@ async def list_customers(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     repo: CustomerRepository = Depends(get_customer_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """Listado con busqueda por nombre (sin acentos) o subcadena de
     telefono (RF-P6-08)."""
@@ -115,7 +115,7 @@ async def create_customer(
 async def get_customer(
     customer_id: str,
     repo: CustomerRepository = Depends(get_customer_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """Detalle (lectura, como el listado): prefill del wizard
     (RF-P7-03/07)."""

@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status, Header
+from fastapi import Depends, HTTPException, Query, status, Header
 from domain.models import User, UserRole
 from data.repositories.sql_user_repository import SQLUserRepository
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,6 +44,18 @@ async def get_current_user(
 def require_admin(current_user: User = Depends(get_current_user)) -> User:
     """Authorization by role: only ADMIN passes. 403 explicit, not 404."""
     if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required",
+        )
+    return current_user
+
+
+def require_admin_or_audience(
+    audience: str | None = Query(default=None),
+    current_user: User = Depends(get_current_user),
+) -> User:
+    if audience is None and current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin privileges required",

@@ -36,7 +36,12 @@ from typing import Dict, Iterable, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse
 
-from api.v1.dependencies import get_current_user, require_admin, require_role
+from api.v1.dependencies import (
+    get_current_user,
+    require_admin,
+    require_admin_or_audience,
+    require_role,
+)
 from api.v1.ingredients.dependencies import get_ingredient_repository
 from api.v1.pdf.dependencies import get_pdf_client
 from api.v1.pricing.schemas import Audience
@@ -289,7 +294,7 @@ async def list_products(
     repo: ProductRepository = Depends(get_product_repository),
     ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin_or_audience),
 ):
     """Dos contratos (integracion P3 + S3):
 
@@ -355,7 +360,7 @@ async def get_product(
     repo: ProductRepository = Depends(get_product_repository),
     ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """Detalle P4: informacion + receta con costo por linea + desglose
     completo del motor (o missing_ingredients si es incompleto)."""

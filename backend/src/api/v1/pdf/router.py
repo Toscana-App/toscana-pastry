@@ -85,7 +85,7 @@ async def get_budget_pdf(
     document_repo: DocumentRepository = Depends(get_document_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     renderer: PdfRenderer = Depends(get_pdf_client),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """PDF server-side (P9): application/pdf con ETag por hash de
     contenido (304 si no cambió)."""

@@ -215,7 +215,7 @@
 
 ## RBAC — matriz de roles por endpoint (P12, 2026-11-08)
 
-> Cierre de fugas: antes de este cambio, 23 endpoints de gestión respondían con `get_current_user` (solo sesión) sin verificar rol — un token de `cliente`/`negocio` podía leer recetas con costo por línea, proveedores, stock, PII de clientes, pedidos ajenos y el dashboard de márgenes. Regla: **la fuga es 403 (o 404 por pertenencia), nunca ocultación en UI**. Test de regresión permanente: `backend/tests/integration/api/test_rbac_matrix.py` (por cada fila: token de `cliente` → 403/404; token admin → 200).
+> Cierre de fugas: antes de este cambio, 27 endpoints de gestión respondían con `get_current_user` (solo sesión) sin verificar rol — un token de `cliente`/`negocio` podía leer recetas con costo por línea, proveedores, stock, PII de clientes, pedidos ajenos y el dashboard de márgenes. Regla: **la fuga es 403 (o 404 por pertenencia), nunca ocultación en UI**. Test de regresión permanente: `backend/tests/integration/api/test_admin_rbac_matrix.py` (matriz parametrizada por endpoint: token de `cliente`/`negocio` → 403, anónimo → 401, admin → 200, catálogo por audiencia → 200). La matriz rol×audiencia de precios vive en `test_audience_rbac_matrix.py` (ex `test_rbac_matrix.py`).
 
 | Endpoint | Dato expuesto | Guard |
 |---|---|---|
@@ -225,7 +225,7 @@
 | `GET /customers`, `GET /customers/{id}` | PII de todos los clientes | admin |
 | `GET /orders`, `GET /orders/{id}` | pedidos de todos, margen, PII | admin |
 | `GET /budgets`, `GET /budgets/{id}`, `GET /api/v1/pdf/budgets/{id}/pdf` | presupuestos con costos | admin |
-| `GET /calc/settings`, `/calc/material-categories`, `/calc/product-categories`, `/calc/suppliers`, `/calc/products`, `/calc/products/price-list`, `/calc/products/price-list/export`, `/calc/products/{id}`, `/calc/products/{id}/versions`, `/calc/dashboard` | costos, proveedores, dashboard de márgenes | admin |
+| `GET /calc/settings`, `/calc/material-categories`, `/calc/product-categories`, `/calc/suppliers`, `/calc/default-costs`, `/calc/materials`, `/calc/materials/{id}`, `/calc/materials/{id}/cost-history`, `/calc/products`, `/calc/products/price-list`, `/calc/products/price-list/export`, `/calc/products/{id}`, `/calc/products/{id}/versions`, `/calc/dashboard` (14) | costos, proveedores, dashboard de márgenes | admin |
 | `POST /orders/{id}/payment`, `GET /orders/{id}/payment` | estado de pago del pedido | rol portal + **pertenencia** (pedido ajeno → 404) |
 | `GET /products?audience=`, `pricelist/*` | precio de la audiencia propia | rol portal |
 | `POST|DELETE /products/{id}/image` | imagen del producto | admin |

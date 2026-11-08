@@ -375,7 +375,7 @@ class TestBudgetCreate:
         )
         assert response.status_code == 403
 
-    async def test_leer_permitido_para_cliente(self, client: AsyncClient):
+    async def test_get_forbidden_for_customer(self, client: AsyncClient):
         token, _, torta_id, customer_id = await _setup(client)
         body = await _create_budget(client, token, customer_id, torta_id)
         customer_token = await _customer_token(client)
@@ -383,7 +383,7 @@ class TestBudgetCreate:
             f"/api/v1/budgets/{body['id']}",
             headers={"Authorization": f"Bearer {customer_token}"},
         )
-        assert response.status_code == 200
+        assert response.status_code == 403
 
     # -- delivery_address (RF-P7-06/07) --------------------------------
 

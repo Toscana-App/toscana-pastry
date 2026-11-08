@@ -20,7 +20,7 @@ router = APIRouter(prefix="/tenant/settings", tags=["settings"])
 @router.get("", response_model=AdminSettingsResponse | SettingsResponse)
 async def get_settings(
     settings_repo: SettingsRepository = Depends(get_settings_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     settings = await GetSettings(settings_repo).execute()
     if current_user.role == UserRole.ADMIN:

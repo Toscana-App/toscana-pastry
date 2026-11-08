@@ -192,7 +192,7 @@ async def list_budgets(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     repo: BudgetRepository = Depends(get_budget_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """Listado con busqueda por secuencia (#00042) o cliente (sin
     acentos), estado y rango de fechas de creacion."""
@@ -382,7 +382,7 @@ async def create_budget(
 async def get_budget(
     budget_id: str,
     repo: BudgetRepository = Depends(get_budget_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """Detalle: items + totales derivados de lo guardado (nunca
     recalcula contra el catalogo)."""

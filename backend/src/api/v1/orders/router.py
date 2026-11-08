@@ -718,7 +718,7 @@ async def list_orders(
     page_size: int = Query(default=20, ge=1, le=100),
     paid: Optional[bool] = Query(default=None),
     repo: OrderRepository = Depends(get_order_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """Listado con filtros combinables: estado, cliente, nombre (sin
     acentos, RF-P2-02), rango de fechas (RF-P6-05) y estado de pago
@@ -1088,7 +1088,7 @@ async def export_orders(
 async def get_order(
     order_id: str,
     repo: OrderRepository = Depends(get_order_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """UC-03/UC-05: el desglose viene del snapshot congelado
     (RNF-P6-03), nunca recalculado contra el catalogo."""

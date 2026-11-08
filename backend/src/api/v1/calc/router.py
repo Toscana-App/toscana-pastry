@@ -179,7 +179,7 @@ PAGINATION_MAX = 100
 @router.get("/settings", response_model=CalcSettingsResponse)
 async def get_calc_settings(
     repo: SQLCalcSettingsRepository = Depends(get_calc_settings_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """GET /calc/settings: devuelve la fila persistida o defaults (RF-P5CC-02)."""
     settings = await repo.get()
@@ -240,7 +240,7 @@ async def list_material_categories(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=PAGINATION_MAX),
     repo: SQLCalcMaterialCategoryRepository = Depends(get_calc_material_category_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """GET /calc/material-categories: lista con busqueda + paginacion (RF-P5CC-07)."""
     items, total = await repo.list(q, page, page_size)
@@ -371,7 +371,7 @@ async def list_product_categories(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=PAGINATION_MAX),
     repo: SQLCalcProductCategoryRepository = Depends(get_calc_product_category_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """GET /calc/product-categories: lista con busqueda + paginacion (RF-P5CC-07)."""
     items, total = await repo.list(q, page, page_size)
@@ -499,7 +499,7 @@ async def list_suppliers(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=PAGINATION_MAX),
     repo: SQLCalcSupplierRepository = Depends(get_calc_supplier_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """GET /calc/suppliers: lista con busqueda + paginacion (RF-P5CC-07)."""
     items, total = await repo.list(q, page, page_size)
@@ -631,7 +631,7 @@ async def list_default_costs(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=PAGINATION_MAX),
     repo: SQLCalcDefaultCostRepository = Depends(get_calc_default_cost_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """GET /calc/default-costs: lista con busqueda + filtro type + paginacion (RF-P5CC-07)."""
     items, total = await repo.list(q, type_filter, page, page_size)
@@ -823,7 +823,7 @@ async def list_materials(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=PAGINATION_MAX),
     repo: SQLCalcMaterialRepository = Depends(get_calc_material_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """GET /calc/materials: lista con busqueda (nombre y codigo), filtros
     por categoria/proveedor/status y paginacion (RF-P2CC-05)."""
@@ -843,7 +843,7 @@ async def list_materials(
 async def get_material(
     material_id: str,
     repo: SQLCalcMaterialRepository = Depends(get_calc_material_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """GET /calc/materials/{id}: detalle (RF-P2CC-01)."""
     material = await repo.get(material_id)
@@ -985,7 +985,7 @@ async def list_material_cost_history(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=PAGINATION_MAX),
     repo: SQLCalcMaterialRepository = Depends(get_calc_material_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """GET /calc/materials/{id}/cost-history: historial paginado,
     mas recientes primero (RF-P2CC-04)."""
@@ -1296,7 +1296,7 @@ async def list_products(
     settings_repo: SQLCalcSettingsRepository = Depends(
         get_calc_settings_repository
     ),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """GET /calc/products: lista con busqueda por nombre Y SKU (D5),
     filtros, sort (name/cost/price/margin + dir) y paginacion
@@ -1335,7 +1335,7 @@ async def list_price_list(
     settings_repo: SQLCalcSettingsRepository = Depends(
         get_calc_settings_repository
     ),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """GET /calc/products/price-list: solo activos no eliminados,
     misma busqueda/filtro que el listado, orden fijo por nombre (D5);
@@ -1380,7 +1380,7 @@ async def export_price_list_csv(
     settings_repo: SQLCalcSettingsRepository = Depends(
         get_calc_settings_repository
     ),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """GET /calc/products/price-list/export: CSV del set completo
     filtrado (sin paginacion) (RF-P3CC-04). Header exacto de la spec:
@@ -1481,7 +1481,7 @@ async def get_product(
     settings_repo: SQLCalcSettingsRepository = Depends(
         get_calc_settings_repository
     ),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """GET /calc/products/{id}: detalle con lineas + costs
     (RF-P4CC-05/06). `versions` solo presente con include_versions=true
@@ -1683,7 +1683,7 @@ async def get_dashboard(
     settings_repo: SQLCalcSettingsRepository = Depends(
         get_calc_settings_repository
     ),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """GET /calc/dashboard: stats del admin (RF-P3CC-05). Los repos
     aportan los datos crudos (counts por status + activos con costs
@@ -1826,7 +1826,7 @@ async def list_product_versions(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=PAGINATION_MAX),
     repo: SQLCalcProductRepository = Depends(get_calc_product_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """GET /calc/products/{id}/versions: versiones paginadas, mas
     recientes primero (RF-P4CC-07). 404 si el producto no existe."""

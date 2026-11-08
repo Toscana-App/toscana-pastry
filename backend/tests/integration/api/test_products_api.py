@@ -135,10 +135,19 @@ async def test_list_requires_authentication(client):
 
 
 @pytest.mark.asyncio
-async def test_list_allows_customer(client):
+async def test_list_forbidden_for_customer(client):
     token = await _customer_token(client)
     response = await client.get(
         "/api/v1/products", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert response.status_code == 403
+
+
+async def test_list_with_audience_allows_customer(client):
+    token = await _customer_token(client)
+    response = await client.get(
+        "/api/v1/products?audience=consumidor_final",
+        headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200
     assert response.json()["items"] == []

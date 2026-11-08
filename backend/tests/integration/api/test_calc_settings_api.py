@@ -137,13 +137,12 @@ async def test_get_settings_returns_system_defaults_when_unset(client):
 
 
 @pytest.mark.asyncio
-async def test_get_settings_allowed_for_any_authenticated_user(client):
-    """S3: lectura permitida para cualquier usuario autenticado."""
+async def test_get_settings_forbidden_for_customer(client):
     token = await _customer_token(client)
     response = await client.get(
         SETTINGS_PATH, headers={"Authorization": f"Bearer {token}"}
     )
-    assert response.status_code == 200
+    assert response.status_code == 403
 
 
 # ─── PUT tests ──────────────────────────────────────────────────────────

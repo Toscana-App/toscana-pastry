@@ -284,13 +284,13 @@ class TestCustomers:
         )
         assert response.status_code == 403
 
-    async def test_leer_lista_permitido_para_cliente(self, client: AsyncClient):
+    async def test_list_forbidden_for_customer(self, client: AsyncClient):
         token = await _customer_token(client)
         response = await client.get(
             "/api/v1/customers",
             headers={"Authorization": f"Bearer {token}"},
         )
-        assert response.status_code == 200
+        assert response.status_code == 403
 
     # -- delivery_address (RF-P7-06/07) --------------------------------
 
