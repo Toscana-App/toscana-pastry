@@ -1,9 +1,7 @@
-import { getCookie, setCookie, removeCookie } from "./cookies";
-
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
-export const ACCESS_TOKEN_COOKIE = "auth_token";
-export const REFRESH_TOKEN_COOKIE = "refresh_token";
+// The session lives in HttpOnly cookies set by the backend: JavaScript never
+// reads the tokens. Every request sends them with credentials: "include".
 
 // Event emitted by lib/api when a session is closed (logout or failed
 // refresh): AuthContext listens for it to clear the in-memory user so
@@ -31,27 +29,21 @@ export class ApiError extends Error {
 }
 
 // A single shared refresh promise: avoids N calls to /auth/refresh when
-// several requests fail with 401 at the same time.
-let refreshInFlight: Promise<string | null> | null = null;
+// several requests fail with 401 at the same time (the backend rotates the
+// refresh token, so a second concurrent call would look like a replay).
+let refreshInFlight: Promise<boolean> | null = null;
 
-async function requestNewAccessToken(): Promise<string | null> {
-  const refreshToken = getCookie(REFRESH_TOKEN_COOKIE);
-  if (!refreshToken) return null;
-
+async function refreshSession(): Promise<boolean> {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refresh_token: refreshToken }),
+          credentials: "include",
         });
-        if (!response.ok) return null;
-        const data = (await response.json()) as { access_token: string };
-        setCookie(ACCESS_TOKEN_COOKIE, data.access_token, 1);
-        return data.access_token;
+        return response.ok;
       } catch {
-        return null;
+        return false;
       } finally {
         refreshInFlight = null;
       }
@@ -59,6 +51,30 @@ async function requestNewAccessToken(): Promise<string | null> {
   }
 
   return refreshInFlight;
+}
+
+/**
+ * Runs an authenticated request. On 401 it tries one session refresh and
+ * retries; if the refresh fails the session is cleared.
+ */
+export async function authorizedFetch(
+  endpoint: string,
+  options: RequestInit = {},
+  allowRefresh = true,
+): Promise<Response> {
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    credentials: "include",
+  });
+
+  if (response.status === 401 && allowRefresh) {
+    if (await refreshSession()) {
+      return authorizedFetch(endpoint, options, false);
+    }
+    clearSession();
+  }
+
+  return response;
 }
 
 /**
@@ -75,26 +91,19 @@ export async function apiFetch<T>(
   options: RequestInit = {},
   allowRefresh = true
 ): Promise<T> {
-  const token = getCookie(ACCESS_TOKEN_COOKIE);
-
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      ...(bodyIsFormData(options.body)
-        ? {}
-        : { "Content-Type": "application/json" }),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
+  const response = await authorizedFetch(
+    endpoint,
+    {
+      ...options,
+      headers: {
+        ...(bodyIsFormData(options.body)
+          ? {}
+          : { "Content-Type": "application/json" }),
+        ...options.headers,
+      },
     },
-  });
-
-  if (response.status === 401 && allowRefresh && getCookie(REFRESH_TOKEN_COOKIE)) {
-    const newToken = await requestNewAccessToken();
-    if (newToken) {
-      return apiFetch<T>(endpoint, options, false);
-    }
-    clearSession();
-  }
+    allowRefresh,
+  );
 
   if (!response.ok) {
     const body: unknown = await response.json().catch(() => null);
@@ -135,23 +144,7 @@ export async function apiFetchText(
   options: RequestInit = {},
   allowRefresh = true,
 ): Promise<string> {
-  const token = getCookie(ACCESS_TOKEN_COOKIE);
-
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
-
-  if (response.status === 401 && allowRefresh && getCookie(REFRESH_TOKEN_COOKIE)) {
-    const newToken = await requestNewAccessToken();
-    if (newToken) {
-      return apiFetchText(endpoint, options, false);
-    }
-    clearSession();
-  }
+  const response = await authorizedFetch(endpoint, options, allowRefresh);
 
   if (!response.ok) {
     const body: unknown = await response.json().catch(() => null);
@@ -173,18 +166,11 @@ export async function apiFetchText(
   return response.text();
 }
 
-export function persistSession(accessToken: string, refreshToken: string) {
-  setCookie(ACCESS_TOKEN_COOKIE, accessToken, 1);
-  setCookie(REFRESH_TOKEN_COOKIE, refreshToken, 7);
-}
-
 export function clearSession() {
-  removeCookie(ACCESS_TOKEN_COOKIE);
-  removeCookie(REFRESH_TOKEN_COOKIE);
-  // Notifies the auth layer: removing the cookies does not change the
-  // in-memory state, and AuthContext only evaluates the session on mount.
-  // Without this notification the user keeps seeing an "authenticated" UI
-  // with no tokens and every following request fails.
+  // The HttpOnly cookies can only be removed by the backend (/auth/logout).
+  // This notifies the auth layer: AuthContext only evaluates the session on
+  // mount, so without the event the user keeps seeing an "authenticated" UI
+  // while every following request fails.
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(AUTH_SESSION_CLEARED_EVENT));
   }

@@ -1,5 +1,4 @@
-import { ACCESS_TOKEN_COOKIE, apiFetch, API_BASE_URL, ApiError } from "@/lib/api";
-import { getCookie } from "@/lib/cookies";
+import { apiFetch, ApiError, authorizedFetch } from "@/lib/api";
 import { downloadEndpoint } from "@/lib/download";
 import type {
   BudgetCreatePayload,
@@ -220,10 +219,7 @@ export const budgetsService = {
    * al reemplazarlo. fetch crudo: apiFetch siempre parsea JSON.
    */
   async pdfUrl(id: string): Promise<string> {
-    const token = getCookie(ACCESS_TOKEN_COOKIE);
-    const res = await fetch(`${API_BASE_URL}${BASE}/${id}/pdf`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    });
+    const res = await authorizedFetch(`${BASE}/${id}/pdf`);
     if (!res.ok) throw new ApiError(res.status, "No se pudo generar el PDF");
     return URL.createObjectURL(await res.blob());
   },
