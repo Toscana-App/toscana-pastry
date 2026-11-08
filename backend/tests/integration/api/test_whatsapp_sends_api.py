@@ -152,7 +152,7 @@ async def test_list_sends_forbidden_for_customer(no_admin_client):
     login = await no_admin_client.post(
         "/api/v1/auth/login", json={"email": "customer@example.com"}
     )
-    token = login.json()["access_token"]
+    token = login.cookies["auth_token"]
     response = await no_admin_client.get(
         "/api/v1/whatsapp/sends",
         headers={"Authorization": f"Bearer {token}"},

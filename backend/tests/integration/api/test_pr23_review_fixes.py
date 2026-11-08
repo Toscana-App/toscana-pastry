@@ -82,7 +82,7 @@ async def client():
 
 async def _h(ac, email):
     r = await ac.post("/api/v1/auth/login", json={"email": email})
-    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+    return {"Authorization": f"Bearer {r.cookies['auth_token']}"}
 
 
 async def _add(ac, name, price="100"):

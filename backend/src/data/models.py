@@ -59,6 +59,19 @@ class UserORM(Base):
     )
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.UTC))
 
+
+class RefreshTokenORM(Base):
+    """Issued refresh token, by jti (the token itself is never stored).
+    `revoked_at` set = consumed by a rotation or revoked by logout/reuse."""
+
+    __tablename__ = "refresh_tokens"
+    jti = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    family_id = Column(String, nullable=False, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.UTC))
+
 class BusinessSettingsORM(Base):
     """Parametros de precio. Un solo registro: la app es monotenante.
 

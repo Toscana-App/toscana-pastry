@@ -77,7 +77,7 @@ async def _admin_token(client: AsyncClient) -> str:
         "/api/v1/auth/login", json={"email": "admin@example.com"}
     )
     assert response.status_code == 200
-    return response.json()["access_token"]
+    return response.cookies["auth_token"]
 
 
 async def _customer_token(client: AsyncClient) -> str:
@@ -85,7 +85,7 @@ async def _customer_token(client: AsyncClient) -> str:
         "/api/v1/auth/login", json={"email": "customer@example.com"}
     )
     assert response.status_code == 200
-    return response.json()["access_token"]
+    return response.cookies["auth_token"]
 
 
 async def _set_settings(client: AsyncClient, token: str) -> None:

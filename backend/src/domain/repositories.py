@@ -30,6 +30,26 @@ class UserRepository(ABC):
         pass
 
 
+class RefreshTokenRepository(ABC):
+    """Server-side record of issued refresh tokens (rotation + revocation)."""
+
+    @abstractmethod
+    async def add(
+        self, jti: str, user_id: str, family_id: str, expires_at: datetime
+    ) -> None:
+        pass
+
+    @abstractmethod
+    async def consume(self, jti: str) -> bool:
+        """Atomically mark the token as used. False when it is unknown,
+        already used/revoked or expired."""
+        pass
+
+    @abstractmethod
+    async def revoke_family(self, family_id: str) -> None:
+        pass
+
+
 class SettingsRepository(ABC):
     @abstractmethod
     async def get(self) -> Optional[BusinessSettings]:

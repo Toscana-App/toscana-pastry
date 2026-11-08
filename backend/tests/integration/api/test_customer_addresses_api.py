@@ -77,7 +77,7 @@ PATH = "/api/v1/customers/me/addresses"
 async def _token_for(client: AsyncClient, email: str) -> str:
     response = await client.post("/api/v1/auth/login", json={"email": email})
     assert response.status_code == 200
-    return response.json()["access_token"]
+    return response.cookies["auth_token"]
 
 
 async def _customer_token(client: AsyncClient) -> str:
@@ -121,7 +121,7 @@ async def test_create_requires_auth(client):
 async def test_admin_forbidden(client):
     """Admin no tiene "mis direcciones" → 403 (convención del repo)."""
     response = await client.post("/api/v1/auth/login", json={"email": "admin@example.com"})
-    token = response.json()["access_token"]
+    token = response.cookies["auth_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     assert (await client.get(PATH, headers=headers)).status_code == 403
@@ -542,7 +542,7 @@ async def test_business_role_can_use_address_book(client):
     response = await client.post(
         "/api/v1/auth/login", json={"email": "business@example.com"}
     )
-    token = response.json()["access_token"]
+    token = response.cookies["auth_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     created = await client.post(
