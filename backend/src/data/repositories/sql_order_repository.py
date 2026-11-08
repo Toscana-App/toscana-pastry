@@ -191,7 +191,7 @@ def _order_to_domain(orm: OrderORM) -> P6Order:
         status=orm.status,
         margin_pct=Decimal(orm.margin_pct) if orm.margin_pct is not None else None,
         created_at=orm.created_at,
-        updated_at=orm.updated_at,
+        updated_at=orm.updated_at or orm.created_at,
         whatsapp_sent_at=orm.whatsapp_sent_at,
         id=orm.id,
         paid=orm.paid_at is not None,
@@ -239,6 +239,7 @@ class SQLOrderRepository:
             paid_at=order.paid_at,
             payment_status=order.payment_status.value if order.payment_status else None,
             created_at=order.created_at,
+            updated_at=order.created_at,
         )
         self.session.add(orm)
         await self.session.flush()
