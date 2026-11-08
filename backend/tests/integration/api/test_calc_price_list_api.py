@@ -236,12 +236,12 @@ class TestPriceListAuth:
         response = await client.get("/api/v1/calc/products/price-list/export")
         assert response.status_code == 401
 
-    async def test_any_user_can_read(self, client):
+    async def test_customer_cannot_read(self, client):
         token = await _token_for(client, "customer@example.com")
         response = await client.get(
             "/api/v1/calc/products/price-list", headers=_auth(token)
         )
-        assert response.status_code == 200
+        assert response.status_code == 403
 
 
 

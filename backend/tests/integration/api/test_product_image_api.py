@@ -111,9 +111,30 @@ async def _customer_token(client: AsyncClient) -> str:
 
 
 async def _create_product(client: AsyncClient, headers):
+    ingredient = await client.post(
+        "/api/v1/ingredients",
+        json={
+            "name": "Almendra molida",
+            "unit": "kg",
+            "price_per_unit": 280000,
+            "stock_qty": 10,
+        },
+        headers=headers,
+    )
+    assert ingredient.status_code == 201, ingredient.text
     response = await client.post(
         "/api/v1/products",
-        json={"name": "Budín de Almendra", "category": "Budines"},
+        json={
+            "name": "Budín de Almendra",
+            "category": "Budines",
+            "recipe": [
+                {
+                    "ingredient_id": ingredient.json()["id"],
+                    "qty": "250",
+                    "unit": "g",
+                }
+            ],
+        },
         headers=headers,
     )
     assert response.status_code == 201, response.text

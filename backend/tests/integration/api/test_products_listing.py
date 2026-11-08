@@ -1,3 +1,4 @@
+import uuid
 
 import uuid
 from decimal import Decimal
@@ -96,13 +97,13 @@ async def client(db_session):
         )
     )
     db_session.add(
-        IngredientORM(name="Harina 0000", unit="kg", price_per_unit="10.00", stock_qty="10")
+        IngredientORM(id=str(uuid.uuid4()), name="Harina 0000", unit="kg", price_per_unit="10.00", stock_qty="10")
     )
     db_session.add(
-        IngredientORM(name="Azúcar refinada", unit="kg", price_per_unit="20.00", stock_qty="10")
+        IngredientORM(id=str(uuid.uuid4()), name="Azúcar refinada", unit="kg", price_per_unit="20.00", stock_qty="10")
     )
     db_session.add(
-        IngredientORM(name="Manteca sin sal", unit="kg", price_per_unit="15.00", stock_qty="10")
+        IngredientORM(id=str(uuid.uuid4()), name="Manteca sin sal", unit="kg", price_per_unit="15.00", stock_qty="10")
     )
     await db_session.commit()
 

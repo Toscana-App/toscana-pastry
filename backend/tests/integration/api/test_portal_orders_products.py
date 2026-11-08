@@ -1,3 +1,4 @@
+import uuid
 
 import json
 import uuid
@@ -71,7 +72,7 @@ async def _seed_product(
     recipe_qty: str = "1",
     complete: bool = True,
 ) -> tuple[str, str]:
-    ingredient = IngredientORM(
+    ingredient = IngredientORM(id=str(uuid.uuid4()), 
         name=f"Insumo {name}",
         unit="kg",
         price_per_unit=price_per_unit,

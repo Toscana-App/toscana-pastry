@@ -1,3 +1,4 @@
+import uuid
 
 import datetime
 import uuid
@@ -50,7 +51,7 @@ async def db_session():
 
 @pytest_asyncio.fixture
 async def product_id(db_session):
-    ingredient = IngredientORM(
+    ingredient = IngredientORM(id=str(uuid.uuid4()), 
         name="Insumo Torta", unit="kg", price_per_unit="1000.00", stock_qty="10"
     )
     db_session.add(ingredient)

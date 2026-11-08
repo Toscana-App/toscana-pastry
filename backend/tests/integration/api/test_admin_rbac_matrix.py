@@ -294,7 +294,7 @@ async def _seed(client: AsyncClient) -> dict:
         "/api/v1/calc/products", json={"name": "Brownie"}, headers=headers
     )
     assert response.status_code == 201, response.text
-    calc_product_id = response.json()["id"]
+    calc_product_id = response.json()["product"]["id"]
     return {
         "ingredient_id": ingredient_id,
         "product_id": product_id,

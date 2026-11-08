@@ -148,11 +148,9 @@ async def test_preview_dual_admin_keeps_full_breakdown(client):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("email", ["negocio@example.com", "cliente@example.com"])
-async def test_get_settings_hides_consumer_markup_for_non_admin(client, email):
+async def test_get_settings_forbidden_for_non_admin(client, email):
     r = await client.get(SETTINGS, headers=await _h(client, email))
-    assert r.status_code == 200
-    assert "consumer_markup_pct" not in r.json()
-    assert "hourly_rate" in r.json()
+    assert r.status_code == 403
 
 
 @pytest.mark.asyncio

@@ -138,12 +138,12 @@ async def test_settings_write_forbidden_for_customer(client):
 
 
 @pytest.mark.asyncio
-async def test_settings_read_allowed_for_customer(client):
+async def test_settings_read_forbidden_for_customer(client):
     token = await _token_for(client, "customer@example.com")
     response = await client.get(
         "/api/v1/tenant/settings", headers={"Authorization": f"Bearer {token}"}
     )
-    assert response.status_code == 200
+    assert response.status_code == 403
 
 
 @pytest.mark.asyncio
@@ -180,10 +180,10 @@ async def test_ingredient_write_forbidden_for_customer(client):
 
 
 @pytest.mark.asyncio
-async def test_ingredient_read_allowed_for_customer(client):
+async def test_ingredient_read_forbidden_for_customer(client):
     token = await _token_for(client, "customer@example.com")
     headers = {"Authorization": f"Bearer {token}"}
-    assert (await client.get("/api/v1/ingredients", headers=headers)).status_code == 200
+    assert (await client.get("/api/v1/ingredients", headers=headers)).status_code == 403
 
 
 @pytest.mark.asyncio

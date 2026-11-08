@@ -149,7 +149,7 @@ async def test_list_with_audience_allows_customer(client):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200
-    assert response.json()["items"] == []
+    assert response.json()["products"] == []
 
 
 @pytest.mark.asyncio

@@ -1,3 +1,4 @@
+import uuid
 
 import uuid
 from decimal import Decimal
@@ -39,7 +40,7 @@ _TEST_PRODUCTS = [
 async def products(db_session):
     created = {}
     for prod in _TEST_PRODUCTS:
-        ingredient = IngredientORM(
+        ingredient = IngredientORM(id=str(uuid.uuid4()), 
             name=f"Insumo {prod['name']}",
             unit=prod["unit"],
             price_per_unit=prod["price_per_unit"],
@@ -277,7 +278,7 @@ class TestPostCartItems:
     async def test_max_50_lines_returns_422(self, client, db_session):
         ids = []
         for index in range(51):
-            ingredient = IngredientORM(
+            ingredient = IngredientORM(id=str(uuid.uuid4()), 
                 name=f"Insumo {index}",
                 unit="kg",
                 price_per_unit="10.00",
