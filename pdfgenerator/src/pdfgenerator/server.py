@@ -73,7 +73,7 @@ def create_app() -> FastAPI:
     @app.post("/render/budgets-export")
     async def render_budgets_export_endpoint(req: BudgetsExportRequest) -> Response:
         budgets = [
-            (b.seq, b.cliente, b.telefono, b.fecha, b.enviado, b.estado, b.total_cents)
+            (b.seq, b.cliente, b.telefono, b.fecha, b.enviado, b.estado, b.total_cents, b.iva_cents)
             for b in req.budgets
         ]
         pdf = await asyncio.to_thread(
