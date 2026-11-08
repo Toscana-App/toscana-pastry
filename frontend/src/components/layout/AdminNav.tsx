@@ -15,6 +15,7 @@ import { Flex, Text } from "@chakra-ui/react";
 // URL). `match` separa el prefijo de resaltado del destino del link.
 const SECTIONS = [
   { href: "/admin", label: "Usuarios", exact: true },
+  { href: "/productos", label: "Productos", exact: true },
   { href: "/admin/ingredients", label: "Ingredientes", exact: false },
   { href: "/admin/calculator/products", label: "Calculator", exact: false, match: "/admin/calculator" },
   { href: "/admin/settings", label: "Configuración", exact: false },

@@ -97,9 +97,6 @@ export function Navbar() {
                 {isAdmin && (
                   <>
                     <Button variant="ghost" asChild>
-                      <NextLink href="/productos">Productos</NextLink>
-                    </Button>
-                    <Button variant="ghost" asChild>
                       <NextLink href="/pedidos">Pedidos</NextLink>
                     </Button>
                     <Button variant="ghost" asChild>
