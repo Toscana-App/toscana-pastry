@@ -60,7 +60,7 @@ function detailBody(over: Record<string, unknown> = {}) {
         price_overridden: false,
       },
     ],
-    summary: { subtotal: 15000, total_costos: 10000, ganancia: 5000, total_venta: 18150 },
+    summary: { subtotal: 15000, total_costos: 10000, ganancia: 5000, total_venta: 15000, iva: 3150 },
     delivery_address: null,
     created_at: "2026-11-01T12:00:00Z",
     updated_at: "2026-11-01T12:00:00Z",
