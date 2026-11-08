@@ -88,8 +88,9 @@ class TestBudgetWhatsAppMessage:
         # Items: cant x producto - precio.
         assert "2 x Torta de Limón — $3.100,00" in msg
         assert "1 x Brownie de Chispas — $900,00" in msg
-        # Total con IVA: (3100 + 900) * 1.21 = 4840.
-        assert "Total (IVA incluido): $4.840,00" in msg
+        # Total = subtotal (sin IVA); IVA 21% aparte: 4000 * 0.21 = 840.
+        assert "Total: $4.000,00" in msg
+        assert "IVA (21%): $840,00 — costo aparte del total" in msg
         # Link al PDF y firma del negocio.
         assert "http://localhost:8000/api/v1/pdf/tok.abc" in msg
         assert "Toscana Pastry" in msg

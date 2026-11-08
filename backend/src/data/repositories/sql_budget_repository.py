@@ -104,6 +104,7 @@ def _snapshot_to_json(budget: Budget) -> str:
                 "subtotal": str(totals.subtotal),
                 "total_costos": str(totals.total_costos),
                 "ganancia": str(totals.ganancia),
+                "iva": str(totals.iva),
                 "total_venta": str(totals.total_venta),
             },
         }

@@ -1,7 +1,7 @@
 import { Box } from "@chakra-ui/react"
 import Image from "next/image"
 
-// Assets built from docs/images by scripts/build_brand_assets.mjs.
+// Assets versionados en public/brand (derivados de docs/images).
 const LOGOS = {
   horizontal: { file: "logo_horizontal", ratio: 4766.81 / 1470.78, alt: "Toscana" },
   vertical: { file: "logo_vertical_tagline", ratio: 5017.02 / 4662.21, alt: "Toscana, horneando momentos" },

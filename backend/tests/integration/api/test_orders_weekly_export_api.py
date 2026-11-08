@@ -396,12 +396,13 @@ async def test_budgets_export_csv_default(client, db_session):
     assert response.status_code == 200
     assert "text/csv" in response.headers["content-type"]
     body = response.text
-    assert "seq,cliente,telefono,fecha,enviado,estado,total_venta" in body
+    assert "seq,cliente,telefono,fecha,enviado,estado,total_venta,iva" in body
     assert "#00042" in body
     assert "María Gómez" in body
     assert "enviado" in body
-    # total_venta incluye IVA 21% (dominio/budgets.py): 4520.00 * 1.21
-    assert "$5.469,20" in body
+    # total_venta = subtotal sin IVA; el 21% viaja aparte (dominio/budgets.py)
+    assert "$4.520,00" in body
+    assert "$949,20" in body
 
 
 @pytest.mark.asyncio

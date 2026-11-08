@@ -8,7 +8,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from data.accent import accent_fold
+from data.accent import build_search_pattern
 from data.models import ProductORM, RecipeItemORM
 from domain.models import Product, RecipeItem
 from domain.repositories import ProductRepository
@@ -56,11 +56,16 @@ class SQLProductRepository(ProductRepository):
         page_size: int,
     ) -> tuple[list[Product], int]:
         filters: list = _not_deleted()
-        if q and q.strip():
+        if q is not None:  # estricto: blank/control/>120 → 422 (min_length=1 evita q="")
             # accent_fold registrada en el engine (data/db.py): "limon"
             # encuentra "Limón" sin importar acentos (RF-P3-01).
-            folded = accent_fold(q) or q
-            filters.append(func.accent_fold(ProductORM.name).like(f"%{folded}%"))
+            # build_search_pattern valida, pliega y escapa los metacaracteres
+            # de LIKE (substring literal); el valor viaja como parámetro bind.
+            filters.append(
+                func.accent_fold(ProductORM.name).like(
+                    build_search_pattern(q), escape="\\"
+                )
+            )
         if category:
             filters.append(ProductORM.category == category)
         total = (

@@ -5,7 +5,7 @@ from typing import List, Optional, Sequence, Tuple
 from sqlalchemy import REAL, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from data.accent import accent_fold
+from data.accent import build_search_pattern
 from data.models import IngredientORM, ProductORM, RecipeItemORM, StockMovementORM
 from domain.models import Ingredient, StockMovement, StockStatus
 
@@ -61,11 +61,19 @@ class SQLIngredientRepository:
         page_size: int,
     ) -> Tuple[List[Ingredient], int]:
         filters = _not_deleted()
-        if q and q.strip():
+        if q is not None:  # estricto: blank/control/>120 → 422 (min_length=1 evita q="")
             # accent_fold esta registrada en el engine (data/db.py): "cafe"
-            # encuentra "Cafe" sin importar acentos.
-            folded = accent_fold(q) or q
-            filters.append(func.accent_fold(IngredientORM.name).like(f"%{folded}%"))
+            # encuentra "Cafe" sin importar acentos. build_search_pattern
+            # valida el término (422 vía SearchQueryError), pliega acentos y
+            # escapa los metacaracteres de LIKE: la búsqueda es siempre un
+            # substring literal (anti wildcard-injection); `escape="\"` hace
+            # que SQLite y Postgres respeten el escape. El valor viaja como
+            # parámetro bind, nunca concatena texto SQL.
+            filters.append(
+                func.accent_fold(IngredientORM.name).like(
+                    build_search_pattern(q), escape="\\"
+                )
+            )
         if status is not None:
             filters.append(_status_filter(status))
         total = (

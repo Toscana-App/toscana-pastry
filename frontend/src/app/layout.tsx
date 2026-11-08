@@ -4,6 +4,7 @@ import "./globals.css";
 import { Provider } from "@/providers/ChakraProvider"
 import { AuthProvider } from "@/contexts/AuthContext"
 import { Navbar } from "@/components/layout/Navbar"
+import { IconSprite } from "@/components/icons/sprite"
 import { Toaster } from "@/lib/toaster"
 import { AppGooeyToaster } from "@/components/ui/GoeyToasterClient"
 import "goey-toast/styles.css"
@@ -29,6 +30,7 @@ export default function RootLayout({
       <body className="min-h-screen antialiased">
         <Provider>
           <AuthProvider>
+            <IconSprite />
             <Navbar />
             <main>{children}</main>
             <Toaster />

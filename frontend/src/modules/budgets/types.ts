@@ -118,8 +118,10 @@ export interface BudgetSummary {
   total_costos: number;
   /** subtotal − total_costos (puede ser negativa). */
   ganancia: number;
-  /** subtotal + IVA 21%. */
+  /** Subtotal de venta (sin IVA): total_venta = subtotal. */
   total_venta: number;
+  /** IVA 21% del subtotal — costo aparte, nunca incluido en total_venta. */
+  iva: number;
 }
 
 export interface BudgetCustomer {

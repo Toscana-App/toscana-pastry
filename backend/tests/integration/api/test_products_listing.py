@@ -309,3 +309,110 @@ async def test_page_size_only_defaults_to_first_page(client):
 async def test_invalid_pagination_returns_422(client):
     assert (await _list(client, page=0)).status_code == 422
     assert (await _list(client, page_size=501)).status_code == 422
+
+
+# ─── Search by name (q, insensible a acentos, RF-P3-01) ─────────────────
+
+
+@pytest.mark.asyncio
+async def test_q_filters_by_name(client):
+    """q=harina → solo "Harina 0000" (subcadenas en nombre)."""
+    data = (await _list(client, q="harina")).json()
+    assert data["total"] == 1
+    assert [p["name"] for p in data["products"]] == ["Harina 0000"]
+
+
+@pytest.mark.asyncio
+async def test_q_is_accent_insensitive(client):
+    """q=azucar → encuentra "Azúcar refinada" (accent_fold)."""
+    data = (await _list(client, q="azucar")).json()
+    assert data["total"] == 1
+    assert [p["name"] for p in data["products"]] == ["Azúcar refinada"]
+
+
+@pytest.mark.asyncio
+async def test_q_without_match_returns_empty(client):
+    data = (await _list(client, q="zzz-no-existe")).json()
+    assert data["total"] == 0
+    assert data["products"] == []
+
+
+@pytest.mark.asyncio
+async def test_q_with_pagination_returns_slice_and_full_total(client):
+    """q que coincide en 3 insumos + page_size=2 → slice, total completo."""
+    data = (await _list(client, q="a", page=1, page_size=2)).json()
+    assert data["total"] == 3
+    assert len(data["products"]) == 2
+
+
+# ─── Búsqueda: seguridad estricta (wildcards + datos inermes) ─────────────
+# El buscador es SOLO dato inerte: sin interpolación SQL (parámetros bind),
+# sin metacaracteres de LIKE activos, sin invisibles/controles. (data/accent)
+
+
+@pytest.mark.asyncio
+async def test_q_percent_is_literal_not_wildcard(client):
+    """q=% NO debe coincidir con todo: % es carácter literal, no wildcard."""
+    r = await _list(client, q="%")
+    assert r.status_code == 200
+    assert r.json()["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_q_underscore_is_literal_not_wildcard(client):
+    """q=_ NO debe actuar como 'cualquier carácter': substring literal."""
+    r = await _list(client, q="_")
+    assert r.status_code == 200
+    assert r.json()["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_q_backslash_is_literal(client):
+    """q=\\ es texto buscable, no introducer un escape."""
+    r = await _list(client, q="\\")
+    assert r.status_code == 200
+    assert r.json()["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_q_mixed_wildcards_stay_literal(client):
+    """q=a%b_c → no interpreta % ni _ : cero coincidencias."""
+    r = await _list(client, q="a%b_c")
+    assert r.status_code == 200
+    assert r.json()["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_q_null_byte_returns_422(client):
+    """NUL (categoría Cc) → 422: la búsqueda es dato inerte."""
+    r = await _list(client, q="harina\x00x")
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_q_bidi_override_returns_422(client):
+    """U+202E (bidi override, Cf) → 422: no se aceptan invisibles."""
+    r = await _list(client, q="harina\u202e")
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_q_blank_returns_422(client):
+    """Solo espacios → 422 (el término debe buscar algo)."""
+    r = await _list(client, q="   ")
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_q_over_max_length_returns_422(client):
+    """> 120 caracteres → 422 (límite de Query)."""
+    r = await _list(client, q="a" * 121)
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_q_normal_substring_still_matches(client):
+    """Regresión: la búsqueda normal (subcadena, accent-fold) sigue funcionando."""
+    data = (await _list(client, q="refina")).json()
+    assert data["total"] == 1
+    assert [p["name"] for p in data["products"]] == ["Azúcar refinada"]

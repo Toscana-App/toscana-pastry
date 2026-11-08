@@ -71,7 +71,7 @@ def test_render_budgets_export():
         "budgets": [
             {"seq": "00042", "cliente": "María Gómez", "telefono": "+54 9 11 5555-0100",
              "fecha": "2026-11-01", "enviado": "2026-11-01", "estado": "enviado",
-             "total_cents": 452000},
+             "total_cents": 452000, "iva_cents": 94920},
         ],
     }
     r = client.post("/render/budgets-export", json=body)
@@ -92,6 +92,7 @@ def test_render_budget():
              "unit_selling": "1550.00", "line_selling": "3100.00"},
         ],
         "subtotal": "3100.00",
+        "iva": "651.00",
         "total": "3751.00",
         "iva_pct": "21",
         "business_name": "Toscana Pastry",

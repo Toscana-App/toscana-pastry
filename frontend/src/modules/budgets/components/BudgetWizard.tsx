@@ -726,8 +726,9 @@ export function BudgetWizard() {
 
             <Alert.Root status="info" fontSize="sm">
               <Alert.Description>
-                Los costos, la ganancia y el total (con IVA 21%) se calculan al guardar, contra el
-                catálogo actual. Los verás en el detalle y ahí podrás editarlos.
+                Los costos, la ganancia y el total de venta se calculan al guardar, contra el
+                catálogo actual. El IVA (21%) se muestra aparte, como costo separado del total.
+                Lo verás en el detalle y ahí podrás editarlo.
               </Alert.Description>
             </Alert.Root>
 

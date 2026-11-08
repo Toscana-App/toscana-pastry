@@ -356,7 +356,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
           </HStack>
           <Box as="hr" border="none" h="1px" bg="bg.emphasized" />
           <HStack justify="space-between">
-            <Text fontWeight="600">Total venta (IVA 21%)</Text>
+            <Text fontWeight="600">Total venta (sin IVA)</Text>
             <Text
               fontWeight="700"
               fontSize="xl"
@@ -364,6 +364,16 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
               aria-live="polite"
             >
               {formatCents(budget.summary.total_venta)}
+            </Text>
+          </HStack>
+          <HStack justify="space-between" fontSize="sm">
+            <Text color="fg.muted">IVA (21%) — costo aparte</Text>
+            <Text fontVariantNumeric="tabular-nums">{formatCents(budget.summary.iva)}</Text>
+          </HStack>
+          <HStack justify="space-between" fontSize="sm">
+            <Text color="fg.muted">Total con IVA</Text>
+            <Text fontVariantNumeric="tabular-nums" fontWeight="600">
+              {formatCents(budget.summary.total_venta + budget.summary.iva)}
             </Text>
           </HStack>
         </VStack>
@@ -377,8 +387,10 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
             <Alert.Description>
               Margen aplicado: {formatPct(recalcMargin)}. Subtotal{" "}
               {formatCents(recalculated.subtotal)} · Costos{" "}
-              {formatCents(recalculated.total_costos)} · Total venta{" "}
-              {formatCents(recalculated.total_venta)}.
+              {formatCents(recalculated.total_costos)} · Total venta (sin IVA){" "}
+              {formatCents(recalculated.total_venta)} + IVA{" "}
+              {formatCents(recalculated.iva)} (costo aparte) ={" "}
+              {formatCents(recalculated.total_venta + recalculated.iva)}.
             </Alert.Description>
           </Alert.Content>
         </Alert.Root>

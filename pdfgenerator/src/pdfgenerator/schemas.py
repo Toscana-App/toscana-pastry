@@ -73,6 +73,7 @@ class BudgetsExportRow(BaseModel):
     enviado: datetime.date | None
     estado: str
     total_cents: int
+    iva_cents: int
 
 
 class BudgetsExportRequest(BaseModel):
@@ -99,7 +100,8 @@ class BudgetPdfRequest(BaseModel):
     delivery_address: str | None = None
     items: list[BudgetItemRequest] = Field(default_factory=list)
     subtotal: Decimal
-    total: Decimal  # total_venta (con IVA)
+    iva: Decimal
+    total: Decimal  # subtotal + iva (con IVA)
     iva_pct: Decimal = Decimal("21")
     business_name: str = ""
     footer_text: str = ""

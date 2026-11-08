@@ -48,7 +48,7 @@ function detailBody(over: Record<string, unknown> = {}) {
         price_overridden: false,
       },
     ],
-    summary: { subtotal: 310000, total_costos: 155000, ganancia: 155000, total_venta: 375100 },
+    summary: { subtotal: 310000, total_costos: 155000, ganancia: 155000, total_venta: 310000, iva: 65100 },
     created_at: "2026-10-01T12:00:00Z",
     updated_at: "2026-10-01T12:00:00Z",
     sent_at: null,
@@ -103,7 +103,8 @@ describe("budgetsService — GET /budgets/{id}", () => {
     expect(detail.margin_pct).toBe(100);
     expect(detail.items[0].unit_cost).toBe(77500);
     expect(detail.items[0].unit_selling).toBe(155000);
-    expect(detail.summary.total_venta).toBe(375100);
+    expect(detail.summary.total_venta).toBe(310000);
+    expect(detail.summary.iva).toBe(65100);
     expect(detail.sent_at).toBeNull();
   });
 
@@ -222,7 +223,7 @@ describe("budgetsService — PUT /budgets/{id}", () => {
 describe("budgetsService — acciones", () => {
   it("recalculate hace POST a /recalculate y mapea el resumen", async () => {
     const fetchMock = mockFetch(200, {
-      summary: { subtotal: 310000, total_costos: 155000, ganancia: 155000, total_venta: 375100 },
+      summary: { subtotal: 310000, total_costos: 155000, ganancia: 155000, total_venta: 310000, iva: 65100 },
       margin_applied: "100",
     });
 
