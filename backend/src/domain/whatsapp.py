@@ -5,7 +5,9 @@ Links wa.me (cero costo, sin Cloud API): plantilla de mensaje
 del teléfono para logs/auditoría (RNF-P10-05). Funciones puras:
 testeables sin I/O.
 """
-from domain.budgets import Budget
+from decimal import Decimal
+
+from domain.budgets import Budget, IVA_PCT
 from domain.pdf import format_money_peso
 
 # RF-P10-06: límite de links por día.
@@ -64,7 +66,11 @@ def budget_whatsapp_message(
             f"- {item.qty} x {item.product_name} — {format_money_peso(item.line_selling)}"
         )
     lines.append("")
-    lines.append(f"Total (IVA incluido): {format_money_peso(totals.total_venta)}")
+    lines.append(f"Total: {format_money_peso(totals.total_venta)}")
+    lines.append(
+        f"IVA ({IVA_PCT.quantize(Decimal('1'))}%): {format_money_peso(totals.iva)} — "
+        "costo aparte del total"
+    )
     lines.append("")
     lines.append(f"Gracias! — {business}")
     return "\n".join(lines)

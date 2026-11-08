@@ -16,7 +16,8 @@ Reglas de negocio:
   manual.
 * Totales (derivados, nunca persistidos): subtotal = suma de precios de
   venta; total_costos = suma de costos; ganancia = subtotal - total_costos
-  (puede ser negativo); total_venta = subtotal + IVA 21%.
+  (puede ser negativo); total_venta = subtotal (sin IVA); iva = 21% del
+  subtotal, enviado como atributo aparte, nunca incluido en el total.
 * Secuencia por tenant `#000NN` asignada en la creacion (RNF-P8-04),
   sin reuso tras borrado.
 * Maquina de estados (RF-P8-05): borrador -> enviado (congelar version);
@@ -96,23 +97,26 @@ class BudgetTotals:
     subtotal: Decimal
     total_costos: Decimal
     ganancia: Decimal
+    iva: Decimal
     total_venta: Decimal
 
 
 def compute_totals(items: Tuple[BudgetItem, ...]) -> BudgetTotals:
     """Totales derivados de los items. Puro: sin I/O, sin settings.
-    total_venta incluye IVA 21% sobre el subtotal (RF-P7)."""
+    total_venta = subtotal (sin IVA). El IVA 21% (RF-P7) se envia como
+    atributo aparte (`iva`), nunca incluido en el total."""
     subtotal = sum((item.line_selling for item in items), Decimal("0"))
     total_costos = sum((item.line_cost for item in items), Decimal("0"))
     ganancia = subtotal - total_costos
-    total_venta = (subtotal * (Decimal("100") + IVA_PCT) / Decimal("100")).quantize(
+    iva = (subtotal * IVA_PCT / Decimal("100")).quantize(
         _CENT, rounding=ROUND_HALF_UP
     )
     return BudgetTotals(
         subtotal=subtotal,
         total_costos=total_costos,
         ganancia=ganancia,
-        total_venta=total_venta,
+        iva=iva,
+        total_venta=subtotal,
     )
 
 

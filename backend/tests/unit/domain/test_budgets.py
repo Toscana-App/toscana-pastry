@@ -123,8 +123,9 @@ class TestDerive:
         assert totals.subtotal == Decimal("3100")
         assert totals.total_costos == Decimal("1550")
         assert totals.ganancia == Decimal("1550")
-        # total_venta: 3100 + IVA 21% = 3751
-        assert totals.total_venta == Decimal("3751")
+        # total_venta = subtotal (sin IVA); el iva viaja aparte
+        assert totals.total_venta == Decimal("3100")
+        assert totals.iva == Decimal("651")
 
     def test_margen_cero_precio_igual_al_costo(self):
         items, _ = derive_budget_items(
@@ -141,7 +142,8 @@ class TestDerive:
         assert items[0].price_overridden is True
         # ganancia negativa permitida: 500 - 775
         assert totals.ganancia == Decimal("-275")
-        assert totals.total_venta == Decimal("605")  # 500 * 1.21
+        assert totals.total_venta == Decimal("500")  # sin IVA
+        assert totals.iva == Decimal("105")  # 500 * 0.21
 
     def test_manual_sin_override_usa_cost_plus(self):
         items, _ = derive_budget_items(

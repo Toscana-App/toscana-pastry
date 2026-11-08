@@ -280,7 +280,8 @@ class TestBudgetCreate:
         assert summary["subtotal"] == 310000
         assert summary["total_costos"] == 155000
         assert summary["ganancia"] == 155000
-        assert summary["total_venta"] == 375100  # 3100 * 1.21
+        assert summary["total_venta"] == 310000  # sin IVA
+        assert summary["iva"] == 65100  # 21% del subtotal, aparte
 
     async def test_segunda_secuencia_no_reutiliza(self, client: AsyncClient):
         token, _, torta_id, customer_id = await _setup(client)
@@ -325,7 +326,8 @@ class TestBudgetCreate:
             qty=1, mode="manual", price_override=50000,
         )
         assert body["summary"]["ganancia"] == -27500
-        assert body["summary"]["total_venta"] == 60500  # 500 * 1.21
+        assert body["summary"]["total_venta"] == 50000  # sin IVA
+        assert body["summary"]["iva"] == 10500
 
     async def test_cliente_desconocido_da_404(self, client: AsyncClient):
         token, _, torta_id, _ = await _setup(client)

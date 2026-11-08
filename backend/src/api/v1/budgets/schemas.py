@@ -97,6 +97,7 @@ class BudgetSummary(BaseModel):
     subtotal: Money
     total_costos: Money
     ganancia: Money
+    iva: Money
     total_venta: Money
 
 

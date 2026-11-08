@@ -120,6 +120,7 @@ def _summary(budget: Budget) -> BudgetSummary:
         subtotal=totals.subtotal,
         total_costos=totals.total_costos,
         ganancia=totals.ganancia,
+        iva=totals.iva,
         total_venta=totals.total_venta,
     )
 
@@ -251,7 +252,7 @@ async def export_budgets(
         page += 1
     budgets.sort(key=lambda b: b.seq)
 
-    def _tuple(b: Budget) -> tuple[str, str, str, datetime.date, datetime.date | None, str, int]:
+    def _tuple(b: Budget) -> tuple[str, str, str, datetime.date, datetime.date | None, str, int, int]:
         return (
             b.seq,
             b.customer_name,
@@ -260,6 +261,7 @@ async def export_budgets(
             b.sent_at.date() if b.sent_at else None,
             b.status,
             decimal_to_cents(b.totals.total_venta),
+            decimal_to_cents(b.totals.iva),
         )
 
     period_label = (
@@ -271,9 +273,9 @@ async def export_budgets(
     if fmt == "csv":
         rows = [
             ["seq", "cliente", "telefono", "fecha", "enviado", "estado",
-             "total_venta"]
+             "total_venta", "iva"]
         ]
-        for seq, cliente, telefono, fecha, enviado, estado, total_cents in (
+        for seq, cliente, telefono, fecha, enviado, estado, total_cents, iva_cents in (
             _tuple(b) for b in budgets
         ):
             rows.append(
@@ -285,6 +287,7 @@ async def export_budgets(
                     enviado.strftime("%d/%m/%Y") if enviado else "",
                     estado,
                     format_money_cents(total_cents),
+                    format_money_cents(iva_cents),
                 ]
             )
         buf = io.StringIO()
@@ -310,8 +313,9 @@ async def export_budgets(
                 "enviado": enviado.isoformat() if enviado else None,
                 "estado": estado,
                 "total_cents": total_cents,
+                "iva_cents": iva_cents,
             }
-            for seq, cliente, telefono, fecha, enviado, estado, total_cents in (
+            for seq, cliente, telefono, fecha, enviado, estado, total_cents, iva_cents in (
                 _tuple(b) for b in budgets
             )
         ],

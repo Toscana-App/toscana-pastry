@@ -55,8 +55,9 @@ def budget_content_hash(budget: Budget, business_name: str, footer_text: str) ->
             for item in budget.items
         ],
         "subtotal": str(totals.subtotal),
+        "iva": str(totals.iva),
         "iva_pct": str(IVA_PCT),
-        "total": str(totals.total_venta),
+        "total": str(totals.subtotal + totals.iva),
         "brand": {"business_name": business_name, "footer_text": footer_text},
     }
     encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
