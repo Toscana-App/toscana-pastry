@@ -189,7 +189,12 @@ def _order_to_domain(orm: OrderORM) -> P6Order:
         for item in orm.order_items
     )
     snapshots = {
-        item.id: _json_to_snapshot(item.snapshot) for item in orm.order_items
+        item.id: (
+            _json_to_snapshot(item.snapshot)
+            if item.snapshot
+            else OrderItemSnapshot()
+        )
+        for item in orm.order_items
     }
     return P6Order(
         customer_id=orm.customer_id,
@@ -255,16 +260,22 @@ class SQLOrderRepository:
     async def add(self, order: Order) -> Order:
         """Persist a new order with its line items in one transaction."""
         await self.create(order)
-        for item in order.items:
+        for index, item in enumerate(order.items):
+            snapshot = order.snapshots.get(item.id)
             self.session.add(
                 OrderItemORM(
-                    id=str(uuid.uuid4()),
+                    id=item.id,
                     order_id=order.id,
                     product_id=item.product_id,
                     product_name=item.product_name,
                     quantity=item.quantity,
                     unit_price=str(item.unit_price),
                     portion_note=item.portion_note,
+                    qty=item.quantity,
+                    portions=item.portions or None,
+                    note=item.portion_note,
+                    position=index,
+                    snapshot=_snapshot_to_json(snapshot) if snapshot is not None else None,
                 )
             )
         await self.session.commit()

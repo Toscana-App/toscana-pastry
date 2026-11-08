@@ -4,11 +4,12 @@ Namespace: /api/v1/orders.
 """
 
 import asyncio
+import dataclasses
 import datetime
 import io
 import re
 from csv import writer as csv_writer
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from email.utils import format_datetime
 from typing import Dict, List, Literal, Optional, Tuple, cast
 from urllib.parse import quote
@@ -79,6 +80,7 @@ from domain.pricing_service import resolve_audience, derive_audience_price
 from data.repositories.sql_ingredient_repository import SQLIngredientRepository
 from domain.models import BusinessSettings, Ingredient, Product
 from domain.order_pricing import price_order_item
+from domain.product_price import derive_product_price
 from domain.orders import (
     InsufficientOrderStockError,
     InvalidStatusTransitionError,
@@ -176,6 +178,15 @@ _FINAL_PAYMENT_STATUSES = (
     PaymentStatus.REJECTED,
     PaymentStatus.FAILED,
 )
+
+
+async def _load_recipe_ingredients(
+    repo: IngredientRepository, products: List[Product]
+) -> Dict[str, Ingredient]:
+    ids = {item.ingredient_id for product in products for item in product.recipe}
+    if not ids:
+        return {}
+    return {ingredient.id: ingredient for ingredient in await repo.get_many(list(ids))}
 
 
 async def _get_own_order(repo: SQLOrderRepository, order_id: str, user: User) -> Order:
@@ -324,6 +335,7 @@ async def create_order_portal(
     body: PortalOrderCreateRequest,
     user: User = Depends(get_current_user),
     repo: SQLOrderRepository = Depends(get_order_repository),
+    product_repo: ProductRepository = Depends(get_product_repository),
     ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo=Depends(get_settings_repository),
 ):
@@ -362,23 +374,47 @@ async def create_order_portal(
     audience = resolve_audience(user.role, None)
     business = await GetSettings(settings_repo).execute()
     items: list[OrderItem] = []
+    snapshots: dict[str, OrderItemSnapshot] = {}
     for item_data in body.items:
-        product = await ingredient_repo.get(item_data.product_id)
+        product = await product_repo.get(item_data.product_id)
         if product is None:
             raise HTTPException(
                 status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="product_not_found",
             )
-        items.append(
-            OrderItem(
-                product_id=item_data.product_id,
-                product_name=product.name,
-                quantity=item_data.quantity,
-                unit_price=derive_audience_price(
-                    product.price_per_unit, business.consumer_markup_pct, audience
-                ),
-                portion_note=item_data.portion_note,
+        ingredients_by_id = await _load_recipe_ingredients(
+            ingredient_repo, [product]
+        )
+        price = derive_product_price(product, ingredients_by_id, business)
+        if not product.available or not price.complete or price.breakdown is None:
+            raise HTTPException(
+                status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="product_not_available",
             )
+        unit_price = derive_audience_price(
+            price.breakdown.rounded, business.consumer_markup_pct, audience
+        )
+        item = OrderItem(
+            product_id=product.id,
+            product_name=product.name,
+            quantity=item_data.quantity,
+            unit_price=unit_price,
+            portion_note=item_data.portion_note,
+            portions=product.servings,
+        )
+        items.append(item)
+        line_total = (unit_price * item_data.quantity).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        snapshots[item.id] = dataclasses.replace(
+            price_order_item(
+                product,
+                ingredients_by_id,
+                business,
+                qty=item_data.quantity,
+                portions=product.servings,
+            ),
+            rounded=line_total,
         )
 
     try:
@@ -396,6 +432,7 @@ async def create_order_portal(
             status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=err.code,
         ) from err
+    new_order.snapshots = snapshots
     await repo.add(new_order)
 
     # Fetch back and return

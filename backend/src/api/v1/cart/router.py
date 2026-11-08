@@ -20,6 +20,7 @@ from api.v1.cart.schemas import (
 from api.v1.coupons.dependencies import get_coupon_repository
 from api.v1.dependencies import require_role
 from api.v1.ingredients.dependencies import get_ingredient_repository
+from api.v1.products.dependencies import get_product_repository
 from api.v1.settings.dependencies import get_settings_repository
 from data.repositories.sql_cart_repository import SQLCartRepository
 from data.repositories.sql_coupon_repository import SQLCouponRepository
@@ -32,7 +33,8 @@ from domain.cart import (
 from domain.coupon import Coupon
 from domain.models import User, UserRole
 from domain.pricing_service import resolve_audience, derive_audience_price
-from domain.repositories import IngredientRepository
+from domain.product_price import derive_product_price
+from domain.repositories import IngredientRepository, ProductRepository
 from domain.use_cases import GetSettings
 
 router = APIRouter(prefix="/cart", tags=["cart"])
@@ -48,8 +50,19 @@ def _coupon_out(coupon: Coupon) -> CartCouponOut:
     )
 
 
+async def _ingredients_of(ingredient_repo, products) -> dict:
+    ids = {item.ingredient_id for product in products for item in product.recipe}
+    if not ids:
+        return {}
+    return {
+        ingredient.id: ingredient
+        for ingredient in await ingredient_repo.get_many(list(ids))
+    }
+
+
 async def _build_cart(
     cart_repo: SQLCartRepository,
+    product_repo: ProductRepository,
     ingredient_repo: IngredientRepository,
     settings_repo,
     coupon_repo: SQLCouponRepository,
@@ -60,20 +73,29 @@ async def _build_cart(
     settings = await GetSettings(settings_repo).execute()
     lines_state, coupon_code = await cart_repo.get_state(user.id)
 
+    products = []
+    for product_id, qty in lines_state:
+        product = await product_repo.get(product_id)
+        if product is not None:
+            products.append((product, qty))
+    ingredients_by_id = await _ingredients_of(
+        ingredient_repo, [product for product, _ in products]
+    )
+
     items: list[CartItemOut] = []
     cart_lines: list[CartLine] = []
-    for product_id, qty in lines_state:
-        product = await ingredient_repo.get(product_id)
-        if product is None:
-            # Producto borrado: la linea deja de contribuir al total.
+    for product, qty in products:
+        price = derive_product_price(product, ingredients_by_id, settings)
+        if not product.available or not price.complete or price.breakdown is None:
+            # Retirado o incompleto: la linea deja de contribuir al total.
             continue
         unit_price = derive_audience_price(
-            product.price_per_unit,
+            price.breakdown.rounded,
             settings.consumer_markup_pct,
             audience,
         )
         line = CartLine(
-            product_id=product_id,
+            product_id=product.id,
             product_name=product.name,
             unit_price=unit_price,
             qty=qty,
@@ -81,7 +103,7 @@ async def _build_cart(
         cart_lines.append(line)
         items.append(
             CartItemOut(
-                product_id=product_id,
+                product_id=product.id,
                 name=product.name,
                 unit_price=str(unit_price),
                 qty=qty,
@@ -111,6 +133,7 @@ async def _build_cart(
 @router.get("", response_model=CartResponse)
 async def get_cart(
     cart_repo: SQLCartRepository = Depends(get_cart_repository),
+    product_repo: ProductRepository = Depends(get_product_repository),
     ingredient_repo: IngredientRepository = Depends(
         get_ingredient_repository
     ),
@@ -120,7 +143,7 @@ async def get_cart(
 ):
     """GET /cart: carrito del usuario con precios de su audiencia."""
     return await _build_cart(
-        cart_repo, ingredient_repo, settings_repo, coupon_repo, current_user
+        cart_repo, product_repo, ingredient_repo, settings_repo, coupon_repo, current_user
     )
 
 
@@ -128,6 +151,7 @@ async def get_cart(
 async def add_cart_item(
     payload: CartItemCreate,
     cart_repo: SQLCartRepository = Depends(get_cart_repository),
+    product_repo: ProductRepository = Depends(get_product_repository),
     ingredient_repo: IngredientRepository = Depends(
         get_ingredient_repository
     ),
@@ -140,11 +164,19 @@ async def add_cart_item(
     404 si el producto no existe; 422 si se superan las 50 lineas
     (solo al agregar una nueva; alterar cantidad no cuenta).
     """
-    product = await ingredient_repo.get(payload.product_id)
+    product = await product_repo.get(payload.product_id)
     if product is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Producto no encontrado",
+        )
+    settings = await GetSettings(settings_repo).execute()
+    ingredients_by_id = await _ingredients_of(ingredient_repo, [product])
+    price = derive_product_price(product, ingredients_by_id, settings)
+    if not product.available or not price.complete or price.breakdown is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="product_not_available",
         )
 
     if not await cart_repo.item_exists(current_user.id, payload.product_id):
@@ -160,7 +192,7 @@ async def add_cart_item(
     )
     await cart_repo.commit()
     return await _build_cart(
-        cart_repo, ingredient_repo, settings_repo, coupon_repo, current_user
+        cart_repo, product_repo, ingredient_repo, settings_repo, coupon_repo, current_user
     )
 
 
@@ -168,6 +200,7 @@ async def add_cart_item(
 async def remove_cart_item(
     product_id: str,
     cart_repo: SQLCartRepository = Depends(get_cart_repository),
+    product_repo: ProductRepository = Depends(get_product_repository),
     ingredient_repo: IngredientRepository = Depends(
         get_ingredient_repository
     ),
@@ -184,7 +217,7 @@ async def remove_cart_item(
         )
     await cart_repo.commit()
     return await _build_cart(
-        cart_repo, ingredient_repo, settings_repo, coupon_repo, current_user
+        cart_repo, product_repo, ingredient_repo, settings_repo, coupon_repo, current_user
     )
 
 
@@ -192,6 +225,7 @@ async def remove_cart_item(
 async def apply_coupon(
     payload: CouponApply,
     cart_repo: SQLCartRepository = Depends(get_cart_repository),
+    product_repo: ProductRepository = Depends(get_product_repository),
     ingredient_repo: IngredientRepository = Depends(
         get_ingredient_repository
     ),
@@ -223,13 +257,14 @@ async def apply_coupon(
     await cart_repo.set_coupon_code(current_user.id, coupon.code)
     await cart_repo.commit()
     return await _build_cart(
-        cart_repo, ingredient_repo, settings_repo, coupon_repo, current_user
+        cart_repo, product_repo, ingredient_repo, settings_repo, coupon_repo, current_user
     )
 
 
 @router.delete("/coupon", response_model=CartResponse)
 async def remove_coupon(
     cart_repo: SQLCartRepository = Depends(get_cart_repository),
+    product_repo: ProductRepository = Depends(get_product_repository),
     ingredient_repo: IngredientRepository = Depends(
         get_ingredient_repository
     ),
@@ -241,5 +276,5 @@ async def remove_coupon(
     await cart_repo.clear_coupon(current_user.id)
     await cart_repo.commit()
     return await _build_cart(
-        cart_repo, ingredient_repo, settings_repo, coupon_repo, current_user
+        cart_repo, product_repo, ingredient_repo, settings_repo, coupon_repo, current_user
     )

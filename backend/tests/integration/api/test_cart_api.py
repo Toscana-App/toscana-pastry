@@ -12,6 +12,7 @@ Covers:
 - totals: discount on audience subtotal before the engine rounding
 """
 
+import uuid
 from decimal import Decimal
 
 import pytest
@@ -26,10 +27,13 @@ from sqlalchemy.ext.asyncio import (
 from api.v1.auth.dependencies import get_user_repository
 from api.v1.coupons.dependencies import get_coupon_repository
 from api.v1.ingredients.dependencies import get_ingredient_repository
+from api.v1.products.dependencies import get_product_repository
 from api.v1.settings.dependencies import get_settings_repository
 from data.db import get_db
+from data.models import BusinessSettingsORM, IngredientORM, ProductORM, RecipeItemORM
 from data.repositories.sql_coupon_repository import SQLCouponRepository
 from data.repositories.sql_ingredient_repository import SQLIngredientRepository
+from data.repositories.sql_product_repository import SQLProductRepository
 from data.repositories.sql_settings_repository import SQLSettingsRepository
 from data.repositories.sql_user_repository import SQLUserRepository
 from domain.coupon import Coupon
@@ -46,16 +50,41 @@ _TEST_PRODUCTS = [
 
 @pytest_asyncio.fixture
 async def products(db_session):
-    """Product id by name for assertions."""
+    """Product id by name for assertions (productos publicados y completos)."""
     created = {}
     for prod in _TEST_PRODUCTS:
-        ingredient = Ingredient(
-            name=prod["name"],
+        ingredient = IngredientORM(
+            name=f"Insumo {prod['name']}",
             unit=prod["unit"],
-            price_per_unit=Decimal(prod["price_per_unit"]),
+            price_per_unit=prod["price_per_unit"],
+            stock_qty="100",
         )
-        await SQLIngredientRepository(db_session).create(ingredient)
-        created[prod["name"]] = ingredient.id
+        db_session.add(ingredient)
+        await db_session.commit()
+        product_id = str(uuid.uuid4())
+        product = ProductORM(
+            id=product_id,
+            name=prod["name"],
+            category="General",
+            description="",
+            prep_time_min=0,
+            servings=1,
+            difficulty="simple",
+            available=True,
+        )
+        product.recipe_items = [
+            RecipeItemORM(
+                id=str(uuid.uuid4()),
+                product_id=product_id,
+                ingredient_id=ingredient.id,
+                qty="1",
+                unit=prod["unit"],
+                position=0,
+            )
+        ]
+        db_session.add(product)
+        await db_session.commit()
+        created[prod["name"]] = product_id
     return created
 
 
@@ -73,6 +102,9 @@ async def client(db_session):
     async def override_get_ingredient_repository():
         yield SQLIngredientRepository(db_session)
 
+    async def override_get_product_repository():
+        yield SQLProductRepository(db_session)
+
     async def override_get_coupon_repository():
         yield SQLCouponRepository(db_session)
 
@@ -80,7 +112,28 @@ async def client(db_session):
     app.dependency_overrides[get_user_repository] = override_get_user_repository
     app.dependency_overrides[get_settings_repository] = override_get_settings_repository
     app.dependency_overrides[get_ingredient_repository] = override_get_ingredient_repository
+    app.dependency_overrides[get_product_repository] = override_get_product_repository
     app.dependency_overrides[get_coupon_repository] = override_get_coupon_repository
+
+    db_session.add(
+        BusinessSettingsORM(
+            hourly_rate="0.01",
+            margin_pct="0",
+            round_step="100",
+            gas_pct="0",
+            waste_pct="0",
+            consumer_markup_pct="40",
+            include_labor=False,
+            include_gas=False,
+            include_waste=False,
+            default_prep_minutes=0,
+            default_servings=1,
+            default_difficulty="simple",
+            business_name="",
+            footer_text="",
+        )
+    )
+    await db_session.commit()
 
     await SQLUserRepository(db_session).save(
         User(email="admin@example.com", role=UserRole.ADMIN)
@@ -243,17 +296,40 @@ class TestPostCartItems:
     async def test_max_50_lines_returns_422(self, client, db_session):
         # 50 productos adicionales + 2 base = 52 candidatos; la linea 51
         # (de las nuevas) ya supera el tope.
-        from domain.models import Ingredient
-
         ids = []
         for index in range(51):
-            ingredient = Ingredient(
-                name=f"Producto {index}",
+            ingredient = IngredientORM(
+                name=f"Insumo {index}",
                 unit="kg",
-                price_per_unit=Decimal("10.00"),
+                price_per_unit="10.00",
+                stock_qty="10",
             )
-            await SQLIngredientRepository(db_session).create(ingredient)
-            ids.append(ingredient.id)
+            db_session.add(ingredient)
+            await db_session.commit()
+            product_id = str(uuid.uuid4())
+            product = ProductORM(
+                id=product_id,
+                name=f"Producto {index}",
+                category="General",
+                description="",
+                prep_time_min=0,
+                servings=1,
+                difficulty="simple",
+                available=True,
+            )
+            product.recipe_items = [
+                RecipeItemORM(
+                    id=str(uuid.uuid4()),
+                    product_id=product_id,
+                    ingredient_id=ingredient.id,
+                    qty="1",
+                    unit="kg",
+                    position=0,
+                )
+            ]
+            db_session.add(product)
+            await db_session.commit()
+            ids.append(product_id)
 
         token = await _token_for(client, "cliente@example.com")
         headers = _auth(token)

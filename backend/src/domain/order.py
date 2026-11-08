@@ -88,6 +88,8 @@ class OrderItem:
     quantity: int
     unit_price: Decimal
     portion_note: str = ""
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    portions: int = 0
 
     @property
     def total(self) -> Decimal:
@@ -133,6 +135,7 @@ class Order:
     created_at: datetime.datetime = field(
         default_factory=lambda: datetime.datetime.now(datetime.UTC)
     )
+    snapshots: dict = field(default_factory=dict, compare=False)
 
     def __post_init__(self) -> None:
         # Pickup normalises address to None (admin orders may omit it).

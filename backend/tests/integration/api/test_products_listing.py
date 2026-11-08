@@ -93,7 +93,7 @@ async def client(db_session):
 
     db_session.add(
         BusinessSettingsORM(
-            hourly_rate="0",
+            hourly_rate="0.01",
             margin_pct="25",
             round_step="0.01",
             gas_pct="0",
