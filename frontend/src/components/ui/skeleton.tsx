@@ -16,11 +16,14 @@ import {
   Box,
   Card,
   Flex,
+  Heading,
   SimpleGrid,
   Skeleton,
   SkeletonCircle,
   Stack,
   Table,
+  Text,
+  VStack,
 } from "@chakra-ui/react";
 
 /* ------------------------------ primitivas ------------------------------ */
@@ -153,34 +156,66 @@ export function FullPageSkeleton() {
   );
 }
 
-/** Perfil del portal: título, card de cuenta y libro de direcciones. */
+/** Perfil del portal: heading estático real + card de cuenta y libro de
+ *  direcciones (ambos cargan de endpoints). Replica 1:1 el contenido
+ *  success: Container py=10 maxW=container.sm, Heading 3xl, card maxW 450px
+ *  p=8 (avatar 2xl + heading xl + badge + 3 filas label/valor). */
 export function ProfileSkeleton() {
   return (
-    <Stack
+    <Flex
+      direction="column"
+      align="center"
+      gap={6}
       width="full"
-      maxW="container.sm"
-      mx="auto"
-      pt="10"
-      gap="6"
       role="status"
       aria-label="Cargando"
     >
-      <Skeleton h="10" w="28%" alignSelf="center" />
-      <SkeletonCard height="14rem">
-        <Stack p="6" gap="4" width="full">
-          <FieldSkeleton />
-          <FieldSkeleton />
-          <FieldSkeleton labelWidth="35%" />
+      <Heading fontSize="3xl">Mi cuenta</Heading>
+      <Box
+        width="full"
+        maxW="450px"
+        p={8}
+        borderRadius="xl"
+        borderWidth="1px"
+        borderColor="border"
+        bg="bg.panel"
+        boxShadow="lg"
+      >
+        <VStack gap={6} align="center" width="full">
+          {/* 64px = Avatar size="2xl" en ProfileCard (el success). El número
+              es índice de spacing, así que el tamaño se pasa en px. */}
+          <SkeletonCircle size="64px" />
+          <VStack gap={1} align="center">
+            <SkeletonLine w="170px" h="5" />
+            <Skeleton h="6" w="64px" borderRadius="full" />
+          </VStack>
+          <Skeleton h="1px" w="100%" />
+          <VStack width="full" align="start" gap={3} pt="2">
+            <SkeletonLine h="5" w="92%" />
+            <SkeletonLine h="5" w="78%" />
+            <SkeletonLine h="5" w="85%" />
+          </VStack>
+        </VStack>
+      </Box>
+      {/* Mismo estado de carga que AddressBook renderiza solo. */}
+      <Box w="full">
+        <AddressBookLoadingSkeleton />
+      </Box>
+    </Flex>
+  );
+}
+
+/** Libro de direcciones en carga: Card con título estático real + filas. */
+export function AddressBookLoadingSkeleton() {
+  return (
+    <Card.Root role="status" aria-label="Cargando">
+      <Card.Body>
+        <Stack gap={2} py={4}>
+          <Text fontWeight="semibold">Libro de direcciones</Text>
+          <AddressBookSkeleton />
         </Stack>
-      </SkeletonCard>
-      <SkeletonCard height="11rem">
-        <Stack p="6" gap="3" width="full">
-          <SkeletonLine w="45%" h="4" />
-          <Skeleton h="16" w="100%" borderRadius="md" />
-          <Skeleton h="16" w="100%" borderRadius="md" />
-        </Stack>
-      </SkeletonCard>
-    </Stack>
+      </Card.Body>
+    </Card.Root>
   );
 }
 
@@ -669,16 +704,14 @@ export function BudgetRowsSkeleton({ rows = 3 }: { rows?: number }) {
   );
 }
 
-/** Libro de direcciones: filas de dirección. */
+/** Libro de direcciones: filas de dirección. Cada fila replica la fila
+ *  success (Flex p=3 con texto + teléfono ≈ 64px); el botón "Agregar
+ *  dirección" no existe en el estado success por defecto, así que no va. */
 export function AddressBookSkeleton() {
   return (
-    <Stack gap="2" width="full" role="status" aria-label="Cargando">
-      <Skeleton h="18" w="100%" borderRadius="md" />
-      <Skeleton h="18" w="100%" borderRadius="md" />
-      <Skeleton h="18" w="100%" borderRadius="md" />
-      <Flex justify="flex-end" mt="2">
-        <Skeleton h="2.5rem" w="140px" borderRadius="lg" />
-      </Flex>
+    <Stack gap="3" width="full" role="status" aria-label="Cargando">
+      <Skeleton h="16" w="100%" borderRadius="md" />
+      <Skeleton h="16" w="100%" borderRadius="md" />
     </Stack>
   );
 }

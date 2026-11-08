@@ -50,7 +50,14 @@ export default function ProfilePage() {
   }, [router]);
 
   if (loading || !user) {
-    return <ProfileSkeleton />;
+    // Same container as the success content so the heading and the cards
+    // occupy identical space; the heading is static, only the data
+    // surfaces (account, address book) shimmer.
+    return (
+      <Container py={10} maxW="container.sm">
+        <ProfileSkeleton />
+      </Container>
+    );
   }
 
   return (
