@@ -142,7 +142,7 @@ export function StepAddress({
                     >
                       <Text fontSize="sm">{addressToLine(address)}</Text>
                       {address.is_default && (
-                        <Text fontSize="xs" color="brand.600">
+                        <Text fontSize="xs" color="brand.fg">
                           Principal
                         </Text>
                       )}

@@ -109,7 +109,7 @@ export default function CostHistoryDialog({
             ) : loadError ? (
               <Flex align="center" direction="column" gap={3} py={6}>
                 <Text>No se pudo cargar el historial.</Text>
-                <Button
+                <Button variant="outline"
                   size="sm"
                   rounded="full"
                   onClick={() => setReloadKey((key) => key + 1)}

@@ -166,7 +166,8 @@ describe("CategoryAbm (material-categories)", () => {
     await waitFor(() =>
       expect(screen.queryByText("Pasta")).not.toBeInTheDocument()
     );
-    expect(screen.getByText("Salsas")).toBeInTheDocument();
+    // El refetch pasa por data=null antes de resolver: esperar el render.
+    await screen.findByText("Salsas");
     expect(toaster.create).toHaveBeenCalledWith(
       expect.objectContaining({ type: "success" })
     );

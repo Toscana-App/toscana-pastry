@@ -1,6 +1,7 @@
 "use client";
 
 import { GooeyToaster } from "goey-toast";
+import { useColorMode } from "@/components/ui/color-mode";
 
 /**
  * Client wrapper for <GooeyToaster /> (goey-toast ships without a
@@ -8,5 +9,6 @@ import { GooeyToaster } from "goey-toast";
  * Component like the root layout).
  */
 export function AppGooeyToaster() {
-  return <GooeyToaster position="bottom-right" />;
+  const { colorMode } = useColorMode();
+  return <GooeyToaster position="bottom-right" theme={colorMode === "dark" ? "dark" : "light"} />;
 }

@@ -36,7 +36,7 @@ export function MovementsList({ movements }: { movements: StockMovement[] }) {
       <Flex
         direction="column"
         borderWidth="1px"
-        borderColor="gray.200"
+        borderColor="border"
         rounded="md"
         divideY="1px"
       >
@@ -54,7 +54,7 @@ export function MovementsList({ movements }: { movements: StockMovement[] }) {
             >
               <Text
                 fontWeight="600"
-                color={isIncoming ? "green.600" : "red.600"}
+                color={isIncoming ? "green.fg" : "red.fg"}
                 minW="4rem"
               >
                 {formatSignedQty(movement.qty_delta)}

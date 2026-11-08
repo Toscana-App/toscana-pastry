@@ -1,9 +1,11 @@
 "use client";
 
-import { Badge, Box, Button, Container, Flex, Text } from "@chakra-ui/react";
+import { Badge, Box, Button, Container, Flex } from "@chakra-ui/react";
 import NextLink from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { isPortalRole } from "@/lib/portalRoutes";
+import { ColorModeButton } from "@/components/ui/color-mode";
+import { BrandLogo } from "./BrandLogo";
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
@@ -42,9 +44,7 @@ export function Navbar() {
         <Flex h="auto" align="center" justify="space-between" gap={3} wrap="wrap">
           <Flex align="center" gap={3}>
             <NextLink href="/">
-              <Text fontSize="xl" fontWeight="bold" color="brand.600" cursor="pointer">
-                Toscana Pastry
-              </Text>
+              <BrandLogo variant="horizontal" height={36} priority />
             </NextLink>
             {isAuthenticated && (
               <Badge colorPalette={isAdmin ? "red" : "brand"}>
@@ -91,6 +91,7 @@ export function Navbar() {
                 <NextLink href="/login">Login</NextLink>
               </Button>
             )}
+            <ColorModeButton />
           </Flex>
         </Flex>
       </Container>

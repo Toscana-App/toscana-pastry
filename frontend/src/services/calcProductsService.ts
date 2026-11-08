@@ -1,6 +1,8 @@
 import { apiFetch } from "@/lib/api";
+import { pesosToCents } from "@/lib/format";
 import type {
   ProductCreatePayload,
+  ProductDetail,
   ProductListQuery,
   ProductListResponse,
   ProductUpdatePayload,
@@ -24,6 +26,22 @@ function buildQuery(params: Record<string, string | number | undefined>): string
 
 function jsonOptions(method: string, body: unknown): RequestInit {
   return { method, body: JSON.stringify(body) };
+}
+
+/** Borde de conversión (S1/S3): los montos de lineas viajan de pesos
+ * (nivel UI) a int de centavos; Qty y Pct no se tocan. */
+function toApiPayload(payload: ProductCreatePayload | ProductUpdatePayload) {
+  return {
+    ...payload,
+    labor: payload.labor?.map((line) => ({
+      ...line,
+      hourly_rate: pesosToCents(line.hourly_rate),
+    })),
+    extra_costs: payload.extra_costs?.map((line) => ({
+      ...line,
+      unit_cost: pesosToCents(line.unit_cost),
+    })),
+  };
 }
 
 async function deleteViaApiFetch(endpoint: string): Promise<void> {
@@ -57,16 +75,17 @@ export const calcProductsService = {
     );
   },
 
-  // GET /calc/products/{id} (RF-P4CC-05)
-  getProduct(id: string): Promise<ProductWithLines> {
-    return apiFetch<ProductWithLines>(`/calc/products/${id}`);
+  // GET /calc/products/{id} (RF-P4CC-05): shape propio (lineas a nivel
+  // superior, sin envoltorio product_lines).
+  getProduct(id: string): Promise<ProductDetail> {
+    return apiFetch<ProductDetail>(`/calc/products/${id}`);
   },
 
   // POST /calc/products (RF-P4CC-01..05)
   createProduct(payload: ProductCreatePayload): Promise<ProductWithLines> {
     return apiFetch<ProductWithLines>(
       "/calc/products",
-      jsonOptions("POST", payload)
+      jsonOptions("POST", toApiPayload(payload))
     );
   },
 
@@ -77,7 +96,7 @@ export const calcProductsService = {
   ): Promise<ProductWithLines> {
     return apiFetch<ProductWithLines>(
       `/calc/products/${id}`,
-      jsonOptions("PATCH", payload)
+      jsonOptions("PATCH", toApiPayload(payload))
     );
   },
 

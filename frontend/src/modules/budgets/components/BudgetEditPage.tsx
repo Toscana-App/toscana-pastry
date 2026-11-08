@@ -40,12 +40,12 @@ const StyledOptionSelect = chakra("select", {
     paddingInline: "0.75rem",
     borderRadius: "md",
     borderWidth: "1px",
-    borderColor: "gray.200",
+    borderColor: "border",
     background: "transparent",
     fontSize: "sm",
     outline: "none",
     _focusVisible: {
-      borderColor: "brand.600",
+      borderColor: "brand.solid",
       boxShadow: "0 0 0 1px var(--chakra-colors-brand-600)",
     },
   },
@@ -308,7 +308,7 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
         </Alert.Root>
       ) : null}
 
-      <Box borderWidth="1px" borderColor="gray.200" rounded="md" p={5}>
+      <Box borderWidth="1px" borderColor="border" rounded="md" p={5}>
         <Stack gap={4}>
           <Box w="full">
             <Text fontSize="sm" fontWeight={600} mb={2}>
@@ -331,7 +331,7 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
               ))}
             </HStack>
             {fieldErrors.mode ? (
-              <Text color="red.500" fontSize="xs" mt={1}>
+              <Text color="red.fg" fontSize="xs" mt={1}>
                 {fieldErrors.mode}
               </Text>
             ) : null}
@@ -362,7 +362,7 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
             </Text>
             {productsLoading ? (
               <HStack gap={2} py={2}>
-                <Spinner size="sm" color="brand.400" />
+                <Spinner size="sm" color="brand.fg" />
                 <Text fontSize="sm" color="fg.muted">
                   Cargando catálogo…
                 </Text>

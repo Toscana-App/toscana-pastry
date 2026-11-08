@@ -68,7 +68,7 @@ const STATUS_BADGES: Record<
 
 function PaymentBadge({ order }: { order: OrderDetail }) {
   if (order.paid) {
-    return <Badge colorPalette="green" variant="solid">Pagado</Badge>;
+    return <Badge colorPalette="green" variant="subtle">Pagado</Badge>;
   }
   if (order.payment_method === "cash") {
     return (
@@ -323,7 +323,7 @@ function MyOrdersPage() {
   if (loading) {
     return (
       <Stack gap={3}>
-        <Spinner color="brand.500" />
+        <Spinner color="brand.fg" />
         <Skeleton h="80px" />
         <Skeleton h="80px" />
       </Stack>
