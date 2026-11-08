@@ -7,10 +7,11 @@ import {
   Button,
   Flex,
   SegmentGroup,
-  Spinner,
   Table,
   Text,
 } from "@chakra-ui/react";
+import { CatalogSkeleton } from "@/components/ui/skeleton";
+
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { gooeyToast } from "goey-toast";
@@ -136,11 +137,7 @@ export function ProductsCatalog() {
   }, [audience, allowedAudiences]);
 
   if (loading) {
-    return (
-      <Flex align="center" justify="center" py={16}>
-        <Spinner size="xl" />
-      </Flex>
-    );
+    return <CatalogSkeleton />;
   }
 
   return (

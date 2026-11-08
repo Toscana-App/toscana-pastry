@@ -3,8 +3,8 @@
 import { use, useEffect, useState } from "react";
 import ProductEditor from "@/components/calc/ProductEditor";
 import { calcProductsService } from "@/services/calcProductsService";
-import { Spinner } from "@chakra-ui/react";
-import { Flex } from "@chakra-ui/react";
+import { CalcFormSkeleton } from "@/components/ui/skeleton";
+
 import type { Product } from "@/types/calc";
 
 export default function ProductEditPage({ params }: { params: Promise<{ id: string }> }) {
@@ -28,11 +28,7 @@ export default function ProductEditPage({ params }: { params: Promise<{ id: stri
   }, [id]);
 
   if (loading) {
-    return (
-      <Flex justify="center" align="center" minH="400px">
-        <Spinner size="xl" />
-      </Flex>
-    );
+    return <CalcFormSkeleton />;
   }
 
   return <ProductEditor initial={product || undefined} />;

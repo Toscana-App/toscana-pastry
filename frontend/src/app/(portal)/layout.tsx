@@ -2,7 +2,8 @@
 
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Center, Spinner } from "@chakra-ui/react";
+import { FullPageSkeleton } from "@/components/ui/skeleton";
+
 import { useAuth } from "@/contexts/AuthContext";
 import { isPortalRole } from "@/lib/portalRoutes";
 import { ConsentBanner } from "@/components/layout/ConsentBanner";
@@ -33,11 +34,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   }, [loading, isAuthenticated, user?.role, router, pathname]);
 
   if (loading || !isAuthenticated || !isPortalRole(user?.role)) {
-    return (
-      <Center minH="60dvh">
-        <Spinner size="xl" />
-      </Center>
-    );
+    return <FullPageSkeleton />;
   }
 
   return (

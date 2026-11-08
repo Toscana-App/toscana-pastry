@@ -10,10 +10,11 @@ import {
   Grid,
   Heading,
   Input,
-  Spinner,
   Switch,
   Text,
 } from "@chakra-ui/react";
+import { SettingsSkeleton } from "@/components/ui/skeleton";
+
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { EnumSelect } from "@/components/ui/enum-select";
@@ -114,11 +115,7 @@ export function SettingsPage() {
   }
 
   if (loading) {
-    return (
-      <Flex align="center" justify="center" py={16}>
-        <Spinner size="xl" />
-      </Flex>
-    );
+    return <SettingsSkeleton />;
   }
 
   return (

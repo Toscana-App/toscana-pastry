@@ -13,11 +13,12 @@ import {
   Heading,
   HStack,
   Input,
-  Spinner,
   Stack,
   Text,
   VStack,
 } from "@chakra-ui/react";
+import { BudgetRowsSkeleton } from "@/components/ui/skeleton";
+
 import { customersService } from "@/modules/orders/service";
 import type { Customer } from "@/modules/orders/types";
 import { budgetClientSchema, budgetItemsSchema } from "../schema";
@@ -547,12 +548,7 @@ export function BudgetWizard() {
                 Productos
               </Text>
               {productsLoading ? (
-                <HStack gap={2} py={2}>
-                  <Spinner size="sm" color="brand.fg" />
-                  <Text fontSize="sm" color="fg.muted">
-                    Cargando catálogo…
-                  </Text>
-                </HStack>
+                <BudgetRowsSkeleton rows={3} />
               ) : productsError ? (
                 <Alert.Root status="error" fontSize="sm">
                   <Alert.Description>{productsError}</Alert.Description>

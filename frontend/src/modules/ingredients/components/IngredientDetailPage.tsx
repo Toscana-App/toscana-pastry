@@ -8,10 +8,11 @@ import {
   Button,
   Flex,
   Heading,
-  Spinner,
   Tabs,
   Text,
 } from "@chakra-ui/react";
+import { DetailPageSkeleton } from "@/components/ui/skeleton";
+
 import { formatCents, formatQty } from "@/lib/format";
 import { toaster } from "@/lib/toaster";
 import { useIngredientDetail } from "../hooks/useIngredientDetail";
@@ -75,11 +76,7 @@ export function IngredientDetailPage({ id }: IngredientDetailPageProps) {
   }
 
   if (loading) {
-    return (
-      <Flex align="center" justify="center" py={16}>
-        <Spinner size="xl" />
-      </Flex>
-    );
+    return <DetailPageSkeleton tabs={2} />;
   }
 
   if (error || !ingredient) {

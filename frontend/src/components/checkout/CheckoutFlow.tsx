@@ -14,11 +14,12 @@ import {
   Flex,
   Heading,
   Link,
-  Spinner,
   Stack,
   Steps,
   Text,
 } from "@chakra-ui/react";
+import { CheckoutSkeleton } from "@/components/ui/skeleton";
+
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toaster } from "@/lib/toaster";
@@ -95,11 +96,7 @@ export function CheckoutFlow() {
   }, []);
 
   if (loading) {
-    return (
-      <Center minH="50dvh">
-        <Spinner size="xl" />
-      </Center>
-    );
+    return <CheckoutSkeleton />;
   }
 
   if (cart === null) {

@@ -8,10 +8,11 @@ import {
   Input,
   Textarea,
   Select,
-  Spinner,
   Heading,
   Text as UIText,
 } from "@chakra-ui/react";
+import { CalcFormSkeleton } from "@/components/ui/skeleton";
+
 import { createListCollection } from "@ark-ui/react";
 import { calcProductsService } from "@/services/calcProductsService";
 import { calcMaterialsService } from "@/services/calcMaterialsService";
@@ -235,11 +236,7 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
   };
 
   if (fetching) {
-    return (
-      <Flex justify="center" align="center" minH="400px">
-        <Spinner size="xl" />
-      </Flex>
-    );
+    return <CalcFormSkeleton />;
   }
 
   return (

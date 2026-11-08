@@ -10,7 +10,9 @@ Efectivo: badge "Pagar en efectivo en la entrega".
 Solo se redirige a checkout_url de origen confiable (allowlist).
 */
 
-import { Alert, Box, Button, Flex, Spinner, Stack, Text } from "@chakra-ui/react";
+import { Alert, Box, Button, Flex, Stack, Text } from "@chakra-ui/react";
+import { ShimmerDot } from "@/components/ui/skeleton";
+
 import { useCallback, useEffect, useState } from "react";
 import {
   fetchOrderPaymentStatus,
@@ -181,7 +183,7 @@ export function PaymentCard({ order }: { order: OrderDetail }) {
 
         {state.kind === "pending" && (
           <Flex align="center" gap={3}>
-            <Spinner size="sm" color="brand.fg" />
+            <ShimmerDot size="14px" />
             <Text fontSize="sm">
               Procesando pago, esto puede tardar unos segundos…
             </Text>

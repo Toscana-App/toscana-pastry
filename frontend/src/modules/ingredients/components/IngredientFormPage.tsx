@@ -10,9 +10,10 @@ import {
   Flex,
   Heading,
   Input,
-  Spinner,
   Text,
 } from "@chakra-ui/react";
+import { FormSkeleton } from "@/components/ui/skeleton";
+
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { EnumSelect } from "@/components/ui/enum-select";
@@ -157,11 +158,7 @@ export function IngredientFormPage({ mode, ingredientId }: IngredientFormPagePro
   }
 
   if (loadingInitial) {
-    return (
-      <Flex align="center" justify="center" py={16}>
-        <Spinner size="xl" />
-      </Flex>
-    );
+    return <FormSkeleton fields={6} />;
   }
 
   if (loadError) {

@@ -9,6 +9,8 @@ import {
   Input,
   Text,
 } from "@chakra-ui/react";
+import { RecipeLinesSkeleton } from "@/components/ui/skeleton";
+
 import type {
   Control,
   FieldErrors,
@@ -76,9 +78,7 @@ export function RecipeEditor({
       </Text>
 
       {ingredientsLoading ? (
-        <Text fontSize="sm" color="fg.muted">
-          Cargando insumos…
-        </Text>
+        <RecipeLinesSkeleton />
       ) : ingredients.length === 0 ? (
         <Text fontSize="sm" color="orange.fg">
           No hay insumos cargados. Creá al menos uno en Ingredientes para poder

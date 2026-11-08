@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Box, Container, Heading, Spinner, Flex } from "@chakra-ui/react";
+import { Box, Container, Heading, Flex } from "@chakra-ui/react";
+import { ProfileSkeleton } from "@/components/ui/skeleton";
+
 import { authService } from "@/services/authService";
 import AddressBook from "@/components/profile/AddressBook";
 import { ProfileCard } from "@/components/profile/ProfileCard";
@@ -48,11 +50,7 @@ export default function ProfilePage() {
   }, [router]);
 
   if (loading || !user) {
-    return (
-      <Flex align="center" justify="center" minH="100dvh">
-        <Spinner size="xl" />
-      </Flex>
-    );
+    return <ProfileSkeleton />;
   }
 
   return (

@@ -15,10 +15,11 @@ import {
   Card,
   Flex,
   Skeleton,
-  Spinner,
   Stack,
   Text,
 } from "@chakra-ui/react";
+import { OrderListSkeleton } from "@/components/ui/skeleton";
+
 import { useCallback, useEffect, useState } from "react";
 import { gooeyToast } from "goey-toast";
 import {
@@ -321,13 +322,7 @@ function MyOrdersPage() {
   }, [page, refreshKey]);
 
   if (loading) {
-    return (
-      <Stack gap={3}>
-        <Spinner color="brand.fg" />
-        <Skeleton h="80px" />
-        <Skeleton h="80px" />
-      </Stack>
-    );
+    return <OrderListSkeleton />;
   }
 
   if (error) {

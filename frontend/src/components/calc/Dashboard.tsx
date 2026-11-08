@@ -8,11 +8,12 @@ import {
   Box,
   Text,
   Heading,
-  Spinner,
   Table,
   Badge,
   IconButton,
 } from "@chakra-ui/react";
+import { CalcDashboardSkeleton } from "@/components/ui/skeleton";
+
 import { calcProductsService } from "@/services/calcProductsService";
 import { toaster } from "@/lib/toaster";
 import { formatCents } from "@/lib/format";
@@ -70,11 +71,7 @@ export default function Dashboard() {
   );
 
   if (loading) {
-    return (
-      <Flex justify="center" align="center" minH="400px">
-        <Spinner size="xl" />
-      </Flex>
-    );
+    return <CalcDashboardSkeleton />;
   }
 
   if (!dashboard) {
