@@ -1,20 +1,3 @@
-"""Presupuestos (Fase 7, P7/P8).
-
-Flujo de negocio:
-  wizard (cliente + items + margen/modo) -> borrador #000NN
-      -> editar/recalcular (refleja el catalogo corriente)
-      -> enviar (enviado, snapshot de version) -> reenviar (version nueva)
-      \-> convertir en pedido (pedido `nuevo` con snapshots propios, RNF-P6-03)
-
-Reglas clave:
-- El costo por unidad se deriva contra el catalogo al escribir (create,
-  update, recalculate); la lectura NUNCA vuelve al catalogo: guarda
-  unit_cost/unit_selling por item y los totales son puro dominio.
-- La secuencia #000NN se asigna en la creacion (RNF-P8-04), sin reuso.
-- El presupuesto NO toca stock: ni al crear, ni al convertir (el stock
-  se descuenta al confirmar el pedido, RNF-P6-02).
-- Money viaja en centavos (RF-P8-03) y Pct como string (money.py).
-"""
 import asyncio
 import datetime
 import io
@@ -92,9 +75,6 @@ from domain.whatsapp import (
 router = APIRouter(prefix="/budgets", tags=["budgets"])
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 
 def _iso(dt: Optional[datetime.datetime]) -> Optional[str]:
@@ -155,7 +135,6 @@ async def _derive_items(
     margin_override: Optional[Decimal],
     mode: CalcMode,
 ) -> Tuple[list, Decimal]:
-    """Mapea la entrada HTTP (centavos) al caso de uso y sus errores a 400."""
     drafts = [
         BudgetItemDraft(
             product_id=i.product_id,
@@ -176,9 +155,6 @@ async def _derive_items(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
 
 
 @router.get("", response_model=BudgetListResponse)
@@ -192,10 +168,8 @@ async def list_budgets(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     repo: BudgetRepository = Depends(get_budget_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
-    """Listado con busqueda por secuencia (#00042) o cliente (sin
-    acentos), estado y rango de fechas de creacion."""
     budgets, total = await repo.list(
         status=status_, q=q, date_from=date_from, date_to=date_to,
         page=page, page_size=page_size,
@@ -234,11 +208,6 @@ async def export_budgets(
     pdf: PdfClient = Depends(get_pdf_client),
     _admin: User = Depends(require_admin),
 ):
-    """Export del listado de presupuestos (mismos filtros que
-    GET /budgets). CSV por defecto (backward-compatible);
-    ``format=pdf`` genera PDF vía pdfgenerator (ADR-0001, sin
-    archivo intermedio). Columnas: secuencia, cliente, teléfono, fecha
-    de creación, enviado, estado y total de venta."""
     budgets: List[Budget] = []
     page = 1
     while True:
@@ -301,7 +270,6 @@ async def export_budgets(
                 "Content-Disposition": f'attachment; filename="presupuestos_{period_slug}.csv"'
             },
         )
-    # PDF (pdfgenerator, ADR-0001)
     payload = {
         "period_label": period_label,
         "budgets": [
@@ -342,9 +310,6 @@ async def create_budget(
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     _admin: User = Depends(require_admin),
 ):
-    """Alta del wizard completo (P7): cliente ya resuelto (el frontend
-    crea/reutiliza via /customers), items con qty, margen y modo de
-    calculo. Asigna la secuencia #000NN (RNF-P8-04)."""
     customer = await customer_repo.get(payload.customer_id)
     if customer is None:
         raise HTTPException(
@@ -363,8 +328,6 @@ async def create_budget(
         customer_id=customer.id or "",
         customer_name=customer.name,
         customer_phone=customer.phone,
-        # Snapshot (RNF-P7-04): explicito en el wizard; si no, hereda la
-        # direccion del cliente.
         delivery_address=(
             payload.delivery_address
             if payload.delivery_address is not None
@@ -382,10 +345,8 @@ async def create_budget(
 async def get_budget(
     budget_id: str,
     repo: BudgetRepository = Depends(get_budget_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
-    """Detalle: items + totales derivados de lo guardado (nunca
-    recalcula contra el catalogo)."""
     budget = await repo.get(budget_id)
     if budget is None:
         raise HTTPException(
@@ -405,9 +366,6 @@ async def update_budget(
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     _admin: User = Depends(require_admin),
 ):
-    """Edicion parcial (borrador y enviado: el reenviar crea version
-    nueva, RF-P8-05). Cambios de items/margen/modo re-derivan contra el
-    catalogo corriente."""
     existing = await budget_repo.get(budget_id)
     if existing is None:
         raise HTTPException(
@@ -425,8 +383,6 @@ async def update_budget(
     mode = CalcMode(
         provided.get("calculation_mode", existing.calculation_mode.value)
     )
-    # Direccion de entrega (RNF-P7-04): explicito reemplaza; cambio de
-    # cliente hereda la suya; en caso contrario conserva el snapshot.
     if "delivery_address" in provided:
         address = provided["delivery_address"]
     elif "customer_id" in provided:
@@ -439,8 +395,6 @@ async def update_budget(
             product_repo, ingredient_repo, settings, payload.items, margin, mode
         )
     else:
-        # Sin items: re-derivar los existentes contra el catalogo (un
-        # cambio de margen/modo cambia los precios, RF-P8 "recalcula").
         inputs = [
             BudgetItemInput(
                 product_id=item.product_id,
@@ -450,7 +404,6 @@ async def update_budget(
             for item in existing.items
         ]
         if mode == CalcMode.MANUAL:
-            # Conservar los overrides de los items existentes.
             inputs = [
                 BudgetItemInput(
                     product_id=item.product_id,
@@ -497,7 +450,6 @@ async def patch_budget_items(
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     _admin: User = Depends(require_admin),
 ):
-    """Ajuste de lineas (qty/overrides) con el margen/modo corrientes."""
     existing = await budget_repo.get(budget_id)
     if existing is None:
         raise HTTPException(
@@ -541,7 +493,6 @@ async def delete_budget(
     repo: BudgetRepository = Depends(get_budget_repository),
     _admin: User = Depends(require_admin),
 ):
-    """Borrado duro. Sin efecto sobre stock ni secuencia (RNF-P8)."""
     deleted = await repo.delete(budget_id)
     if not deleted:
         raise HTTPException(
@@ -559,9 +510,6 @@ async def recalculate_budget(
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     _admin: User = Depends(require_admin),
 ):
-    """Recalcula costos contra el catalogo corriente (cambios de
-    precios de insumos/receta) y re-deriva los precios de venta. Los
-    totales reflejan el nuevo estado (RF-P8 'Recalcula')."""
     existing = await budget_repo.get(budget_id)
     if existing is None:
         raise HTTPException(
@@ -625,9 +573,6 @@ async def convert_to_order(
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     _admin: User = Depends(require_admin),
 ):
-    """Convierte en pedido (RF-P8-02, RF-P8-08): solo presupuestos
-    `enviado`, una sola vez (409 `already_converted`). La orquestacion
-    vive en el caso de uso ConvertBudgetToOrder."""
     use_case = ConvertBudgetToOrder(
         budget_repo, order_repo, product_repo, ingredient_repo, settings_repo
     )
@@ -656,8 +601,6 @@ async def send_budget(
     budget_repo: BudgetRepository = Depends(get_budget_repository),
     _admin: User = Depends(require_admin),
 ):
-    """Envia (RF-P8-05): borrador -> enviado (version 1, snapshot) o
-    reenviar con cambios (version nueva). Sin cambios: 409."""
     budget = await budget_repo.get(budget_id)
     if budget is None:
         raise HTTPException(
@@ -678,10 +621,6 @@ async def budget_whatsapp_link(
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     _admin: User = Depends(require_admin),
 ):
-    """P10 (UC-01): wa.me prellenado con la plantilla (saludo, ítems,
-    total, firma) y el link firmado al PDF (72 h). Registra el envío con
-    el teléfono enmascarado (RNF-P10-05) y aplica el límite de 30 links/
-    día (RF-P10-06). El cliente solo presiona 'enviar' en WhatsApp."""
     budget = await budget_repo.get(budget_id)
     if budget is None:
         raise HTTPException(
@@ -701,8 +640,6 @@ async def budget_whatsapp_link(
         budget, settings.business_name or "", share_url
     )
     url = f"https://wa.me/{e164}?text={quote(message)}"
-    # Conteo + registro atómicos (RF-P10-06): sin carrera entre el chequeo
-    # del límite y el INSERT.
     sent_at = await budget_repo.record_whatsapp_sent_within_limit(
         budget.id,
         mask_phone(e164),

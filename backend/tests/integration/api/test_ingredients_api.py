@@ -32,8 +32,6 @@ async def client(db_session):
     app.dependency_overrides[get_user_repository] = override_get_user_repository
     app.dependency_overrides[get_settings_repository] = override_get_settings_repository
     app.dependency_overrides[get_ingredient_repository] = override_get_ingredient_repository
-    # El login crea usuarios con rol CUSTOMER; las mutaciones de ingredientes
-    # son de administración (RBAC), así que se siembra el ADMIN.
     await SQLUserRepository(db_session).save(
         User(email="admin@example.com", role=UserRole.ADMIN)
     )
@@ -77,7 +75,6 @@ async def _create_ingredient(
     return response.json()
 
 
-# --- Auth ----------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -88,7 +85,6 @@ async def test_ingredients_requires_authentication(client):
     ).status_code == 401
 
 
-# --- Create ---------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -163,7 +159,6 @@ async def test_create_rejects_unknown_field(client):
     assert response.status_code == 422
 
 
-# --- List / search / filter ------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -240,7 +235,6 @@ async def test_list_status_filter(client):
         assert body["items"][0]["status"] == status_value
 
 
-# --- Detail / patch ---------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -280,7 +274,7 @@ async def test_patch_partial_update(client):
     body = response.json()
     assert body["price_per_unit"] == 300000
     assert body["name"] == "Harina 0000 premium"
-    assert body["stock_qty"] == "0"  # el stock no se toca por PATCH
+    assert body["stock_qty"] == "0"
 
 
 @pytest.mark.asyncio
@@ -306,7 +300,6 @@ async def test_patch_unknown_id_404(client):
     assert response.status_code == 404
 
 
-# --- Delete (soft) -----------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -318,7 +311,6 @@ async def test_delete_soft_deletes(client):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 204
-    # Invisible a todo lo publico:
     assert (
         await client.get(f"/api/v1/ingredients/{created['id']}", headers={"Authorization": f"Bearer {token}"})
     ).status_code == 404
@@ -338,7 +330,6 @@ async def test_delete_unknown_id_404(client):
     assert response.status_code == 404
 
 
-# --- Stock adjustments -------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -356,14 +347,13 @@ async def test_stock_adjustment_records_movement(client):
     assert body["movement"]["qty_delta"] == "-3"
     assert body["movement"]["reason"] == "merma"
     assert body["movement"]["ref"] == "receta 7"
-    # El saldo y el historial van juntos:
     movements = (
         await client.get(
             f"/api/v1/ingredients/{created['id']}/movements",
             headers={"Authorization": f"Bearer {token}"},
         )
     ).json()
-    assert movements["total"] == 2  # inicial + merma
+    assert movements["total"] == 2
 
 
 @pytest.mark.asyncio
@@ -376,7 +366,6 @@ async def test_stock_adjustment_negative_result_400(client):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 400
-    # El saldo queda intacto:
     detail = (
         await client.get(
             f"/api/v1/ingredients/{created['id']}",
@@ -412,7 +401,7 @@ async def test_stock_adjustment_unknown_ingredient_404(client):
 @pytest.mark.asyncio
 async def test_movements_history_newest_first(client):
     token = await _token_for(client)
-    created = await _create_ingredient(client, token, stock="4")  # movimiento inicial
+    created = await _create_ingredient(client, token, stock="4")
     headers = {"Authorization": f"Bearer {token}"}
     for delta in ("2", "-1"):
         response = await client.post(
@@ -428,9 +417,8 @@ async def test_movements_history_newest_first(client):
     ).json()
     assert movements["total"] == 3
     deltas = [item["qty_delta"] for item in movements["items"]]
-    assert deltas[0] == "-1"  # el mas reciente primero
+    assert deltas[0] == "-1"
     assert Decimal(deltas[0]) + Decimal(deltas[1]) + Decimal(deltas[2]) == Decimal("5")
-    # Y cuadra con el saldo final:
     detail = (
         await client.get(
             f"/api/v1/ingredients/{created['id']}", headers=headers
@@ -439,7 +427,6 @@ async def test_movements_history_newest_first(client):
     assert detail["ingredient"]["stock_qty"] == "5"
 
 
-# --- Import (RF-P2-07) --------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -481,7 +468,6 @@ async def test_import_all_invalid_reports_every_line(client):
     assert [error["line"] for error in body["errors"]] == [1, 2]
 
 
-# --- Money contract: integer cents only -------------------------------------
 
 
 @pytest.mark.asyncio

@@ -10,12 +10,12 @@ from domain.orders import Customer
 
 
 def _to_domain(orm: CustomerORM) -> Customer:
-    return Customer(  # type: ignore[arg-type]
-        name=orm.name,  # type: ignore[arg-type]
-        phone=orm.phone,  # type: ignore[arg-type]
-        id=orm.id,  # type: ignore[arg-type]
-        delivery_address=orm.delivery_address,  # type: ignore[arg-type]
-        created_at=orm.created_at,  # type: ignore[arg-type]
+    return Customer(
+        name=orm.name,
+        phone=orm.phone,
+        id=orm.id,
+        delivery_address=orm.delivery_address,
+        created_at=orm.created_at,
     )
 
 
@@ -31,8 +31,6 @@ class SQLCustomerRepository:
     ) -> Tuple[List[Customer], int]:
         filters = []
         if q and q.strip():
-            # Nombre: plegado de acentos (RF-P2-02). Telefono: subcadena de
-            # digitos (busscar "155" encuentra "11 2345 6789").
             folded = accent_fold(q) or q
             filters.append(
                 or_(
@@ -66,8 +64,6 @@ class SQLCustomerRepository:
     async def get_or_create(
         self, customer: Customer
     ) -> Tuple[Customer, bool]:
-        """Dedup por (name_norm, phone_norm) (RF-P6-08). En carrera el
-        constraint unico protege: el perdedor relee al ganador."""
         existing = await self._find_by_norm(customer.name_norm, customer.phone_norm)
         if existing is not None:
             return existing, False
@@ -100,8 +96,6 @@ class SQLCustomerRepository:
     async def update_address(
         self, customer_id: str, delivery_address: Optional[str]
     ) -> Optional[Customer]:
-        """Actualiza la direccion de entrega (RF-P7-06). Cadena vacia o
-        None limpia el valor. None de retorno = cliente inexistente."""
         result = await self.session.execute(
             select(CustomerORM).where(CustomerORM.id == customer_id)
         )

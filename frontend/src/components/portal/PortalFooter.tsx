@@ -2,7 +2,6 @@ import { Box, Container, Flex, Link, Text } from "@chakra-ui/react";
 import NextLink from "next/link";
 import { BrandLogo } from "@/components/layout/BrandLogo";
 
-/** Datos de contacto del portal (footer + botón flotante). */
 export const PORTAL_CONTACT = {
   whatsappDisplay: "+54 9 3571 555328",
   whatsappUrl: "https://wa.me/5493571555328",
@@ -15,11 +14,6 @@ const FOOTER_LINKS = [
   { label: "Mi cuenta", href: "/profile" },
 ] as const;
 
-/**
- * Footer del portal (estructura tomada de ancestral.com.ar): columnas de
- * marca/enlaces/contacto + barra legal con copyright. Contacto real:
- * WhatsApp y email (wa.me / mailto).
- */
 export function PortalFooter() {
   return (
     <Box as="footer" mt={{ base: 12, md: 16 }} bg="bg.panel" borderTopWidth="1px" borderColor="border.muted">

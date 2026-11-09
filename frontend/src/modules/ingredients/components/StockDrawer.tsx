@@ -18,11 +18,8 @@ import { STOCK_REASONS, type StockReason } from "../types";
 interface StockDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Nombre del ingrediente, para el encabezado. */
   ingredientName: string;
-  /** Unidad, para el sufijo de la cantidad. */
   unit: string;
-  /** Ejecuta el ajuste. Devuelve el resultado (y el mensaje si el backend lo rechazó). */
   onSubmit: (
     delta: number,
     reason: StockReason,
@@ -32,13 +29,6 @@ interface StockDrawerProps {
 
 const DEFAULTS: StockAdjustValues = { delta: 0, reason: "compra" };
 
-/**
- * Drawer de ajuste de stock (Fase 4, WU6, RF-P2-03).
- *
- * Delta positivo entra stock, negativo sale. El motivo es obligatorio
- * (compra | ajuste | descarte) y la referencia opcional (proveedor, comanda,
- * motivo del descarte). El backend registra el movimiento y recalcula el badge.
- */
 export function StockDrawer({
   open,
   onOpenChange,
@@ -74,7 +64,6 @@ export function StockDrawer({
     if (result.ok) {
       close();
     } else {
-      // El backend responde 400 con el motivo (p. ej. stock insuficiente).
       setServerError(result.message ?? "No se pudo aplicar el ajuste.");
     }
   }

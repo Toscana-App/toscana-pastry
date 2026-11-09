@@ -1,13 +1,3 @@
-"""Repository para cupones (RF-P11-14, C3).
-
-Estilo sql_calc_supplier_repository.py: mapeo ORM↔dominio y commit en
-cada mutacion. La unicidad case/accent-insensitive de `code` se resuelve con la
-columna `code_key` (= accent_fold(code), UNIQUE); un IntegrityError
-sobre ella se traduce a DuplicateCouponCodeError.
-
-`get_by_code` e `increment_uses` quedan limpios para C4 (carrito:
-aplicar cupon + confirmar pedido).
-"""
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -20,11 +10,9 @@ from domain.coupon import Coupon, DuplicateCouponCodeError
 
 
 def _to_domain(orm: CouponORM) -> Coupon:
-    # SQLite devuelve valid_from/valid_until naive: el dominio los
-    # reconvierte a aware UTC (Coupon._aware_utc).
     return Coupon(
         code=orm.code,
-        type=orm.type,  # type: ignore[arg-type]
+        type=orm.type,
         value=Decimal(orm.value),
         valid_from=orm.valid_from,
         valid_until=orm.valid_until,
@@ -74,7 +62,6 @@ class SQLCouponRepository:
         page: int,
         page_size: int,
     ) -> tuple[list[Coupon], int]:
-        """Listado admin: ?q case/accent-insensitive en code, ?status."""
         filters = []
         if q and q.strip():
             folded = accent_fold(q) or q
@@ -106,7 +93,6 @@ class SQLCouponRepository:
         return _to_domain(orm) if orm else None
 
     async def get_by_code(self, code: str) -> Coupon | None:
-        """Busca case/accent-insensitive (unicidad, RF-P11-14)."""
         folded = accent_fold(code) or code
         result = await self.session.execute(
             select(CouponORM).where(CouponORM.code_key == folded)
@@ -141,7 +127,6 @@ class SQLCouponRepository:
     async def set_status(
         self, coupon_id: str, status: str
     ) -> Coupon | None:
-        """Cambia el status (pausa-reactiva, y el auto-pause de DELETE)."""
         result = await self.session.execute(
             select(CouponORM).where(CouponORM.id == coupon_id)
         )
@@ -164,11 +149,6 @@ class SQLCouponRepository:
         return _to_domain(orm)
 
     async def increment_uses(self, coupon_id: str) -> Coupon | None:
-        """Incrementa el contador de usos.
-
-        C3 no lo invoca: C4 lo consumira al confirmar un pedido
-        (snapshoteo de coupon_code + discount_amount, RF-P11-14).
-        """
         result = await self.session.execute(
             select(CouponORM).where(CouponORM.id == coupon_id)
         )

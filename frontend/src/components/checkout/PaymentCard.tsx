@@ -1,14 +1,5 @@
 "use client";
 
-/** Tarjeta de pago post-pedido (F3 — RF-P11-10/11).
-
-Estados sobre polling `GET /orders/{id}/payment` ≤ 5 s:
-- pending → spinner "Procesando…"
-- approved → success
-- rejected|failed → danger + motivo
-Efectivo: badge "Pagar en efectivo en la entrega".
-Solo se redirige a checkout_url de origen confiable (allowlist).
-*/
 
 import { Alert, Box, Button, Flex, Stack, Text } from "@chakra-ui/react";
 import { ShimmerDot } from "@/components/ui/skeleton";
@@ -21,7 +12,7 @@ import {
 import { OrderDetail } from "@/types/orders";
 
 const POLL_INTERVAL_MS = 5000;
-const MAX_POLLS = 12; // ≤ 60 s
+const MAX_POLLS = 12;
 
 type PollState =
   | { kind: "idle" }
@@ -35,11 +26,6 @@ const REJECTION_REASONS: Record<string, string> = {
   failed: "El pago falló. Intentá de nuevo o pagá en efectivo.",
 };
 
-/** Returns the checkout URL only when the host is allowlisted.
-
-The link is rendered as `<a href>` (no dynamic assignment to the page
-location) with the origin rebuilt from the allowed host.
-*/
 const ALLOWED_CHECKOUT_HOSTS = ["mercadopago.com"];
 
 function toTrustedCheckoutUrl(raw: string): string | null {
@@ -66,13 +52,11 @@ function makeIdempotencyKey(): string {
 
 export function PaymentCard({ order }: { order: OrderDetail }) {
   const isMercadopago = order.payment_method === "mercadopago";
-  // attempt=1 inicial si es MP: arranca solo al montar, sin effect de setState.
   const [attempt, setAttempt] = useState(isMercadopago ? 1 : 0);
   const [state, setState] = useState<PollState>({ kind: "idle" });
   const [reference, setReference] = useState<string | null>(null);
   const [checkoutHref, setCheckoutHref] = useState<string | null>(null);
 
-  // ── Init del pago (una vez por attempt) ─────────────────────────────
   useEffect(() => {
     if (attempt === 0) return;
     let cancelled = false;
@@ -99,7 +83,6 @@ export function PaymentCard({ order }: { order: OrderDetail }) {
     };
   }, [attempt, order.id]);
 
-  // ── Polling del estado (mientras haya reference) ────────────────────
   useEffect(() => {
     if (reference === null) return;
     let pollsLeft = MAX_POLLS;
@@ -124,7 +107,6 @@ export function PaymentCard({ order }: { order: OrderDetail }) {
           return;
         }
       } catch {
-        // red/timeout: seguimos en pending
       }
       if (!done) setState({ kind: "pending" });
     };

@@ -1,8 +1,3 @@
-"""Repository singleton para CalcSettings (RF-P5CC-01/02).
-
-Upsert de una sola fila: si no existe INSERT, si existe UPDATE.
-Spec mirror de sql_settings_repository.py.
-"""
 from typing import Optional
 from decimal import Decimal
 from sqlalchemy import select
@@ -25,7 +20,6 @@ def _to_domain(orm: CalcSettingsORM) -> CalcSettings:
 
 
 class SQLCalcSettingsRepository:
-    """Singleton: una sola fila en la tabla."""
 
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -34,7 +28,6 @@ class SQLCalcSettingsRepository:
         result = await self.session.execute(select(CalcSettingsORM).limit(1))
         orm = result.scalars().first()
         if orm is None:
-            # Nunca 404: devuelve defaults del sistema (RF-P5CC-02).
             return DEFAULT_CALC_SETTINGS
         return _to_domain(orm)
 

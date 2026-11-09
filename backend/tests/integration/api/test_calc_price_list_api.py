@@ -1,13 +1,3 @@
-"""Integration tests for the price list endpoints (RF-P3CC-04).
-
-Covers: `GET /calc/products/price-list` (only active + not deleted,
-fixed name order, q over name AND SKU with accent_fold, category
-filter, pagination, enriched item with `category_name` and
-engine-computed `final_sale_price` with the settings `rounding_mode`)
-and `GET /calc/products/price-list/export` (exact spec CSV header,
-rows in name order, `cost` pre-rounding, empty category, proper
-quoting, `text/csv` + attachment headers, no pagination).
-"""
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -50,7 +40,6 @@ from data.repositories.sql_user_repository import SQLUserRepository
 from domain.models import User, UserRole
 from main import app
 
-# ─── Fixtures ───────────────────────────────────────────────────────────
 
 
 @pytest_asyncio.fixture
@@ -110,7 +99,6 @@ async def client(db_session):
         app.dependency_overrides = {}
 
 
-# ─── Helpers ────────────────────────────────────────────────────────────
 
 
 async def _token_for(client: AsyncClient, email: str) -> str:
@@ -176,15 +164,6 @@ async def _create_product_category(
 
 
 async def _seed_price_list(client: AsyncClient, token: str) -> dict:
-    """Material 100.00 + 3 activos (2 con categoria, 1 sin) + 1 draft +
-    1 archived + 1 eliminado.
-
-    Valores esperados (motor: discount 0, tax 19, rounding none),
-    calculados a mano:
-      Alpha (qty1, m50): cost 100.00, final 238.00, cat "Postres"
-      Beta  (qty2, m30): cost 200.00, final 339.99, sin categoria
-      Gamma (qty3, m10): cost 300.00, final 396.66, cat "Postres"
-    """
     material = await _create_material(
         client, token,
         unit_of_measure="kg",
@@ -246,7 +225,6 @@ async def _seed_price_list(client: AsyncClient, token: str) -> dict:
     return {"cat": cat, "material": material}
 
 
-# ─── Auth (S3/D2) ──────────────────────────────────────────────────────
 
 
 class TestPriceListAuth:
@@ -258,22 +236,18 @@ class TestPriceListAuth:
         response = await client.get("/api/v1/calc/products/price-list/export")
         assert response.status_code == 401
 
-    async def test_any_user_can_read(self, client):
-        """GETs con get_current_user: un customer autenticado puede leer."""
+    async def test_customer_cannot_read(self, client):
         token = await _token_for(client, "customer@example.com")
         response = await client.get(
             "/api/v1/calc/products/price-list", headers=_auth(token)
         )
-        assert response.status_code == 200
+        assert response.status_code == 403
 
 
-# ─── GET /price-list (RF-P3CC-04) ──────────────────────────────────────
 
 
 class TestPriceList:
     async def test_returns_only_active_in_name_order(self, client):
-        """Solo los 3 activos (draft/archived/eliminados fuera), orden
-        fijo por nombre."""
         token = await _admin(client)
         await _seed_price_list(client, token)
         response = await client.get(
@@ -291,8 +265,6 @@ class TestPriceList:
         ]
 
     async def test_item_shape_and_engine_values(self, client):
-        """Item: id, name, sku, category_id, category_name (null si no
-        hay categoria), montos calculados por el motor."""
         token = await _admin(client)
         seed = await _seed_price_list(client, token)
         body = (
@@ -328,8 +300,6 @@ class TestPriceList:
         assert gamma["final_sale_price"] == 39666
 
     async def test_final_price_uses_settings_rounding(self, client):
-        """final_sale_price con el redondeo del rounding_mode de
-        settings (integer): 238.00->238, 339.99->340, 396.66->397."""
         token = await _admin(client)
         await _seed_price_list(client, token)
         await _set_settings(client, token, rounding_mode="integer")
@@ -398,13 +368,10 @@ class TestPriceList:
         assert [item["name"] for item in page2["items"]] == ["Gamma"]
 
 
-# ─── GET /price-list/export (CSV, RF-P3CC-04) ──────────────────────────
 
 
 class TestPriceListExport:
     async def test_csv_header_rows_and_values(self, client):
-        """Header exacto de la spec + 3 filas en orden por nombre;
-        `cost` pre-redondeo (2 decimales); categoria vacia si no hay."""
         token = await _admin(client)
         await _seed_price_list(client, token)
         response = await client.get(
@@ -414,7 +381,7 @@ class TestPriceListExport:
         text = response.text
         lines = text.split("\n")
         assert lines[0] == "id,name,category,cost,margin_pct,final_price"
-        assert len([line for line in lines if line]) == 4  # header + 3 filas
+        assert len([line for line in lines if line]) == 4
         alpha_row = lines[1].split(",")
         assert alpha_row[1] == "Alpha"
         assert alpha_row[2] == "Postres"
@@ -432,8 +399,6 @@ class TestPriceListExport:
         assert gamma_row[5] == "396.66"
 
     async def test_csv_cost_is_pre_rounding_and_final_is_rounded(self, client):
-        """Con rounding integer: `cost` NUNCA se redondea; `final_price`
-        si."""
         token = await _admin(client)
         await _seed_price_list(client, token)
         await _set_settings(client, token, rounding_mode="integer")
@@ -443,7 +408,6 @@ class TestPriceListExport:
             )
         ).text
         lines = text.split("\n")
-        # Beta: cost 200.00 (intacto), final 339.99 -> 340.
         beta_row = lines[2].split(",")
         assert beta_row[3] == "200.00"
         assert beta_row[5] == "340"
@@ -484,7 +448,6 @@ class TestPriceListExport:
             response.headers["content-disposition"]
             == 'attachment; filename="lista_precios.csv"'
         )
-        # line terminator \n (no CRLF).
         assert b"\r\n" not in response.content
 
     async def test_export_respects_filters_without_pagination(self, client):
@@ -498,7 +461,7 @@ class TestPriceListExport:
             )
         ).text
         lines = [line for line in text.split("\n") if line]
-        assert len(lines) == 2  # header + solo Gamma
+        assert len(lines) == 2
         assert lines[1].split(",")[1] == "Gamma"
 
     async def test_export_empty_set_returns_header_only(self, client):

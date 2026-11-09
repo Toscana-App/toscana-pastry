@@ -68,12 +68,10 @@ async def test_me_authenticated(db_session):
             assert response.status_code == 200
             assert response.json()["email"] == "test@example.com"
 
-            # Test Refresh
             refresh_resp = await ac.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
             assert refresh_resp.status_code == 200
             assert "access_token" in refresh_resp.json()
             
-            # Test Invalid Refresh
             bad_refresh_resp = await ac.post("/api/v1/auth/refresh", json={"refresh_token": "invalid_token"})
             assert bad_refresh_resp.status_code == 401
             

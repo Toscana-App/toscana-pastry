@@ -9,7 +9,6 @@ import { Toaster } from "@/lib/toaster"
 import { AppGooeyToaster } from "@/components/ui/GoeyToasterClient"
 import "goey-toast/styles.css"
 
-// Consumed by the Chakra font tokens in components/ui/theme.ts.
 const snPro = SN_Pro({
   variable: "--font-sn-pro",
   subsets: ["latin", "latin-ext"],

@@ -1,6 +1,5 @@
 "use client";
 
-/** Checkout side summary (RF-P11-02): items + cart totals. */
 
 import { Badge, Box, Flex, Stack, Text } from "@chakra-ui/react";
 import type { CartResponse } from "@/types/orders";

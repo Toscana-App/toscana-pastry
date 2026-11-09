@@ -19,11 +19,6 @@ import { useSearchParams } from "next/navigation";
 import { postLoginTarget, safeRedirectTarget } from "@/lib/portalRoutes";
 import { UserRole } from "@/types/auth";
 
-/**
- * Client-side email validation for the login form (P1, spec line 77):
- * the error renders inline under the input (Alert danger via Field.Error),
- * so the native browser bubble is disabled with noValidate.
- */
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const validateEmail = (value: string): string | null => {
@@ -33,7 +28,6 @@ const validateEmail = (value: string): string | null => {
   return null;
 };
 
-/** Server-side failures are never shown verbatim (they can be English). */
 const describeApiError = (error: unknown): string => {
   if (error instanceof ApiError && error.status >= 500)
     return "Algo salió mal en el servidor. Intenta de nuevo.";
@@ -42,12 +36,6 @@ const describeApiError = (error: unknown): string => {
   return "Intenta de nuevo.";
 };
 
-/**
- * Post-login navigation is a full page load, not router.push: the session
- * lives in cookies and AuthContext only reads it on mount, so a
- * client-side navigation to a ProtectedRoute (e.g. /admin) would see a
- * stale "unauthenticated" state and bounce back to /login.
- */
 const goPostLogin = (target: string) => {
   window.location.assign(target);
 };
@@ -58,11 +46,6 @@ export default function LoginForm() {
   const [loading, setLoading] = useState(false);
   const searchParams = useSearchParams();
 
-  /**
-   * Post-login landing (F1 — p11 portal shell):
-   * - valid `?from` (internal relative route) → there
-   * - otherwise by role: admin → /admin, portal → /products
-   */
   const resolvePostLogin = (role: UserRole): string =>
     safeRedirectTarget(searchParams.get("from"), postLoginTarget(role));
 
@@ -76,7 +59,6 @@ export default function LoginForm() {
     setEmailError(null);
     setLoading(true);
     try {
-      // authService persiste access_token y refresh_token en cookies.
       const data = await authService.loginWithMagicLink(email);
       gooeyToast.success("¡Link de acceso enviado!", {
         description: "Revisa tu correo para ingresar.",

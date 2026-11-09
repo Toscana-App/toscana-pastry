@@ -28,7 +28,6 @@ import {
 } from "../types";
 import { OrderWindowSection } from "./OrderWindowSection";
 
-/** Campo numérico con sufijo opcional (ARS, %, min). */
 function NumberField({
   label,
   suffix,
@@ -64,18 +63,6 @@ function NumberField({
   );
 }
 
-/**
- * Configuración del negocio (Fase 4, WU7) — /admin/settings.
- *
- * Tres bloques (RF-P5-01):
- * 1. Mano de obra y margen (hora, margen, paso de redondeo).
- * 2. Costos indirectos: gas y merma, cada uno con su toggle (RF-P5-06: apagar
- *    el toggle obliga a 0 y deshabilita el input).
- * 3. Valores por defecto de recetas nuevas (minutos, porciones, dificultad).
- *
- * PUT completo: se envían los 12 campos siempre. Los errores 422 vuelven por
- * campo y se muestran en su input.
- */
 export function SettingsPage() {
   const { settings, loading, saving, error, fieldErrors, save } = useSettings();
   const [saveFailed, setSaveFailed] = useState(false);
@@ -92,7 +79,6 @@ export function SettingsPage() {
     defaultValues: SETTINGS_DEFAULTS,
   });
 
-  // Cuando llega la configuración del backend, el formulario la refleja.
   useEffect(() => {
     if (settings) reset(settings);
   }, [settings, reset]);
@@ -354,8 +340,7 @@ export function SettingsPage() {
             </Grid>
           </Fieldset.Root>
 
-          {/* Corte de pedidos (RF-P5-07 / RF-P6-09): endpoint propio
-              (GET/PATCH /tenant/order-window), se guarda por separado. */}
+          {}
           <OrderWindowSection />
 
           <Flex gap={3} flexWrap="wrap">

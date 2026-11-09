@@ -12,11 +12,6 @@ STATUSES = Literal["OK", "LOW", "EMPTY"]
 
 
 class IngredientCreate(BaseModel):
-    """Body de POST /ingredients (spec p02 RF-P2-01, api_endpoints FASE 1).
-
-    extra="forbid": un campo desconocido es 422, no un silencio que se
-    pierde entre el frontend y la base.
-    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -29,16 +24,12 @@ class IngredientCreate(BaseModel):
     @field_validator("name")
     @classmethod
     def _name_not_blank(cls, value: str) -> str:
-        # min_length=1 deja pasar "  "; un nombre de solo espacios no
-        # existe. 422 por payload, no 400 por dominio.
         if not value.strip():
             raise ValueError("nombre no puede estar vacio")
         return value.strip()
 
 
 class IngredientUpdate(BaseModel):
-    """Body de PATCH /ingredients/{id}: solo nombre/unidad/precio/umbral.
-    El stock se cambia por /stock (deja movimiento registrado)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -68,7 +59,7 @@ class IngredientResponse(BaseModel):
     price_per_unit: Money
     stock_qty: Qty
     low_stock_threshold: Qty
-    status: str  # OK | LOW | EMPTY — campo computado del servidor
+    status: str
 
 
 class IngredientListResponse(BaseModel):
@@ -84,8 +75,6 @@ class IngredientDetailResponse(BaseModel):
 
 
 class StockAdjustment(BaseModel):
-    """Body de POST /ingredients/{id}/stock. Delta firmado:
-    entrada positiva, salida negativa."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -115,13 +104,12 @@ class MovementListResponse(BaseModel):
 
 
 class ImportRequest(BaseModel):
-    """RF-P2-07: carga inicial por lista pegada."""
 
     lines: List[str] = Field(min_length=1, max_length=500)
 
 
 class ImportErrorItem(BaseModel):
-    line: int  # 1-based, la línea tal como la envió el usuario
+    line: int
     message: str
 
 

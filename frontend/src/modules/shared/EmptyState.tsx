@@ -8,11 +8,6 @@ interface EmptyStateProps {
   actionHref?: string;
 }
 
-/**
- * Estado vacío genérico (Fase 4): título + descripción opcional + acción
- * opcional. Lo usan la lista de ingredientes ("todavía no hay" / "sin
- * resultados") y el historial de movimientos.
- */
 export function EmptyState({
   title,
   description,

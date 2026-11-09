@@ -6,7 +6,6 @@ export const metadata: Metadata = {
   title: "Nuevo pedido",
 };
 
-/** Las mutaciones de pedidos son de administración (RBAC). */
 export default function NewOrderRoute() {
   return (
     <ProtectedRoute requiredRole="admin">

@@ -9,10 +9,6 @@ import type {
   MaterialUpdatePayload,
 } from "@/types/calc";
 
-// Service de materiales de la calculadora de costos (RF-P2CC-01..05).
-// Mismo patrón que calcSettingsService: fetch directo con apiFetch (sin
-// react-query), helpers locales buildQuery/jsonOptions/deleteViaApiFetch
-// (copiados acá; calcSettingsService no se modifica).
 
 function buildQuery(params: Record<string, string | number | undefined>): string {
   const search = new URLSearchParams();
@@ -29,9 +25,6 @@ function jsonOptions(method: string, body: unknown): RequestInit {
   return { method, body: JSON.stringify(body) };
 }
 
-// apiFetch termina siempre con response.json(); un DELETE exitoso responde
-// 204 con body vacío y ese json() lanza SyntaxError. Se traga ese caso
-// concreto como éxito; los errores reales (Error con detail) se re-lanzan.
 async function deleteViaApiFetch(endpoint: string): Promise<void> {
   try {
     await apiFetch(endpoint, { method: "DELETE" });
@@ -41,9 +34,6 @@ async function deleteViaApiFetch(endpoint: string): Promise<void> {
   }
 }
 
-// La API habla centavos enteros (Money, ver api/v1/money.py); la UI trabaja
-// en pesos. La conversión ocurre solo en el borde, acá: pesos → centavos al
-// enviar, centavos → string de pesos ("50.00") al recibir.
 type Cents = number | string | null;
 
 function fromCents(value: Cents): string | null {
@@ -69,7 +59,6 @@ function materialFromApi(material: Material): Material {
 }
 
 export const calcMaterialsService = {
-  // GET /calc/materials?q?,category_id?,supplier_id?,status?,page,page_size.
   async listMaterials(query: MaterialListQuery = {}): Promise<MaterialListResponse> {
     const res = await apiFetch<MaterialListResponse>(
       `/calc/materials${buildQuery({ ...query })}`
@@ -77,13 +66,10 @@ export const calcMaterialsService = {
     return { ...res, items: res.items.map(materialFromApi) };
   },
 
-  // GET /calc/materials/{id}
   async getMaterial(id: string): Promise<Material> {
     return materialFromApi(await apiFetch<Material>(`/calc/materials/${id}`));
   },
 
-  // POST /calc/materials → 201. extra="forbid": el payload nunca lleva
-  // unit_cost ni status (RF-P2CC-02/03).
   async createMaterial(payload: MaterialCreatePayload): Promise<Material> {
     return materialFromApi(
       await apiFetch<Material>(
@@ -93,8 +79,6 @@ export const calcMaterialsService = {
     );
   },
 
-  // PATCH /calc/materials/{id} (exclude_unset): solo campos tocados;
-  // null en purchase_total_price/package_quantity elimina el dato.
   async updateMaterial(
     id: string,
     payload: MaterialUpdatePayload
@@ -107,14 +91,10 @@ export const calcMaterialsService = {
     );
   },
 
-  // DELETE /calc/materials/{id} → 204 / 404 / 409 {"impacted_products": N}
-  // (sin `detail`: apiFetch lo reporta como Error("Network error")).
   deleteMaterial(id: string): Promise<void> {
     return deleteViaApiFetch(`/calc/materials/${id}`);
   },
 
-  // GET /calc/materials/{id}/cost-history?page,page_size (RF-P2CC-04):
-  // más recientes primero (desc).
   async listCostHistory(
     id: string,
     query: { page?: number; page_size?: number } = {}

@@ -1,15 +1,4 @@
-"""Repository para CalcProduct (RF-P4CC-01..08).
 
-CRUD de productos + lineas (materiales con snapshots resueltos por el
-servidor, RF-P4CC-02/05), reemplazo completo de lineas (regla 4),
-soft delete (regla 8), SKU unica case/acento-insensitive (regla 7) y
-versiones append-only del precio (reglas 5/6, RF-P4CC-07).
-"""
-
-# pyright: reportArgumentType=false, reportAttributeAccessIssue=false
-# El ORM usa el estilo Column legacy (mismo que B1-B8): pyright tipa los
-# atributos de instancia como Column[T], no como el valor. En runtime son
-# los valores; el mapeo ORM->dominio pasa por Decimal()/str() explicitos.
 
 from __future__ import annotations
 
@@ -41,8 +30,6 @@ from domain.calc_product import (
     compute_costs,
 )
 
-# Item enriquecido del listado/price-list (RF-P3CC-01/04):
-# (producto, costs del motor, nombre de categoria o None).
 ListRow = tuple[CalcProduct, CalcProductCosts, str | None]
 
 _ZERO = Decimal("0")
@@ -89,7 +76,7 @@ def _product_to_orm(domain: CalcProduct) -> CalcProductORM:
 def _material_line_to_orm(line: CalcProductMaterialLine) -> CalcProductMaterialORM:
     return CalcProductMaterialORM(
         id=line.id,
-        product_id=None,  # se asigna al construir (el dataclass no conoce el producto)
+        product_id=None,
         material_id=line.material_id,
         material_name=line.material_name,
         unit_of_measure_snapshot=line.unit_of_measure_snapshot,
@@ -103,7 +90,7 @@ def _material_line_to_orm(line: CalcProductMaterialLine) -> CalcProductMaterialO
 def _labor_line_to_orm(line: CalcProductLaborLine) -> CalcProductLaborORM:
     return CalcProductLaborORM(
         id=line.id,
-        product_id=None,  # se asigna al construir
+        product_id=None,
         activity_name=line.activity_name,
         hourly_rate=str(line.hourly_rate),
         minutes_required=str(line.minutes_required),
@@ -115,7 +102,7 @@ def _labor_line_to_orm(line: CalcProductLaborLine) -> CalcProductLaborORM:
 def _extra_line_to_orm(line: CalcProductExtraCostLine) -> CalcProductExtraCostORM:
     return CalcProductExtraCostORM(
         id=line.id,
-        product_id=None,  # se asigna al construir
+        product_id=None,
         concept_name=line.concept_name,
         unit_cost=str(line.unit_cost),
         quantity=str(line.quantity),
@@ -160,10 +147,6 @@ def _extra_line_to_domain(orm: CalcProductExtraCostORM) -> CalcProductExtraCostL
 
 
 def _list_sort_key(sort: str):
-    """Clave de orden del listado (RF-P3CC-01, D5): `name` es texto
-    (mismo criterio que el orden SQL B9); `margin` el percent
-    almacenado (columna String -> Decimal); `cost`/`price` los montos
-    calculados por el motor (los montos no estan persistidos)."""
     if sort == "name":
         return lambda row: row[0].name.lower()
     if sort == "margin":
@@ -229,19 +212,7 @@ class SQLCalcProductRepository:
         dir: str = "asc",
         rounding_mode: str = "none",
     ) -> tuple[list[ListRow], int]:
-        """Lista solo no-eliminados con busqueda por nombre Y SKU
-        (accent-fold, D5), filtros y paginacion (RF-P3CC-01).
-
-        Cada item va enriquecido: (producto, costs del motor con el
-        `rounding_mode` dado, nombre de categoria o None). `sort` =
-        name (comportamiento B9 por defecto) | cost | price | margin;
-        cost/price/margin se ordenan en Python sobre el set completo
-        (los montos no estan persistidos) y la paginacion tambien es
-        en Python (escala admin). Ties -> name asc; `dir` invierte
-        solo el campo primario."""
         if sort == "name":
-            # B9 por defecto: orden y paginacion en SQL; los costs se
-            # calculan solo para la pagina pedida.
             filters = self._filters(q, category_id, status_filter)
             total = (
                 await self.session.execute(
@@ -282,9 +253,6 @@ class SQLCalcProductRepository:
         page_size: int | None,
         rounding_mode: str,
     ) -> tuple[list[ListRow], int]:
-        """Price list (RF-P3CC-04): solo productos activos no
-        eliminados, con la misma busqueda/filtro de `list`, orden fijo
-        por nombre (D5). `page_size=None` devuelve el set completo."""
         rows, total = await self._matched_rows(q, category_id, "active", rounding_mode)
         if page_size is None:
             return rows, total
@@ -294,9 +262,6 @@ class SQLCalcProductRepository:
     async def dashboard_data(
         self, rounding_mode: str
     ) -> tuple[dict[str, int], list[tuple[CalcProduct, CalcProductCosts]]]:
-        """Datos crudos del dashboard (RF-P3CC-05): counts de
-        productos no eliminados por status + los activos con sus costs
-        ya calculados por el motor con el `rounding_mode` dado."""
         base = CalcProductORM.deleted_at.is_(None)
         count_rows = await self.session.execute(
             select(CalcProductORM.status, func.count())
@@ -330,9 +295,6 @@ class SQLCalcProductRepository:
         status_filter: str | None,
         rounding_mode: str,
     ) -> tuple[list[ListRow], int]:
-        """Todas las filas que matchean los filtros (sin paginacion),
-        cada una con sus costs del motor y el nombre de su categoria;
-        orden base por nombre (func.lower), igual que B9."""
         filters = self._filters(q, category_id, status_filter)
         count_stmt = (
             select(func.count()).select_from(CalcProductORM).where(*filters)
@@ -374,8 +336,6 @@ class SQLCalcProductRepository:
     async def _enrich(
         self, orms: list[CalcProductORM], rounding_mode: str
     ) -> list[ListRow]:
-        """Producto + costs del motor + categoria, conservando el orden
-        recibido; las lineas se cargan con IN (...) (3 consultas)."""
         category_names = await self._category_names()
         lines = await self._lines_for([str(o.id) for o in orms])
         enriched: list[ListRow] = []
@@ -397,8 +357,6 @@ class SQLCalcProductRepository:
         return enriched
 
     async def _lines_for(self, product_ids: list[str]) -> dict[str, tuple]:
-        """Lineas de varios productos (una consulta por tipo, por
-        lotes), ordenadas por sort_order, agrupadas por producto."""
         result: dict[str, tuple] = {pid: ([], [], []) for pid in product_ids}
         specs = (
             (CalcProductMaterialORM, _material_line_to_domain, 0),
@@ -424,8 +382,6 @@ class SQLCalcProductRepository:
         return result
 
     async def _category_names(self) -> dict[str, str]:
-        """Id -> nombre de las categorias de producto (una sola
-        consulta, para enriquecer el item del listado/price-list)."""
         rows = (
             (await self.session.execute(select(CalcProductCategoryORM)))
             .scalars()
@@ -434,7 +390,6 @@ class SQLCalcProductRepository:
         return {str(row.id): str(row.name) for row in rows}
 
     async def get(self, product_id: str) -> CalcProduct | None:
-        """Detalle; eliminados -> None (regla 8)."""
         result = await self.session.execute(
             select(CalcProductORM).where(
                 CalcProductORM.id == product_id,
@@ -445,11 +400,6 @@ class SQLCalcProductRepository:
         return _product_to_domain(orm) if orm else None
 
     async def get_material(self, material_id: str) -> CalcMaterial | None:
-        """Material en dominio para resolver snapshots (RF-P4CC-02).
-
-        Mismo mapeo que `SQLCalcMaterialRepository.get`: `unit_cost`
-        derivada en el dominio (incomplete -> None -> snapshot 0.00, D4).
-        """
         result = await self.session.execute(
             select(CalcMaterialORM).where(CalcMaterialORM.id == material_id)
         )
@@ -459,7 +409,6 @@ class SQLCalcProductRepository:
     async def get_materials(
         self, material_ids: list[str]
     ) -> dict[str, CalcMaterial]:
-        """Materiales actuales por id (para recalcular snapshots)."""
         if not material_ids:
             return {}
         rows = (
@@ -478,8 +427,6 @@ class SQLCalcProductRepository:
     async def find_sku_owner(
         self, sku: str, exclude_product_id: str | None = None
     ) -> CalcProductORM | None:
-        """Propietario vigente de un SKU (regla 7): unico entre no
-        eliminados, case/acento-insensitive (accent_fold)."""
         folded = accent_fold(sku) or sku
         filters = [
             func.accent_fold(CalcProductORM.sku) == folded,
@@ -500,7 +447,6 @@ class SQLCalcProductRepository:
         list[CalcProductLaborLine],
         list[CalcProductExtraCostLine],
     ]:
-        """Lineas del producto, por tipo, ordenadas por sort_order."""
         material_rows = (
             (
                 await self.session.execute(
@@ -547,10 +493,7 @@ class SQLCalcProductRepository:
         labor_lines: list[CalcProductLaborLine],
         extra_lines: list[CalcProductExtraCostLine],
     ) -> CalcProduct:
-        """Producto + lineas en una sola transaccion (regla 4)."""
         self.session.add(_product_to_orm(product))
-        # Flush para que la fila padre exista antes que las lineas hija
-        # (FK product_id); Postgres lo exige, SQLite no.
         await self.session.flush()
         for line in material_lines:
             orm = _material_line_to_orm(line)
@@ -574,9 +517,6 @@ class SQLCalcProductRepository:
         labor_lines: list[CalcProductLaborLine] | None,
         extra_lines: list[CalcProductExtraCostLine] | None,
     ) -> CalcProduct | None:
-        """Edita el producto y reemplaza el set completo de lineas de
-        los tipos enviados (regla 4: None = no cambia, lista =
-        borrar viejas + insertar nuevas) en el mismo commit."""
         result = await self.session.execute(
             select(CalcProductORM).where(
                 CalcProductORM.id == product.id,
@@ -643,12 +583,6 @@ class SQLCalcProductRepository:
             self.session.add(orm)
 
     async def soft_delete(self, product_id: str) -> CalcProduct | None:
-        """Soft delete (regla 8): setea deleted_at; nunca borra la fila
-        ni las versiones.
-
-        Regla 9: las lineas de material pierden la referencia a
-        calc_materials (material_id -> NULL) para que el material pueda
-        borrarse; los snapshots historicos se conservan."""
         result = await self.session.execute(
             select(CalcProductORM).where(
                 CalcProductORM.id == product_id,
@@ -668,7 +602,6 @@ class SQLCalcProductRepository:
         return _product_to_domain(orm)
 
     async def list_active(self) -> list[CalcProduct]:
-        """Productos `active` no eliminados (recalculate-all, RF-P3CC-03)."""
         orms = (
             (
                 await self.session.execute(
@@ -691,9 +624,6 @@ class SQLCalcProductRepository:
         extra_lines: list[CalcProductExtraCostLine],
         last_recalculated_at: datetime,
     ) -> CalcProduct | None:
-        """Persiste los valores recalculados de las lineas existentes
-        (por id) y `last_recalculated_at`. No hace commit: lo hace
-        `commit()` junto con `add_version` (misma transaccion)."""
         result = await self.session.execute(
             select(CalcProductORM).where(
                 CalcProductORM.id == product_id,
@@ -724,8 +654,6 @@ class SQLCalcProductRepository:
     async def add_version(
         self, product_id: str, costs: CalcProductCosts
     ) -> None:
-        """Agrega la siguiente version append-only del precio
-        (RF-P4CC-07). No hace commit (ver `commit()`)."""
         version_number = await self._next_version_number(product_id)
         self.session.add(
             CalcProductVersionORM(
@@ -761,7 +689,6 @@ class SQLCalcProductRepository:
     async def list_versions(
         self, product_id: str, page: int, page_size: int
     ) -> tuple[list[CalcProductVersion], int]:
-        """Versiones paginadas, mas recientes primero (RF-P4CC-07)."""
         filters = [CalcProductVersionORM.product_id == product_id]
         count_stmt = (
             select(func.count())

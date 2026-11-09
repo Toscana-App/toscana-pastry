@@ -1,9 +1,3 @@
-"""Repository de envios WhatsApp (RF-P10-07/08, C7).
-
-Mapeo ORM↔dominio y operaciones: list con filtros (status, rango de
-fechas, paginacion, orden desc por sent_at), stats por ventana y
-conteo por provider desde una fecha (budget RNF-P10-06).
-"""
 
 from __future__ import annotations
 
@@ -17,10 +11,6 @@ from domain.whatsapp_send import WhatsAppSend
 
 
 def _aware(value: datetime.datetime | None) -> datetime.datetime | None:
-    """SQLite devuelve datetimes naive; el contrato de dominio es UTC aware.
-
-    Normaliza a aware-UTC cuando el backend (SQLite) no preserva el tzinfo.
-    """
     if value is None:
         return None
     if value.tzinfo is None:
@@ -29,19 +19,19 @@ def _aware(value: datetime.datetime | None) -> datetime.datetime | None:
 
 
 def _to_domain(orm: WhatsAppSendORM) -> WhatsAppSend:
-    return WhatsAppSend(  # type: ignore[arg-type]
-        id=orm.id,  # type: ignore[arg-type]
-        provider=orm.provider,  # type: ignore[arg-type]
-        phone=orm.phone,  # type: ignore[arg-type]
-        message=orm.message,  # type: ignore[arg-type]
-        reference_kind=orm.reference_kind,  # type: ignore[arg-type]
-        reference_id=orm.reference_id,  # type: ignore[arg-type]
-        sent_at=_aware(orm.sent_at),  # type: ignore[arg-type]
-        status=orm.status,  # type: ignore[arg-type]
-        message_id=orm.message_id,  # type: ignore[arg-type]
-        failed_reason=orm.failed_reason,  # type: ignore[arg-type]
-        delivered_at=_aware(orm.delivered_at),  # type: ignore[arg-type]
-        read_at=_aware(orm.read_at),  # type: ignore[arg-type]
+    return WhatsAppSend(
+        id=orm.id,
+        provider=orm.provider,
+        phone=orm.phone,
+        message=orm.message,
+        reference_kind=orm.reference_kind,
+        reference_id=orm.reference_id,
+        sent_at=_aware(orm.sent_at),
+        status=orm.status,
+        message_id=orm.message_id,
+        failed_reason=orm.failed_reason,
+        delivered_at=_aware(orm.delivered_at),
+        read_at=_aware(orm.read_at),
     )
 
 
@@ -63,7 +53,6 @@ def _to_orm(domain: WhatsAppSend) -> WhatsAppSendORM:
 
 
 class SQLWhatsAppSendRepository:
-    """SQL repository for WhatsAppSend entities."""
 
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -74,24 +63,23 @@ class SQLWhatsAppSendRepository:
         return send
 
     async def update(self, send: WhatsAppSend) -> WhatsAppSend:
-        """Persiste un envio actualizado (estado/timestamps)."""
         result = await self.session.execute(
             select(WhatsAppSendORM).where(WhatsAppSendORM.id == send.id)
         )
         orm = result.scalars().first()
         if orm is None:
             return send
-        orm.provider = send.provider  # type: ignore[assignment]
-        orm.phone = send.phone  # type: ignore[assignment]
-        orm.message = send.message  # type: ignore[assignment]
-        orm.reference_kind = send.reference_kind  # type: ignore[assignment]
-        orm.reference_id = send.reference_id  # type: ignore[assignment]
-        orm.sent_at = send.sent_at  # type: ignore[assignment]
-        orm.status = send.status  # type: ignore[assignment]
-        orm.message_id = send.message_id  # type: ignore[assignment]
-        orm.failed_reason = send.failed_reason  # type: ignore[assignment]
-        orm.delivered_at = send.delivered_at  # type: ignore[assignment]
-        orm.read_at = send.read_at  # type: ignore[assignment]
+        orm.provider = send.provider
+        orm.phone = send.phone
+        orm.message = send.message
+        orm.reference_kind = send.reference_kind
+        orm.reference_id = send.reference_id
+        orm.sent_at = send.sent_at
+        orm.status = send.status
+        orm.message_id = send.message_id
+        orm.failed_reason = send.failed_reason
+        orm.delivered_at = send.delivered_at
+        orm.read_at = send.read_at
         await self.session.commit()
         return send
 
@@ -111,7 +99,6 @@ class SQLWhatsAppSendRepository:
         page: int = 1,
         page_size: int = 50,
     ) -> tuple[list[WhatsAppSend], int]:
-        """Lista envios con filtros ?status, ?from, ?to (paginado, desc)."""
         filters = []
         if status:
             filters.append(WhatsAppSendORM.status == status)
@@ -138,7 +125,6 @@ class SQLWhatsAppSendRepository:
         return [_to_domain(r) for r in rows], total
 
     async def stats(self, *, window_days: int = 30) -> dict[str, int]:
-        """Agrega envios por estado en la ultima ventana (dias)."""
         since = (
             datetime.datetime.now(datetime.UTC)
             - datetime.timedelta(days=window_days)
@@ -162,7 +148,6 @@ class SQLWhatsAppSendRepository:
     async def count_provider_since(
         self, *, provider: str, since: datetime.datetime
     ) -> int:
-        """Cuenta envios de un provider desde una fecha (budget RNF-P10-06)."""
         result = await self.session.execute(
             select(func.count())
             .select_from(WhatsAppSendORM)

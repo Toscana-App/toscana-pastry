@@ -24,7 +24,6 @@ class AuthenticateUser:
 
         user = await self.user_repository.get_by_email(email)
         if not user:
-            # Magic link: el alta se completa acá, el envío del mail es otro caso de uso.
             user = User(email=email)
             await self.user_repository.save(user)
         return user

@@ -1,8 +1,4 @@
-"""Repository para CalcSupplier (RF-P5CC-05)."""
 
-# pyright: reportArgumentType=false, reportAttributeAccessIssue=false
-# El ORM usa el estilo Column legacy (mismo que B1-B10): pyright tipa los
-# atributos de instancia como Column[T], no como el valor.
 from __future__ import annotations
 
 from sqlalchemy import func, select
@@ -14,15 +10,15 @@ from domain.calc_settings import CalcSupplier
 
 
 def _to_domain(orm: CalcSupplierORM) -> CalcSupplier:
-    return CalcSupplier(  # type: ignore[arg-type]
-        id=orm.id,  # type: ignore[arg-type]
-        name=orm.name,  # type: ignore[arg-type]
-        contact_name=orm.contact_name,  # type: ignore[arg-type]
-        phone=orm.phone,  # type: ignore[arg-type]
-        email=orm.email,  # type: ignore[arg-type]
-        notes=orm.notes,  # type: ignore[arg-type]
-        created_at=orm.created_at,  # type: ignore[arg-type]
-        updated_at=orm.updated_at,  # type: ignore[arg-type]
+    return CalcSupplier(
+        id=orm.id,
+        name=orm.name,
+        contact_name=orm.contact_name,
+        phone=orm.phone,
+        email=orm.email,
+        notes=orm.notes,
+        created_at=orm.created_at,
+        updated_at=orm.updated_at,
     )
 
 
@@ -116,8 +112,6 @@ class SQLCalcSupplierRepository:
         return _to_domain(orm)
 
     async def count_in_use(self, supplier_id: str) -> int:
-        """Materiales que referencian este proveedor (FK real en
-        calc_materials.supplier_id, B8)."""
         stmt = select(func.count()).select_from(CalcMaterialORM).where(
             CalcMaterialORM.supplier_id == supplier_id
         )

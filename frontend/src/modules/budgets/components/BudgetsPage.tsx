@@ -25,7 +25,6 @@ import { BUDGET_STATUS_LABELS, BUDGET_STATUSES, type BudgetStatus } from "../typ
 
 const PAGE_SIZE = 20;
 
-/** Color del badge por estado (RF-P8-05). */
 const STATUS_COLORS: Record<BudgetStatus, "blue" | "green"> = {
   borrador: "blue",
   enviado: "green",
@@ -41,12 +40,6 @@ function formatDate(iso: string): string {
   });
 }
 
-/**
- * Listado de presupuestos (Fase 7, RF-P8-06) — /presupuestos.
- *
- * Filtros combinables: búsqueda por cliente/seq (debounce 250 ms), estado
- * y rango de fechas. Paginación server-side (20/página). Creación solo admin.
- */
 export function BudgetsPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
@@ -74,8 +67,6 @@ export function BudgetsPage() {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  // Export del listado (Fase 5): baja el reporte con los filtros activos
-  // (estado y rango de fechas) en CSV o PDF.
   const handleExport = (format: "csv" | "pdf") => {
     setExporting(true);
     setExportError(null);

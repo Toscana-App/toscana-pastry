@@ -29,14 +29,6 @@ class UserRoleEnum(StrEnum):
 
 
 class _UserRoleColumn(TypeDecorator):
-    """Stores the user role as a lowercase string.
-
-    Replaces SQLAlchemyEnum to avoid the footgun where legacy uppercase
-    values (e.g. "ADMIN" from old backups or hand-edited rows) raise
-    LookupError during ORM loading.  The column stores plain TEXT in the
-    database and normalises every value to lowercase on read, so
-    _to_domain can safely do ``UserRole(raw_value)``.
-    """
 
     impl = String(50)
     cache_ok = True
@@ -60,12 +52,6 @@ class UserORM(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.UTC))
 
 class BusinessSettingsORM(Base):
-    """Parametros de precio. Un solo registro: la app es monotenante.
-
-    Los montos se guardan como TEXT (no float): SQLite no tiene tipo decimal
-    y convertir por float pierde precision, que en dinero no se tolera
-    (RNF-P4-02). El dominio trabaja siempre con Decimal.
-    """
     __tablename__ = "business_settings"
     id = Column(Integer, primary_key=True, autoincrement=True)
     hourly_rate = Column(String, nullable=False)
@@ -81,16 +67,12 @@ class BusinessSettingsORM(Base):
     default_prep_minutes = Column(Integer, default=30, nullable=False)
     default_servings = Column(Integer, default=6, nullable=False)
     default_difficulty = Column(String, default="simple", nullable=False)
-    # Fase 8 (P9): branding del PDF (solo texto; sin upload de logo en v1).
     business_name = Column(String, default="", nullable=False)
     footer_text = Column(String, default="", nullable=False)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.UTC))
 
 
 class IngredientORM(Base):
-    """Insumo. Los montos/cantidades viajan como TEXT: SQLite no tiene tipo
-    decimal y el float pierde precision que en dinero no se tolera (RNF-P4-02).
-    `deleted_at` no nulo = soft delete (UC-05)."""
 
     __tablename__ = "ingredients"
     id = Column(String, primary_key=True)
@@ -108,7 +90,6 @@ class IngredientORM(Base):
 
 
 class StockMovementORM(Base):
-    """Movimiento de stock. Historial inmutable: solo INSERT (RF-P2-04)."""
 
     __tablename__ = "stock_movements"
     id = Column(String, primary_key=True)
@@ -122,8 +103,6 @@ class StockMovementORM(Base):
 
 
 class ProductORM(Base):
-    """Producto de catalogo (Fase 5). Money/qty como TEXT (RNF-P4-02).
-    deleted_at no nulo = borrado suave (UC-07)."""
 
     __tablename__ = "products"
     id = Column(String, primary_key=True)
@@ -133,6 +112,8 @@ class ProductORM(Base):
     prep_time_min = Column(Integer, nullable=False, default=0)
     servings = Column(Integer, nullable=False, default=1)
     difficulty = Column(String, nullable=False, default="simple")
+    available = Column(Boolean, nullable=False, default=False, index=True)
+    image_url = Column(String, nullable=True)
     deleted_at = Column(DateTime(timezone=True), nullable=True)
     recipe_items = relationship(
         "RecipeItemORM",
@@ -143,8 +124,6 @@ class ProductORM(Base):
 
 
 class RecipeItemORM(Base):
-    """Linea de receta: insumo + cantidad en su propia unidad. `position`
-    conserva el orden que el usuario eligio."""
 
     __tablename__ = "recipe_items"
     id = Column(String, primary_key=True)
@@ -156,15 +135,9 @@ class RecipeItemORM(Base):
     unit = Column(String, nullable=False)
     position = Column(Integer, nullable=False, default=0)
 
-# ---------------------------------------------------------------------------
-# Fase 6 (P6): clientes y pedidos
-# ---------------------------------------------------------------------------
 
 
 class CustomerORM(Base):
-    """Cliente del pedido (nombre + telefono). Dedup por (name_norm,
-    phone_norm): mismo criterio de plegado que la busqueda con acentos
-    (RF-P6-08). Sin borrado: el historial no se rompe."""
 
     __tablename__ = "customers"
     id = Column(String, primary_key=True)
@@ -172,7 +145,7 @@ class CustomerORM(Base):
     phone = Column(String, nullable=False)
     name_norm = Column(String, nullable=False, index=True)
     phone_norm = Column(String, nullable=False)
-    delivery_address = Column(String, nullable=True)  # RF-P7-06
+    delivery_address = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False)
     __table_args__ = (
         {"extend_existing": True},
@@ -180,7 +153,6 @@ class CustomerORM(Base):
 
 
 class OrderEventORM(Base):
-    """Evento audit del pedido (whatsapp, etc). Solo INSERT: historial."""
 
     __tablename__ = "order_events"
     id = Column(String, primary_key=True)
@@ -190,15 +162,9 @@ class OrderEventORM(Base):
     created_at = Column(DateTime(timezone=True), nullable=False)
 
 
-# ---------------------------------------------------------------------------
-# Fase 7 (P7/P8): presupuestos
-# ---------------------------------------------------------------------------
 
 
 class TenantSequenceORM(Base):
-    """Secuencia por tenant (monotenante: una sola fila por key).
-    `current` crece en la misma transaccion que el presupuesto: sin reuso
-    tras borrado (RNF-P8-04)."""
 
     __tablename__ = "tenant_sequences"
     key = Column(String, primary_key=True)
@@ -206,9 +172,6 @@ class TenantSequenceORM(Base):
 
 
 class BudgetORM(Base):
-    """Presupuesto. Money como TEXT (RNF-P4-02). `margin_pct` nulo =
-    tenant (el override ya se aplico al derivar unit_selling de cada
-    item: los totales se derivan en lectura, nunca se persisten)."""
 
     __tablename__ = "budgets"
     id = Column(String, primary_key=True)
@@ -216,15 +179,14 @@ class BudgetORM(Base):
     customer_id = Column(
         String, ForeignKey("customers.id"), nullable=False, index=True
     )
-    customer_name = Column(String, nullable=False, index=True)  # snapshot
-    customer_phone = Column(String, nullable=False)  # snapshot
-    delivery_address = Column(String, nullable=True)  # snapshot (RF-P7-06)
+    customer_name = Column(String, nullable=False, index=True)
+    customer_phone = Column(String, nullable=False)
+    delivery_address = Column(String, nullable=True)
     status = Column(String, nullable=False, default="borrador", index=True)
     calculation_mode = Column(String, nullable=False, default="cost_plus")
-    margin_pct = Column(String, nullable=True)  # override; nulo = tenant
+    margin_pct = Column(String, nullable=True)
     version = Column(Integer, nullable=False, default=0)
     sent_at = Column(DateTime(timezone=True), nullable=True)
-    # Pedido creado al convertir; nulo = aun no convertido (RF-P8-08).
     order_id = Column(
         String, ForeignKey("orders.id", ondelete="SET NULL"), nullable=True, index=True
     )
@@ -239,14 +201,12 @@ class BudgetORM(Base):
 
 
 class BudgetItemORM(Base):
-    """Linea de presupuesto con costo/precio derivados y congelados al
-    momento de la escritura (la lectura no vuelve al catalogo)."""
 
     __tablename__ = "budget_items"
     id = Column(String, primary_key=True)
     budget_id = Column(String, ForeignKey("budgets.id"), nullable=False, index=True)
     product_id = Column(String, nullable=False, index=True)
-    product_name = Column(String, nullable=False)  # snapshot
+    product_name = Column(String, nullable=False)
     qty = Column(Integer, nullable=False)
     unit_cost = Column(String, nullable=False)
     unit_selling = Column(String, nullable=False)
@@ -255,26 +215,18 @@ class BudgetItemORM(Base):
 
 
 class BudgetVersionORM(Base):
-    """Snapshot inmutable de una version enviada (RF-P8-05). Solo INSERT:
-    historial de reenvios."""
 
     __tablename__ = "budget_versions"
     id = Column(String, primary_key=True)
     budget_id = Column(String, ForeignKey("budgets.id"), nullable=False, index=True)
     version = Column(Integer, nullable=False)
-    snapshot = Column(Text, nullable=False)  # JSON (customer, items, totals)
+    snapshot = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False)
 
 
-# ---------------------------------------------------------------------------
-# Fase 8 (P9/P10): PDF de presupuesto + auditoría WhatsApp
-# ---------------------------------------------------------------------------
 
 
 class BudgetDocumentORM(Base):
-    """PDF generado de un presupuesto (P9). Clave (budget_id, content_hash):
-    una fila vigente por presupuesto; editado el contenido → hash nuevo →
-    la fila se reemplaza (no se conservan versiones del documento)."""
 
     __tablename__ = "budget_documents"
     id = Column(String, primary_key=True)
@@ -288,9 +240,6 @@ class BudgetDocumentORM(Base):
 
 
 class BudgetEventORM(Base):
-    """Evento de auditoría de presupuesto (whatsapp, ...). Solo INSERT:
-    historial (misma política que order_events, Fase 6). El teléfono se
-    guarda ENMASCARADO (RNF-P10-05)."""
 
     __tablename__ = "budget_events"
     id = Column(String, primary_key=True)
@@ -300,10 +249,6 @@ class BudgetEventORM(Base):
     created_at = Column(DateTime(timezone=True), nullable=False)
 
 class CalcSettingsORM(Base):
-    """Configuracion de la calculadora de costos (singleton, RF-P5CC-01/02).
-
-    Montos como TEXT (no float): SQLite no tiene decimal y float pierde precision.
-    """
 
     __tablename__ = "calc_settings"
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -318,7 +263,6 @@ class CalcSettingsORM(Base):
 
 
 class CalcMaterialCategoryORM(Base):
-    """Categoria de materiales (RF-P5CC-03)."""
 
     __tablename__ = "calc_material_categories"
     id = Column(String, primary_key=True)
@@ -338,7 +282,6 @@ class CalcMaterialCategoryORM(Base):
 
 
 class CalcProductCategoryORM(Base):
-    """Categoria de productos (RF-P5CC-04)."""
 
     __tablename__ = "calc_product_categories"
     id = Column(String, primary_key=True)
@@ -358,7 +301,6 @@ class CalcProductCategoryORM(Base):
 
 
 class CalcSupplierORM(Base):
-    """Proveedor (RF-P5CC-05)."""
 
     __tablename__ = "calc_suppliers"
     id = Column(String, primary_key=True)
@@ -381,11 +323,8 @@ class CalcSupplierORM(Base):
 
 
 class CustomerAddressORM(Base):
-    """Direccion de entrega de un cliente (RF-P11-09). Exactamente una
-    is_default=True por user_id (invariant a nivel de dominio)."""
 
     __tablename__ = "customer_addresses"
-    # At most one default per user, enforced by the DB (partial unique index).
     __table_args__ = (
         Index(
             "uq_customer_addresses_one_default_per_user",
@@ -420,13 +359,6 @@ class CustomerAddressORM(Base):
 
 
 class CouponORM(Base):
-    """Cupon de descuento (RF-P11-14, C3).
-
-    Unicidad case/accent-insensitive de `code` via `code_key`: columna
-    persistida con accent_fold(code) (la calcula el repositorio) y
-    UNIQUE a nivel DB (migracion 0002). `value` se guarda como str
-    (Money). C4 consumira `uses`/`max_uses` al confirmar pedidos.
-    """
 
     __tablename__ = "coupons"
     id: Mapped[str] = mapped_column(String, primary_key=True)
@@ -459,13 +391,6 @@ class CouponORM(Base):
 
 
 class CalcMaterialORM(Base):
-    """Material de la calculadora de costos (RF-P2CC-01).
-
-    Montos/cantidades como TEXT (no float): SQLite no tiene tipo decimal
-    y convertir por float pierde precision, que en dinero no se tolera
-    (RNF-P5CC-01). `unit_cost`/`status` son derivados del servidor
-    (RF-P2CC-02/03). None en precio o cantidad = "sin dato" -> `incomplete`.
-    """
 
     __tablename__ = "calc_materials"
     id = Column(String, primary_key=True)
@@ -497,10 +422,6 @@ class CalcMaterialORM(Base):
 
 
 class CalcMaterialCostHistoryORM(Base):
-    """Historial append-only de costo unitario por material (RF-P2CC-04).
-
-    Solo INSERT, nunca UPDATE/DELETE (estilo StockMovementORM, RF-P2-04).
-    """
 
     __tablename__ = "calc_material_cost_history"
     id = Column(String, primary_key=True)
@@ -513,12 +434,6 @@ class CalcMaterialCostHistoryORM(Base):
 
 
 class CalcProductORM(Base):
-    """Producto de la calculadora de costos (RF-P4CC-01).
-
-    Montos como TEXT (no float): SQLite no tiene tipo decimal y
-    convertir por float pierde precision, que en dinero no se tolera
-    (RNF-P5CC-01). `deleted_at` no nulo = soft delete (regla 8).
-    """
 
     __tablename__ = "calc_products"
     id = Column(String, primary_key=True)
@@ -551,8 +466,6 @@ class CalcProductORM(Base):
 
 
 class CalcProductMaterialORM(Base):
-    """Linea de material con snapshots resueltos por el servidor
-    (RF-P4CC-02, security #8). Montos/cantidades como TEXT."""
 
     __tablename__ = "calc_product_materials"
     id = Column(String, primary_key=True)
@@ -571,7 +484,6 @@ class CalcProductMaterialORM(Base):
 
 
 class CalcProductLaborORM(Base):
-    """Linea de mano de obra (RF-P4CC-02). Montos como TEXT."""
 
     __tablename__ = "calc_product_labor"
     id = Column(String, primary_key=True)
@@ -586,7 +498,6 @@ class CalcProductLaborORM(Base):
 
 
 class CalcProductExtraCostORM(Base):
-    """Linea de costo extra (RF-P4CC-02). Montos/cantidades como TEXT."""
 
     __tablename__ = "calc_product_extra_costs"
     id = Column(String, primary_key=True)
@@ -601,10 +512,6 @@ class CalcProductExtraCostORM(Base):
 
 
 class CalcProductVersionORM(Base):
-    """Version append-only del precio del producto (RF-P4CC-07).
-
-    Solo INSERT, nunca UPDATE/DELETE. Montos como TEXT (centavos).
-    """
 
     __tablename__ = "calc_product_versions"
     __table_args__ = (
@@ -629,7 +536,6 @@ class CalcProductVersionORM(Base):
 
 
 class CalcDefaultCostORM(Base):
-    """Costo por defecto (RF-P5CC-06)."""
 
     __tablename__ = "calc_default_costs"
     id = Column(String, primary_key=True)
@@ -651,13 +557,9 @@ class CalcDefaultCostORM(Base):
     )
 
 
-# ─── Cart models (RF-P11-03/14, C4) ─────────────────────────────────
 
 
 class CartORM(Base):
-    """Carrito server-side por usuario (RF-P11-03). Un registro por user;
-    `coupon_code` es el cupon aplicado (max 1 por carrito). El precio NO
-    se persiste: solo product_id + qty (RNF-P11-03)."""
 
     __tablename__ = "cart"
     user_id: Mapped[str] = mapped_column(
@@ -673,7 +575,6 @@ class CartORM(Base):
 
 
 class CartItemORM(Base):
-    """Linea del carrito: (user_id, product_id) unico."""
 
     __tablename__ = "cart_items"
     user_id: Mapped[str] = mapped_column(
@@ -688,11 +589,9 @@ class CartItemORM(Base):
     )
 
 
-# ─── Order models (RF-P6-12, C1) ─────────────────────────────────────
 
 
 class _OrderStatusColumn(TypeDecorator):
-    """Stores order status as a lowercase string."""
 
     impl = String(20)
     cache_ok = True
@@ -704,7 +603,6 @@ class _OrderStatusColumn(TypeDecorator):
 
 
 class _PaymentMethodColumn(TypeDecorator):
-    """Stores payment_method as a lowercase string."""
 
     impl = String(20)
     cache_ok = True
@@ -716,7 +614,6 @@ class _PaymentMethodColumn(TypeDecorator):
 
 
 class _PaymentStatusColumn(TypeDecorator):
-    """Stores payment_status as a lowercase string."""
 
     impl = String(20)
     cache_ok = True
@@ -728,7 +625,6 @@ class _PaymentStatusColumn(TypeDecorator):
 
 
 class OrderORM(Base):
-    """Order entity with payment tracking and portal fields (RF-P6-12 / RF-P11-06/08)."""
 
     __tablename__ = "orders"
 
@@ -750,17 +646,15 @@ class OrderORM(Base):
         default=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
-    # P6 (admin): snapshot del cliente + margen override + auditoria WhatsApp.
     customer_name = Column(String, nullable=True, index=True)
     customer_phone = Column(String, nullable=True)
-    margin_pct = Column(String, nullable=True)  # override; nulo = tenant
+    margin_pct = Column(String, nullable=True)
     whatsapp_sent_at = Column(DateTime(timezone=True), nullable=True)
     updated_at = Column(DateTime(timezone=True), nullable=True)
     order_items = relationship("OrderItemORM", back_populates="order", cascade="all, delete-orphan")
 
 
 class OrderWindowORM(Base):
-    """Singleton configuration for the portal order window (RF-P5-07)."""
 
     __tablename__ = "order_window"
 
@@ -771,7 +665,6 @@ class OrderWindowORM(Base):
 
 
 class OrderItemORM(Base):
-    """Order line item snapshot."""
 
     __tablename__ = "order_items"
 
@@ -785,7 +678,6 @@ class OrderItemORM(Base):
     quantity = Column(Integer, nullable=False)
     unit_price = Column(String, nullable=True)
     portion_note = Column(String, default="", nullable=False)
-    # P6 (admin): snapshot congelado del desglose (JSON, RNF-P6-03).
     qty = Column(Integer, nullable=True)
     portions = Column(Integer, nullable=True)
     note = Column(Text, nullable=False, default="")
@@ -794,11 +686,6 @@ class OrderItemORM(Base):
 
 
 class PaymentAttemptORM(Base):
-    """Saved response of POST /orders/{id}/payment per Idempotency-Key (C1.4).
-
-    ``id`` is ``"{order_id}:{idempotency_key}"``; a replay with the same key
-    returns the stored reference/checkout_url instead of a new preference.
-    """
 
     __tablename__ = "payment_attempts"
 
@@ -816,13 +703,6 @@ class PaymentAttemptORM(Base):
 
 
 class PaymentEventORM(Base):
-    """Webhook payment event for dedupe (RF-P6-13, RNF-P6-10).
-
-    ``id`` is ``"{provider_payment_id}:{status}"``: Mercado Pago notifies one
-    payment several times as its status changes (pending → approved), so
-    each (payment, status) pair is recorded exactly once. Replays hit the
-    primary key and return 200 without side effects.
-    """
 
     __tablename__ = "payment_events"
 
@@ -840,12 +720,6 @@ class PaymentEventORM(Base):
 
 
 class LeadORM(Base):
-    """Lead de contacto publico (RF-P11-13, C5).
-
-    Captura formularios de contacto del portal — nombre, email, tipo de
-    cliente, mensaje y campos opcionales.  `read` controla si el admin
-    ya lo reviso.
-    """
 
     __tablename__ = "leads"
 
@@ -866,12 +740,6 @@ class LeadORM(Base):
 
 
 class WhatsAppSendORM(Base):
-    """Registro de envio de WhatsApp (RF-P10-07/08, C7).
-
-    `status` avanza por prioridad sent -> delivered -> read; `failed`
-    es terminal (el reintento lo resetea a sent con nuevo `message_id`).
-    `provider=wa_me` no tiene estados de entrega ni `message_id`.
-    """
 
     __tablename__ = "whatsapp_sends"
 
@@ -897,12 +765,6 @@ class WhatsAppSendORM(Base):
 
 
 class ImportSessionORM(Base):
-    """Sesion de importacion CSV con staging (RF-CSV-01/04/07/11).
-
-    `template_columns` se guarda como JSON serializado en Text (mismo patron
-    que los snapshots de presupuesto). `status` avanza received -> in_review
-    -> confirmed | discarded.
-    """
 
     __tablename__ = "import_sessions"
 
@@ -914,7 +776,7 @@ class ImportSessionORM(Base):
     filename = Column(String, nullable=False)
     delimiter = Column(String, nullable=False)
     encoding = Column(String, nullable=False)
-    template_columns = Column(Text, nullable=False)  # JSON: [col, ...]
+    template_columns = Column(Text, nullable=False)
     total_rows = Column(Integer, nullable=False, default=0)
     valid_rows = Column(Integer, nullable=False, default=0)
     invalid_rows = Column(Integer, nullable=False, default=0)
@@ -927,11 +789,6 @@ class ImportSessionORM(Base):
 
 
 class ImportRowORM(Base):
-    """Fila estadiada de una importacion (RF-CSV-03/08).
-
-    `data` (JSON: {col: valor}) y `errors` (JSON: [msg, ...]) son Text con JSON
-    serializado. `row_number` es 1-indexed (el encabezado no cuenta).
-    """
 
     __tablename__ = "import_rows"
 
@@ -942,8 +799,8 @@ class ImportRowORM(Base):
     tenant_id = Column(String, nullable=False, index=True)
     row_number = Column(Integer, nullable=False)
     status = Column(String, nullable=False, default="valid")
-    data = Column(Text, nullable=False)  # JSON: {col: valor}
-    errors = Column(Text, nullable=False, default="[]")  # JSON: [msg, ...]
+    data = Column(Text, nullable=False)
+    errors = Column(Text, nullable=False, default="[]")
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.datetime.now(datetime.UTC),

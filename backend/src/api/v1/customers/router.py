@@ -1,12 +1,3 @@
-"""Clientes: CRUD de pedidos (Fase 6, P6) + libro de direcciones por
-cliente (RF-P11-09, C2).
-
-- /customers (P6): lectura cualquier autenticado; alta admin. Sin edicion
-  ni borrado: el historial de pedidos no se rompe.
-- /customers/me/addresses (C2): roles CUSTOMER y NEGOCIO (admin no tiene
-  "mis direcciones" -> 403). Anti-sondeo: direcciones ajenas devuelven 404,
-  nunca 403.
-"""
 from contextlib import contextmanager
 from typing import Optional
 
@@ -66,10 +57,8 @@ async def list_customers(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     repo: CustomerRepository = Depends(get_customer_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
-    """Listado con busqueda por nombre (sin acentos) o subcadena de
-    telefono (RF-P6-08)."""
     items, total = await repo.list(q, page, page_size)
     return CustomerListResponse(
         items=[_response(item) for item in items],
@@ -85,8 +74,6 @@ async def create_customer(
     repo: CustomerRepository = Depends(get_customer_repository),
     _admin: User = Depends(require_admin),
 ):
-    """Crea o reutiliza (dedup nombre+telefono). Duplicado: 409 con el
-    cliente existente (RF-P6-08)."""
     try:
         customer = Customer(
             name=payload.name,
@@ -97,9 +84,6 @@ async def create_customer(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     existing, created = await repo.get_or_create(customer)
     if not created:
-        # 409 con el cliente existente en el body (`existing`) + el
-        # header X-Customer-Id (RF-P6-08/RF-P7-03): el wizard muestra la
-        # sugerencia "usar datos existentes" con direccion incluida.
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,
             content={
@@ -115,10 +99,8 @@ async def create_customer(
 async def get_customer(
     customer_id: str,
     repo: CustomerRepository = Depends(get_customer_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
-    """Detalle (lectura, como el listado): prefill del wizard
-    (RF-P7-03/07)."""
     customer = await repo.get(customer_id)
     if customer is None:
         raise HTTPException(
@@ -134,8 +116,6 @@ async def update_customer(
     repo: CustomerRepository = Depends(get_customer_repository),
     _admin: User = Depends(require_admin),
 ):
-    """Actualizacion parcial de la direccion de entrega (RF-P7-06): el
-    wizard persiste la direccion usada en el presupuesto."""
     if not payload.model_dump(exclude_unset=True):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -160,7 +140,6 @@ _NON_NULLABLE_FIELDS = {"street_line_1", "is_default"}
 
 @contextmanager
 def _default_conflict_as_409():
-    """Map a violation of the one-default-per-user unique index to 409."""
     try:
         yield
     except IntegrityError as err:
@@ -190,7 +169,6 @@ async def list_my_addresses(
     repo: CustomerAddressRepository = Depends(get_customer_address_repository),
     current_user: User = Depends(_ADDRESS_GUARD),
 ):
-    """GET /customers/me/addresses: lista el libro del usuario."""
     items = await repo.list_by_user(current_user.id)
     return AddressListResponse(items=[_address_response(item) for item in items])
 
@@ -205,10 +183,6 @@ async def create_my_address(
     repo: CustomerAddressRepository = Depends(get_customer_address_repository),
     current_user: User = Depends(_ADDRESS_GUARD),
 ):
-    """POST /customers/me/addresses: crea una direccion (max 5, RF-P11-09).
-
-    La primera creada pasa a default (exactly-one-default).
-    """
     await repo.lock_book(current_user.id)
     existing = await repo.list_by_user(current_user.id)
     try:
@@ -223,7 +197,7 @@ async def create_my_address(
                 phone=payload.phone,
             ),
         )
-    except ValueError as err:  # includes AddressLimitExceeded
+    except ValueError as err:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(err)
         ) from err
@@ -243,12 +217,6 @@ async def update_my_address(
     repo: CustomerAddressRepository = Depends(get_customer_address_repository),
     current_user: User = Depends(_ADDRESS_GUARD),
 ):
-    """PATCH /customers/me/addresses/{id}: edita (anti-sondeo: 404 si ajena).
-
-    `is_default=true` demueve la default anterior en la misma transaccion.
-    `is_default=false` sobre la default vigente rompe el invariant
-    exactly-one-default → 422.
-    """
     await repo.lock_book(current_user.id)
     existing = await repo.get_for_user(address_id, current_user.id)
     if existing is None:
@@ -257,8 +225,6 @@ async def update_my_address(
             detail="Direccion no encontrada",
         )
 
-    # exclude_unset distingue "ausente" de null explicito: los opcionales
-    # aceptan null para limpiarse; street_line_1 e is_default no.
     updates = {
         key: value
         for key, value in payload.model_dump(exclude_unset=True).items()
@@ -273,7 +239,7 @@ async def update_my_address(
     new_default: bool | None = updates.pop("is_default", None)
     try:
         updated = apply_changes(existing, updates, set_default=new_default)
-    except ValueError as err:  # includes CannotUnsetDefault
+    except ValueError as err:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(err)
         ) from err
@@ -299,11 +265,6 @@ async def delete_my_address(
     repo: CustomerAddressRepository = Depends(get_customer_address_repository),
     current_user: User = Depends(_ADDRESS_GUARD),
 ):
-    """DELETE /customers/me/addresses/{id}: elimina (anti-sondeo: 404 si ajena).
-
-    Borrar la unica direccion → 409. Al borrar la default, la mas antigua
-    restante (por created_at) hereda el default en la misma transaccion.
-    """
     existing = await repo.get_for_user(address_id, current_user.id)
     if existing is None:
         raise HTTPException(

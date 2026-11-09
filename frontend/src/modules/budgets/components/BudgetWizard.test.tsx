@@ -4,7 +4,6 @@ import userEvent from "@testing-library/user-event";
 import { Provider } from "@/providers/ChakraProvider";
 import { BudgetWizard } from "./BudgetWizard";
 
-/** Pins the PR #15 review fixes in the wizard: row keys and override-only-in-manual. */
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   list: vi.fn(),
@@ -140,7 +139,6 @@ describe("BudgetWizard — dirección de entrega (RF-P7-03/06/07)", () => {
     await user.type(screen.getByLabelText("Teléfono del cliente"), "112233");
     await user.click(screen.getByRole("button", { name: "Continuar" }));
 
-    // Se queda en el paso 1 con la sugerencia; la dirección existente queda prellenada
     const btn = await screen.findByRole("button", { name: "Usar datos existentes" });
     expect(screen.getByLabelText("Dirección de entrega del cliente")).toHaveValue("Av. Rivadavia 100");
     await user.click(btn);
@@ -162,7 +160,6 @@ describe("BudgetWizard — dirección de entrega (RF-P7-03/06/07)", () => {
   it("resumen: persiste la dirección cambiada en el cliente reutilizado (PATCH)", async () => {
     const user = userEvent.setup();
     mocks.updateAddress.mockResolvedValue({ id: "c1", name: "Ana", phone: "1" });
-    // cliente sin dirección + dirección nueva en el wizard → PATCH
     seedDraft("cost_plus", [row(1, "p1")], 3, "Calle Nueva 456", null);
     renderWizard();
 

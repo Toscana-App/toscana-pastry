@@ -1,8 +1,3 @@
-"""Domain validation tests for CalcSettings entities.
-
-Cubre rangos, allow-lists, defaults, validacion de redondeo,
-email de proveedor, y limites de longitud (S1, S2, S3).
-"""
 import pytest
 from decimal import Decimal
 from typing import Literal, cast
@@ -27,7 +22,6 @@ from domain.calc_settings import (
 )
 
 
-# ─── CalcSettings defaults ─────────────────────────────────────────────
 
 class TestCalcSettingsDefaults:
     def test_default_business_name(self):
@@ -62,11 +56,10 @@ class TestCalcSettingsDefaults:
         assert s.rounding_mode == "none"
 
 
-# ─── CalcSettings range validation ─────────────────────────────────────
 
 class TestCalcSettingsRanges:
     def test_valid_defaults(self):
-        CalcSettings()  # should not raise
+        CalcSettings()
 
     def test_margin_0_valid(self):
         CalcSettings(default_margin_percent=Decimal("0"))
@@ -153,11 +146,9 @@ class TestCalcSettingsRanges:
             CalcSettings(main_currency_symbol="")
 
     def _make_settings_with_long_name(self, length: int) -> None:
-        """Helper to create a settings object with a name of given length."""
         CalcSettings(business_name="a" * length)
 
 
-# ─── CalcMaterialCategory ──────────────────────────────────────────────
 
 class TestCalcMaterialCategory:
     def test_minimal_valid(self):
@@ -182,7 +173,6 @@ class TestCalcMaterialCategory:
             CalcMaterialCategory(name="Cat", description="x" * 201)
 
 
-# ─── CalcProductCategory ───────────────────────────────────────────────
 
 class TestCalcProductCategory:
     def test_minimal_valid(self):
@@ -200,7 +190,6 @@ class TestCalcProductCategory:
             CalcProductCategory(name="Cat", description="x" * 201)
 
 
-# ─── CalcSupplier ──────────────────────────────────────────────────────
 
 class TestCalcSupplier:
     def test_minimal_valid(self):
@@ -255,7 +244,6 @@ class TestCalcSupplier:
             CalcSupplier(name="A", notes="x" * 501)
 
 
-# ─── CalcDefaultCost ───────────────────────────────────────────────────
 
 class TestCalcDefaultCost:
     def test_labor_active(self):

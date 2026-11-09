@@ -2,7 +2,7 @@
 Módulo: `web/modules/products` (parte list) · Rutas: `/productos` · Fase: **1**
 
 ## Contexto
-Vitrina de los productos del negocio (tortas, cupcakes, postres) con precios calculados por el motor de costo. En la app original: buscador + chips de categoría + cards con precio.
+Vitrina de los productos del negocio (tortas, cupcakes, postres) con precios calculados por el motor de costo. En la app original: buscador + chips de categoría + cards con precio. Cada producto lleva un **estado de publicación** (`available`): solo los publicados aparecen en la tienda del portal de clientes (P11/P12); los no publicados son visibles únicamente en esta vitrina de admin.
 
 ## User story
 > Como **repostera**, quiero **ver todos mis productos con su precio de venta en un vistazo**, para **saber qué tengo y qué le ofrezco a cada cliente**.
@@ -14,6 +14,7 @@ Vitrina de los productos del negocio (tortas, cupcakes, postres) con precios cal
 - [ ] Tocar una card me lleva al detalle (P4).
 - [ ] Con 0 productos: estado vacío con CTA "Crear tu primer producto".
 - [ ] El precio se recalcula solo cuando cambio receta o costos (Fase 1).
+- [ ] Veo en cada card el estado de publicación ("Disponible en tienda" / "Oculto") y sé exactamente qué ve el cliente en el portal.
 
 ## Casos de uso
 | UC | Actor | Flujo principal |
@@ -31,6 +32,7 @@ Vitrina de los productos del negocio (tortas, cupcakes, postres) con precios cal
 - **RF-P3-05**: Indicador visual de precio "desactualizado" (badge) si la receta tiene insumos sin precio. (UC-05)
 - **RF-P3-07**: Filtro por tag (chips secundarios, combinables entre sí y con categoría): allow-list sugerida (`sin_gluten`, `sin_lacteos`, `sin_azucar`, `sin_lactosa`, `frutos_secos`, `vegano`, `sugar_free`, `bajo_calorias`) + tags libres; tags derivados de los productos existentes. (UC-01)
 - **RF-P3-08**: La card muestra máx. 2 tags + "+n"; el tag completo se ve en el detalle (P4). (UC-03)
+- **RF-P3-09**: Estado de publicación por producto: campo `available` (bool, default `false` — el producto nace oculto). La card lo muestra como badge ("Disponible en tienda" / "Oculto"); el toggle vive en el detalle (P4, RF-P4-09). Publicar un producto incompleto (insumo sin precio) → 409 `missing_ingredients`. Retirar de la tienda no toca pedidos ni presupuestos históricos (snapshots congelados).
 - **RF-P3-06**: Estado vacío: ilustración simple + CTA único "Crear tu primer producto". (UC-04)
 
 ## Requerimientos no funcionales
@@ -40,7 +42,7 @@ Vitrina de los productos del negocio (tortas, cupcakes, postres) con precios cal
 - **RNF-P3-04**: A11y: chip de categoría como `role=tablist` o botones con `aria-pressed`; lista semántica.
 
 ## Tareas
-- [ ] API: `GET /products` (q, category, tags, sort, page) → `{items, total}`
+- [ ] API: `GET /products` (q, category, tags, sort, page) → `{items, total}` · item incluye `available` e `image_url` (P12)
 - [ ] API: `GET /products/tags` (chips de tags con conteo)
 - [ ] Domain: proyección de producto para listado (nombre, categoría, tags, precio_final, stale_flag)
 - [ ] Web: grid de cards (nombre, categoría, precio), skeleton de carga

@@ -33,9 +33,6 @@ interface ProductLinesProps {
   showPreview?: boolean;
 }
 
-/** Preview vivo (F2): totales por fila en pesos. Materiales: qty ×
- * unit_cost del catálogo; trabajo: tarifa × minutos/60; extras:
- * costo × qty. Sin toggle, el componente no muestra totales inventados. */
 export function computeLinePreviews(
   materials: Material[] | undefined,
   materialLines: ProductLineMaterialIn[],
@@ -65,7 +62,6 @@ export function computeLinePreviews(
   return { materialTotals, laborTotals, extraTotals, grandTotal };
 }
 
-// Form for material lines
 function MaterialLineForm({
   onAdd,
   materials,
@@ -134,7 +130,6 @@ function MaterialLineForm({
   );
 }
 
-// Form for labor lines
 function LaborLineForm({
   onAdd,
 }: {
@@ -197,7 +192,6 @@ function LaborLineForm({
   );
 }
 
-// Form for extra cost lines
 function ExtraCostLineForm({
   onAdd,
 }: {
@@ -260,8 +254,6 @@ function ExtraCostLineForm({
   );
 }
 
-// Display component for lines (controlado: las lineas llegan por props;
-// con showPreview se muestran los totales calculados en pesos).
 function LinesDisplay({
   materials,
   materialLines,
@@ -420,9 +412,6 @@ function LinesDisplay({
   );
 }
 
-// Componente controlado (F2): el parent es la fuente de verdad de las
-// líneas; la hidratación desde el GET de detalle llega vía props sin
-// estado interno duplicado que se queda stale.
 export default function ProductLines({
   materials,
   materialLines = [],

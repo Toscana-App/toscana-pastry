@@ -10,6 +10,7 @@ import {
   Flex,
   Heading,
   Input,
+  Switch,
   Table,
   Tabs,
   Text,
@@ -42,24 +43,9 @@ import { RecipeEditor } from "./RecipeEditor";
 
 interface ProductFormPageProps {
   mode: "create" | "edit";
-  /** Solo en modo edit: id del producto a cargar. */
   productId?: string;
 }
 
-/**
- * Alta y edición de producto (Fase 5, P4) — /productos/new y /productos/{id}/edit.
- *
- * Las 4 pestañas de la spec en un solo form (react-hook-form + zod):
- * Información · Ingredientes · Preparación · Costos.
- *
- * - RF-P4-04: el Costos se recalcula con `POST /pricing/preview` (debounce
- *   300 ms) sin guardar; el motor aplica los settings del negocio.
- * - RF-P4-06: errores inline por campo; al enviar, el tab con el primer error
- *   queda seleccionado.
- * - RNF-P4-02: draft en sessionStorage (solo alta) + confirmación al salir
- *   con cambios sin guardar.
- * - RF-P4-07: un insumo sin precio no bloquea el guardado: se advierte.
- */
 export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
   const router = useRouter();
   const isEdit = mode === "edit";
@@ -78,6 +64,7 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
     register,
     handleSubmit,
     reset,
+    setValue,
     watch,
     control,
     formState: { errors, isDirty },
@@ -99,7 +86,6 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
     watch,
   });
 
-  // --- Carga inicial en edicion -------------------------------------------
   useEffect(() => {
     if (!isEdit || !productId) return;
     let cancelled = false;
@@ -119,6 +105,7 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
           )
             ? (detail.difficulty as ProductDifficulty)
             : "simple",
+          available: detail.available,
           recipe: detail.recipe.map((item) => ({
             ingredient_id: item.ingredient_id,
             qty: Number(item.qty),
@@ -144,7 +131,6 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
     };
   }, [isEdit, productId, reset]);
 
-  // --- Salida con cambios sin guardar -------------------------------------
   useEffect(() => {
     if (!isDirty) return;
     function onBeforeUnload(event: BeforeUnloadEvent) {
@@ -155,10 +141,10 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [isDirty]);
 
-  // --- Preview del costo en vivo (RF-P4-04) -------------------------------
   const recipeValues = useWatch({ control, name: "recipe" });
   const prepMinutes = useWatch({ control, name: "prep_time_min" });
   const servings = useWatch({ control, name: "servings" });
+  const availableValue = useWatch({ control, name: "available" });
   const ingredientById = useMemo(
     () => new Map(ingredients.map((item) => [item.id, item])),
     [ingredients],
@@ -200,7 +186,10 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
 
     try {
       if (isEdit && productId) {
-        await productsService.update(productId, payload);
+        await productsService.update(productId, {
+          ...payload,
+          available: values.available ?? false,
+        });
         clearDraft();
         toaster.create({ title: "Cambios guardados", type: "success" });
         router.push(`/productos/${productId}`);
@@ -319,6 +308,44 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
                 />
                 <Field.ErrorText>{errors.description?.message}</Field.ErrorText>
               </Field.Root>
+
+              {isEdit ? (
+                <Flex
+                  align="center"
+                  gap={3}
+                  borderWidth="1px"
+                  borderColor="border"
+                  rounded="md"
+                  p={3}
+                >
+                  <Switch.Root
+                    checked={availableValue ?? false}
+                    onCheckedChange={(details) =>
+                      setValue("available", details.checked, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }
+                  >
+                    <Switch.HiddenInput />
+                    <Switch.Control>
+                      <Switch.Thumb />
+                    </Switch.Control>
+                  </Switch.Root>
+                  <Flex direction="column" gap={0.5}>
+                    <Text fontWeight="500">Disponible en tienda</Text>
+                    <Text fontSize="sm" color="fg.muted">
+                      {availableValue
+                        ? "Los clientes lo ven en el catálogo del portal."
+                        : "Oculto: no aparece en la tienda."}
+                    </Text>
+                  </Flex>
+                </Flex>
+              ) : (
+                <Text fontSize="sm" color="fg.muted">
+                  El producto se crea oculto; se publica desde su detalle.
+                </Text>
+              )}
             </Flex>
           </Tabs.Content>
 
@@ -452,10 +479,6 @@ interface CostsPreviewProps {
   servings: number;
 }
 
-/**
- * Costos en vivo (RF-P4-04/05) con el mismo desglose que el detalle.
- * Mientras no hay líneas válidas muestra una guía, no un total en cero.
- */
 function CostsPreview({
   breakdown,
   previewing,

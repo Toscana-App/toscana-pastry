@@ -1,15 +1,5 @@
 "use client";
 
-/**
- * Skeletons de carga para toda la app, construidos solo con las primitivas
- * de Chakra UI 3.37 (Skeleton, SkeletonText, SkeletonCircle).
- *
- * Los compuestos replican la forma del contenido real (encabezados, tablas,
- * formularios, cards, pasos) para evitar layout shift al cargar.
- * `ShimmerDot` reemplaza al Spinner en acciones en curso (pago, subida,
- * carrito). La prop `loading` de los botones se mantiene: es interacción de
- * formulario, no carga de pantalla.
- */
 
 import type { ReactNode } from "react";
 import {
@@ -23,14 +13,11 @@ import {
   Table,
 } from "@chakra-ui/react";
 
-/* ------------------------------ primitivas ------------------------------ */
 
-/** Barra de texto simulada. */
 export function SkeletonLine({ w = "100%", h = "4" }: { w?: string; h?: string }) {
   return <Skeleton height={h} width={w} />;
 }
 
-/** Campo de formulario: etiqueta + control. */
 export function FieldSkeleton({
   labelWidth = "45%",
   inputHeight = "2.5rem",
@@ -46,7 +33,6 @@ export function FieldSkeleton({
   );
 }
 
-/** Tabla genérica: encabezado opcional + filas, con anchos por columna. */
 export function SkeletonTable({
   rows = 6,
   cols,
@@ -99,7 +85,6 @@ export function SkeletonTable({
   );
 }
 
-/** Card genérica con alto fijo y contenido arbitrario. */
 export function SkeletonCard({
   height,
   children,
@@ -116,14 +101,11 @@ export function SkeletonCard({
   );
 }
 
-/** Punteado pulsante: reemplazo del Spinner en acciones en curso. */
 export function ShimmerDot({ size = "16px" }: { size?: string }) {
   return <Skeleton width={size} height={size} borderRadius="full" />;
 }
 
-/* ------------------------------ pantallas ------------------------------- */
 
-/** Pantalla completa: gates de auth (ProtectedRoute, layout del portal). */
 export function FullPageSkeleton() {
   return (
     <Flex
@@ -153,7 +135,6 @@ export function FullPageSkeleton() {
   );
 }
 
-/** Login: card con título, email y dos botones (acceso + Google). */
 export function LoginFormSkeleton() {
   return (
     <Card.Root
@@ -179,7 +160,6 @@ export function LoginFormSkeleton() {
   );
 }
 
-/** Perfil del portal: título, card de cuenta y libro de direcciones. */
 export function ProfileSkeleton() {
   return (
     <Stack
@@ -210,7 +190,6 @@ export function ProfileSkeleton() {
   );
 }
 
-/** Panel admin: tabla de usuarios. */
 export function AdminUsersSkeleton() {
   return (
     <Stack width="full" gap="4" role="status" aria-label="Cargando">
@@ -220,7 +199,6 @@ export function AdminUsersSkeleton() {
   );
 }
 
-/** Lista en card: encabezado (título + botón) y tabla. Cupones y leads. */
 export function ListCardSkeleton({
   titleWidth = "30%",
   buttonWidth = "120px",
@@ -251,7 +229,6 @@ export function ListCardSkeleton({
   );
 }
 
-/** Calculadora: card de creación + búsqueda con filtros + tabla. */
 export function AbmListSkeleton({
   cols,
   rows = 6,
@@ -299,7 +276,6 @@ export function AbmListSkeleton({
   );
 }
 
-/** Calculadora: 6 KPIs + dos secciones con tablas. */
 export function CalcDashboardSkeleton() {
   const section = (key: string) => (
     <Box
@@ -352,7 +328,6 @@ export function CalcDashboardSkeleton() {
   );
 }
 
-/** Calculadora: búsqueda en card + tabla de productos + paginación. */
 export function CalcProductListSkeleton() {
   return (
     <Flex
@@ -385,7 +360,6 @@ export function CalcProductListSkeleton() {
   );
 }
 
-/** Calculadora: encabezado + formulario en dos columnas (editor de producto). */
 export function CalcFormSkeleton() {
   return (
     <Flex
@@ -434,7 +408,6 @@ export function CalcFormSkeleton() {
   );
 }
 
-/** Catálogo público: badge de audiencia + botones + tabla. */
 export function CatalogSkeleton() {
   return (
     <Flex
@@ -456,7 +429,6 @@ export function CatalogSkeleton() {
   );
 }
 
-/** Ingredientes (admin): búsqueda + botón + tabla. */
 export function IngredientsSkeleton() {
   return (
     <Flex
@@ -475,7 +447,6 @@ export function IngredientsSkeleton() {
   );
 }
 
-/** Página de detalle: volver + título + badge + botones + tabs + tabla. */
 export function DetailPageSkeleton({
   tabs = 2,
   dataRows = 4,
@@ -519,7 +490,6 @@ export function DetailPageSkeleton({
   );
 }
 
-/** Formulario: título + subtítulo + campos + botón de guardar. */
 export function FormSkeleton({
   fields = 5,
   titleWidth = "45%",
@@ -545,7 +515,6 @@ export function FormSkeleton({
   );
 }
 
-/** Configuración de la app: título + fieldsets + guardar. */
 export function SettingsSkeleton() {
   return (
     <Flex
@@ -584,7 +553,6 @@ export function SettingsSkeleton() {
   );
 }
 
-/** Formulario de producto: encabezado + tabs + campos. */
 export function ProductFormSkeleton() {
   return (
     <Flex
@@ -622,7 +590,6 @@ export function ProductFormSkeleton() {
   );
 }
 
-/** Mis pedidos: cards de pedido. */
 export function OrderListSkeleton({ cards = 3 }: { cards?: number }) {
   return (
     <Stack gap="3" width="full" role="status" aria-label="Cargando">
@@ -649,7 +616,6 @@ export function OrderListSkeleton({ cards = 3 }: { cards?: number }) {
   );
 }
 
-/** Checkout: pasos + formulario del paso actual. */
 export function CheckoutSkeleton() {
   return (
     <Flex
@@ -680,7 +646,6 @@ export function CheckoutSkeleton() {
   );
 }
 
-/** Presupuestos: filas del catálogo que se está cargando. */
 export function BudgetRowsSkeleton({ rows = 3 }: { rows?: number }) {
   return (
     <Stack gap="2" width="full" role="status" aria-label="Cargando">
@@ -695,7 +660,6 @@ export function BudgetRowsSkeleton({ rows = 3 }: { rows?: number }) {
   );
 }
 
-/** Libro de direcciones: filas de dirección. */
 export function AddressBookSkeleton() {
   return (
     <Stack gap="2" width="full" role="status" aria-label="Cargando">
@@ -709,7 +673,6 @@ export function AddressBookSkeleton() {
   );
 }
 
-/** Editor de receta: líneas insumo (select + cantidad + unidad + quitar). */
 export function RecipeLinesSkeleton({ rows = 2 }: { rows?: number }) {
   return (
     <Stack gap="3" width="full" role="status" aria-label="Cargando">

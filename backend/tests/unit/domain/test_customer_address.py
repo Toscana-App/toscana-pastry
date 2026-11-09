@@ -1,4 +1,3 @@
-"""Reglas del libro de direcciones (RF-P11-09, C2): max 5, exactly-one-default."""
 import datetime
 
 import pytest

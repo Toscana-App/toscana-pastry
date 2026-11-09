@@ -1,4 +1,3 @@
-"""Producto y receta (RF-P2-10/11). Money como String (RNF-P4-02)."""
 
 from __future__ import annotations
 
@@ -15,35 +14,35 @@ from domain.repositories import ProductRepository
 
 
 def _item_to_domain(orm: RecipeItemORM) -> RecipeItem:
-    return RecipeItem(  # type: ignore[arg-type]
-        ingredient_id=orm.ingredient_id,  # type: ignore[arg-type]
-        qty=Decimal(orm.qty),  # type: ignore[arg-type]
-        unit=orm.unit,  # type: ignore[arg-type]
-        id=orm.id,  # type: ignore[arg-type]
+    return RecipeItem(
+        ingredient_id=orm.ingredient_id,
+        qty=Decimal(orm.qty),
+        unit=orm.unit,
+        id=orm.id,
     )
 
 
 def _to_domain(orm: ProductORM) -> Product:
-    return Product(  # type: ignore[arg-type]
-        name=orm.name,  # type: ignore[arg-type]
-        category=orm.category,  # type: ignore[arg-type]
-        recipe=tuple(_item_to_domain(item) for item in orm.recipe_items),  # type: ignore[arg-type]
-        description=orm.description,  # type: ignore[arg-type]
-        prep_time_min=orm.prep_time_min,  # type: ignore[arg-type]
-        servings=orm.servings,  # type: ignore[arg-type]
-        difficulty=orm.difficulty,  # type: ignore[arg-type]
-        id=orm.id,  # type: ignore[arg-type]
-        deleted_at=orm.deleted_at,  # type: ignore[arg-type]
+    return Product(
+        name=orm.name,
+        category=orm.category,
+        recipe=tuple(_item_to_domain(item) for item in orm.recipe_items),
+        description=orm.description,
+        prep_time_min=orm.prep_time_min,
+        servings=orm.servings,
+        difficulty=orm.difficulty,
+        available=orm.available,
+        image_url=orm.image_url,
+        id=orm.id,
+        deleted_at=orm.deleted_at,
     )
 
 
 def _not_deleted():
-    return [ProductORM.deleted_at.is_(None)]  # type: ignore[misc]
+    return [ProductORM.deleted_at.is_(None)]
 
 
 class SQLProductRepository(ProductRepository):
-    """P3/P4. Montos/cantidades como TEXT (RNF-P4-02). La receta viaja
-    junto al producto (lazy="selectin" en el ORM, seguro para async)."""
 
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -56,11 +55,7 @@ class SQLProductRepository(ProductRepository):
         page_size: int,
     ) -> tuple[list[Product], int]:
         filters: list = _not_deleted()
-        if q is not None:  # estricto: blank/control/>120 → 422 (min_length=1 evita q="")
-            # accent_fold registrada en el engine (data/db.py): "limon"
-            # encuentra "Limón" sin importar acentos (RF-P3-01).
-            # build_search_pattern valida, pliega y escapa los metacaracteres
-            # de LIKE (substring literal); el valor viaja como parámetro bind.
+        if q is not None:
             filters.append(
                 func.accent_fold(ProductORM.name).like(
                     build_search_pattern(q), escape="\\"
@@ -105,6 +100,8 @@ class SQLProductRepository(ProductRepository):
             prep_time_min=product.prep_time_min,
             servings=product.servings,
             difficulty=product.difficulty,
+            available=product.available,
+            image_url=product.image_url,
         )
         orm.recipe_items = [
             RecipeItemORM(
@@ -130,14 +127,14 @@ class SQLProductRepository(ProductRepository):
         orm = result.scalars().first()
         if orm is None:
             return None
-        orm.name = product.name  # type: ignore[arg-type]
-        orm.category = product.category  # type: ignore[arg-type]
-        orm.description = product.description  # type: ignore[arg-type]
-        orm.prep_time_min = product.prep_time_min  # type: ignore[arg-type]
-        orm.servings = product.servings  # type: ignore[arg-type]
-        orm.difficulty = product.difficulty  # type: ignore[arg-type]
-        # La receta se reemplaza en bloque (RF-P4-02): cascade
-        # delete-orphan limpia las lineas viejas.
+        orm.name = product.name
+        orm.category = product.category
+        orm.description = product.description
+        orm.prep_time_min = product.prep_time_min
+        orm.servings = product.servings
+        orm.difficulty = product.difficulty
+        orm.available = product.available
+        orm.image_url = product.image_url
         orm.recipe_items = [
             RecipeItemORM(
                 id=item.id,
@@ -161,13 +158,11 @@ class SQLProductRepository(ProductRepository):
         orm = result.scalars().first()
         if orm is None:
             return None
-        orm.deleted_at = datetime.now(UTC)  # type: ignore[arg-type]
+        orm.deleted_at = datetime.now(UTC)
         await self.session.commit()
         return _to_domain(orm)
 
     async def count_orders(self, product_id: str) -> int:
-        # Fase 6 (pedidos): sin tabla de pedidos, ningun producto puede
-        # estar referenciado. Igual que count_active_recipes pre-Fase 5.
         return 0
 
     async def distinct_categories(self) -> list[str]:

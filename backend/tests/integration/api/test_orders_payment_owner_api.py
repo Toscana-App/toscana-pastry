@@ -1,9 +1,3 @@
-"""Integration tests: owner access to payment endpoints (F3, RF-P11-10).
-
-El polling del portal (GET /orders/{id}/payment) y el init (POST) deben
-ser accesibles por el PROPIETARIO del pedido, no solo por admin.
-Pedidos ajenos → 404 (anti-sondeo).
-"""
 
 import datetime
 from decimal import Decimal
@@ -43,7 +37,6 @@ async def stranger(db_session):
 
 
 class _FakeProvider:
-    """In-memory provider: no network, deterministic reference."""
 
     async def create_payment(self, order_id, amount, currency):
         return PaymentResult(

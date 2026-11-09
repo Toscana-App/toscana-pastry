@@ -9,12 +9,6 @@ export const metadata: Metadata = {
   },
 };
 
-/**
- * Sección de presupuestos (Fase 7): listado P7 + wizard + detalle/edición.
- *
- * - ProtectedRoute (sin rol): la API de presupuestos exige sesión para leer.
- * - Creación/edición/mutaciones se protegen aparte con requiredRole="admin".
- */
 export default function BudgetsLayout({
   children,
 }: {

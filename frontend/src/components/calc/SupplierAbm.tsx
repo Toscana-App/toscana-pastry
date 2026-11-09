@@ -23,7 +23,6 @@ import type {
   SupplierUpdatePayload,
 } from "@/types/calc";
 
-// page_size fijo (decisión F1 en PREGUNTAS.md): escala admin, sin selector.
 const PAGE_SIZE = 50;
 
 interface SupplierFormValues {
@@ -46,24 +45,19 @@ export default function SupplierAbm() {
   const [data, setData] = useState<SupplierListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  // Contador para forzar reintento sin cambios de parámetros.
   const [reloadKey, setReloadKey] = useState(0);
 
-  // Búsqueda: input crudo + valor con debounce (~300 ms) que manda ?q.
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  // Creación (formulario card encima de la tabla).
   const [form, setForm] = useState<SupplierFormValues>(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
 
-  // Edición inline por fila.
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<SupplierFormValues>(EMPTY_FORM);
   const [savingEdit, setSavingEdit] = useState(false);
 
-  // Eliminación con diálogo de confirmación.
   const [deleting, setDeleting] = useState<Supplier | null>(null);
   const [deletingBusy, setDeletingBusy] = useState(false);
 
@@ -107,7 +101,6 @@ export default function SupplierAbm() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setSearch(searchInput);
-      // Un cambio de búsqueda vuelve a la primera página.
       setPage(1);
     }, 300);
     return () => clearTimeout(timer);
@@ -124,7 +117,6 @@ export default function SupplierAbm() {
     if (!name || creating) return;
     setCreating(true);
     try {
-      // Solo se mandan los campos opcionales con contenido.
       const payload: SupplierCreatePayload = { name };
       if (form.contact_name.trim()) payload.contact_name = form.contact_name.trim();
       if (form.phone.trim()) payload.phone = form.phone.trim();
@@ -132,7 +124,6 @@ export default function SupplierAbm() {
       if (form.notes.trim()) payload.notes = form.notes.trim();
 
       await calcSettingsService.createSupplier(payload);
-      // Refetch de la página actual: respeta filtro, orden y PAGE_SIZE del server.
       setReloadKey((key) => key + 1);
       setForm(EMPTY_FORM);
       toaster.create({ title: "Proveedor creado", type: "success" });
@@ -165,8 +156,6 @@ export default function SupplierAbm() {
     const original = data?.items.find((item) => item.id === editingId);
     if (!original) return;
 
-    // PATCH con SOLO los campos tocados (el backend usa exclude_unset);
-    // vaciar un campo envía null para limpiarlo.
     const payload: SupplierUpdatePayload = {};
     const fields: (keyof SupplierFormValues)[] = [
       "name",
@@ -179,8 +168,6 @@ export default function SupplierAbm() {
       const next = editForm[field].trim();
       const originalValue = (original[field] ?? "").trim();
       if (next !== originalValue) {
-        // name es obligatorio en el backend (1-120): nunca se limpia con
-        // null; los otros campos sí admiten null para vaciarlos.
         if (field === "name") {
           payload.name = next;
         } else {
@@ -234,8 +221,6 @@ export default function SupplierAbm() {
       setDeleting(null);
       toaster.create({ title: "Proveedor eliminado", type: "success" });
     } catch (error) {
-      // 409 "en uso": el body es {"in_use_by": N}. Se detecta por status y
-      // body tipados (ApiError), no por el texto del mensaje.
       const inUse =
         error instanceof ApiError &&
         error.status === 409 &&
@@ -325,7 +310,7 @@ export default function SupplierAbm() {
     <Flex direction="column" gap={4}>
       <Heading size="md">Proveedores</Heading>
 
-      {/* Creación: card encima de la tabla */}
+      {}
       <Flex
         direction="column"
         gap={3}
@@ -355,7 +340,7 @@ export default function SupplierAbm() {
         </Flex>
       </Flex>
 
-      {/* Búsqueda (?q) + total */}
+      {}
       <Flex align="center" gap={3}>
         <Input
           aria-label="Buscar"
@@ -491,7 +476,7 @@ export default function SupplierAbm() {
         </Table.ScrollArea>
       )}
 
-      {/* Paginación prev/next + total (page_size=50 fijo) */}
+      {}
       <Flex align="center" gap={3}>
         <Button
           size="sm"
@@ -513,7 +498,7 @@ export default function SupplierAbm() {
         </Button>
       </Flex>
 
-      {/* Confirmación de borrado */}
+      {}
       <Dialog.Root
         open={deleting !== null}
         onOpenChange={(details) => {

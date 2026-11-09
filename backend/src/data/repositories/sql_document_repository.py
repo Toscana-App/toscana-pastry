@@ -1,11 +1,3 @@
-"""SQL de PDFs de presupuesto (Fase 8, P9).
-
-Una fila vigente por presupuesto, clave (budget_id, content_hash):
-editado el contenido → hash nuevo → save() reemplaza la fila (el PDF
-viejo se descarta; no hay valor en conservar versiones del documento).
-El binario vive en la DB (SQLite): a esta escala la simplicidad de un
-solo store justifica el costo.
-"""
 import uuid
 from datetime import datetime, timezone
 from typing import Optional

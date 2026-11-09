@@ -1,4 +1,3 @@
-"""Dependencies para los repositorios de la calculadora (RF-P5CC-08)."""
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 

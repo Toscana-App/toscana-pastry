@@ -1,10 +1,3 @@
-"""Seguridad estricta del buscador (data/accent).
-
-La búsqueda es SOLO dato inerte:
-- validate_search_term: vacío/control/invisible/largo → SearchQueryError (422).
-- escape_like: % _ \\ dejan de ser metacaracteres de LIKE (wildcard injection).
-- build_search_pattern: valida → pliega acentos → escapa → %…%
-"""
 
 import pytest
 
@@ -17,7 +10,6 @@ from data.accent import (
 )
 
 
-# ─── validate_search_term ────────────────────────────────────────────────
 
 
 class TestValidateSearchTerm:
@@ -32,12 +24,12 @@ class TestValidateSearchTerm:
     @pytest.mark.parametrize(
         "bad",
         [
-            "harina\x00",  # NUL (Cc)
-            "a\x07b",  # BEL (Cc)
-            "del\x7fe",  # DEL (Cc)
-            "zero\u200bwidth",  # zero-width space (Cf)
-            "\u202ebidi",  # right-to-left override (Cf) — poisoning de logs/URLs
-            "\ue000priv",  # uso privado (Co)
+            "harina\x00",
+            "a\x07b",
+            "del\x7fe",
+            "zero\u200bwidth",
+            "\u202ebidi",
+            "\ue000priv",
             "surro\u0000gate",
         ],
     )
@@ -56,12 +48,9 @@ class TestValidateSearchTerm:
         assert validate_search_term("Café con leche") == "Café con leche"
 
     def test_like_metacharacters_are_allowed_but_neutralized(self):
-        """% y _ son texto buscable (ej. "50% off"), no wildcards: el escape
-        corresponde a build_search_pattern, no al rechazo."""
         assert validate_search_term("50% off_2") == "50% off_2"
 
 
-# ─── escape_like ─────────────────────────────────────────────────────────
 
 
 class TestEscapeLike:
@@ -75,8 +64,6 @@ class TestEscapeLike:
         assert list(escape_like("a_b")) == ["a", "\\", "_", "b"]
 
     def test_backslash_first_then_others(self):
-        r"""Orden importa: \ → \\ antes de % → \\%, sino el escape del %
-        generaría una barra nueva sin escapar."""
         assert list(escape_like("a\\%_b")) == [
             "a", "\\", "\\", "\\", "%", "\\", "_", "b",
         ]
@@ -85,7 +72,6 @@ class TestEscapeLike:
         assert list(escape_like("\\%")) == ["\\", "\\", "\\", "%"]
 
 
-# ─── build_search_pattern ────────────────────────────────────────────────
 
 
 class TestBuildSearchPattern:

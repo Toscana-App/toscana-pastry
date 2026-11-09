@@ -84,6 +84,7 @@ precio_enviado  = round_up(precio_final, paso_redondeo)
 | P9 PDF | `modules/pdf` | `/budgets/{id}/pdf` (generación + download) | 3 |
 | P10 WhatsApp | `modules/whatsapp` + `api/bot` | `/budgets/{id}/whatsapp-link`, webhook `/webhooks/whatsapp` | 3 |
 | P11 Portal + checkout e2e | `modules/portal` + `modules/checkout` | `/orders/mine`, `/cart`, `/orders/{id}/payment`, webhook `/webhooks/mercadopago`, `/customers/me/addresses`, `/coupons`, `/leads` | 5 |
+| P12 Tienda sobre productos | `modules/products` + `modules/portal` | `/products?audience=` (catálogo), `GET /products/{id}?audience=` (detalle tienda), `POST|DELETE /products/{id}/image`, `/cart` y `/orders` sobre productos | 5 |
 
 Cada módulo web es autónomo: propios componentes, hooks y tests; comparte solo `shared/`.
 
@@ -144,6 +145,7 @@ Cada módulo web es autónomo: propios componentes, hooks y tests; comparte solo
 
 ### Fase 5 — Portal self-service + checkout e2e (Semanas 9–10) · **Entrega: el cliente pide y paga solo**
 - Precondición: roles de 3 vías + precios duales (`odd/tasks/roles-dual-pricing.md`). Especificación: `p11_portal_checkout.md` + `api_endpoints.md` §FASE 5.
+- **P12 Tienda sobre productos** (`odd/tasks/products-storefront.md`): el catálogo/carrito/pedido del portal operan sobre **productos publicados** (`available`, default false; publicar incompleto → 409), no sobre insumos; precio por audiencia derivado de la receta (motor + `consumer_markup_pct`); **imagen por multipart** (`POST|DELETE /products/{id}/image`, magic bytes, ≤5 MB, `/media`); **RBAC por endpoint**: 23 endpoints de gestión pasan a `require_admin` (matriz en `security.md`), fuga = 403/404.
 - Portal para `negocio`/`cliente`: catálogo con precio de su audiencia (fuga de precios = 403), carrito server-side, "Mis pedidos" (solo lectura).
 - **Checkout de 5 pasos** (patrón `toscana-demo`): Contacto → Dirección → Entrega → Pago → Revisar y confirmar; sin guest checkout en v1; 409 `order_window_closed` en el paso 5 (RF-P6-09).
 - **Pagos**: `payment_method ∈ {mercadopago, cash}` (p06 RF-P6-12…14). Mercado Pago vía `CheckoutProvider` agnóstico + `MockCheckoutProvider` (safe mode de la skill `mercadopago-integration`): `POST/GET /orders/{id}/payment` + webhook firmado e idempotente → `paid` automático. Efectivo: `paid=false` + badge "Cobrar en la entrega", lo marca la dueña.
@@ -206,3 +208,4 @@ Cada módulo web es autónomo: propios componentes, hooks y tests; comparte solo
 5. **Margen por pedido** con override explícito en el pedido (corrige la ambigüedad de la app original: el override debe ser visible en UI).
 6. **Multi-tenancy estricta**: `tenant_id` en toda consulta (middleware + a nivel de repositorio).
 7. **Sin portal self-service ni sockets en v1** (decisión de recon 2026-10-23, `elclubdelosaludable.ar`): single-usuario por tenant; si aparece el caso de seguimiento en vivo, el canal es SSE sobre los listados, no Socket.IO. El portal de clientes se revisa solo si 3+ tenants lo piden. — **Override parcial (2026-10-25, decisión del owner)**: el portal self-service + checkout e2e (Fase 5, `p11_portal_checkout.md`) está APROBADO para los roles `negocio`/`cliente`, con precondición del sistema de roles de 3 vías. La restricción de sockets (SSE, no Socket.IO) se mantiene vigente.
+8. **La tienda vende productos, no insumos** (decisión del owner, 2026-11-08, `odd/tasks/products-storefront.md`): catálogo, carrito y pedido del portal operan sobre productos con receta; precio por audiencia = motor + markup (`consumer_markup_pct` para `consumidor_final`). Switch de publicación `available` (default false; publicar incompleto → 409 `missing_ingredients`). Imagen por multipart admin-only. RBAC: todo endpoint de gestión exige `require_admin` — la fuga es 403, nunca ocultación en UI. Contratos: `p03`/`p04` (RF-P3-09, RF-P4-09…11), `p11`, `p12_product_media.md`, `security.md` §RBAC.

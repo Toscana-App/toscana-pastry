@@ -4,8 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders as render } from "../../../../test-utils";
 import MaterialesPage from "./page";
 
-// Captura los props que recibe ProtectedRoute (vi.hoisted por el hoisting
-// de vi.mock).
 const { capturedProps } = vi.hoisted(() => ({
   capturedProps: [] as { requiredRole?: string; children?: ReactNode }[],
 }));
@@ -57,7 +55,6 @@ describe("MaterialesPage", () => {
 
     expect(await screen.findByText("Materiales")).toBeInTheDocument();
     expect(capturedProps[0]?.requiredRole).toBe("admin");
-    // El listado (vía MaterialsAbm) llega montado: estado vacío visible.
     expect(
       await screen.findByText("Sin materiales")
     ).toBeInTheDocument();

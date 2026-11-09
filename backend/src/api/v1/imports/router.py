@@ -1,19 +1,3 @@
-"""API de importacion CSV con staging (T-CSV-2/3/4).
-
-Endpoints:
-- GET  /imports/template?entity=   plantilla CSV (mismo modelo que valida).
-- POST /imports                    subir (multipart): valida columnas E datos,
-                                   estadia. 422 si el set de columnas no coincide
-                                   (SIN crear import_id ni staging) o si hay
-                                   columnas ajenas/faltantes.
-- GET  /imports/{id}/rows          preview de filas (paginado, filtro por estado).
-- POST /imports/{id}/confirm       transaccion unica: inserta validas,
-                                   duplicados → skipped. 409 si ya confirmada.
-- DELETE /imports/{id}             descarta (borra staging). 409 si confirmada.
-
-Solo ADMIN (RNF-CSV-08). El tenant de la app es monotenante: se guarda
-``tenant_id = user_id`` (el owner) para aislar las importaciones por usuario.
-"""
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -53,8 +37,8 @@ from domain.models import User
 
 router = APIRouter(prefix="/imports", tags=["imports"])
 
-MAX_FILE_BYTES = 5 * 1024 * 1024  # RNF-CSV-03
-MAX_ROWS = 10_000  # RNF-CSV-03
+MAX_FILE_BYTES = 5 * 1024 * 1024
+MAX_ROWS = 10_000
 FIRST_ERRORS_LIMIT = 10
 
 
@@ -71,7 +55,6 @@ async def get_template(
     entity: str = Query(...),
     current_user: User = Depends(require_admin),
 ) -> PlainTextResponse:
-    """Plantilla CSV de la entidad (RF-CSV-01). Descarga directa."""
     adapter = resolve_adapter(entity)
     return PlainTextResponse(
         adapter.template(),
@@ -105,8 +88,6 @@ async def upload(
     delimiter = detect_delimiter(text)
     headers, raw_rows = parse_csv(text, delimiter)
 
-    # Validación estricta de columnas ANTES de crear import_id ni staging
-    # (RF-CSV-02/13): set exacto, orden irrelevante.
     try:
         check_columns(adapter.columns, headers)
     except ColumnMismatchError as exc:
@@ -260,10 +241,6 @@ async def confirm(
     else:
         message = adapter.confirm_message
 
-    # Transaccion unica (RNF-CSV-05): los inserts quedaron pendientes (flush
-    # implicitos dentro de la misma transaccion); set_status y
-    # delete_staging_rows NO commitan; el commit final es unico. Un error antes
-    # de aca deja el cierre de sesion en rollback (get_db).
     await repo.set_status(
         import_id, ImportStatus.CONFIRMED.value, confirmed_at=datetime.now(UTC)
     )

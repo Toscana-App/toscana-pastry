@@ -1,7 +1,3 @@
-"""Schemas del carrito (RF-P11-03/14, C4).
-
-Los montos viajan como str (Money): nunca float en la API (RNF-P4-02).
-"""
 
 from pydantic import BaseModel, Field
 

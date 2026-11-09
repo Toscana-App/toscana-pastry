@@ -28,10 +28,6 @@ class ConversionResult:
 
 
 class ConvertBudgetToOrder:
-    """Convierte un presupuesto `enviado` en un pedido `nuevo` (RF-P8-08):
-    mismo cliente e items, con SUS PROPIOS snapshots (RNF-P6-03) y el
-    margen del presupuesto. Los precios manuales se copian al snapshot.
-    El descuento de stock ocurre al confirmar el pedido, no aqui."""
 
     def __init__(
         self,
@@ -74,7 +70,6 @@ class ConvertBudgetToOrder:
                 margin_override=budget.margin_pct,
             )
             if item.price_overridden:
-                # Precio manual del presupuesto: el pedido lo respeta.
                 snapshot = dataclasses.replace(
                     snapshot, final=item.line_selling, rounded=item.line_selling
                 )
@@ -97,10 +92,6 @@ class ConvertBudgetToOrder:
             snapshots=snapshots,
         )
         created = await self._orders.create_full(order)
-        # ponytail: si dos conversiones compiten, el UPDATE condicional deja
-        # una sola ganadora; la perdedora ya creo un pedido huerfano (el
-        # create del pedido hace commit propio). Ceiling: conversion
-        # concurrente del mismo presupuesto.
         if not await self._budgets.mark_converted(budget_id, created.id or ""):
             raise BudgetAlreadyConvertedError(budget_id)
         return ConversionResult(order_id=created.id or "", seq=budget.seq)

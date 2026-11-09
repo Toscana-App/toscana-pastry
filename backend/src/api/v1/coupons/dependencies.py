@@ -1,4 +1,3 @@
-"""Dependency para el repositorio de cupones (RF-P11-14, C3)."""
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 

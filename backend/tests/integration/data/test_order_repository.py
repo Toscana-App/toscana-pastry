@@ -1,10 +1,3 @@
-"""Integration tests for SQLOrderRepository payment operations (C1.2).
-
-Covers:
-    - update_payment_status: fields are persisted correctly
-    - record_payment_event: dedupe by event id ("{payment_id}:{status}")
-    - get_payment_event: replay does not duplicate
-"""
 
 from __future__ import annotations
 
@@ -26,7 +19,6 @@ from domain.order import Order, OrderItem, PaymentMethod, PaymentStatus
 
 @pytest_asyncio.fixture
 async def order_with_repo(db_session):
-    """Create an MP order and return (order, repo)."""
     order = Order(
         customer_id=str(uuid.uuid4()),
         date=datetime.datetime.now(datetime.UTC),
@@ -46,7 +38,6 @@ async def order_with_repo(db_session):
 
 
 class TestUpdatePaymentStatus:
-    """Tests for update_payment_status (C1.2)."""
 
     async def test_updates_reference_and_status(self, order_with_repo):
         order, repo = order_with_repo
@@ -85,7 +76,6 @@ class TestUpdatePaymentStatus:
 
 
 class TestRecordPaymentEvent:
-    """Tests for record_payment_event dedupe (C1.2, RF-P6-13)."""
 
     async def test_first_insert_succeeds(self, order_with_repo):
         order, repo = order_with_repo
@@ -105,7 +95,6 @@ class TestRecordPaymentEvent:
             provider_payment_id="mp_dedupe_test",
             status=PaymentStatus.PENDING,
         )
-        # Replay of the same event (same payment + status) — rejected
         result = await repo.record_payment_event(
             event_id="mp_dedupe_test:pending",
             order_id=order.id,
@@ -115,7 +104,6 @@ class TestRecordPaymentEvent:
         assert result is False
 
     async def test_same_payment_new_status_succeeds(self, order_with_repo):
-        """S2: Mercado Pago notifies one payment several times (pending → approved)."""
         order, repo = order_with_repo
         r1 = await repo.record_payment_event(
             event_id="mp_dedupe_test:pending",
@@ -151,7 +139,6 @@ class TestRecordPaymentEvent:
 
 
 class TestGetPaymentEvent:
-    """Tests for get_payment_event dedupe check."""
 
     async def test_existing_event_returns_true(self, order_with_repo):
         order, repo = order_with_repo

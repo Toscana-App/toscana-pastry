@@ -24,7 +24,6 @@ import type {
   CategoryUpdatePayload,
 } from "@/types/calc";
 
-// page_size fijo (decisión F1 en PREGUNTAS.md): escala admin, sin selector.
 const PAGE_SIZE = 50;
 
 interface CategoryAbmProps {
@@ -36,26 +35,21 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
   const [data, setData] = useState<CategoryListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  // Contador para forzar reintento sin cambios de parámetros.
   const [reloadKey, setReloadKey] = useState(0);
 
-  // Búsqueda: input crudo + valor con debounce (~300 ms) que manda ?q.
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  // Creación (formulario card encima de la tabla).
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [creating, setCreating] = useState(false);
 
-  // Edición inline por fila.
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
 
-  // Eliminación con diálogo de confirmación.
   const [deleting, setDeleting] = useState<Category | null>(null);
   const [deletingBusy, setDeletingBusy] = useState(false);
 
@@ -99,7 +93,6 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
   useEffect(() => {
     const timer = setTimeout(() => {
       setSearch(searchInput);
-      // Un cambio de búsqueda vuelve a la primera página.
       setPage(1);
     }, 300);
     return () => clearTimeout(timer);
@@ -113,7 +106,6 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
       const payload: CategoryCreatePayload = { name };
       if (newDescription.trim()) payload.description = newDescription.trim();
       await calcSettingsService.createCategory(endpoint, payload);
-      // Refetch de la página actual: respeta filtro, orden y PAGE_SIZE del server.
       setReloadKey((key) => key + 1);
       setNewName("");
       setNewDescription("");
@@ -142,7 +134,6 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
     const original = data?.items.find((item) => item.id === editingId);
     if (!original) return;
 
-    // PATCH con SOLO los campos tocados (el backend usa exclude_unset).
     const payload: CategoryUpdatePayload = {};
     const nextName = editName.trim();
     if (nextName !== original.name) payload.name = nextName;
@@ -197,8 +188,6 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
       setDeleting(null);
       toaster.create({ title: "Categoría eliminada", type: "success" });
     } catch (error) {
-      // 409 "en uso": el body es {"in_use_by": N}. Se detecta por status y
-      // body tipados (ApiError), no por el texto del mensaje.
       const inUse =
         error instanceof ApiError &&
         error.status === 409 &&
@@ -242,7 +231,7 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
     <Flex direction="column" gap={4}>
       <Heading size="md">{title}</Heading>
 
-      {/* Creación: card encima de la tabla */}
+      {}
       <Flex
         direction="column"
         gap={3}
@@ -280,7 +269,7 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
         </Flex>
       </Flex>
 
-      {/* Búsqueda (?q) + total */}
+      {}
       <Flex align="center" gap={3}>
         <Input
           aria-label="Buscar"
@@ -386,7 +375,7 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
         </Table.ScrollArea>
       )}
 
-      {/* Paginación prev/next + total (page_size=50 fijo) */}
+      {}
       <Flex align="center" gap={3}>
         <Button
           size="sm"
@@ -408,7 +397,7 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
         </Button>
       </Flex>
 
-      {/* Confirmación de borrado */}
+      {}
       <Dialog.Root
         open={deleting !== null}
         onOpenChange={(details) => {

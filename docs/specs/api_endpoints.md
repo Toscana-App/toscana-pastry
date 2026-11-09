@@ -31,7 +31,7 @@
 | Cifrado | Fernet en `customer.phone`/`customer.email` (rotación doble clave); tokens de auth **solo como hash SHA-256**, ≥256 bits (security #5, #10). |
 | Sesión | JWT httpOnly con **TTL corto (15–30 min) + rotación** en verify; logout invalida server-side (security #9). |
 | Datos devueltos | Schemas **Response** explícitos; `costs`/`breakdown`/margen **solo** al usuario del tenant — nunca en PDF ni WhatsApp (security #17). |
-| Archivos | v1 **sin uploads de usuario**; PDF solo autenticado o URL firmada (expiración ≤ 1 h, single-use) (security #16). |
+| Archivos | v1 **sin uploads de usuario**, con la excepción del **upload de imagen de producto** (P12: multipart admin-only, magic bytes JPEG/PNG/WebP, ≤5 MB, nombre de archivo por id, servido en `/media` sin auth); PDF solo autenticado o URL firmada (expiración ≤ 1 h, single-use) (security #16). |
 | Headers / HTTPS | Edge (Caddy): HSTS preload, CSP, `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`; TLS con redirect 301 (security #18, #19). |
 | Secrets | Cero `NEXT_PUBLIC_*`; Postgres en red interna con usuario dedicado (sin puerto expuesto); `gitleaks` en repo y en el build (security #1–3). |
 | Dependencias | `pip-audit` + `pnpm audit` en CI (fail on high) + Dependabot; lockfiles comprometidos (security #20). |
@@ -128,14 +128,16 @@ api/presentation/routers/
 ### Productos (P3 listado + P4 detalle)
 | Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
 |---|---|---|---|---|---|
-| GET | `/api/v1/products` | Listado con filtros. | `?q,category,tags,page,page_size,audience` → `{items,total,...}` | 200 | Item: `id,name,category,tags[],price(final, derived)`. `tags` = lista (AND). Precios del motor. Con `audience` (rol portal): devuelve el catálogo S3 (insumos) al precio de esa audiencia; `q` filtra por nombre (accent-insensitive) y la paginación se aplica igual — `category` no aplica en esa rama (los ítems no llevan categoría). **Búsqueda estricta (seguridad)**: `q` ≤120 chars, substring literal (accent-fold), insensible a acentos; metacaracteres de LIKE (`%`,`_`,`\`) se tratan como texto, no wildcards; `q` vacío/solo espacios, con control/invisible (cat. C de Unicode: NUL, bidi, zero-width) o >120 → **422**. La búsqueda viaja como parámetro bind (nunca SQL interpolado) y se trata solo como dato inerte. |
+| GET | `/api/v1/products` | Listado con filtros. | `?q,category,tags,page,page_size,audience` → `{items,total,...}` | 200 | Item (rama admin): `id,name,category,tags[],price(final, derived),available,image_url`. `tags` = lista (AND). Precios del motor. **Rama de tienda** con `audience ∈ {revendedores, consumidor_final}` (rol portal): devuelve **productos publicados** (`available=true`) y completos — `id,name,category,description,image_url,price,servings?,prep_time_min` — con el precio de la audiencia (`derive_audience_price`; `consumidor_final` aplica `consumer_markup_pct`); los no publicados o incompletos **no aparecen** (listado y detalle: 404 anti-sondeo). `q` filtra por nombre (accent-insensitive) y la paginación se aplica igual. **Búsqueda estricta (seguridad)**: `q` ≤120 chars, substring literal (accent-fold), insensible a acentos; metacaracteres de LIKE (`%`,`_`,`\`) se tratan como texto, no wildcards; `q` vacío/solo espacios, con control/invisible (cat. C de Unicode: NUL, bidi, zero-width) o >120 → **422**. La búsqueda viaja como parámetro bind (nunca SQL interpolado) y se trata solo como dato inerte. |
 | GET | `/api/v1/products/categories` | Chips de categoría. | — → `{categories:[{name,count}]}` | 200 | Distinct por tenant. |
 | GET | `/api/v1/products/tags` | Chips de tags (restricciones). | — → `{tags:[{name,count}]}` | 200 | Distinct por tenant (allow-list sugerida + libres). |
-| POST | `/api/v1/products` | Crea producto + receta. | `{name*,description?,category*,type?,storage?,prep_time_min*,servings?,difficulty?,labor_hours*,tags[]?,recipe_items:[{ingredient_id,qty,unit}]}` → `{product, costs}` | 201 | Validación ≥1 insumo; `tags[]` 0–10, ≤ 30 chars c/u. Devuelve desglose del motor. |
-| GET | `/api/v1/products/{id}` | Detalle con receta + costos. | — → `{product, recipe_items, costs_breakdown}` | 200 / 404 | `costs_breakdown`: materials, labor, gas, waste, base, margin_pct, final, rounded. |
-| PATCH | `/api/v1/products/{id}` | Edita (cualquier tab). | `{...campos, tags[], recipe_items?}` → `{product, costs}` | 200 | Receta editada → recálculo automático. |
+| POST | `/api/v1/products` | Crea producto + receta. | `{name*,description?,category*,type?,storage?,prep_time_min*,servings?,difficulty?,labor_hours*,tags[]?,available?(default false),recipe_items:[{ingredient_id,qty,unit}]}` → `{product, costs}` | 201 | Validación ≥1 insumo; `tags[]` 0–10, ≤ 30 chars c/u. `available` (P12): el producto nace oculto; `available=true` con receta incompleta → 409 `missing_ingredients`. Devuelve desglose del motor. La imagen no va en el body (endpoint multipart propio, P12). |
+| GET | `/api/v1/products/{id}` | Detalle con receta + costos (admin). | `?audience?` → `{product, recipe_items, costs_breakdown}` | 200 / 404 | `costs_breakdown`: materials, labor, gas, waste, base, margin_pct, final, rounded. `product` incluye `available` e `image_url`. **Con `audience` (rol portal) = detalle de tienda** (P12): solo `{id,name,category,description,image_url,price,servings?,prep_time_min}` — sin receta, costos ni margen; no publicado o incompleto → 404. |
+| PATCH | `/api/v1/products/{id}` | Edita (cualquier tab). | `{...campos, tags[], available?, recipe_items?}` → `{product, costs}` | 200 / 409 | Receta editada → recálculo automático. `available` = switch de publicación (P12): publicar incompleto → 409 `missing_ingredients`; cambiar otros campos no toca la disponibilidad. |
 | DELETE | `/api/v1/products/{id}` | Elimina. | — → `204` | 204 / 409 | Soft delete si tiene pedidos históricos. |
 | POST | `/api/v1/products/{id}/recalculate` | Recalcula desglose (en vivo). | — → `{costs_breakdown}` | 200 | < 50 ms hasta 50 insumos. (RF-P4-04) |
+| POST | `/api/v1/products/{id}/image` | Sube imagen (multipart, admin — P12). | `multipart/form-data`, campo `file` → `{image_url}` | 201 / 403 / 404 / 422 / 413 | Magic bytes JPEG/PNG/WebP, ≤5 MB, ≥200×200 px; reemplaza (borra el archivo anterior). Detalle: `p12_product_media.md`. |
+| DELETE | `/api/v1/products/{id}/image` | Quita imagen (admin — P12). | — → `204` | 204 / 403 / 404 | Borra archivo + limpia `image_url`; sin imagen → 404. |
 
 **Criterio de salida F1**: 20 insumos + 5 productos → cada producto muestra costo y precio final correctos (verificados contra la fórmula).
 
@@ -286,7 +288,7 @@ api/presentation/routers/
 | GET | `/api/v1/orders/mine` | Mis pedidos (portal). | `?page,page_size` → `{items,total,...}` | 200 | Solo pedidos del `customer_id` del usuario; ajeno → 404 anti-sondeo. Item: `code,status,paid,payment_method,final_price,date`. |
 | GET | `/api/v1/orders/mine/{code}` | Detalle de mi pedido. | — → `{order, items}` | 200 / 404 | Ítems con total y tags de restricción; **sin costos internos** (security #17). |
 | GET | `/api/v1/cart` | Carrito del usuario. | — → `{items, total, discount_amount?, coupon?}` | 200 | Máx. 50 líneas; precios derivados del motor según audiencia (RNF-P11-03). |
-| POST | `/api/v1/cart/items` | Agrega/altera línea. | `{product_id, qty}` → `{cart}` | 200 / 422 | `qty` 1–999; fuera de límites del carrito → 422. |
+| POST | `/api/v1/cart/items` | Agrega/altera línea. | `{product_id, qty}` → `{cart}` | 200 / 422 | `qty` 1–999; fuera de límites del carrito → 422. `product_id` = **producto publicado y completo** (P12): no publicado o incompleto → 422. |
 | DELETE | `/api/v1/cart/items/{product_id}` | Quita línea. | — → `{cart}` | 200 / 404 | |
 | POST | `/api/v1/cart/coupon` | Aplica cupón. | `{code}` → `{cart, coupon}` | 200 / 422 | 1 cupón por carrito; 422 con razón (inactivo / vencido / `max_uses` / inexistente). |
 | DELETE | `/api/v1/cart/coupon` | Quita cupón. | — → `{cart}` | 200 | |
@@ -338,12 +340,12 @@ api/presentation/routers/
 | Fase | Endpoints core | Routers |
 |---|---|---|
 | F0 Fundaciones | 12 | system, auth, auth-google, tenant |
-| F1 Motor + catálogo | 18 | tenant(settings+order-window), ingredients, products |
+| F1 Motor + catálogo | 20 | tenant(settings+order-window), ingredients, products(+imagen P12) |
 | F2 Pedidos y stock | 16 | customers, orders |
 | F3 Presupuestos + PDF + WhatsApp | 15 | budgets, pdf, webhooks |
 | F4 Endurecimiento | 0 nuevos (+1 opcional contacto) | cross-cutting |
 | F5 Portal + checkout e2e (P11) | 25 | orders(mine), cart, payments+webhook, customers(addresses), coupons, leads, whatsapp(sends) |
-| **Total** | **~86** | 14 routers |
+| **Total** | **~88** | 14 routers |
 
 ### Endpoints aún por confirmar con Gaspar
 1. `/tenant/settings/recalculate` (F1): ¿recálculo global síncrono o task asíncrona? (impacta UX si catálogo grande).

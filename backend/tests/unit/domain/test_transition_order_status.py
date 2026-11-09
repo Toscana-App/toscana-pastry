@@ -1,4 +1,3 @@
-"""Caso de uso TransitionOrderStatus con un store falso (sin DB)."""
 import dataclasses
 import datetime
 from decimal import Decimal

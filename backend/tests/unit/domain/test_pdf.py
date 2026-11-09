@@ -1,12 +1,3 @@
-"""dominio.pdf (Fase 8, P9): helpers de formato y hash de contenido.
-
-El builder del PDF (ReportLab) y el escape de markup viven en el servicio
-pdfgenerator (ADR-0001). Aquí se prueba solo lo que sigue siendo
-responsabilidad de core-api:
-- format_money_peso: formato es-AR de montos (lo usa el envío por WhatsApp).
-- budget_content_hash: hash estable del contenido visible, invariante ante
-  costos internos que no se renderizan.
-"""
 from decimal import Decimal
 import pytest
 
@@ -41,7 +32,7 @@ class TestFormatMoneyPeso:
             ("1550", "$1.550,00"),
             ("0", "$0,00"),
             ("1234567.5", "$1.234.567,50"),
-            ("1550.005", "$1.550,01"),  # redondeo a centavos
+            ("1550.005", "$1.550,01"),
             ("-1550", "-$1.550,00"),
         ],
     )
@@ -66,9 +57,6 @@ class TestBudgetContentHash:
         assert h1 != h2
 
     def test_invariante_al_cambiar_el_costo_interno(self):
-        """El hash cubre solo lo que se renderiza: con precio de venta
-        idéntico (override manual), un costo interno distinto no cambia
-        el documento ni el hash."""
         def with_cost(c):
             items, _t = derive_budget_items(
                 (("p1", "Torta de Limón", 2, c, Decimal("1550")),),

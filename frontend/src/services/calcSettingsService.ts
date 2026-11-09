@@ -19,8 +19,6 @@ import type {
   SupplierUpdatePayload,
 } from "@/types/calc";
 
-// Parámetros de listado: ?q (1-120 chars), ?page, ?page_size (default 50, max 100).
-// La búsqueda ?q es opcional: q vacío → lista completa (no se manda el parámetro).
 export interface ListQuery {
   q?: string;
   page?: number;
@@ -46,7 +44,6 @@ async function deleteViaApiFetch(endpoint: string): Promise<void> {
   await apiFetch<void>(endpoint, { method: "DELETE" });
 }
 
-// Centavos (API) ↔ pesos (UI) para default_unit_cost_or_rate.
 function defaultCostFromApi(cost: DefaultCost): DefaultCost {
   return {
     ...cost,
@@ -69,7 +66,6 @@ function defaultCostToApi<
 
 
 export const calcSettingsService = {
-  // ─── Settings (S1) ──────────────────────────────────────────────────────
   getSettings(): Promise<CalcSettingsResponse> {
     return apiFetch<CalcSettingsResponse>("/calc/settings");
   },
@@ -81,7 +77,6 @@ export const calcSettingsService = {
     );
   },
 
-  // ─── Categorías (material + product comparten shape) ───────────────────
   listCategories(
     kind: CategoryKind,
     query: ListQuery = {}
@@ -116,7 +111,6 @@ export const calcSettingsService = {
     return deleteViaApiFetch(`/calc/${kind}/${id}`);
   },
 
-  // ─── Suppliers ──────────────────────────────────────────────────────────
   listSuppliers(query: ListQuery = {}): Promise<SupplierListResponse> {
     return apiFetch<SupplierListResponse>(
       `/calc/suppliers${buildQuery({ ...query })}`
@@ -141,9 +135,6 @@ export const calcSettingsService = {
     return deleteViaApiFetch(`/calc/suppliers/${id}`);
   },
 
-  // ─── Default costs ──────────────────────────────────────────────────────
-  // La API habla centavos enteros en default_unit_cost_or_rate; la UI usa
-  // pesos (string). Conversión solo en este borde.
   async listDefaultCosts(
     query: ListQuery & { type?: DefaultCostType } = {}
   ): Promise<DefaultCostListResponse> {

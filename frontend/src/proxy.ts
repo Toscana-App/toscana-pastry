@@ -30,10 +30,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Next requires the matcher to be static (it cannot be derived from
-  // PROTECTED_PREFIXES at runtime), so the two lists must stay in sync
-  // MANUALLY: '/admin' was missing here, so the proxy never ran for that
-  // route (the /admin guard was dead code).
   matcher: [
     '/',
     '/my-orders',

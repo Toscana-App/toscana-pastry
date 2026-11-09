@@ -1,10 +1,5 @@
 "use client";
 
-/** Lead management for admin (F4 — C5, RF-P11-13).
-
-List with search (name/email), consumer/business badges, read status,
-per-lead read toggle and "mark all as read".
-*/
 
 import {
   Badge,
@@ -63,7 +58,6 @@ function LeadAdmin() {
         setLeads(res.items ?? []);
         setTotal(res.total);
       } catch {
-        // no leads is not an error: empty table
       } finally {
         if (!cancelled) setLoading(false);
       }

@@ -1,9 +1,3 @@
-"""Integration tests for the WhatsAppSend repository (RF-P10-07/08, C7).
-
-Covers create/get round-trip, list filters (status, from/to, pagination,
-sent_at desc order), stats aggregation and count_provider_since (budget
-RNF-P10-06).
-"""
 
 import datetime
 
@@ -39,10 +33,9 @@ def make_send(status="sent", provider="business_api", sent_at=NOW, **kw):
         "status": status,
     }
     base.update(kw)
-    return WhatsAppSend(**base)  # type: ignore[arg-type]
+    return WhatsAppSend(**base)
 
 
-# ─── Create / Get ─────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -79,7 +72,6 @@ async def test_update_persists_state_change(send_repo):
     assert fetched.read_at == NOW
 
 
-# ─── List filters ─────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -121,7 +113,6 @@ async def test_list_pagination_and_desc_order(send_repo):
     page1, total = await send_repo.list(page=1, page_size=3)
     assert total == 5
     assert len(page1) == 3
-    # orden desc por sent_at: el mas reciente primero
     assert page1[0].reference_id == "o0"
     assert page1[2].reference_id == "o2"
 
@@ -129,7 +120,6 @@ async def test_list_pagination_and_desc_order(send_repo):
     assert [item.reference_id for item in page2] == ["o3", "o4"]
 
 
-# ─── Stats ────────────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -139,7 +129,6 @@ async def test_stats_counts_by_status_in_window(send_repo):
     await send_repo.create(make_send(status="read", reference_id="o3"))
     failed = make_send(status="failed", reference_id="o4", failed_reason="x")
     await send_repo.create(failed)
-    # fuera de la ventana (40 dias atras): no cuenta
     old = make_send(reference_id="o5", sent_at=NOW - datetime.timedelta(days=40))
     await send_repo.create(old)
 
@@ -163,16 +152,13 @@ async def test_stats_empty(send_repo):
     }
 
 
-# ─── Budget (RNF-P10-06) ─────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
 async def test_count_provider_since_counts_only_today_business(send_repo):
     await send_repo.create(make_send(provider="business_api", reference_id="b1"))
     await send_repo.create(make_send(provider="business_api", reference_id="b2"))
-    # wa_me no cuenta contra el budget de business api
     await send_repo.create(make_send(provider="wa_me", reference_id="w1"))
-    # business_api de ayer no cuenta
     yesterday = NOW - datetime.timedelta(days=1)
     await send_repo.create(make_send(reference_id="b3", sent_at=yesterday))
 

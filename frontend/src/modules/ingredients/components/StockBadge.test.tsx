@@ -3,10 +3,6 @@ import { render, screen } from "@testing-library/react";
 import { Provider } from "@/providers/ChakraProvider";
 import { StockBadge } from "./StockBadge";
 
-/**
- * Tests del badge de stock (RF-P2-04): el texto y el color dependen del status
- * que computa el servidor.
- */
 function renderBadge(status: "OK" | "LOW" | "EMPTY", stockQty: string, unit = "kg") {
   return render(
     <Provider>

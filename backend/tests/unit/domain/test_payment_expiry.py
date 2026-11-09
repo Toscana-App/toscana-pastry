@@ -1,4 +1,3 @@
-"""Unit tests for lazy payment expiry (24 h) -- injectable clock, no sleeps."""
 
 import datetime
 from decimal import Decimal

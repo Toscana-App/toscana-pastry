@@ -4,8 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders as render } from "../../../../test-utils";
 import CalculatorConfigPage from "./page";
 
-// Captura los props que recibe ProtectedRoute (vi.hoisted por el hoisting
-// de vi.mock).
 const { capturedProps } = vi.hoisted(() => ({
   capturedProps: [] as { requiredRole?: string; children?: ReactNode }[],
 }));
@@ -17,7 +15,6 @@ vi.mock("@/components/auth/ProtectedRoute", () => ({
   },
 }));
 
-// El tab General se monta al cargar (ya visitado): mockeamos su fetch.
 vi.mock("@/services/calcSettingsService", () => ({
   calcSettingsService: {
     getSettings: vi.fn().mockResolvedValue({
@@ -57,7 +54,6 @@ describe("CalculatorConfigPage", () => {
     ).toBeInTheDocument();
     expect(capturedProps[0]?.requiredRole).toBe("admin");
 
-    // Los 5 tabs del brief (S7).
     expect(
       screen.getByRole("tab", { name: "General" })
     ).toBeInTheDocument();

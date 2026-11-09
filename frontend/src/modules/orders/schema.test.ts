@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { orderCreateSchema } from "./schema";
 import type { OrderCreatePayload } from "./types";
 
-/** El schema se valida con el mismo payload que arma OrderWizard.submit. */
 const base: OrderCreatePayload = {
   customer_id: "c1",
   date: "2026-10-01",

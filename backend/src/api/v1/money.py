@@ -1,20 +1,3 @@
-"""Tipos de monto de la API (RF-07, RNF-P4-02).
-
-**Money viaja por la API como entero de centavos (long)**: los últimos 2
-dígitos son los centavos (310050 = $3.100,50). El dominio trabaja en
-Decimal; la conversión vive en este módulo (el borde de la API):
-
-  - entrada : centavos (int) → Decimal para el dominio (cents_to_decimal)
-  - salida  : Decimal del dominio → centavos (int) (BeforeValidator + serializer)
-
-**Qty** (cantidad: kg, g, L, ml, unidades) NO es dinero: sigue siendo
-Decimal serializado a string ("500", "0.5"), sin centavos.
-
-**Pct** (porcentaje: margen, gas, merma, urgencia) viaja como string decimal
-("100"). Se separa de Money a propósito: tipear un % como Money y aplicarle
-centavos dispara el valor ×100 (bug clásico). El frontend lo trata con
-Number(), así que mantiene el formato string.
-"""
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Annotated
 
@@ -24,8 +7,6 @@ _HUNDRED = Decimal("100")
 
 
 def _to_cents(value) -> int:
-    """Normaliza a centavos (int). Acepta int (canonical) y Decimal (del
-    dominio, en unidades). str/float/bool se rechazan (-> 422)."""
     if isinstance(value, bool):
         raise ValueError("bool no es un monto valido")
     if isinstance(value, int):
@@ -36,25 +17,21 @@ def _to_cents(value) -> int:
 
 
 def cents_to_decimal(cents: int) -> Decimal:
-    """Centavos (int) de la API → Decimal de unidades para el dominio."""
     return Decimal(cents) / _HUNDRED
 
 
 def decimal_to_cents(value: Decimal | int | float | str) -> int:
-    """Decimal del dominio → long de centavos (solo en el borde).
-
-    El schema ``Money`` acepta Decimal en runtime vía BeforeValidator; este
-    helper hace la conversión explícita para que el typing sea estático.
-    """
     return int(_to_cents(value))
 
 
-def format_money_cents(cents: int) -> str:
-    """Centavos (long de la API) → dinero legible "$1.234,56" (es-AR).
+_CENT = Decimal("0.01")
 
-    Solo para salidas legibles (CSV de export). El PDF formatea por su cuenta
-    en pdfgenerator; la función vive aquí para no arrastrar al core-api el
-    binario de render (ADR-0001)."""
+
+def money_str(value: Decimal) -> str:
+    return str(value.quantize(_CENT, rounding=ROUND_HALF_UP))
+
+
+def format_money_cents(cents: int) -> str:
     sign = "-" if cents < 0 else ""
     c = abs(int(cents))
     pesos, centavos = divmod(c, 100)
@@ -63,7 +40,6 @@ def format_money_cents(cents: int) -> str:
 
 
 def _coerce_qty(value) -> Decimal:
-    """Qty: cantidad, no dinero. Decimal(str(v)) exacto, sin centavos."""
     if isinstance(value, Decimal):
         return value
     if isinstance(value, bool):
@@ -77,7 +53,6 @@ def _coerce_qty(value) -> Decimal:
 
 
 def _coerce_pct(value) -> Decimal:
-    """Pct: porcentaje (0..200). Decimal(str(v)) exacto, serializado a str."""
     if isinstance(value, Decimal):
         return value
     if isinstance(value, bool):
@@ -90,8 +65,6 @@ def _coerce_pct(value) -> Decimal:
     raise TypeError(f"tipo no aceptado para porcentaje: {type(value).__name__}")
 
 
-# Dinero: entero de centavos (long). when_used="json" → en python mode
-# (model_dump) el valor sigue siendo int; la serialización JSON lo emite int.
 Money = Annotated[
     int,
     BeforeValidator(_to_cents),

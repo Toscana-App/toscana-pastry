@@ -15,16 +15,6 @@ import { trackEvent } from "@/lib/analytics";
 import { toaster } from "@/lib/toaster";
 import { orderWindowService } from "../service";
 
-/**
- * Sección "Corte de pedidos" de la página de configuración (RF-P5-07 /
- * RF-P6-09): abre o cierra la ventana de pedidos del portal.
- *
- * - Endpoint propio (GET/PATCH /tenant/order-window): se guarda por separado
- *   del formulario de settings (botón de acción, no parte del PUT).
- * - Si el backend no lo expone (404) → sección deshabilitada con hint.
- * - Cerrar exige fecha de reapertura; el mensaje limita 200 caracteres.
- * - GA4: trackEvent("order_window_changed") al guardar.
- */
 export function OrderWindowSection() {
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -41,7 +31,6 @@ export function OrderWindowSection() {
       .then((w) => {
         if (!active) return;
         setOpen(w.open);
-        // datetime-local espera "YYYY-MM-DDTHH:mm"; el backend manda ISO completo.
         setReopensAt(w.reopens_at ? w.reopens_at.slice(0, 16) : "");
         setMessage(w.message);
       })
@@ -71,7 +60,6 @@ export function OrderWindowSection() {
         reopens_at: open ? null : reopensAt,
         message,
       });
-      // Al reabrir el backend limpia reopens_at (defensa local).
       if (updated.open) setReopensAt("");
       else if (updated.reopens_at)
         setReopensAt(updated.reopens_at.slice(0, 16));

@@ -9,7 +9,6 @@ import type {
   Supplier,
 } from "@/types/calc";
 
-// Seams: los services (materiales + listas de filtro F1) y el toaster.
 vi.mock("@/services/calcMaterialsService", () => ({
   calcMaterialsService: {
     listMaterials: vi.fn(),
@@ -124,12 +123,8 @@ describe("MaterialsAbm", () => {
 
     expect(await screen.findByText("Harina 000")).toBeInTheDocument();
     expect(screen.getByText("HAR-001")).toBeInTheDocument();
-    // Montos tal cual el str del servidor (sin formateo).
     expect(screen.getByText("100.00")).toBeInTheDocument();
     expect(screen.getByText("Manteca")).toBeInTheDocument();
-    // Nombres resueltos client-side del id→name map de los filtros.
-    // (scoped a la tabla: las opciones de los filtros también traen
-    // esos textos en el DOM, ocultas).
     const table = screen.getByRole("table");
     expect(within(table).getByText("Masa")).toBeInTheDocument();
     expect(within(table).getByText("Distribuidora X")).toBeInTheDocument();
@@ -147,16 +142,12 @@ describe("MaterialsAbm", () => {
     render(<MaterialsAbm />);
 
     await screen.findByText("Manteca");
-    // Chip de estado read-only (solo se muestra, nunca se envía).
-    // (scoped a la tabla: la opción del filtro de estado también existe
-    // oculta en el DOM).
     const table = screen.getByRole("table");
     expect(within(table).getByText("Incompleto")).toBeInTheDocument();
     const mantecaRow = screen
       .getAllByRole("row")
       .find((row) => row.textContent?.includes("Manteca"));
     expect(mantecaRow?.textContent).toContain("—");
-    // active → chip Activo
     expect(within(table).getByText("Activo")).toBeInTheDocument();
   });
 
@@ -165,7 +156,6 @@ describe("MaterialsAbm", () => {
     await screen.findByText("Harina 000");
     expect(calcMaterialsService.listMaterials).toHaveBeenCalledTimes(1);
 
-    // Debounce real de 300 ms: waitFor (timeout 1 s) lo cubre.
     fireEvent.change(screen.getByLabelText("Buscar"), {
       target: { value: "har" },
     });
@@ -185,7 +175,6 @@ describe("MaterialsAbm", () => {
   it("sends category_id when the category filter changes", async () => {
     render(<MaterialsAbm />);
     await screen.findByText("Harina 000");
-    // Espera a que las opciones de filtro carguen.
     await waitFor(() =>
       expect(
         screen.getByRole("combobox", { name: "Filtrar por categoría" })
@@ -285,8 +274,6 @@ describe("MaterialsAbm", () => {
         expect.objectContaining({ page: 2 })
       )
     );
-    // En la página 2 de 3 (120/50), Siguiente sigue habilitado; en la
-    // última (3), se deshabilita. Verifico el límite directo:
     vi.mocked(calcMaterialsService.listMaterials).mockResolvedValue(
       listResponse([harina, manteca], 120, 3)
     );
@@ -331,11 +318,8 @@ describe("MaterialsAbm", () => {
         { name: "Rúcula", purchase_total_price: 800, package_quantity: 2 }
       )
     );
-    // toHaveBeenCalledWith con objeto exacto: unit_cost/status no existen.
-    // La fila llega por un refetch del GET, no por mutación local.
     expect(await screen.findByText("Rúcula")).toBeInTheDocument();
     expect(calcMaterialsService.listMaterials).toHaveBeenCalledTimes(2);
-    // Form limpiado tras el 201.
     expect(screen.getByLabelText("Nombre")).toHaveValue("");
     expect(toaster.create).toHaveBeenCalledWith(
       expect.objectContaining({ type: "success" })
@@ -366,7 +350,6 @@ describe("MaterialsAbm", () => {
     );
     const dialog = await screen.findByRole("dialog");
 
-    // Vaciar el precio manda null explícito (RF-P2CC-04).
     fireEvent.change(within(dialog).getByLabelText("Precio del paquete"), {
       target: { value: "" },
     });
@@ -410,7 +393,6 @@ describe("MaterialsAbm", () => {
         })
       )
     );
-    // El diálogo NO se cierra ante el error.
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
@@ -450,7 +432,6 @@ describe("MaterialsAbm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
     await screen.findByText("Harina 000");
 
-    // Tras el borrado la página 2 queda vacía: debe volver a la 1.
     vi.mocked(calcMaterialsService.listMaterials).mockImplementation(
       async (query) =>
         query?.page === 2
@@ -469,8 +450,6 @@ describe("MaterialsAbm", () => {
   });
 
   it("keeps the row and shows the in-use danger toast when DELETE returns 409", async () => {
-    // 409 {"impacted_products": N} sin `detail` → apiFetch lanza
-    // Error("Network error").
     vi.mocked(calcMaterialsService.deleteMaterial).mockRejectedValue(
       new Error("Network error")
     );
@@ -534,7 +513,6 @@ describe("MaterialsAbm", () => {
       page_size: 100,
     });
 
-    // Interactuar (búsqueda) no dispara nuevas cargas de opciones.
     fireEvent.change(screen.getByLabelText("Buscar"), {
       target: { value: "x" },
     });

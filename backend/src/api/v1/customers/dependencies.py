@@ -1,4 +1,3 @@
-"""Dependencies de clientes: repositorio P6 y libro de direcciones (RF-P11-09)."""
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 

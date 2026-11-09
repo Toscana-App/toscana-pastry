@@ -10,6 +10,10 @@ ENV/
 *.db
 *.sqlite3
 
+# Media de producto (P12): solo el arbol, nunca los archivos
+media/*
+!media/.gitkeep
+
 # Testing
 .pytest_cache/
 htmlcov/

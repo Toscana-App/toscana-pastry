@@ -1,11 +1,3 @@
-"""Adapter de insumos (T-CSV-5, RF-CSV-08, RNF-CSV-06/-10).
-
-Columnas: nombre, cantidad, unidad, precio. Reutiliza el parsing tolerante de
-decimales (convencion argentina: coma decimal, punto de miles) de
-``domain.ingredients_import._to_decimal`` y el helper de centavos del borde de
-la API. La confirmacion crea el ``Ingredient`` + el movimiento de stock inicial
-con la misma logica que el alta manual (``reason="compra", ref="inicial"``).
-"""
 from __future__ import annotations
 
 import uuid
@@ -25,14 +17,10 @@ from domain.ingredients_import import _to_decimal
 from domain.models import STOCK_UNITS
 
 MAX_NAME = 120
-# "kg" -> "kg", "L" -> "L", "l" -> "L" (el dominio exige la forma canonica).
 _UNIT_CANONICAL = {unit.lower(): unit for unit in STOCK_UNITS}
 
 
 class IngredientRow(BaseModel):
-    """Fuente de las columnas de la plantilla (RF-CSV-04). Los valores llegan
-    como string (el CSV es texto); la validacion los normaliza en
-    ``IngredientsAdapter.validate_row`` reusando el parsing tolerante."""
 
     nombre: str = ""
     cantidad: str = ""
@@ -129,8 +117,6 @@ class IngredientsAdapter(ImportAdapter):
         except InvalidOperation:
             qty = Decimal("0")
         if qty > 0:
-            # La cantidad inicial deja rastro en el historial (RF-P2-04),
-            # igual que el alta manual de insumos.
             session.add(
                 StockMovementORM(
                     id=str(uuid.uuid4()),

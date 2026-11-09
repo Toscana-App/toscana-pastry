@@ -6,7 +6,6 @@ export const metadata: Metadata = {
   title: "Nuevo presupuesto",
 };
 
-/** Las mutaciones de presupuestos son de administración (RBAC). */
 export default function NewBudgetRoute() {
   return (
     <ProtectedRoute requiredRole="admin">

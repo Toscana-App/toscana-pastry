@@ -1,18 +1,6 @@
 import { z } from "zod";
 import { INGREDIENT_UNITS, STOCK_REASONS } from "./types";
 
-/**
- * Esquemas zod del módulo de ingredientes (Fase 4, RF-P2-02: "formulario con
- * zod").
- *
- * El client es la PRIMERA línea de validación (feedback inmediato por campo);
- * el backend sigue siendo la última (422 si algo se cuela). `.strict()` porque
- * el backend usa `extra="forbid"`: un typo muere acá, no en el payload.
- *
- * Tipado: los inputs numéricos usan `valueAsNumber`, así que el formulario ya
- * entrega `number`. Sin `z.coerce` el tipo de entrada coincide con el de salida
- * y el resolver no necesita casts.
- */
 
 export const ingredientCreateSchema = z
   .object({

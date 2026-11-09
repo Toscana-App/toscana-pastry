@@ -5,7 +5,6 @@ import { useDebounce } from "@/modules/shared/useDebounce";
 import { productsService } from "../service";
 import type { ProductListItem, ProductListParams } from "../types";
 
-/** RF-P3-01: paginación de 20 por página. */
 const PAGE_SIZE = 20;
 
 export interface UseProductsResult {
@@ -13,9 +12,7 @@ export interface UseProductsResult {
   total: number;
   page: number;
   query: string;
-  /** null = "Todas" (sin filtro). */
   category: string | null;
-  /** Categorías derivadas de los productos activos (chips del P3). */
   categories: string[];
   loading: boolean;
   error: string | null;
@@ -25,15 +22,6 @@ export interface UseProductsResult {
   reload: () => void;
 }
 
-/**
- * Estado del listado de productos (Fase 5, P3).
- *
- * - Búsqueda con debounce de 250 ms (RF-P3-03), combinable con el filtro de
- *   categoría (RF-P3-02): cualquier cambio vuelve a la página 1.
- * - Paginación server-side (page_size = 20, RF-P3-01).
- * - `categories` viene del backend en cada respuesta (derivadas de los
- *   productos activos, no de la página): los chips no desaparecen al filtrar.
- */
 export function useProducts(): UseProductsResult {
   const [query, setQueryState] = useState("");
   const [category, setCategoryState] = useState<string | null>(null);

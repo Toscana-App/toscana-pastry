@@ -4,7 +4,6 @@ import userEvent from "@testing-library/user-event"
 import { renderWithProviders } from "@/test-utils"
 import { ColorModeButton, ColorModeProvider } from "./color-mode"
 
-// next-themes reads the OS preference through matchMedia, which jsdom lacks.
 function stubMatchMedia(prefersDark: boolean) {
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: prefersDark && query.includes("dark"),

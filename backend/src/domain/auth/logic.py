@@ -5,10 +5,8 @@ from typing import Any, Dict, Optional
 from core.config import settings
 
 
-# --- Magic Link -------------------------------------------------------------
 
 class MagicLinkToken:
-    """Token de un solo uso enviado por email para autenticar sin contraseña."""
 
     def __init__(self, user_email: str, ttl_minutes: int = 15):
         self.user_email = user_email
@@ -30,7 +28,6 @@ class MagicLinkToken:
             return False
         if datetime.datetime.utcnow() > self.expiry:
             return False
-        # El email no puede cambiar entre emisión y validación (anti-tampering).
         if self._issued_for != self.user_email:
             return False
         try:
@@ -42,10 +39,8 @@ class MagicLinkToken:
         return payload.get("sub") == self.user_email
 
 
-# --- Google Sign-In ---------------------------------------------------------
 
 def validate_google_id_token(payload: Dict[str, Any]) -> Dict[str, str]:
-    """Valida el payload de un ID token de Google y normaliza los datos del usuario."""
     if not payload.get("sub"):
         raise ValueError("Missing 'sub' in payload")
     if not payload.get("email_verified"):
@@ -53,7 +48,6 @@ def validate_google_id_token(payload: Dict[str, Any]) -> Dict[str, str]:
     return {"google_id": payload["sub"], "email": payload.get("email", "")}
 
 
-# --- JWT (access / refresh) -------------------------------------------------
 
 def create_access_token(data: Dict[str, Any]) -> str:
     to_encode = data.copy()

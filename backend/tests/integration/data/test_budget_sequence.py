@@ -1,11 +1,3 @@
-"""Secuencia #000NN de presupuestos (RNF-P8-04).
-
-SQLite no soporta SELECT ... FOR UPDATE ni concurrencia real de filas: este
-test usa una base en archivo con sesiones independientes y asyncio.gather.
-Prueba que el UPDATE atomico no entrega valores repetidos ni salta numeros
-cuando varias transacciones compiten (SQLite serializa los escritores). No
-prueba el bloqueo de fila de PostgreSQL.
-"""
 import asyncio
 
 import pytest
@@ -32,7 +24,6 @@ async def test_concurrent_sequences_are_unique_and_gapless(tmp_path):
         await conn.run_sync(Base.metadata.create_all)
     factory = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
-    # First call creates the row; the rest compete for it.
     first = await _take_sequence(factory)
     results = await asyncio.gather(*[_take_sequence(factory) for _ in range(10)])
     await engine.dispose()

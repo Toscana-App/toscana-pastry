@@ -11,12 +11,6 @@ import type {
   Supplier,
 } from "@/types/calc";
 
-// Form reutilizado para alta (card encima de la tabla) y edición
-// (diálogo con el material precargado). Emite payloads vía onSubmit:
-// en modo alta, MaterialCreatePayload con campos vacíos omitidos; en modo
-// edición, MaterialUpdatePayload con SOLO los campos tocados (null en
-// precio/cantidad limpia el dato, RF-P2CC-04). Nunca incluye unit_cost
-// ni status (extra="forbid" → 422, RF-P2CC-02/03).
 interface MaterialFormProps {
   initial?: Material;
   categories: Category[];
@@ -26,8 +20,6 @@ interface MaterialFormProps {
   submitLabel?: string;
 }
 
-// Input numérico crudo → number | null (vacío → null; inválido → null).
-// Valor centinela de la opción vacía de categoría/proveedor (→ null en PATCH).
 const NONE = "__none__";
 
 function parseAmount(raw: string): number | null {
@@ -79,7 +71,6 @@ export default function MaterialForm({
 
     const priceValue = parseAmount(price);
     const quantityValue = parseAmount(quantity);
-    // Validación client-side: no depender del 422 del backend.
     if (priceValue !== null && priceValue < 0) {
       setError("El precio del paquete no puede ser negativo.");
       return;
@@ -90,9 +81,6 @@ export default function MaterialForm({
     }
 
     if (initial) {
-      // Edición: PATCH con solo los campos tocados (el backend usa
-      // exclude_unset). Precio/cantidad: input vacío → null explícita
-      // (elimina el dato en el servidor, RF-P2CC-04).
       const payload: MaterialUpdatePayload = {};
       if (trimmedName !== initial.name) payload.name = trimmedName;
       assignTouchedText(payload, "internal_code", internalCode, initial.internal_code);
@@ -114,14 +102,12 @@ export default function MaterialForm({
       if (quantityValue !== originalQuantity) {
         payload.package_quantity = quantityValue;
       }
-      // Sin cambios → no enviar (PATCH vacío → 422 en el backend).
       if (Object.keys(payload).length === 0) {
         setError("No hay cambios para guardar.");
         return;
       }
       onSubmit(payload);
     } else {
-      // Alta: payload mínimo; los campos vacíos no se mandan.
       const payload: MaterialCreatePayload = { name: trimmedName };
       if (internalCode.trim()) payload.internal_code = internalCode.trim();
       if (categoryId) payload.category_id = categoryId;
@@ -257,8 +243,6 @@ export default function MaterialForm({
   );
 }
 
-// Asigna el campo en el payload solo si el input difiere del original;
-// texto vacío con dato previo → null (limpia el dato).
 function assignTouchedText(
   payload: MaterialUpdatePayload,
   field:

@@ -26,10 +26,8 @@ import type {
   DefaultCostUpdatePayload,
 } from "@/types/calc";
 
-// page_size fijo (decisión F1 en PREGUNTAS.md): escala admin, sin selector.
 const PAGE_SIZE = 50;
 
-// Allow-lists exactas (RF-P5CC-06) con labels en español.
 const TYPE_COLLECTION = createListCollection({
   items: [
     { value: "labor", label: "Mano de obra" },
@@ -48,8 +46,6 @@ const typeLabel = (type: string) =>
 const statusLabel = (status: string) =>
   status === "active" ? "Activo" : "Inactivo";
 
-// Montos/quantities viajan como str del backend; en pantalla se muestran
-// con 2 decimales.
 function formatAmount(value: string): string {
   const n = Number(value);
   return Number.isFinite(n) ? n.toFixed(2) : value;
@@ -65,15 +61,12 @@ export default function DefaultCostsAbm() {
   const [data, setData] = useState<DefaultCostListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  // Contador para forzar reintento sin cambios de parámetros.
   const [reloadKey, setReloadKey] = useState(0);
 
-  // Búsqueda: input crudo + valor con debounce (~300 ms) que manda ?q.
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  // Creación (formulario card encima de la tabla).
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState<DefaultCostType>("labor");
   const [newCost, setNewCost] = useState("");
@@ -81,7 +74,6 @@ export default function DefaultCostsAbm() {
   const [newStatus, setNewStatus] = useState<DefaultCostStatus>("active");
   const [creating, setCreating] = useState(false);
 
-  // Edición inline por fila.
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editType, setEditType] = useState<DefaultCostType>("labor");
@@ -90,7 +82,6 @@ export default function DefaultCostsAbm() {
   const [editStatus, setEditStatus] = useState<DefaultCostStatus>("active");
   const [savingEdit, setSavingEdit] = useState(false);
 
-  // Eliminación con diálogo de confirmación.
   const [deleting, setDeleting] = useState<DefaultCost | null>(null);
   const [deletingBusy, setDeletingBusy] = useState(false);
 
@@ -134,7 +125,6 @@ export default function DefaultCostsAbm() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setSearch(searchInput);
-      // Un cambio de búsqueda vuelve a la primera página.
       setPage(1);
     }, 300);
     return () => clearTimeout(timer);
@@ -155,7 +145,6 @@ export default function DefaultCostsAbm() {
         status: newStatus,
       };
       await calcSettingsService.createDefaultCost(payload);
-      // Refetch de la página actual: respeta filtro, orden y PAGE_SIZE del server.
       setReloadKey((key) => key + 1);
       setNewName("");
       setNewType("labor");
@@ -197,9 +186,6 @@ export default function DefaultCostsAbm() {
       return;
     }
 
-    // PATCH con SOLO los campos tocados (el backend usa exclude_unset).
-    // Montos/quantities se comparan numéricamente: el usuario manda el
-    // número que escribió, no el str original.
     const payload: DefaultCostUpdatePayload = {};
     if (editName.trim() !== original.name) payload.name = editName.trim();
     if (editType !== original.type) payload.type = editType;
@@ -298,7 +284,7 @@ export default function DefaultCostsAbm() {
     <Flex direction="column" gap={4}>
       <Heading size="md">Costos por defecto</Heading>
 
-      {/* Creación: card encima de la tabla */}
+      {}
       <Flex
         direction="column"
         gap={3}
@@ -396,7 +382,7 @@ export default function DefaultCostsAbm() {
         </Flex>
       </Flex>
 
-      {/* Búsqueda (?q) + total */}
+      {}
       <Flex align="center" gap={3}>
         <Input
           aria-label="Buscar"
@@ -576,7 +562,7 @@ export default function DefaultCostsAbm() {
         </Table.ScrollArea>
       )}
 
-      {/* Paginación prev/next + total (page_size=50 fijo) */}
+      {}
       <Flex align="center" gap={3}>
         <Button
           size="sm"
@@ -598,7 +584,7 @@ export default function DefaultCostsAbm() {
         </Button>
       </Flex>
 
-      {/* Confirmación de borrado */}
+      {}
       <Dialog.Root
         open={deleting !== null}
         onOpenChange={(details) => {

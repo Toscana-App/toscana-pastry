@@ -22,15 +22,11 @@ class StockStatus(str, Enum):
 
 DIFFICULTIES = ("simple", "intermedio", "complejo")
 STOCK_UNITS = ("kg", "g", "L", "ml", "unidad")
-# "pedido" = descuento al confirmar un pedido (RNF-P6-02); "anulacion" =
-# reposicion al cancelar un pedido confirmado (RNF-P6-01).
 STOCK_REASONS = ("compra", "merma", "ajuste", "pedido", "anulacion")
 
 
 @dataclass(frozen=True)
 class User:
-    """Entidad de dominio. La identidad la genera el propio dominio: quien crea
-    un User no necesita conocer ni construir el id."""
 
     email: str
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
@@ -40,13 +36,6 @@ class User:
 
 @dataclass
 class BusinessSettings:
-    """Parametros de precio de la casa. Un solo registro: la app es monotenante.
-
-    Los rangos validados son los de la spec p05 (RF-P5-01): valor hora
-    0.01-100000, margen 0-100, paso 0.01-1000, gas/merma/urgencia 0-100.
-    Cada % exige su toggle encendido (RF-P5-06): un componente desactivado
-    no puede quedar con un porcentaje cargado.
-    """
 
     hourly_rate: Decimal
     margin_pct: Decimal
@@ -61,7 +50,6 @@ class BusinessSettings:
     default_prep_minutes: int = 30
     default_servings: int = 6
     default_difficulty: str = "simple"
-    # Fase 8 (P9): branding del PDF (solo texto — sin upload de logo en v1).
     business_name: str = ""
     footer_text: str = ""
 
@@ -104,7 +92,6 @@ class BusinessSettings:
             raise ValueError(f"default_difficulty invalido: {self.default_difficulty!r}")
 
     def to_pricing(self) -> PricingSettings:
-        """La porcion de estos parametros que entra en la formula."""
         return PricingSettings(
             hourly_rate=self.hourly_rate,
             margin_pct=self.margin_pct,
@@ -118,8 +105,6 @@ class BusinessSettings:
 
 
 DEFAULT_BUSINESS_SETTINGS = BusinessSettings(
-    # RF-P5-04 (valores por defecto del sistema): hora $3.000, margen 30%,
-    # redondeo 100, toggles ON, gas 3%, merma 3%, urgencia 20%.
     hourly_rate=Decimal("3000"),
     margin_pct=Decimal("30"),
     round_step=Decimal("100"),
@@ -135,9 +120,6 @@ DEFAULT_BUSINESS_SETTINGS = BusinessSettings(
 
 @dataclass(frozen=True)
 class Ingredient:
-    """Insumo con unidad, precio de compra y stock. La identidad la genera
-    el dominio, igual que User. `deleted_at` no vacio = soft delete (borrado
-    con undo, UC-05): queda en la tabla pero es invisible a list/get."""
 
     name: str
     unit: str
@@ -167,8 +149,6 @@ class Ingredient:
 
 @dataclass(frozen=True)
 class StockMovement:
-    """Un ajuste de stock. El historial es inmutable (RF-P2-04): se agrega,
-    nunca se edita. `qty_delta` firmado: entrada positiva, salida negativa."""
 
     qty_delta: Decimal
     reason: str
@@ -182,10 +162,6 @@ class StockMovement:
 
 @dataclass(frozen=True)
 class RecipeItem:
-    """Linea de receta (RF-P4-03). `qty` va en su propia unidad; el motor
-    de precios la convierte contra la unidad de compra del insumo
-    (familias: g/kg, ml/l, unidad). La compatibilidad la revalida el motor
-    al calcular."""
 
     ingredient_id: str
     qty: Decimal
@@ -204,9 +180,6 @@ MAX_RECIPE_LINES = 30
 
 @dataclass(frozen=True)
 class Product:
-    """Producto de catalogo (P3/P4). El precio NO se persiste: se deriva en
-    lectura con insumos + settings corrientes (RF-P3-04, RF-P4-05).
-    `deleted_at` no nulo = borrado suave (UC-07)."""
 
     name: str
     category: str
@@ -215,6 +188,8 @@ class Product:
     prep_time_min: int = 0
     servings: int = 1
     difficulty: str = "simple"
+    available: bool = False
+    image_url: Optional[str] = None
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     deleted_at: Optional[datetime.datetime] = None
 

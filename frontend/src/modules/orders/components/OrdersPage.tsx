@@ -28,7 +28,6 @@ import { ORDER_STATUS_LABELS, ORDER_STATUSES, type OrderStatus } from "../types"
 
 const PAGE_SIZE = 20;
 
-/** Color del badge por estado (Chakra v3 colorPalette). */
 const STATUS_COLORS: Record<OrderStatus, "blue" | "green" | "gray" | "red"> = {
   nuevo: "blue",
   confirmado: "green",
@@ -36,14 +35,6 @@ const STATUS_COLORS: Record<OrderStatus, "blue" | "green" | "gray" | "red"> = {
   cancelado: "red",
 };
 
-/**
- * Listado de pedidos (Fase 6, UC-01 / RF-P6-05) — /pedidos.
- *
- * Filtros combinables: búsqueda por nombre de cliente (debounce 250 ms),
- * estado y rango de fechas de pedido. Paginación server-side (20/página).
- * La creación es solo admin: las mutaciones de pedidos son de
- * administración (mismo RBAC que el wizard).
- */
 export function OrdersPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
@@ -70,8 +61,6 @@ export function OrdersPage() {
     goToPage,
   } = useOrders();
 
-  // Ventana de pedidos (RF-P6-09): si está cerrada se muestra el banner de
-  // aviso y se deshabilita la creación desde esta vista.
   const [orderWindow, setOrderWindow] = useState<OrderWindow | null>(null);
   useEffect(() => {
     let active = true;
@@ -89,8 +78,6 @@ export function OrdersPage() {
   }, []);
   const windowClosed = orderWindow !== null && !orderWindow.open;
 
-  // Export del listado (UC-08): baja el reporte con los filtros activos
-  // (estado, pago y rango de fechas) en CSV o PDF.
   const handleExport = (format: "csv" | "pdf") => {
     setExporting(true);
     setExportError(null);
@@ -183,7 +170,7 @@ export function OrdersPage() {
         </Alert.Root>
       ) : null}
 
-      {/* Pestañas: listado / resumen semanal (UC-08) */}
+      {}
       <Flex gap={1} borderBottomWidth="1px" borderColor="gray.200">
         {(
           [

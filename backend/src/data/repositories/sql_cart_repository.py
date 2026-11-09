@@ -1,8 +1,3 @@
-"""Repository del carrito server-side (RF-P11-03, C4).
-
-Mapeo ORM↔dominio. El carrito persiste solo (product_id, qty) + el cupon
-aplicado: el precio se deriva en cada lectura (RNF-P11-03).
-"""
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +12,6 @@ class SQLCartRepository:
     async def get_state(
         self, user_id: str
     ) -> tuple[list[tuple[str, int]], str | None]:
-        """Devuelve ((product_id, qty)[...], coupon_code | None)."""
         cart = await self.session.get(CartORM, user_id)
         coupon_code = cart.coupon_code if cart is not None else None
         result = await self.session.execute(
@@ -46,7 +40,6 @@ class SQLCartRepository:
     async def upsert_item(
         self, user_id: str, product_id: str, qty: int
     ) -> None:
-        """Crea o actualiza la cantidad de la linea (idempotente)."""
         result = await self.session.execute(
             select(CartItemORM).where(
                 CartItemORM.user_id == user_id,
@@ -63,7 +56,6 @@ class SQLCartRepository:
         await self._touch_cart(user_id)
 
     async def remove_item(self, user_id: str, product_id: str) -> bool:
-        """Elimina la linea. True si existía."""
         result = await self.session.execute(
             select(CartItemORM).where(
                 CartItemORM.user_id == user_id,
@@ -80,7 +72,7 @@ class SQLCartRepository:
     async def set_coupon_code(self, user_id: str, code: str) -> None:
         await self._touch_cart(user_id)
         cart = await self.session.get(CartORM, user_id)
-        assert cart is not None  # _touch_cart la crea si no existe
+        assert cart is not None
         cart.coupon_code = code
 
     async def clear_coupon(self, user_id: str) -> None:
@@ -93,7 +85,6 @@ class SQLCartRepository:
         await self.session.commit()
 
     async def _touch_cart(self, user_id: str) -> None:
-        """Garantiza el registro del carrito para el usuario."""
         cart = await self.session.get(CartORM, user_id)
         if cart is None:
             self.session.add(CartORM(user_id=user_id))

@@ -1,7 +1,3 @@
-"""Webhook router for Mercado Pago (C1.6).
-
-Namespace: /api/v1/webhooks.
-"""
 
 from __future__ import annotations
 
@@ -33,11 +29,6 @@ async def mercadopago_webhook(
     repo: SQLOrderRepository = Depends(get_order_repository),
     provider: CheckoutProvider = Depends(get_checkout_provider),
 ):
-    """POST /webhooks/mercadopago: notificación de pago (firma + idempotencia).
-
-    Público (solo firma, sin auth por cookie). El body solo trae el id del
-    pago; el estado y el pedido (external_reference) se leen del proveedor.
-    """
     verified = provider.verify_webhook(
         await request.body(),
         request.headers.get("x-signature"),
@@ -52,7 +43,6 @@ async def mercadopago_webhook(
     try:
         notification = WebhookNotification.model_validate(json.loads(verified))
     except (ValidationError, ValueError) as err:
-        # Signature is valid but the body is not a notification we understand.
         raise HTTPException(
             status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="invalid_webhook_payload",
@@ -69,7 +59,6 @@ async def mercadopago_webhook(
     try:
         payment = await provider.get_payment(payment_id)
     except PaymentProviderError as err:
-        # Non-200 makes Mercado Pago retry the notification later.
         raise HTTPException(
             status_code=http_status.HTTP_502_BAD_GATEWAY,
             detail="payment_provider_error",
@@ -79,7 +68,6 @@ async def mercadopago_webhook(
         return WebhookResponse()
     payment_status = PaymentStatus(payment.status)
 
-    # Dedupe by (payment, status): one payment is notified once per status.
     event_id = f"{payment_id}:{payment_status.value}"
     if await repo.get_payment_event(event_id):
         return WebhookResponse()
@@ -96,7 +84,6 @@ async def mercadopago_webhook(
     if payment_status == PaymentStatus.APPROVED:
         expected = order.total - (order.discount_amount or Decimal("0"))
         if payment.amount != expected or payment.currency != _PAYMENT_CURRENCY:
-            # Never mark paid on a mismatch; 200 so MP does not retry.
             logger.error(
                 "mercadopago payment %s discrepancy for order %s: "
                 "amount %s %s, expected %s %s; not marked paid",
@@ -109,8 +96,6 @@ async def mercadopago_webhook(
             )
             return WebhookResponse()
 
-    # One transaction: event insert (dedupe) + guarded, priority-aware update.
-    # Cash orders ignore MP webhooks (payment_status stays None, paid false).
     await repo.apply_payment_event(
         event_id=event_id,
         order_id=order.id,

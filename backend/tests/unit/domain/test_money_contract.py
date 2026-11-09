@@ -1,4 +1,3 @@
-"""Money contract at the API edge: integer cents only (str/float/bool -> 422)."""
 from decimal import Decimal
 
 import pytest
@@ -21,6 +20,5 @@ def test_domain_decimal_is_converted_to_cents():
 
 @pytest.mark.parametrize("bad", ["3100.50", "310050", 3100.5, 1.0, True, False, None])
 def test_non_int_input_is_a_validation_error(bad):
-    # ValidationError (not TypeError) is what FastAPI turns into a 422.
     with pytest.raises(ValidationError):
         _Model(amount=bad)

@@ -1,4 +1,3 @@
-"""Repository para CalcDefaultCost (RF-P5CC-06)."""
 from decimal import Decimal
 from typing import List, Optional, Tuple
 from sqlalchemy import func, select

@@ -1,11 +1,5 @@
 "use client";
 
-/** Mis pedidos del portal (F4 — RF-P11-08).
-
-Listado mobile-first (cards) + badges de estado y pago con texto,
-detalle expandible (líneas, entrega, cupón) y paginación.
-Badge "Pagar en efectivo en la entrega" para pedidos en efectivo.
-*/
 
 import {
   Alert,
@@ -31,7 +25,6 @@ import { OrderDetail } from "@/types/orders";
 
 const PAGE_SIZE = 10;
 
-/** Money arrives as decimal strings; render with es-AR grouping. */
 function formatMoney(value: string): string {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return value;
@@ -41,11 +34,6 @@ function formatMoney(value: string): string {
   });
 }
 
-/**
- * RF-P11-10: the "Pagar con Mercado Pago" CTA appears while the order is
- * unpaid and the online payment is pending/retryable (never for cash, never
- * once approved, and never while a payment attempt is in progress).
- */
 function canPayNow(order: OrderDetail): boolean {
   if (order.paid) return false;
   if (order.payment_method !== "mercadopago") return false;
@@ -134,10 +122,6 @@ function OrderCard({
         order.id,
         crypto.randomUUID()
       );
-      // The backend (mock provider) returns either an internal path
-      // ("/checkout/mock/<ref>") or an https checkout URL. Anything else
-      // is refused (open-redirect defense): window.open only ever receives
-      // a value that passed this validation.
       const isInternal =
         checkout_url.startsWith("/") && !checkout_url.startsWith("//");
       let safeTarget: string;
