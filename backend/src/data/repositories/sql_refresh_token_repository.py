@@ -8,8 +8,6 @@ from domain.repositories import RefreshTokenRepository
 
 
 class SQLRefreshTokenRepository(RefreshTokenRepository):
-    # ponytail: rows are never purged. Add a periodic
-    # DELETE ... WHERE expires_at < now() if the table grows.
     def __init__(self, session: AsyncSession):
         self.session = session
 
@@ -24,8 +22,6 @@ class SQLRefreshTokenRepository(RefreshTokenRepository):
         await self.session.commit()
 
     async def consume(self, jti: str) -> bool:
-        # Single conditional UPDATE: two concurrent refreshes with the same
-        # token cannot both succeed.
         now = datetime.datetime.now(datetime.UTC)
         result = await self.session.execute(
             update(RefreshTokenORM)

@@ -1,9 +1,3 @@
-"""Login sessions: access token + rotating refresh token.
-
-Every refresh consumes the presented token and issues a new pair in the same
-family. Presenting an already-consumed token means it was copied (stolen or
-replayed), so the whole family is revoked and every holder must log in again.
-"""
 import datetime
 import uuid
 from dataclasses import dataclass
@@ -53,9 +47,6 @@ async def rotate_session(
     except ValueError as exc:
         raise InvalidRefreshToken() from exc
 
-    # ponytail: two tabs refreshing in the same instant look like a replay and
-    # log the user out. Add a short grace window for the previous jti if that
-    # shows up in practice.
     if not await repo.consume(payload["jti"]):
         await repo.revoke_family(payload["fam"])
         raise InvalidRefreshToken()
@@ -63,7 +54,6 @@ async def rotate_session(
 
 
 async def end_session(repo: RefreshTokenRepository, refresh_token: str) -> None:
-    """Logout: revoke the whole family. A bad or missing token is a no-op."""
     try:
         payload = decode_refresh_token(refresh_token)
     except ValueError:

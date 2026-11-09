@@ -53,8 +53,6 @@ class UserORM(Base):
 
 
 class RefreshTokenORM(Base):
-    """Issued refresh token, by jti (the token itself is never stored).
-    `revoked_at` set = consumed by a rotation or revoked by logout/reuse."""
 
     __tablename__ = "refresh_tokens"
     jti = Column(String, primary_key=True)
@@ -149,7 +147,6 @@ class RecipeItemORM(Base):
     position = Column(Integer, nullable=False, default=0)
 
 
-
 class CustomerORM(Base):
 
     __tablename__ = "customers"
@@ -173,8 +170,6 @@ class OrderEventORM(Base):
     type = Column(String, nullable=False)
     payload = Column(Text, nullable=False, default="")
     created_at = Column(DateTime(timezone=True), nullable=False)
-
-
 
 
 class TenantSequenceORM(Base):
@@ -235,8 +230,6 @@ class BudgetVersionORM(Base):
     version = Column(Integer, nullable=False)
     snapshot = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False)
-
-
 
 
 class BudgetDocumentORM(Base):
@@ -570,8 +563,6 @@ class CalcDefaultCostORM(Base):
     )
 
 
-
-
 class CartORM(Base):
 
     __tablename__ = "cart"
@@ -600,8 +591,6 @@ class CartItemORM(Base):
         default=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
-
-
 
 
 class _OrderStatusColumn(TypeDecorator):

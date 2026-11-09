@@ -55,9 +55,6 @@ export function Navbar() {
   const isAdmin = role === "admin";
   const isPortal = isPortalRole(role);
 
-  // /login is a standalone screen with its own centered brand lockup:
-  // rendering the navbar there duplicates the logo and adds a
-  // redundant "Login" link to a page that already IS the login.
   if (pathname === "/login") {
     return null;
   }

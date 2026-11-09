@@ -2,7 +2,6 @@ import { apiFetch, clearSession } from "@/lib/api";
 import { AuthResponse, UserInfo } from "@/types/auth";
 
 export const authService = {
-  // The backend sets the session cookies (HttpOnly) on the response.
   loginWithGoogle(googleId: string): Promise<AuthResponse> {
     return apiFetch<AuthResponse>(
       "/auth/login",
@@ -15,7 +14,6 @@ export const authService = {
     return apiFetch<UserInfo>("/auth/me");
   },
 
-  /** Revokes the session server-side and clears the cookies. */
   async logout(): Promise<void> {
     try {
       await apiFetch<void>("/auth/logout", { method: "POST" }, false);
