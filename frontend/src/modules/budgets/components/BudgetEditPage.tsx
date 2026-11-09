@@ -31,9 +31,6 @@ import {
 import { productsService } from "@/modules/products/service";
 import type { ProductListItem } from "@/modules/products/types";
 
-/**
- * Select nativo estilizado — misma convención (EnumSelect F5) que el wizard.
- */
 const StyledOptionSelect = chakra("select", {
   base: {
     width: "100%",
@@ -81,18 +78,9 @@ interface EditRow {
   key: number;
   product_id: string;
   qty: string;
-  /** Precio manual en PESOS; "" = precio del motor. */
   price: string;
 }
 
-/**
- * Edición de presupuesto (Fase 7, P8, UC-04) — /presupuestos/[id]/editar.
- *
- * Editable en borrador y enviado (RF-P8-04/05; un enviado requiere reenvío): modo de cálculo,
- * margen y líneas (producto, cantidad, override manual). El PUT re-deriva
- * los costos contra el catálogo corriente: al guardar se ven los precios
- * nuevos en el detalle.
- */
 interface BudgetEditPageProps {
   budgetId: string;
 }
@@ -112,7 +100,6 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
   const [productsLoading, setProductsLoading] = useState(true);
   const [productsError, setProductsError] = useState<string | null>(null);
 
-  // Carga del presupuesto (una sola vez).
   useEffect(() => {
     let cancelled = false;
     budgetsService
@@ -127,8 +114,6 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
             key: i + 1,
             product_id: it.product_id,
             qty: String(it.qty),
-            // En manual se precargan los overrides guardados; en cost_plus
-            // los precios los fija el motor (inputs ocultos).
             price:
               d.calculation_mode === "manual" && it.price_overridden
                 ? String(centsToPesos(it.unit_selling))
@@ -149,7 +134,6 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
     };
   }, [budgetId]);
 
-  // Catálogo completo (mismo recado que el wizard: hasta 5 páginas de a 100).
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -203,7 +187,6 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
 
   const save = useCallback(async () => {
     if (!budget) return;
-    // Vacíos como "" / 0 para que zod reporte con mensaje claro (como el wizard).
     const parsed = budgetItemsSchema.safeParse({
       mode,
       margin_pct: margin === "" ? "" : Number(margin),
@@ -244,7 +227,6 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
       }));
       await budgetsService.update(budget.id, {
         calculation_mode: mode,
-        // Solo cost_plus usa margen: en manual no se toca el guardado.
         margin_pct: mode === "cost_plus" ? (margin === "" ? null : margin) : undefined,
         items,
       });
@@ -448,7 +430,7 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
         </Stack>
       </Box>
 
-      {/* Referencia de precios del catálogo (solo lectura) */}
+      {}
       {priceByProduct.size > 0 ? (
         <Text fontSize="xs" color="fg.muted" maxW="860px">
           Precios del catálogo usados para el recálculo:{" "}

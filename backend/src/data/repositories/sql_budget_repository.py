@@ -1,10 +1,3 @@
-"""SQL de presupuestos (Fase 7, P7/P8).
-
-La creacion asigna la secuencia del tenant en la MISMA transaccion que el
-presupuesto (RNF-P8-04): si el insert falla, el contador no se mueve.
-`mark_sent` congela un snapshot de version en budget_versions (solo
-INSERT: RF-P8-05). Borrado: sin efecto sobre stock ni secuencia.
-"""
 import dataclasses
 import json
 import uuid
@@ -36,9 +29,6 @@ from domain.budgets import (
 BUDGET_SEQUENCE_KEY = "budget"
 
 
-# ---------------------------------------------------------------------------
-# (De)serializacion (money como TEXT, RNF-P4-02; snapshot JSON como en P6)
-# ---------------------------------------------------------------------------
 
 
 def _budget_to_domain(orm: BudgetORM) -> Budget:
@@ -58,7 +48,7 @@ def _budget_to_domain(orm: BudgetORM) -> Budget:
         customer_id=orm.customer_id,
         customer_name=orm.customer_name,
         customer_phone=orm.customer_phone,
-        delivery_address=orm.delivery_address,  # type: ignore[arg-type]
+        delivery_address=orm.delivery_address,
         items=items,
         margin_pct=Decimal(orm.margin_pct) if orm.margin_pct is not None else None,
         calculation_mode=CalculationMode(orm.calculation_mode),
@@ -74,7 +64,6 @@ def _budget_to_domain(orm: BudgetORM) -> Budget:
 
 
 def _snapshot_to_json(budget: Budget) -> str:
-    """Snapshot de version enviada: customer + items + totales (RF-P8-05)."""
     totals = budget.totals
     return json.dumps(
         {
@@ -115,7 +104,6 @@ class SQLBudgetRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    # ------------------------------------------------------------------ get
 
     async def get(self, budget_id: str) -> Optional[Budget]:
         result = await self.session.execute(
@@ -142,7 +130,6 @@ class SQLBudgetRepository:
             from data.accent import accent_fold
 
             folded = accent_fold(q) or q
-            # #00042 sin o con #: la secuencia se guarda con '#'.
             filters.append(
                 or_(
                     func.accent_fold(BudgetORM.customer_name).like(f"%{folded}%"),
@@ -170,11 +157,8 @@ class SQLBudgetRepository:
         ).scalars().all()
         return [_budget_to_domain(orm) for orm in rows], total
 
-    # -------------------------------------------------------------- mutables
 
     async def _bump_sequence(self) -> Optional[int]:
-        """UPDATE atomico ... RETURNING: la base serializa los incrementos
-        concurrentes (bloqueo de fila), no hay lectura-modificacion-escritura."""
         return (
             await self.session.execute(
                 update(TenantSequenceORM)
@@ -186,12 +170,8 @@ class SQLBudgetRepository:
         ).scalar_one_or_none()
 
     async def _next_sequence(self) -> str:
-        """Incrementa y devuelve la secuencia del tenant. El commit lo
-        hace el llamador: falla -> rollback, el contador no se mueve."""
         current = await self._bump_sequence()
         if current is None:
-            # Primera vez: crear la fila. Si otra transaccion la creo antes
-            # (PK duplicada), se descarta el savepoint y se reintenta el UPDATE.
             try:
                 async with self.session.begin_nested():
                     self.session.add(
@@ -245,9 +225,6 @@ class SQLBudgetRepository:
             raise
 
     async def update(self, budget: Budget) -> Optional[Budget]:
-        """Reemplazo de lineas + parametros. Conserva seq/status/version
-        (el estado lo valida el router). Sin cambio de items: solo
-        parametros."""
         result = await self.session.execute(
             select(BudgetORM)
             .where(BudgetORM.id == budget.id)
@@ -260,7 +237,7 @@ class SQLBudgetRepository:
             orm.customer_id = budget.customer_id
             orm.customer_name = budget.customer_name
             orm.customer_phone = budget.customer_phone
-            orm.delivery_address = budget.delivery_address  # type: ignore[reportAttributeAccessIssue]
+            orm.delivery_address = budget.delivery_address
             orm.calculation_mode = budget.calculation_mode.value
             orm.margin_pct = (
                 str(budget.margin_pct) if budget.margin_pct is not None else None
@@ -302,7 +279,6 @@ class SQLBudgetRepository:
             return False
         try:
             await self.session.delete(orm)
-            # versiones: historial de un presupuesto eliminado no sirve.
             versions = (
                 await self.session.execute(
                     select(BudgetVersionORM).where(
@@ -312,7 +288,6 @@ class SQLBudgetRepository:
             ).scalars().all()
             for version in versions:
                 await self.session.delete(version)
-            # Fase 8: PDF generado y eventos de WhatsApp (P9/P10).
             documents = (
                 await self.session.execute(
                     select(BudgetDocumentORM).where(
@@ -337,12 +312,8 @@ class SQLBudgetRepository:
             await self.session.rollback()
             raise
 
-    # -------------------------------------------------------------- convert
 
     async def mark_converted(self, budget_id: str, order_id: str) -> bool:
-        """Asocia el pedido solo si el presupuesto sigue sin convertir
-        (UPDATE condicional: la base serializa conversiones concurrentes).
-        False = ya estaba convertido o no existe."""
         try:
             result = await self.session.execute(
                 update(BudgetORM)
@@ -356,11 +327,8 @@ class SQLBudgetRepository:
             await self.session.rollback()
             raise
 
-    # ----------------------------------------------------------------- send
 
     async def mark_sent(self, budget: Budget) -> Budget:
-        """Persiste el envio (ya validado por transition_to_sent) y
-        congela el snapshot de la version (RF-P8-05)."""
         try:
             now = datetime.now(timezone.utc)
             orm = await self.session.execute(
@@ -394,13 +362,10 @@ class SQLBudgetRepository:
             await self.session.rollback()
             raise
 
-    # ------------------------------------------------------------- WhatsApp
 
     async def record_whatsapp_sent_within_limit(
         self, budget_id: str, masked_phone: str, since: datetime, limit: int
     ) -> Optional[datetime]:
-        """Conteo + inserción en UN statement: no hay ventana entre el
-        chequeo del límite y el registro (requests concurrentes)."""
         try:
             now = datetime.now(timezone.utc)
             sent_count = (

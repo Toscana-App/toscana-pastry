@@ -52,9 +52,6 @@ export default function ProfilePage() {
   }, [router]);
 
   if (loading || !user) {
-    // Same container as the success content so the heading and the cards
-    // occupy identical space; the heading is static, only the data
-    // surfaces (account, address book) shimmer.
     return (
       <Container py={10} maxW="container.sm">
         <ProfileSkeleton />
@@ -71,8 +68,7 @@ export default function ProfilePage() {
           <Box w="100%">
             <AddressBook />
           </Box>
-          {/* La navbar del portal no muestra Logout (solo "Mi cuenta" +
-              carrito): la salida de sesión vive en la cuenta. */}
+          {}
           <Button variant="outline" colorPalette="red" size="sm" onClick={logout}>
             Cerrar sesión
           </Button>

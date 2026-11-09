@@ -1,10 +1,5 @@
 "use client";
 
-/** Paso 5 — Revisar y confirmar (RF-P11-08 / UC-08).
-
-El pedido se crea SOLO acá (POST /orders, C6). 409 order_window_closed →
-banner + CTA deshabilitado. Éxito → confirmación con código de pedido.
-*/
 
 import {
   Alert,
@@ -70,9 +65,7 @@ export function StepReview({
       const payload: PortalOrderPayload = {
         items: cart.items.map((item) => ({
           product_id: item.product_id,
-          product_name: item.name,
           quantity: item.qty,
-          unit_price: item.unit_price,
           portion_note: "",
         })),
         date: delivery.date,
@@ -228,7 +221,6 @@ export function StepReview({
   );
 }
 
-/** Post-order confirmation screen (UC-08: order code). */
 export function CheckoutSuccess({
   order,
 }: {

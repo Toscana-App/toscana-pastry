@@ -9,8 +9,6 @@ class AuthRequest(BaseModel):
 class AuthResponse(BaseModel):
     user_id: str
     email: str
-    access_token: str
-    refresh_token: str
     role: UserRole
     google_id: Optional[str] = None
 

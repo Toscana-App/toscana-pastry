@@ -10,7 +10,6 @@ from data.pdf.client import budget_pdf_payload
 
 @pytest_asyncio.fixture(autouse=True)
 async def _clean_db():
-    """Every integration test starts from empty tables."""
     engine = make_test_engine()
     tables = ", ".join(f'"{t.name}"' for t in Base.metadata.sorted_tables)
     async with engine.begin() as conn:
@@ -19,13 +18,6 @@ async def _clean_db():
 
 
 class _FakePdfClient:
-    """Doble del puerto de PDF para la suite de integración (ADR-0001).
-
-    core-api ya no renderiza: mapea el snapshot y pide los bytes por HTTP a
-    ``pdfgenerator``. En tests sobreescribimos el puerto con este doble, que
-    registra el payload enviado y devuelve bytes mínimos de PDF. El render
-    real (contenido del documento) se prueba en ``pdfgenerator/tests``.
-    """
 
     def __init__(self) -> None:
         self.last_budget_payload: dict | None = None
@@ -55,7 +47,6 @@ class _FakePdfClient:
 
 @pytest_asyncio.fixture(autouse=True)
 async def pdf_fake():
-    """Sobreescribe el puerto de PDF con un doble para toda la integración."""
     fake = _FakePdfClient()
     app.dependency_overrides[get_pdf_client] = lambda: fake
     yield fake

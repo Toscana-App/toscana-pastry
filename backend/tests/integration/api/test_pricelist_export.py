@@ -1,43 +1,32 @@
-"""Tests para exportación de lista de precios CSV/PDF por audiencia (S3 — T4).
-
-Reglas cubiertas:
-  1) admin → ambas audiencias (CSV y PDF) OK
-  2) negocio → revendedores OK; consumidor_final → 403
-  3) cliente → consumidor_final OK; revendedores → 403
-  4) audience inválida → 422
-  5) CSV: filas de productos con precio de la audiencia
-  6) PDF: content-type application/pdf + bytes %PDF (via pdfgenerator; en tests, fake)
-"""
+import uuid
 
 import csv
+import uuid
 from decimal import Decimal
+from io import StringIO
 
-from pg_support import make_test_engine
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 
-from main import app
-from data.models import Base
-from data.repositories.sql_ingredient_repository import SQLIngredientRepository
-from data.repositories.sql_settings_repository import SQLSettingsRepository
-from data.repositories.sql_user_repository import SQLUserRepository
-from data.db import get_db
 from api.v1.auth.dependencies import get_user_repository
 from api.v1.ingredients.dependencies import get_ingredient_repository
+from api.v1.products.dependencies import get_product_repository
 from api.v1.settings.dependencies import get_settings_repository
-from domain.models import User, UserRole, Ingredient
-
-PRICELIST_CSV = "/api/v1/products/pricelist/csv"
-PRICELIST_PDF = "/api/v1/products/pricelist/pdf"
-
-# Ingredientes que sirven como productos en la lista de precios
-_TEST_PRODUCTS = [
-    {"name": "Harina 0000", "unit": "kg", "price_per_unit": "2800", "stock_qty": "50"},
-    {"name": "Azúcar refinada", "unit": "kg", "price_per_unit": "3500", "stock_qty": "30"},
-    {"name": "Manteca sin sal", "unit": "kg", "price_per_unit": "8200", "stock_qty": "10"},
-]
+from data.db import get_db
+from data.models import (
+    BusinessSettingsORM,
+    IngredientORM,
+    ProductORM,
+    RecipeItemORM,
+)
+from data.repositories.sql_ingredient_repository import SQLIngredientRepository
+from data.repositories.sql_product_repository import SQLProductRepository
+from data.repositories.sql_settings_repository import SQLSettingsRepository
+from data.repositories.sql_user_repository import SQLUserRepository
+from domain.models import User, UserRole
+from main import app
 
 
 @pytest_asyncio.fixture
@@ -54,29 +43,70 @@ async def client(db_session):
     async def override_get_ingredient_repository():
         yield SQLIngredientRepository(db_session)
 
+    async def override_get_product_repository():
+        yield SQLProductRepository(db_session)
+
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_user_repository] = override_get_user_repository
-    app.dependency_overrides[get_settings_repository] = get_settings_repository
-    app.dependency_overrides[get_ingredient_repository] = get_ingredient_repository
+    app.dependency_overrides[get_settings_repository] = override_get_settings_repository
+    app.dependency_overrides[get_ingredient_repository] = override_get_ingredient_repository
+    app.dependency_overrides[get_product_repository] = override_get_product_repository
 
-    # Seed users and products
-    await SQLUserRepository(db_session).save(
-        User(email="admin@example.com", role=UserRole.ADMIN)
-    )
-    await SQLUserRepository(db_session).save(
-        User(email="negocio@example.com", role=UserRole.NEGOCIO)
-    )
-    await SQLUserRepository(db_session).save(
-        User(email="cliente@example.com", role=UserRole.CUSTOMER)
-    )
-    for prod in _TEST_PRODUCTS:
-        ingredient = Ingredient(
-            name=prod["name"],
-            unit=prod["unit"],
-            price_per_unit=Decimal(prod["price_per_unit"]),
-            stock_qty=Decimal(prod["stock_qty"]),
+    user_repo = SQLUserRepository(db_session)
+    await user_repo.save(User(email="admin@example.com", role=UserRole.ADMIN))
+    await user_repo.save(User(email="negocio@example.com", role=UserRole.NEGOCIO))
+    await user_repo.save(User(email="cliente@example.com", role=UserRole.CUSTOMER))
+
+    db_session.add(
+        BusinessSettingsORM(
+            hourly_rate="100",
+            margin_pct="25",
+            round_step="0.01",
+            gas_pct="0",
+            waste_pct="0",
+            consumer_markup_pct="40",
+            include_labor=True,
+            include_gas=False,
+            include_waste=False,
+            default_prep_minutes=0,
+            default_servings=6,
+            default_difficulty="simple",
+            business_name="",
+            footer_text="",
         )
-        await SQLIngredientRepository(db_session).create(ingredient)
+    )
+    db_session.add(
+        IngredientORM(id=str(uuid.uuid4()), name="Harina 0000", unit="kg", price_per_unit="10.00", stock_qty="10")
+    )
+    db_session.add(
+        IngredientORM(id=str(uuid.uuid4()), name="Azúcar refinada", unit="kg", price_per_unit="5.00", stock_qty="10")
+    )
+    db_session.add(
+        IngredientORM(id=str(uuid.uuid4()), name="Manteca sin sal", unit="kg", price_per_unit="15.00", stock_qty="10")
+    )
+    await db_session.commit()
+
+    ingredient_ids = {
+        orm.name: orm.id
+        for orm in (await db_session.execute(select(IngredientORM))).scalars().all()
+    }
+
+    await _add_product(db_session, "Pan de campo", "Pan", 4, True, [
+        (ingredient_ids["Harina 0000"], "1", "kg"),
+    ])
+    await _add_product(db_session, "Muffin de chocolate", "Muffins", 6, True, [
+        (ingredient_ids["Manteca sin sal"], "1", "kg"),
+    ])
+    await _add_product(db_session, "Torta de almendras", "Tortas", 8, True, [
+        (ingredient_ids["Harina 0000"], "1", "kg"),
+        (ingredient_ids["Azúcar refinada"], "1", "kg"),
+    ])
+    await _add_product(db_session, "Brownie oculto", "Postres", 2, False, [
+        (ingredient_ids["Azúcar refinada"], "1", "kg"),
+    ])
+    await _add_product(db_session, "Torta incompleta", "Tortas", 4, True, [
+        (str(uuid.uuid4()), "1", "kg"),
+    ])
 
     try:
         async with AsyncClient(
@@ -87,165 +117,358 @@ async def client(db_session):
         app.dependency_overrides = {}
 
 
+async def _add_product(
+    db_session,
+    name: str,
+    category: str,
+    servings: int,
+    available: bool,
+    recipe: list[tuple[str, str, str]],
+) -> None:
+    product = ProductORM(
+        id=str(uuid.uuid4()),
+        name=name,
+        category=category,
+        description="",
+        prep_time_min=0,
+        servings=servings,
+        difficulty="simple",
+        available=available,
+    )
+    product.recipe_items = [
+        RecipeItemORM(
+            id=str(uuid.uuid4()),
+            product_id=product.id,
+            ingredient_id=ingredient_id,
+            qty=qty,
+            unit=unit,
+            position=position,
+        )
+        for position, (ingredient_id, qty, unit) in enumerate(recipe)
+    ]
+    db_session.add(product)
+    await db_session.commit()
+
+
 async def _token_for(client: AsyncClient, email: str) -> str:
     response = await client.post("/api/v1/auth/login", json={"email": email})
     assert response.status_code == 200
-    return response.json()["access_token"]
+    return response.cookies["auth_token"]
 
 
-# ─── Tests 1-4: Matriz de acceso ─────────────────────────────────────────
+def _csv_rows(r) -> list[dict]:
+    return list(csv.DictReader(StringIO(r.content.decode("utf-8"))))
+
+
+def _csv_price(rows: list[dict], name: str) -> Decimal:
+    return Decimal([row["price"] for row in rows if row["name"] == name][0].lstrip("$"))
 
 
 @pytest.mark.asyncio
-async def test_admin_csv_revendedores(client):
-    """T4-1: admin puede exportar CSV para revendedores → 200."""
+async def test_csv_header_and_rows(client):
     token = await _token_for(client, "admin@example.com")
     r = await client.get(
-        PRICELIST_CSV, params={"audience": "revendedores"},
+        "/api/v1/products/pricelist/csv",
+        params={"audience": "revendedores"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/csv")
+    text = r.content.decode("utf-8")
+    assert text.splitlines()[0] == "name,category,price"
+    rows = _csv_rows(r)
+    assert len(rows) == 3
+    by_name = {row["name"]: row for row in rows}
+    assert set(by_name) == {"Pan de campo", "Muffin de chocolate", "Torta de almendras"}
+    assert by_name["Pan de campo"]["category"] == "Pan"
+    assert by_name["Muffin de chocolate"]["category"] == "Muffins"
+    assert by_name["Torta de almendras"]["category"] == "Tortas"
 
 
 @pytest.mark.asyncio
-async def test_admin_csv_consumidor_final(client):
-    """T4-1: admin puede exportar CSV para consumidor_final → 200."""
+async def test_csv_filename_header(client):
     token = await _token_for(client, "admin@example.com")
     r = await client.get(
-        PRICELIST_CSV, params={"audience": "consumidor_final"},
+        "/api/v1/products/pricelist/csv",
+        params={"audience": "revendedores"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert r.status_code == 200
-    assert r.headers["content-type"].startswith("text/csv")
+    assert "attachment" in r.headers["content-disposition"]
+    assert "pricelist_revendedores.csv" in r.headers["content-disposition"]
+    r = await client.get(
+        "/api/v1/products/pricelist/csv",
+        params={"audience": "consumidor_final"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert "pricelist_consumidor_final.csv" in r.headers["content-disposition"]
 
 
 @pytest.mark.asyncio
-async def test_admin_pdf_revendedores(client):
-    """T4-1: admin puede exportar PDF para revendedores → 200."""
+async def test_csv_revendedores_uses_base(client):
     token = await _token_for(client, "admin@example.com")
     r = await client.get(
-        PRICELIST_PDF, params={"audience": "revendedores"},
+        "/api/v1/products/pricelist/csv",
+        params={"audience": "revendedores"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 200
+    rows = _csv_rows(r)
+    assert _csv_price(rows, "Pan de campo") == Decimal("12.50")
+    assert _csv_price(rows, "Muffin de chocolate") == Decimal("18.75")
+    assert _csv_price(rows, "Torta de almendras") == Decimal("18.75")
+
+
+@pytest.mark.asyncio
+async def test_csv_consumidor_applies_markup(client):
+    token = await _token_for(client, "admin@example.com")
+    r = await client.get(
+        "/api/v1/products/pricelist/csv",
+        params={"audience": "consumidor_final"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 200
+    rows = _csv_rows(r)
+    assert _csv_price(rows, "Pan de campo") == Decimal("17.50")
+    assert _csv_price(rows, "Muffin de chocolate") == Decimal("26.25")
+    assert _csv_price(rows, "Torta de almendras") == Decimal("26.25")
+
+
+@pytest.mark.asyncio
+async def test_csv_excludes_hidden_and_incomplete(client):
+    token = await _token_for(client, "admin@example.com")
+    for audience in ("revendedores", "consumidor_final"):
+        r = await client.get(
+            "/api/v1/products/pricelist/csv",
+            params={"audience": audience},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert r.status_code == 200
+        names = {row["name"] for row in _csv_rows(r)}
+        assert "Brownie oculto" not in names
+        assert "Torta incompleta" not in names
+
+
+@pytest.mark.asyncio
+async def test_pdf_returns_pdf_bytes(client):
+    token = await _token_for(client, "admin@example.com")
+    r = await client.get(
+        "/api/v1/products/pricelist/pdf",
+        params={"audience": "consumidor_final"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("application/pdf")
+    assert "attachment" in r.headers["content-disposition"]
+    assert "pricelist_consumidor_final.pdf" in r.headers["content-disposition"]
+    assert r.content.startswith(b"%PDF-")
 
 
 @pytest.mark.asyncio
-async def test_admin_pdf_consumidor_final(client):
-    """T4-1: admin puede exportar PDF para consumidor_final → 200."""
+async def test_pdf_rows_carry_category_and_price(client, pdf_fake):
     token = await _token_for(client, "admin@example.com")
     r = await client.get(
-        PRICELIST_PDF, params={"audience": "consumidor_final"},
+        "/api/v1/products/pricelist/pdf",
+        params={"audience": "consumidor_final"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert r.status_code == 200
-    assert r.headers["content-type"].startswith("application/pdf")
+    call = pdf_fake.calls[-1]
+    assert call[0] == "render_pricelist"
+    rows, label = call[1]
+    assert label == "Consumidor final"
+    by_name = {row["name"]: row for row in rows}
+    assert set(by_name) == {"Pan de campo", "Muffin de chocolate", "Torta de almendras"}
+    assert by_name["Pan de campo"]["unit"] == "Pan"
+    assert by_name["Pan de campo"]["price"] == "$17.50"
+    assert by_name["Muffin de chocolate"]["unit"] == "Muffins"
+    assert by_name["Muffin de chocolate"]["price"] == "$26.25"
+    assert by_name["Torta de almendras"]["price"] == "$26.25"
 
 
 @pytest.mark.asyncio
-async def test_negocio_csv_revendedores(client):
-    """T4-2: negocio puede exportar CSV para revendedores → 200."""
+async def test_pdf_revendedores_label(client, pdf_fake):
+    token = await _token_for(client, "admin@example.com")
+    r = await client.get(
+        "/api/v1/products/pricelist/pdf",
+        params={"audience": "revendedores"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 200
+    call = pdf_fake.calls[-1]
+    rows, label = call[1]
+    assert label == "Revendedores"
+    by_name = {row["name"]: row for row in rows}
+    assert by_name["Pan de campo"]["price"] == "$12.50"
+
+
+@pytest.mark.asyncio
+async def test_csv_neutralizes_formula_injection(client, db_session):
+    token = await _token_for(client, "admin@example.com")
+    ingredient_id = (
+        await db_session.execute(
+            select(IngredientORM).where(IngredientORM.name == "Harina 0000")
+        )
+    ).scalar_one().id
+    for evil in ("=HYPERLINK(1)", "+cmd", "-rm", "@alert", "ok"):
+        await _add_product(db_session, evil, "Evil", 1, True, [
+            (ingredient_id, "1", "kg"),
+        ])
+    r = await client.get(
+        "/api/v1/products/pricelist/csv",
+        params={"audience": "revendedores"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 200
+    text = r.content.decode("utf-8")
+    assert "'=HYPERLINK(1)" in text
+    assert "'+cmd" in text
+    assert "'-rm" in text
+    assert "'@alert" in text
+    assert "\nok," in text
+
+
+@pytest.mark.asyncio
+async def test_csv_escapes_commas_and_quotes(client, db_session):
+    token = await _token_for(client, "admin@example.com")
+    ingredient_id = (
+        await db_session.execute(
+            select(IngredientORM).where(IngredientORM.name == "Harina 0000")
+        )
+    ).scalar_one().id
+    tricky = ['Chocolate "premium"', "Harina, tipo 000", 'Miel "orgánica", 1kg']
+    for name in tricky:
+        await _add_product(db_session, name, "General", 1, True, [
+            (ingredient_id, "1", "kg"),
+        ])
+    r = await client.get(
+        "/api/v1/products/pricelist/csv",
+        params={"audience": "revendedores"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 200
+    parsed = list(csv.reader(StringIO(r.content.decode("utf-8"))))
+    names = {row[0] for row in parsed[1:]}
+    for name in tricky:
+        assert name in names
+
+
+@pytest.mark.asyncio
+async def test_admin_csv_and_pdf_both_audiences(client):
+    token = await _token_for(client, "admin@example.com")
+    for audience in ("revendedores", "consumidor_final"):
+        r = await client.get(
+            "/api/v1/products/pricelist/csv",
+            params={"audience": audience},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert r.status_code == 200
+        r = await client.get(
+            "/api/v1/products/pricelist/pdf",
+            params={"audience": audience},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert r.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_negocio_csv_revendedores_ok(client):
     token = await _token_for(client, "negocio@example.com")
     r = await client.get(
-        PRICELIST_CSV, params={"audience": "revendedores"},
+        "/api/v1/products/pricelist/csv",
+        params={"audience": "revendedores"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert r.status_code == 200
-    assert r.headers["content-type"].startswith("text/csv")
+    assert len(_csv_rows(r)) == 3
 
 
 @pytest.mark.asyncio
-async def test_negocio_pdf_revendedores(client):
-    """T4-2: negocio puede exportar PDF para revendedores → 200."""
+async def test_negocio_pdf_revendedores_ok(client):
     token = await _token_for(client, "negocio@example.com")
     r = await client.get(
-        PRICELIST_PDF, params={"audience": "revendedores"},
+        "/api/v1/products/pricelist/pdf",
+        params={"audience": "revendedores"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert r.status_code == 200
-    assert r.headers["content-type"].startswith("application/pdf")
+    assert r.content.startswith(b"%PDF-")
 
 
 @pytest.mark.asyncio
 async def test_negocio_csv_consumidor_final_403(client):
-    """T4-2: negocio NO puede exportar CSV para consumidor_final → 403."""
     token = await _token_for(client, "negocio@example.com")
     r = await client.get(
-        PRICELIST_CSV, params={"audience": "consumidor_final"},
+        "/api/v1/products/pricelist/csv",
+        params={"audience": "consumidor_final"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert r.status_code == 403
-    assert "consumidor_final" in r.json()["detail"].lower() or "no puede" in r.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
 async def test_negocio_pdf_consumidor_final_403(client):
-    """T4-2: negocio NO puede exportar PDF para consumidor_final → 403."""
     token = await _token_for(client, "negocio@example.com")
     r = await client.get(
-        PRICELIST_PDF, params={"audience": "consumidor_final"},
+        "/api/v1/products/pricelist/pdf",
+        params={"audience": "consumidor_final"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert r.status_code == 403
-    assert "consumidor_final" in r.json()["detail"].lower() or "no puede" in r.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
-async def test_cliente_csv_consumidor_final(client):
-    """T4-3: cliente puede exportar CSV para consumidor_final → 200."""
+async def test_cliente_csv_consumidor_final_ok(client):
     token = await _token_for(client, "cliente@example.com")
     r = await client.get(
-        PRICELIST_CSV, params={"audience": "consumidor_final"},
+        "/api/v1/products/pricelist/csv",
+        params={"audience": "consumidor_final"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert r.status_code == 200
-    assert r.headers["content-type"].startswith("text/csv")
+    assert len(_csv_rows(r)) == 3
 
 
 @pytest.mark.asyncio
-async def test_cliente_pdf_consumidor_final(client):
-    """T4-3: cliente puede exportar PDF para consumidor_final → 200."""
+async def test_cliente_pdf_consumidor_final_ok(client):
     token = await _token_for(client, "cliente@example.com")
     r = await client.get(
-        PRICELIST_PDF, params={"audience": "consumidor_final"},
+        "/api/v1/products/pricelist/pdf",
+        params={"audience": "consumidor_final"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert r.status_code == 200
-    assert r.headers["content-type"].startswith("application/pdf")
+    assert r.content.startswith(b"%PDF-")
 
 
 @pytest.mark.asyncio
 async def test_cliente_csv_revendedores_403(client):
-    """T4-3: cliente NO puede exportar CSV para revendedores → 403."""
     token = await _token_for(client, "cliente@example.com")
     r = await client.get(
-        PRICELIST_CSV, params={"audience": "revendedores"},
+        "/api/v1/products/pricelist/csv",
+        params={"audience": "revendedores"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert r.status_code == 403
-    assert "revendedores" in r.json()["detail"].lower() or "no puede" in r.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
 async def test_cliente_pdf_revendedores_403(client):
-    """T4-3: cliente NO puede exportar PDF para revendedores → 403."""
     token = await _token_for(client, "cliente@example.com")
     r = await client.get(
-        PRICELIST_PDF, params={"audience": "revendedores"},
+        "/api/v1/products/pricelist/pdf",
+        params={"audience": "revendedores"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert r.status_code == 403
-    assert "revendedores" in r.json()["detail"].lower() or "no puede" in r.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
 async def test_invalid_audience_csv_422(client):
-    """T4-4: audience inválida → 422."""
     token = await _token_for(client, "admin@example.com")
     r = await client.get(
-        PRICELIST_CSV, params={"audience": "invalid"},
+        "/api/v1/products/pricelist/csv",
+        params={"audience": "público"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert r.status_code == 422
@@ -253,10 +476,10 @@ async def test_invalid_audience_csv_422(client):
 
 @pytest.mark.asyncio
 async def test_invalid_audience_pdf_422(client):
-    """T4-4: audience inválida → 422."""
     token = await _token_for(client, "admin@example.com")
     r = await client.get(
-        PRICELIST_PDF, params={"audience": "invalid"},
+        "/api/v1/products/pricelist/pdf",
+        params={"audience": "público"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert r.status_code == 422
@@ -264,279 +487,17 @@ async def test_invalid_audience_pdf_422(client):
 
 @pytest.mark.asyncio
 async def test_unauthenticated_csv_401(client):
-    """T4: sin token → 401."""
-    r = await client.get(PRICELIST_CSV, params={"audience": "revendedores"})
+    r = await client.get(
+        "/api/v1/products/pricelist/csv",
+        params={"audience": "revendedores"},
+    )
     assert r.status_code == 401
 
 
 @pytest.mark.asyncio
 async def test_unauthenticated_pdf_401(client):
-    """T4: sin token → 401."""
-    r = await client.get(PRICELIST_PDF, params={"audience": "revendedores"})
+    r = await client.get(
+        "/api/v1/products/pricelist/pdf",
+        params={"audience": "revendedores"},
+    )
     assert r.status_code == 401
-
-
-# ─── Test 5: Contenido CSV ───────────────────────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_csv_contains_product_rows_with_audience_price():
-    """T4-5: el CSV tiene filas de productos con el precio de la audiencia.
-
-    Para revendedores: precio = price_per_unit (sin markup).
-    Para consumidor_final: precio = price_per_unit × 1.40 (markup default 40%).
-    """
-    engine = make_test_engine()
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-    async with factory() as session:
-        # Seed admin and products
-        await SQLUserRepository(session).save(
-            User(email="admin@example.com", role=UserRole.ADMIN)
-        )
-        for prod in _TEST_PRODUCTS:
-            ingredient = Ingredient(
-                name=prod["name"],
-                unit=prod["unit"],
-                price_per_unit=Decimal(prod["price_per_unit"]),
-                stock_qty=Decimal(prod["stock_qty"]),
-            )
-            await SQLIngredientRepository(session).create(ingredient)
-
-        async def override_get_db():
-            yield session
-
-        async def override_get_user_repository():
-            yield SQLUserRepository(session)
-
-        async def override_get_settings_repository():
-            yield SQLSettingsRepository(session)
-
-        async def override_get_ingredient_repository():
-            yield SQLIngredientRepository(session)
-
-        app.dependency_overrides[get_db] = override_get_db
-        app.dependency_overrides[get_user_repository] = override_get_user_repository
-        app.dependency_overrides[get_settings_repository] = override_get_settings_repository
-        app.dependency_overrides[get_ingredient_repository] = override_get_ingredient_repository
-
-        try:
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as ac:
-                token = await _token_for(ac, "admin@example.com")
-
-                # --- revendedores: precio = price_per_unit ---
-                r = await ac.get(
-                    PRICELIST_CSV, params={"audience": "revendedores"},
-                    headers={"Authorization": f"Bearer {token}"},
-                )
-                assert r.status_code == 200
-                csv_text = r.content.decode("utf-8")
-                lines = csv_text.strip().splitlines()
-                reader = csv.reader(lines)
-                rows = list(reader)
-                header = rows[0]
-                assert "name" in header or "producto" in header[0].lower()
-                assert "price" in header or "precio" in header[0].lower()
-                assert len(rows) >= 4  # header + 3 products
-
-                # Verificar que los precios coinciden con price_per_unit
-                product_prices = {p["name"]: Decimal(p["price_per_unit"]) for p in _TEST_PRODUCTS}
-                for row in rows[1:]:
-                    name = row[0].strip()
-                    if name in product_prices:
-                        price = Decimal(row[2].replace("$", "").replace(",", "").strip())
-                        assert price == product_prices[name], (
-                            f"revendedores: {name} precio esperado {product_prices[name]}, obtenido {price}"
-                        )
-
-                # --- consumidor_final: precio = price_per_unit × 1.40 ---
-                r = await ac.get(
-                    PRICELIST_CSV, params={"audience": "consumidor_final"},
-                    headers={"Authorization": f"Bearer {token}"},
-                )
-                assert r.status_code == 200
-                csv_text = r.content.decode("utf-8")
-                lines = csv_text.strip().splitlines()
-                reader = csv.reader(lines)
-                rows = list(reader)
-                assert len(rows) >= 4  # header + 3 products
-
-                # Verificar que los precios tienen markup 40%
-                for row in rows[1:]:
-                    name = row[0].strip()
-                    if name in product_prices:
-                        price = Decimal(row[2].replace("$", "").replace(",", "").strip())
-                        expected = (product_prices[name] * Decimal("1.40")).quantize(
-                            Decimal("0.01"), rounding="ROUND_HALF_UP"
-                        )
-                        assert price == expected, (
-                            f"consumidor_final: {name} precio esperado {expected}, obtenido {price}"
-                        )
-        finally:
-            app.dependency_overrides.clear()
-
-
-# ─── Test 6: PDF válido ──────────────────────────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_pdf_content_type_and_bytes():
-    """T4-6: el PDF devuelve content-type application/pdf y bytes que empiezan con %PDF.
-
-    El render lo hace pdfgenerator (ADR-0001); en tests un fake de PdfClient
-    devuelve bytes %PDF, así que no depende de WeasyPrint en el sistema.
-    """
-    engine = make_test_engine()
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-    async with factory() as session:
-        await SQLUserRepository(session).save(
-            User(email="admin@example.com", role=UserRole.ADMIN)
-        )
-        for prod in _TEST_PRODUCTS:
-            ingredient = Ingredient(
-                name=prod["name"],
-                unit=prod["unit"],
-                price_per_unit=Decimal(prod["price_per_unit"]),
-                stock_qty=Decimal(prod["stock_qty"]),
-            )
-            await SQLIngredientRepository(session).create(ingredient)
-
-        async def override_get_db():
-            yield session
-
-        async def override_get_user_repository():
-            yield SQLUserRepository(session)
-
-        async def override_get_settings_repository():
-            yield SQLSettingsRepository(session)
-
-        async def override_get_ingredient_repository():
-            yield SQLIngredientRepository(session)
-
-        app.dependency_overrides[get_db] = override_get_db
-        app.dependency_overrides[get_user_repository] = override_get_user_repository
-        app.dependency_overrides[get_settings_repository] = override_get_settings_repository
-        app.dependency_overrides[get_ingredient_repository] = override_get_ingredient_repository
-
-        try:
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as ac:
-                token = await _token_for(ac, "admin@example.com")
-
-                r = await ac.get(
-                    PRICELIST_PDF, params={"audience": "revendedores"},
-                    headers={"Authorization": f"Bearer {token}"},
-                )
-                assert r.status_code == 200
-                assert r.headers["content-type"].startswith("application/pdf"), (
-                    f"content-type esperado application/pdf, obtenido {r.headers.get('content-type')}"
-                )
-                assert r.content[:5] == b"%PDF-", (
-                    f"PDF debe empezar con %PDF-, obtenido {r.content[:10]}"
-                )
-        finally:
-            app.dependency_overrides.clear()
-
-
-# ─── Test: CSV escaping (commas and quotes in product names) ──────────────
-
-
-@pytest.mark.asyncio
-async def test_csv_escapes_commas_and_quotes_in_product_names():
-    """T4-fix1: product names containing commas or double-quotes must
-    round-trip correctly through the CSV output.
-
-    Regression: _build_csv was using manual comma-join which corrupts
-    values containing commas or quotes.
-    """
-    engine = make_test_engine()
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-    async with factory() as session:
-        await SQLUserRepository(session).save(
-            User(email="admin@example.com", role=UserRole.ADMIN)
-        )
-        # Products with tricky names
-        tricky = [
-            Ingredient(
-                name='Chocolate "premium"',
-                unit='kg',
-                price_per_unit=Decimal("12000"),
-                stock_qty=Decimal("5"),
-            ),
-            Ingredient(
-                name="Harina, tipo 000",
-                unit="kg",
-                price_per_unit=Decimal("2800"),
-                stock_qty=Decimal("50"),
-            ),
-            Ingredient(
-                name='Miel "orgánica", 1kg',
-                unit="unidad",
-                price_per_unit=Decimal("4500"),
-                stock_qty=Decimal("20"),
-            ),
-        ]
-        for ing in tricky:
-            await SQLIngredientRepository(session).create(ing)
-
-        async def override_get_db():
-            yield session
-
-        async def override_get_user_repository():
-            yield SQLUserRepository(session)
-
-        async def override_get_settings_repository():
-            yield SQLSettingsRepository(session)
-
-        async def override_get_ingredient_repository():
-            yield SQLIngredientRepository(session)
-
-        app.dependency_overrides[get_db] = override_get_db
-        app.dependency_overrides[get_user_repository] = override_get_user_repository
-        app.dependency_overrides[get_settings_repository] = override_get_settings_repository
-        app.dependency_overrides[get_ingredient_repository] = override_get_ingredient_repository
-
-        try:
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as ac:
-                token = await _token_for(ac, "admin@example.com")
-
-                r = await ac.get(
-                    PRICELIST_CSV,
-                    params={"audience": "revendedores"},
-                    headers={"Authorization": f"Bearer {token}"},
-                )
-                assert r.status_code == 200
-                csv_text = r.content.decode("utf-8")
-                lines = csv_text.strip().splitlines()
-                reader = csv.reader(lines)
-                rows = list(reader)
-
-                # Parse back with csv module — should not raise
-                # and must preserve the original names
-                product_names = {row[0].strip() for row in rows[1:]}
-                expected_names = {
-                    'Chocolate "premium"',
-                    "Harina, tipo 000",
-                    'Miel "orgánica", 1kg',
-                }
-                assert product_names == expected_names, (
-                    f"CSV names mismatch. Got: {product_names}, expected: {expected_names}"
-                )
-        finally:
-            app.dependency_overrides.clear()
-
-
-

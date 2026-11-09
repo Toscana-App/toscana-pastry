@@ -28,13 +28,8 @@ import { productsService } from "@/modules/products/service";
 import type { ProductListItem } from "@/modules/products/types";
 import { formatCents, pesosToCents } from "@/lib/format";
 
-/** RF-P7-04: el borrador del wizard sobrevive a recargas hasta guardarlo. */
 const DRAFT_KEY = "budget_wizard_draft";
 
-/**
- * Select nativo estilizado (misma convención de EnumSelect de F5) para
- * pickers de registros (id + label).
- */
 const StyledOptionSelect = chakra("select", {
   base: {
     width: "100%",
@@ -82,7 +77,6 @@ interface WizardRow {
   key: number;
   product_id: string;
   qty: string;
-  /** Precio manual en PESOS (input); "" = precio del motor. */
   price: string;
 }
 
@@ -90,7 +84,6 @@ interface DraftState {
   step: number;
   name: string;
   phone: string;
-  /** Dirección de entrega opcional (Fase 7, RF-P7-06). */
   deliveryAddress: string;
   customer: Customer | null;
   mode: CalculationMode;
@@ -129,7 +122,6 @@ function loadDraft(): DraftState {
   }
 }
 
-/** Indicador de pasos (P7): números, activo resaltado, completados con check. */
 function StepIndicator({ current, labels }: { current: number; labels: string[] }) {
   return (
     <Flex align="center" w="full" mb={5}>
@@ -175,15 +167,6 @@ function StepIndicator({ current, labels }: { current: number; labels: string[] 
   );
 }
 
-/**
- * Wizard de presupuestos (Fase 7, P7): Cliente → Productos → Resumen.
- *
- * - El cliente se crea (o se adopta vía 409 dedupe, RF-P6-08) al pasar el
- *   paso 1; el presupuesto se guarda SOLO en el paso 3 (RF-P7-04).
- * - Borrador persistido en sessionStorage: sobrevive a recargas.
- * - Los totales finitos los calcula el backend al guardar (costos derivados
- *   contra el catálogo, RF-P8-01); el resumen avisa que se ven al guardar.
- */
 export function BudgetWizard() {
   const router = useRouter();
   const [draft, setDraft] = useState<DraftState>(loadDraft);
@@ -192,7 +175,6 @@ export function BudgetWizard() {
   const [savingClient, setSavingClient] = useState(false);
   const [savingBudget, setSavingBudget] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** 409 en el dedupe: cliente existente esperando confirmación (RF-P7-03). */
   const [suggestion, setSuggestion] = useState<Customer | null>(null);
   const [products, setProducts] = useState<ProductListItem[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
@@ -200,16 +182,13 @@ export function BudgetWizard() {
 
   const { step } = draft;
 
-  // RF-P7-04: persistir el borrador en cada cambio.
   useEffect(() => {
     try {
       window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     } catch {
-      // sessionStorage no disponible (modo privado): se sigue igual sin draft.
     }
   }, [draft]);
 
-  // Catálogo (paso 2): todo el listado activo, hasta 5 páginas de a 100.
   useEffect(() => {
     if (step < 2) return;
     let cancelled = false;
@@ -264,7 +243,6 @@ export function BudgetWizard() {
     );
   }, []);
 
-  /** Paso 1 → 2: valida y crea/adapta el cliente. */
   const continueFromClient = useCallback(async () => {
     const parsed = budgetClientSchema.safeParse({
       name: draft.name,
@@ -284,8 +262,6 @@ export function BudgetWizard() {
     setSavingClient(true);
     setError(null);
     try {
-      // Dedupe por nombre+teléfono: 409 → el service trae el existente
-      // (adopted) y se ofrece "usar datos existentes" (RF-P7-03).
       const { customer, adopted } = await customersService.createWithAdoption({
         name: parsed.data.name,
         phone: parsed.data.phone,
@@ -293,8 +269,6 @@ export function BudgetWizard() {
           parsed.data.delivery_address === "" ? undefined : parsed.data.delivery_address,
       });
       if (adopted) {
-        // Se queda en el paso 1: la dirección existente queda prellenada
-        // (editable); si el cliente no la tiene, conserva la escrita.
         setSuggestion(customer);
         setDraft((d) => ({
           ...d,
@@ -311,10 +285,7 @@ export function BudgetWizard() {
     }
   }, [draft.name, draft.phone, draft.deliveryAddress]);
 
-  /** Valida el paso 2 y pasa al resumen. */
   const continueFromItems = useCallback(() => {
-    // Vacíos como "" (el schema los acepta) o 0 (falla en .min(1) con
-    // mensaje claro): nunca undefined, que zod lo lee como campo ausente.
     const rows = draft.rows.map((r) => ({
       product_id: r.product_id,
       qty: r.qty === "" ? 0 : Number(r.qty),
@@ -349,7 +320,6 @@ export function BudgetWizard() {
     setDraft((d) => ({ ...d, step: 3 }));
   }, [draft]);
 
-  /** Paso 3 → POST /budgets → detalle. */
   const saveBudget = useCallback(async () => {
     setSavingBudget(true);
     setError(null);
@@ -368,15 +338,12 @@ export function BudgetWizard() {
         delivery_address: address === "" ? undefined : address,
         items,
       });
-      // Persiste la dirección usada en el presupuesto en el cliente
-      // (RF-P7-06) cuando cambió respecto al registro.
       if (address !== "" && customer.delivery_address !== address) {
         await customersService.updateAddress(customer.id, address);
       }
       try {
         window.sessionStorage.removeItem(DRAFT_KEY);
       } catch {
-        // sin draft persistido: nada que limpiar.
       }
       router.push(`/presupuestos/${budget.id}`);
     } catch (e) {
@@ -389,7 +356,6 @@ export function BudgetWizard() {
     try {
       window.sessionStorage.removeItem(DRAFT_KEY);
     } catch {
-      // nada que limpiar
     }
     setDraft(freshDraft());
     setClientErrors({});

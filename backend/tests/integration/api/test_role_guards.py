@@ -1,4 +1,3 @@
-"""Tests for require_role guard (S1)."""
 
 import pytest
 import pytest_asyncio
@@ -33,21 +32,18 @@ async def client(db_session):
 async def _token_for(client: AsyncClient, email: str) -> str:
     response = await client.post("/api/v1/auth/login", json={"email": email})
     assert response.status_code == 200
-    return response.json()["access_token"]
+    return response.cookies["auth_token"]
 
 
-# ---- require_role: NEGOCIO endpoint ----
 
 
 @pytest.mark.asyncio
 async def test_require_role_negocio_allows_negocio(db_session, client):
-    """S1: require_role(NEGOCIO) allows NEGOCIO users."""
     await SQLUserRepository(db_session).save(
         User(id="n1", email="negocio@example.com", role=UserRole.NEGOCIO)
     )
     token = await _token_for(client, "negocio@example.com")
 
-    # Admin endpoint requires admin — should be 403 for negocio
     response = await client.get(
         "/api/v1/admin/users",
         headers={"Authorization": f"Bearer {token}"},
@@ -58,7 +54,6 @@ async def test_require_role_negocio_allows_negocio(db_session, client):
 
 @pytest.mark.asyncio
 async def test_require_role_negocio_blocks_customer(db_session, client):
-    """S1: require_role(NEGOCIO) blocks CUSTOMER users."""
     token = await _token_for(client, "customer@example.com")
 
     response = await client.get(
@@ -70,7 +65,6 @@ async def test_require_role_negocio_blocks_customer(db_session, client):
 
 @pytest.mark.asyncio
 async def test_require_role_admin_allows_admin(db_session, client):
-    """S1: require_admin still allows ADMIN."""
     await SQLUserRepository(db_session).save(
         User(id="a1", email="admin@example.com", role=UserRole.ADMIN)
     )
@@ -85,7 +79,6 @@ async def test_require_role_admin_allows_admin(db_session, client):
 
 @pytest.mark.asyncio
 async def test_require_role_admin_blocks_negocio(db_session, client):
-    """S1: require_admin blocks NEGOCIO."""
     await SQLUserRepository(db_session).save(
         User(id="n1", email="negocio@example.com", role=UserRole.NEGOCIO)
     )

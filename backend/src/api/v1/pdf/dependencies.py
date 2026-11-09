@@ -1,9 +1,3 @@
-"""DI de los dependidos del router de PDF (Fase 8, P9).
-
-El render vive en el binario independiente ``pdfgenerator`` (ADR-0001);
-aquí se inyecta el cliente HTTP que lo consume. El test sobreescribe
-``get_pdf_client`` para no depender del servicio en la suite.
-"""
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 

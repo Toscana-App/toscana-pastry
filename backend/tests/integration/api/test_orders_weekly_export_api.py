@@ -1,9 +1,3 @@
-"""Resumen semanal + export de pedidos y presupuestos (RF-P6-11): API.
-
-Fixture por test: sesión SQLite en memoria con los overrides de la
-suite (mismo patrón que test_order_window_api.py). Los pedidos y
-presupuestos se siembran directo en el ORM con snapshots congelados.
-"""
 import datetime
 import json
 
@@ -69,7 +63,7 @@ async def _admin_token(client: AsyncClient) -> str:
         "/api/v1/auth/login", json={"email": "admin@example.com"}
     )
     assert response.status_code == 200
-    return response.json()["access_token"]
+    return response.cookies["auth_token"]
 
 
 async def _customer_token(client: AsyncClient) -> str:
@@ -77,7 +71,7 @@ async def _customer_token(client: AsyncClient) -> str:
         "/api/v1/auth/login", json={"email": "customer@example.com"}
     )
     assert response.status_code == 200
-    return response.json()["access_token"]
+    return response.cookies["auth_token"]
 
 
 async def _seed_customer(session: AsyncSession, cid: str, name: str, phone: str):
@@ -92,9 +86,6 @@ async def _seed_customer(session: AsyncSession, cid: str, name: str, phone: str)
             created_at=now,
         )
     )
-    # Commit propio: el flush no garantiza el orden customers->budgets
-    # (PKs asignadas a mano); en Postgres la FK budgets_customer_id_fkey
-    # rompe si el presupuesto se inserta antes que el cliente.
     await session.commit()
 
 
@@ -110,7 +101,6 @@ async def _seed_order(
     paid: bool = False,
     method: str = "cash",
 ):
-    """Pedido con un solo item y snapshot congelado (total = rounded)."""
     now = datetime.datetime.now(datetime.UTC)
     await _seed_customer(session, customer, name, phone)
     session.add(
@@ -141,7 +131,7 @@ async def _seed_order(
             product_name="Tortín de vainilla",
             quantity=1,
             qty=1,
-            portions=1,  # el dominio exige portions >= 1 (null rompe __post_init__)
+            portions=1,
             note="",
             position=0,
             snapshot=json.dumps(snap),
@@ -162,7 +152,6 @@ async def _seed_budget(
     unit_selling_cents: int,
     qty: int = 1,
 ):
-    """Presupuesto con un solo item (total_venta = qty * unit_selling)."""
     now = datetime.datetime.now(datetime.UTC)
     await _seed_customer(session, customer, name, phone)
     session.add(
@@ -205,7 +194,6 @@ def _this_week():
     return monday, monday + datetime.timedelta(days=6)
 
 
-# ─── GET /orders/weekly ──────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -225,19 +213,15 @@ async def test_weekly_forbidden_for_customer(client, db_session):
 
 @pytest.mark.asyncio
 async def test_weekly_default_week_aggregates(client, db_session):
-    # RF-P6-11: sin `week` = semana natural actual; solo confirmado +
-    # entregado; totales en centavos; items con estado y pago.
     monday, _ = _this_week()
     await _seed_order(db_session, "ord-1", "c1", "Juan Pérez", "+54 9 11 5555-0001",
                       monday, "confirmado", 1234567, paid=True, method="cash")
     await _seed_order(db_session, "ord-2", "c2", "María Gómez", "+54 9 11 5555-0002",
                       monday + datetime.timedelta(days=1), "entregado", 80000,
                       paid=False, method="mp")
-    # Fuera de la semana: debe quedar excluido.
     await _seed_order(db_session, "ord-3", "c3", "Fuera de Semana",
                       "+54 9 11 5555-0003", monday - datetime.timedelta(days=8),
                       "confirmado", 500000)
-    # Estado `nuevo`: excluido del resumen.
     await _seed_order(db_session, "ord-4", "c4", "Pendiente Confirmar",
                       "+54 9 11 5555-0004", monday, "nuevo", 70000)
 
@@ -264,8 +248,7 @@ async def test_weekly_default_week_aggregates(client, db_session):
 
 @pytest.mark.asyncio
 async def test_weekly_iso_week_param(client, db_session):
-    # ?week=AAAA-Wnn: semana ISO explícita (Lun-Dom).
-    anchor = datetime.date(2026, 11, 2)  # lunes
+    anchor = datetime.date(2026, 11, 2)
     iso = f"{anchor.isocalendar().year}-W{anchor.isocalendar().week:02d}"
     await _seed_order(db_session, "ord-1", "c1", "Juan Pérez", "+54 9 11 5555-0001",
                       anchor, "confirmado", 100000, paid=True)
@@ -293,12 +276,10 @@ async def test_weekly_bad_week_422(client, db_session):
         assert response.status_code == 422, bad
 
 
-# ─── GET /orders/export ──────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
 async def test_orders_export_csv_default(client, db_session):
-    # CSV sigue siendo el default (backward-compatible).
     monday, _ = _this_week()
     await _seed_order(db_session, "ord-1", "c1", "Juan Pérez", "+54 9 11 5555-0001",
                       monday, "confirmado", 1234567, paid=True)
@@ -314,7 +295,6 @@ async def test_orders_export_csv_default(client, db_session):
     assert "id,cliente,fecha,items,total,estado,pago,metodo" in body
     assert "Juan Pérez" in body
     assert "confirmado" in body
-    # El monto en pesos formateado ($12.345,67), no centavos crudos.
     assert "$12.345,67" in body
 
 
@@ -327,7 +307,6 @@ async def test_orders_export_filters(client, db_session):
                       monday, "nuevo", 200000, paid=False)
 
     token = await _admin_token(client)
-    # status=confirmado: solo el primero.
     response = await client.get(
         "/api/v1/orders/export?status=confirmado",
         headers={"Authorization": f"Bearer {token}"},
@@ -336,8 +315,6 @@ async def test_orders_export_filters(client, db_session):
     assert "Con Filtro" in body
     assert "Sin Filtro" not in body
 
-    # paid=false: solo el segundo (aunque el estado no coincida con el
-    # filtro anterior, se combina con status vacío = todos los estados).
     response = await client.get(
         "/api/v1/orders/export?paid=false",
         headers={"Authorization": f"Bearer {token}"},
@@ -380,7 +357,6 @@ async def test_orders_export_requires_authentication(client, db_session):
     assert (await client.get("/api/v1/orders/export")).status_code == 401
 
 
-# ─── GET /budgets/export ─────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -400,7 +376,6 @@ async def test_budgets_export_csv_default(client, db_session):
     assert "#00042" in body
     assert "María Gómez" in body
     assert "enviado" in body
-    # total_venta = subtotal sin IVA; el 21% viaja aparte (dominio/budgets.py)
     assert "$4.520,00" in body
     assert "$949,20" in body
 

@@ -2,11 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { weeklyService } from "./weekly.service";
 import { downloadEndpoint } from "@/lib/download";
 
-/**
- * Tests del service del resumen semanal (Fase 5, UC-08 / RF-P6-11):
- * GET /orders/weekly (JSON) y exports CSV/PDF. Money en centavos (long):
- * la API emite centavos y el service los pasa tal cual.
- */
 vi.mock("@/lib/download", () => ({
   downloadEndpoint: vi.fn().mockResolvedValue(undefined),
 }));

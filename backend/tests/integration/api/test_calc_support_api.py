@@ -1,13 +1,3 @@
-"""Integration tests for the Calc Support API (CRUD ABM endpoints).
-
-Covers auth (401/403), CRUD operations, duplicate detection (409),
-search + pagination, and validation (422) for:
-  - /calc/material-categories
-  - /calc/product-categories
-  - /calc/suppliers
-  - /calc/default-costs
-(S2, S3).
-"""
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
@@ -44,13 +34,11 @@ from sqlalchemy import event
 from main import app
 
 
-# ─── Fixtures ───────────────────────────────────────────────────────────
 
 @pytest_asyncio.fixture
 async def db_session():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
 
-    # Registrar accent_fold para busquedas con acentos (RF-P2-02).
     @event.listens_for(engine.sync_engine, "connect")
     def _register_sqlite_functions(dbapi_connection, connection_record):
         dbapi_connection.create_function(
@@ -113,12 +101,11 @@ async def client(db_session):
         app.dependency_overrides = {}
 
 
-# ─── Helpers ────────────────────────────────────────────────────────────
 
 async def _token_for(client: AsyncClient, email: str) -> str:
     response = await client.post("/api/v1/auth/login", json={"email": email})
     assert response.status_code == 200
-    return response.json()["access_token"]
+    return response.cookies["auth_token"]
 
 
 async def _admin_token(client: AsyncClient) -> str:
@@ -129,18 +116,15 @@ async def _customer_token(client: AsyncClient) -> str:
     return await _token_for(client, "customer@example.com")
 
 
-# ─── Auth tests (shared across all calc endpoints) ─────────────────────
 
 @pytest.mark.asyncio
 async def test_material_categories_requires_auth(client):
-    """S3: sin session → 401."""
     response = await client.get("/api/v1/calc/material-categories")
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
 async def test_material_categories_forbidden_customer(client):
-    """S3: no-admin → 403 en POST."""
     token = await _customer_token(client)
     response = await client.post(
         "/api/v1/calc/material-categories",
@@ -168,14 +152,12 @@ async def test_default_costs_requires_auth(client):
     assert response.status_code == 401
 
 
-# ─── Material Categories ────────────────────────────────────────────────
 
 class TestMaterialCategories:
     _PATH = "/api/v1/calc/material-categories"
 
     @pytest.mark.asyncio
     async def test_list_empty(self, client):
-        """GET devuelve lista vacia al inicio."""
         token = await _admin_token(client)
         response = await client.get(
             self._PATH, headers={"Authorization": f"Bearer {token}"}
@@ -187,7 +169,6 @@ class TestMaterialCategories:
 
     @pytest.mark.asyncio
     async def test_create(self, client):
-        """POST crea categoria con 201."""
         token = await _admin_token(client)
         response = await client.post(
             self._PATH,
@@ -202,7 +183,6 @@ class TestMaterialCategories:
 
     @pytest.mark.asyncio
     async def test_create_duplicate_rejected(self, client):
-        """POST nombre duplicado → 409."""
         token = await _admin_token(client)
         headers = {"Authorization": f"Bearer {token}"}
         await client.post(self._PATH, json={"name": "Harinas"}, headers=headers)
@@ -212,7 +192,6 @@ class TestMaterialCategories:
 
     @pytest.mark.asyncio
     async def test_update(self, client):
-        """PATCH actualiza categoria."""
         token = await _admin_token(client)
         headers = {"Authorization": f"Bearer {token}"}
 
@@ -231,7 +210,6 @@ class TestMaterialCategories:
 
     @pytest.mark.asyncio
     async def test_update_empty_body_rejected(self, client):
-        """PATCH sin campos → 422."""
         token = await _admin_token(client)
         headers = {"Authorization": f"Bearer {token}"}
 
@@ -249,7 +227,6 @@ class TestMaterialCategories:
 
     @pytest.mark.asyncio
     async def test_delete(self, client):
-        """DELETE elimina con 204."""
         token = await _admin_token(client)
         headers = {"Authorization": f"Bearer {token}"}
 
@@ -261,13 +238,11 @@ class TestMaterialCategories:
         delete = await client.delete(f"{self._PATH}/{cat_id}", headers=headers)
         assert delete.status_code == 204
 
-        # El endpoint GET por id no existe; la lista no la incluye
         list_resp = await client.get(self._PATH, headers=headers)
         assert cat_id not in [item["id"] for item in list_resp.json()["items"]]
 
     @pytest.mark.asyncio
     async def test_search(self, client):
-        """?q filtra por nombre."""
         token = await _admin_token(client)
         headers = {"Authorization": f"Bearer {token}"}
 
@@ -281,7 +256,6 @@ class TestMaterialCategories:
 
     @pytest.mark.asyncio
     async def test_pagination(self, client):
-        """?page&page_size paginados."""
         token = await _admin_token(client)
         headers = {"Authorization": f"Bearer {token}"}
 
@@ -301,7 +275,6 @@ class TestMaterialCategories:
 
     @pytest.mark.asyncio
     async def test_create_blank_name_rejected(self, client):
-        """POST name vacio → 422."""
         token = await _admin_token(client)
         response = await client.post(
             self._PATH,
@@ -312,7 +285,6 @@ class TestMaterialCategories:
 
     @pytest.mark.asyncio
     async def test_create_name_too_long_rejected(self, client):
-        """POST name > 80 → 422."""
         token = await _admin_token(client)
         response = await client.post(
             self._PATH,
@@ -323,7 +295,6 @@ class TestMaterialCategories:
 
     @pytest.mark.asyncio
     async def test_create_description_too_long_rejected(self, client):
-        """POST description > 200 → 422."""
         token = await _admin_token(client)
         response = await client.post(
             self._PATH,
@@ -333,7 +304,6 @@ class TestMaterialCategories:
         assert response.status_code == 422
 
 
-# ─── Product Categories ─────────────────────────────────────────────────
 
 class TestProductCategories:
     _PATH = "/api/v1/calc/product-categories"
@@ -410,7 +380,6 @@ class TestProductCategories:
         assert search.json()["items"][0]["name"] == "Pasteles"
 
 
-# ─── Suppliers ──────────────────────────────────────────────────────────
 
 class TestSuppliers:
     _PATH = "/api/v1/calc/suppliers"
@@ -426,7 +395,6 @@ class TestSuppliers:
 
     @pytest.mark.asyncio
     async def test_create_minimal(self, client):
-        """Solo name es obligatorio."""
         token = await _admin_token(client)
         response = await client.post(
             self._PATH,
@@ -503,7 +471,6 @@ class TestSuppliers:
 
     @pytest.mark.asyncio
     async def test_create_invalid_email_rejected(self, client):
-        """Email invalido → 422."""
         token = await _admin_token(client)
         response = await client.post(
             self._PATH,
@@ -523,7 +490,6 @@ class TestSuppliers:
         assert response.status_code == 422
 
 
-# ─── Default Costs ──────────────────────────────────────────────────────
 
 class TestDefaultCosts:
     _PATH = "/api/v1/calc/default-costs"
@@ -539,7 +505,6 @@ class TestDefaultCosts:
 
     @pytest.mark.asyncio
     async def test_create_labor(self, client):
-        """POST crea costo labor."""
         token = await _admin_token(client)
         response = await client.post(
             self._PATH,
@@ -558,7 +523,6 @@ class TestDefaultCosts:
 
     @pytest.mark.asyncio
     async def test_create_extra_cost(self, client):
-        """POST crea costo extra_cost."""
         token = await _admin_token(client)
         response = await client.post(
             self._PATH,
@@ -620,7 +584,6 @@ class TestDefaultCosts:
 
     @pytest.mark.asyncio
     async def test_type_filter(self, client):
-        """?type filtra por tipo."""
         token = await _admin_token(client)
         headers = {"Authorization": f"Bearer {token}"}
 
@@ -683,7 +646,6 @@ class TestDefaultCosts:
 
     @pytest.mark.asyncio
     async def test_create_negative_cost_rejected(self, client):
-        """Costo negativo → 422."""
         token = await _admin_token(client)
         response = await client.post(
             self._PATH,
@@ -699,7 +661,6 @@ class TestDefaultCosts:
 
     @pytest.mark.asyncio
     async def test_create_invalid_type_rejected(self, client):
-        """Type invalido → 422."""
         token = await _admin_token(client)
         response = await client.post(
             self._PATH,
@@ -737,20 +698,14 @@ class TestDefaultCosts:
         assert len(page.json()["items"]) == 2
 
 
-# ─── Regression tests for PR #20 comment fixes ─────────────────────────
 
 
 class TestAccentInsensitiveDuplicates:
-    """Fix #2: get_by_name usa accent_fold para evitar duplicados con acentos.
-
-    Regresion: "Harinas" y "Harin\u00e1s" no deben coexistir.
-    """
 
     _PATH = "/api/v1/calc/material-categories"
 
     @pytest.mark.asyncio
     async def test_material_category_accent_duplicate_rejected(self, client):
-        """POST "Harinas" + "Harin\u00e1s" → 409 en segundo."""
         token = await _admin_token(client)
         headers = {"Authorization": f"Bearer {token}"}
         await client.post(self._PATH, json={"name": "Harinas"}, headers=headers)
@@ -761,7 +716,6 @@ class TestAccentInsensitiveDuplicates:
 
     @pytest.mark.asyncio
     async def test_product_category_accent_duplicate_rejected(self, client):
-        """POST "Levaduras" + "Levad\u00faras" → 409 en segundo."""
         token = await _admin_token(client)
         headers = {"Authorization": f"Bearer {token}"}
         path = "/api/v1/calc/product-categories"
@@ -772,14 +726,9 @@ class TestAccentInsensitiveDuplicates:
         assert dup.status_code == 409
 
 class TestUpdatedAtRefreshOnPatch:
-    """Fix #3: PATCH actualiza updated_at con nuevo timestamp.
-
-    Regresion: el segundo PATCH debe tener updated_at > el del primero.
-    """
 
     @pytest.mark.asyncio
     async def test_material_category_updated_at_refreshes(self, client):
-        """PATCH actualiza updated_at a timestamp nuevo."""
         token = await _admin_token(client)
         headers = {"Authorization": f"Bearer {token}"}
         path = "/api/v1/calc/material-categories"
@@ -802,7 +751,6 @@ class TestUpdatedAtRefreshOnPatch:
 
     @pytest.mark.asyncio
     async def test_product_category_updated_at_refreshes(self, client):
-        """PATCH product-category actualiza updated_at."""
         token = await _admin_token(client)
         headers = {"Authorization": f"Bearer {token}"}
         path = "/api/v1/calc/product-categories"
@@ -825,7 +773,6 @@ class TestUpdatedAtRefreshOnPatch:
 
     @pytest.mark.asyncio
     async def test_supplier_updated_at_refreshes(self, client):
-        """PATCH supplier actualiza updated_at."""
         token = await _admin_token(client)
         headers = {"Authorization": f"Bearer {token}"}
         path = "/api/v1/calc/suppliers"
@@ -850,7 +797,6 @@ class TestUpdatedAtRefreshOnPatch:
 
     @pytest.mark.asyncio
     async def test_default_cost_updated_at_refreshes(self, client):
-        """PATCH default-cost actualiza updated_at."""
         token = await _admin_token(client)
         headers = {"Authorization": f"Bearer {token}"}
         path = "/api/v1/calc/default-costs"

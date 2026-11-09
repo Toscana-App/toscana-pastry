@@ -22,10 +22,6 @@ import type { Ingredient } from "@/modules/ingredients/types";
 import type { ProductFormValues } from "../schema";
 import { RECIPE_UNITS } from "../types";
 
-/**
- * Select nativo estilizado con el mismo look que `EnumSelect`, pero con
- * opciones arbitrarias (el value es el id del insumo, no su nombre).
- */
 const StyledSelect = chakra("select", {
   base: {
     width: "100%",
@@ -52,15 +48,6 @@ interface RecipeEditorProps {
   ingredientsLoading: boolean;
 }
 
-/**
- * Editor de receta (Fase 5, RF-P4-02): lista de líneas insumo + cantidad +
- * unidad. El select nativo con el catálogo completo hace de autocompletado
- * (el catálogo de una pastelería es chico y así el control es accesible y
- * usable en mobile sin un combobox custom).
- *
- * RF-P4-03: la cantidad se escribe en la unidad que quieras (g, ml, unidad);
- * el motor convierte a la unidad de compra del insumo al calcular.
- */
 export function RecipeEditor({
   control,
   register,

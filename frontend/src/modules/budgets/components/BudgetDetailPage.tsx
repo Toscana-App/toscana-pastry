@@ -36,7 +36,6 @@ const STATUS_COLORS: Record<BudgetDetail["status"], "blue" | "green"> = {
 
 type PendingAction = "send" | "convert" | "delete";
 
-/** P9: el link temporal firma un vencimiento; vencido → se regenera. */
 function isShareExpired(share: PdfShare | null): boolean {
   return share != null && new Date(share.expires_at).getTime() < Date.now();
 }
@@ -59,16 +58,6 @@ const DIALOG_COPY: Record<PendingAction, { title: string; body: string; cta: str
   },
 };
 
-/**
- * Detalle de presupuesto (Fase 7, P8) — /presupuestos/[id].
- *
- * Lectura pura: muestra los costos/precios derivados al guardar, sin
- * volver al catálogo. Totales siempre consistentes (RNF-P8-02).
- *
- * Acciones (admin, RF-P8-04/05/07/08): editar (borrador), recalcular
- * contra el catálogo, enviar/reenviar (congela versión), convertir en
- * pedido y eliminar con confirmación.
- */
 interface BudgetDetailPageProps {
   budgetId: string;
 }
@@ -87,7 +76,6 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
   const [recalculated, setRecalculated] = useState<BudgetSummary | null>(null);
   const [recalcMargin, setRecalcMargin] = useState<number | null>(null);
   const [recalcLoading, setRecalcLoading] = useState(false);
-  // Fase 8 (P9/P10): PDF y WhatsApp.
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [waLast, setWaLast] = useState<WhatsAppLink | null>(null);
@@ -104,7 +92,6 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
       .finally(() => setLoading(false));
   }, [budgetId]);
 
-  // Un mount por id (route param de Next): sin reset de estado en el efecto.
   useEffect(() => {
     load();
   }, [load]);
@@ -142,7 +129,6 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
       const res = await budgetsService.recalculate(budget.id);
       setRecalculated(res.summary);
       setRecalcMargin(res.margin_applied);
-      // Volver a leer el detalle con los precios re-derivados.
       setBudget(await budgetsService.getDetail(budget.id));
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "El recálculo falló");
@@ -151,7 +137,6 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
     }
   }, [budget]);
 
-  /** P9: preview del PDF (GET binario → objectURL → iframe). */
   const openPdf = useCallback(async () => {
     if (!budget) return;
     setPdfLoading(true);
@@ -169,7 +154,6 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
     }
   }, [budget]);
 
-  /** P10: wa.me prellenado; 429 → mensaje de límite (RNF-P10-06). */
   const sendWhatsapp = useCallback(async () => {
     if (!budget) return;
     setWaLoading(true);
@@ -185,7 +169,6 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
     }
   }, [budget]);
 
-  /** P9: link temporal firmado (72 h). Regenerar lo reemplaza. */
   const newShareLink = useCallback(async () => {
     if (!budget) return;
     setShareLoading(true);
@@ -254,7 +237,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
         </Button>
       </Flex>
 
-      {/* Cliente + parámetros */}
+      {}
       <Box borderWidth="1px" borderColor="border" rounded="md" p={4}>
         <VStack align="start" gap={2}>
           <Text fontWeight="600">{budget.customer.name}</Text>
@@ -271,7 +254,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
         </VStack>
       </Box>
 
-      {/* Ítems — precios guardados al escribir (RF-P8-04) */}
+      {}
       <Box borderWidth="1px" borderColor="border" rounded="md" overflowX="auto">
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
           <thead>
@@ -323,7 +306,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
         </table>
       </Box>
 
-      {/* Bloques de cálculo (RF-P8-02): ticket de fila, total destacado */}
+      {}
       <Box
         borderWidth="1px"
         borderColor="border"
@@ -379,7 +362,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
         </VStack>
       </Box>
 
-      {/* Resultado del recálculo (recién re-derivado) */}
+      {}
       {recalculated ? (
         <Alert.Root status="success" fontSize="sm">
           <Alert.Content>
@@ -404,7 +387,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
         </Alert.Root>
       ) : null}
 
-      {/* Acciones admin */}
+      {}
       {isAdmin ? (
         <HStack gap={3} wrap="wrap">
           <Button variant="outline" asChild>
@@ -450,7 +433,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
         </HStack>
       ) : null}
 
-      {/* Preview del PDF (P9): objectURL del binario servido. */}
+      {}
       {pdfUrl ? (
         <Box borderWidth="1px" borderColor="gray.200" rounded="md" w="full">
           <iframe
@@ -461,7 +444,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
         </Box>
       ) : null}
 
-      {/* WhatsApp (P10): wa.me abierto + registro de auditoría. */}
+      {}
       {waLast ? (
         <Alert.Root status="success" fontSize="sm">
           <Alert.Content>
@@ -473,7 +456,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
         </Alert.Root>
       ) : null}
 
-      {/* Link temporal (P9): copiable, con vencimiento y regeneración. */}
+      {}
       {share ? (
         <Box borderWidth="1px" borderColor="gray.200" rounded="md" p={4} maxW="640px">
           <VStack align="start" gap={2}>
@@ -511,7 +494,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
         </Box>
       ) : null}
 
-      {/* Confirmación de acciones (mismo patrón de Dialog v3 que pedidos) */}
+      {}
       <Dialog.Root
         open={pendingAction !== null}
         onOpenChange={(e) => {

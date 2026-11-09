@@ -8,7 +8,6 @@ import DefaultCostsAbm from "@/components/calc/DefaultCostsAbm";
 import GeneralSettingsForm from "@/components/calc/GeneralSettingsForm";
 import SupplierAbm from "@/components/calc/SupplierAbm";
 
-// Ids de tab; el id de las categorías coincide con el endpoint de CategoryAbm.
 type CalcTabId =
   | "general"
   | "material-categories"
@@ -25,10 +24,6 @@ const CALC_TABS: { id: CalcTabId; label: string }[] = [
 ];
 
 export default function CalculatorConfigPage() {
-  // RNF-P5CC-03: cada tab hace 1 GET al activarse por primera vez, no los 5
-  // al montar. Ark UI mantiene montados los Tabs.Content inactivos (hidden),
-  // así que montar el componente solo cuando su tab fue visitado garantiza
-  // el fetch único por pestaña.
   const [activeTab, setActiveTab] = useState<CalcTabId>("general");
   const [visited, setVisited] = useState<Set<CalcTabId>>(
     () => new Set<CalcTabId>(["general"])

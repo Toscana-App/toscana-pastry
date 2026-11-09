@@ -1,9 +1,3 @@
-"""Unit tests for the order window domain (RF-P5-07, C6).
-
-Ventana de pedidos: open (default true), reopens_at (requerido al cerrar),
-message (<= 200 chars). Cerrada → 409 order_window_closed en la creación
-de pedidos del portal.
-"""
 
 import datetime
 

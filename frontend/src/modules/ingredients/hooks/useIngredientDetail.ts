@@ -8,7 +8,6 @@ import { statusOf } from "../types";
 
 export interface AdjustStockResult {
   ok: boolean;
-  /** Mensaje del backend cuando falla (400: stock insuficiente, etc.). */
   message?: string;
 }
 
@@ -18,24 +17,10 @@ export interface UseIngredientDetailResult {
   loading: boolean;
   error: string | null;
   reload: () => void;
-  /**
-   * Ajuste de stock optimista (RF-P2-03): la UI se mueve al instante y se
-   * revierte si el servidor rechaza (400 stock insuficiente / 404).
-   */
   adjustStock: (delta: number, reason: StockReason, ref?: string) => Promise<AdjustStockResult>;
-  /**
-   * Intenta eliminar. Devuelve "deleted" si salió bien; si el backend responde
-   * 409, devuelve el impacto ({impacted_recipes}) para que la UI lo explique.
-   */
   remove: () => Promise<"deleted" | DeleteImpact>;
 }
 
-/**
- * Estado del detalle de un ingrediente (Fase 4, WU6).
- *
- * Trae el ingrediente junto con su historial de movimientos
- * (include_movements=true) en una sola request.
- */
 export function useIngredientDetail(id: string): UseIngredientDetailResult {
   const [ingredient, setIngredient] = useState<Ingredient | null>(null);
   const [movements, setMovements] = useState<StockMovement[]>([]);
@@ -102,8 +87,6 @@ export function useIngredientDetail(id: string): UseIngredientDetailResult {
         setMovements((current) => [result.movement, ...current]);
         return { ok: true };
       } catch (e) {
-        // Rollback por delta: revierte solo este ajuste, sin pisar otros
-        // ajustes optimistas en vuelo con un snapshot viejo.
         setIngredient((current) => {
           if (!current) return current;
           const reverted = Number(current.stock_qty) - delta;

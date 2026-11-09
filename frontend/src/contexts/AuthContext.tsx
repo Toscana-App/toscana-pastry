@@ -45,8 +45,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // The session can be closed from outside the context (failed refresh in
-  // lib/api): the event clears the user and ProtectedRoute redirects to /login.
   useEffect(() => {
     const onSessionCleared = () => setUser(null);
     window.addEventListener(AUTH_SESSION_CLEARED_EVENT, onSessionCleared);
@@ -56,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setUser(null);
-    authService.logout();
+    void authService.logout();
   };
 
   return (

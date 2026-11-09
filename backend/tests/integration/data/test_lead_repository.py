@@ -1,7 +1,3 @@
-"""Integration tests for Lead repository (RF-P11-13, C5).
-
-Covers CRUD + admin list with filters + mark read/mark all read.
-"""
 
 import pytest
 import pytest_asyncio
@@ -19,7 +15,6 @@ async def lead_repo(db_session):
     return SQLLeadRepository(db_session)
 
 
-# ─── Create ──────────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -49,7 +44,6 @@ async def test_create_business_lead(lead_repo: SQLLeadRepository):
     assert result.business_name == "Empresa SA"
 
 
-# ─── Get ─────────────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -73,7 +67,6 @@ async def test_get_nonexistent_lead_returns_none(lead_repo: SQLLeadRepository):
     assert found is None
 
 
-# ─── List with filters ──────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -101,7 +94,6 @@ async def test_list_filter_by_read_true(lead_repo: SQLLeadRepository):
     await lead_repo.create(
         Lead(name="B", email="b@b.com", customer_type="consumer", message="Hi")
     )
-    # Mark first as read
     first = await lead_repo.get((await lead_repo.list(None, None, None, 1, 20))[0][0].id)
     if first:
         await lead_repo.set_read(first.id, True)
@@ -158,7 +150,6 @@ async def test_list_pagination(lead_repo: SQLLeadRepository):
     assert len(page2) == 3
 
 
-# ─── Set read ────────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -179,7 +170,6 @@ async def test_set_read_on_nonexistent_returns_none(lead_repo: SQLLeadRepository
     assert result is None
 
 
-# ─── Mark all read ──────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -205,10 +195,9 @@ async def test_mark_all_read_partial(lead_repo: SQLLeadRepository):
         Lead(name="B", email="b@b.com", customer_type="consumer", message="Hi")
     )
 
-    # Mark one as read first
     leads, _ = await lead_repo.list(None, None, None, 1, 20)
     if leads:
         await lead_repo.set_read(leads[0].id, True)
 
     count = await lead_repo.mark_all_read()
-    assert count == 1  # Only the unread one
+    assert count == 1

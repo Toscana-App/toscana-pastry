@@ -16,13 +16,6 @@ import LoginForm from "@/components/auth/LoginForm"
 import { BrandLogo } from "@/components/layout/BrandLogo"
 import { GoogleIcon } from "@/components/ui/google-icon"
 
-/**
- * Static stand-in for the login card while Next hydrates the form
- * (Suspense is required because LoginForm uses `useSearchParams`).
- * The form is fully static — no endpoint data — so the fallback mirrors
- * the real card one-to-one (same heading and button with the same size) instead of a skeleton: nothing on this screen loads from an
- * endpoint, so no element here may shimmer.
- */
 function LoginFormPlaceholder() {
   return (
     <Box
@@ -62,7 +55,7 @@ export default function LoginPage() {
     >
       <VStack gap={8} width="full" align="center">
         <BrandLogo variant="vertical" height={150} priority />
-        {/* Suspense obligatorio: LoginForm usa useSearchParams (requisito de prerender de Next). */}
+        {}
         <Suspense fallback={<LoginFormPlaceholder />}>
           <LoginForm />
         </Suspense>

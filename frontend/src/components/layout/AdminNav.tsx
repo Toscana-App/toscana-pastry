@@ -4,17 +4,9 @@ import NextLink from "next/link";
 import { usePathname } from "next/navigation";
 import { Flex, Text } from "@chakra-ui/react";
 
-/**
- * Navegación de la sección admin (Fase 4, WU3).
- *
- * Tres secciones: Usuarios (/admin, exacta), Ingredientes (/admin/ingredients,
- * prefix) y Configuración (/admin/settings, exacta). La sección activa se
- * marca por pathname: /admin/ingredients/* resalta "Ingredientes".
- */
-// F4: la Calculadora de costos se alcanza desde el nav (antes solo por
-// URL). `match` separa el prefijo de resaltado del destino del link.
 const SECTIONS = [
   { href: "/admin", label: "Usuarios", exact: true },
+  { href: "/productos", label: "Productos", exact: true },
   { href: "/admin/ingredients", label: "Ingredientes", exact: false },
   { href: "/admin/calculator/products", label: "Calculator", exact: false, match: "/admin/calculator" },
   { href: "/admin/settings", label: "Configuración", exact: false },

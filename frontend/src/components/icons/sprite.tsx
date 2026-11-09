@@ -1,13 +1,3 @@
-/** SVG sprite global: symbols reutilizables vía `<use href="#icono">`.
-
- * Se monta una sola vez en el root layout (app/layout.tsx). Cada símbolo
- * hereda `currentColor`, así el color lo controla el componente padre.
- *
- * Uso (patrón del portal, botones flotantes):
- *   <svg className="icon-inline" width={24} height={24}>
- *     <use xlinkHref="#whatsapp" />
- *   </svg>
- */
 export function IconSprite() {
   return (
     <svg

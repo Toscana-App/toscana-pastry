@@ -1,16 +1,3 @@
-"""PDF de presupuesto (Fase 8, P9) + WhatsApp outbound (P10): API.
-
-Cubre:
-- GET /budgets/{id}/pdf: PDF (pdfgenerator, ADR-0001), ETag por hash,
-  304, regeneración tras edición, sin auth 401.
-- POST /budgets/{id}/pdf: link firmado 72 h; admin-only.
-- GET /pdf/{token}: público; token inválido/alterado/vencido → 404.
-- Seguridad: el snapshot enviado a pdfgenerator no contiene
-  costo/ganancia/margen.
-- POST /budgets/{id}/whatsapp-link: wa.me E.164, plantilla con ítems y
-  total, registro auditado (teléfono enmascarado), 400 con teléfono
-  inválido, 429 al pasar el límite de 30/día.
-"""
 from datetime import datetime, timedelta, timezone
 from urllib.parse import unquote
 
@@ -128,12 +115,10 @@ async def _login(client: AsyncClient, email: str = "admin@example.com") -> str:
         "/api/v1/auth/login", json={"email": email}
     )
     assert response.status_code == 200, response.text
-    return response.json()["access_token"]
+    return response.cookies["auth_token"]
 
 
 async def _setup(client: AsyncClient, token: str):
-    """Settings (150/h, margen 100%), harina 2.800/kg, torta de limón
-    (250g, 30 min, 6 porciones). Costo torta: 775 -> venta 1.550."""
     response = await client.put(
         "/api/v1/tenant/settings",
         json={
@@ -271,7 +256,6 @@ class TestBudgetPdfEndpoint:
         first = await client.get(f"/api/v1/budgets/{budget_id}/pdf", headers=headers)
         etag_1 = first.headers["etag"]
 
-        # Edición: cantidad 2 -> 3 (hash de contenido nuevo).
         response = await client.put(
             f"/api/v1/budgets/{budget_id}",
             json={"items": [{"product_id": product_id, "qty": 3}]},
@@ -282,7 +266,6 @@ class TestBudgetPdfEndpoint:
         second = await client.get(f"/api/v1/budgets/{budget_id}/pdf", headers=headers)
         assert second.status_code == 200
         assert second.headers["etag"] != etag_1
-        # El snapshot enviado a pdfgenerator refleja la nueva cantidad (3 x 1550).
         assert pdf_fake.last_budget_payload["items"][0]["qty"] == 3
         assert pdf_fake.last_budget_payload["items"][0]["line_selling"] == "4650.00"
 
@@ -290,9 +273,6 @@ class TestBudgetPdfEndpoint:
         assert (await client.get("/api/v1/budgets/cualquiera/pdf")).status_code == 401
 
     async def test_pdf_no_expose_costos_ni_ganancia(self, client, pdf_fake):
-        """Seguridad de P9: el documento del cliente no contiene los
-        números internos (costo unitario 775, ganancia 1.000, ni las
-        palabras costo/ganancia/margen)."""
         token = await _login(client)
         product_id = await _setup(client, token)
         customer_id = await _make_customer(client, token, "María", "5493571234567")
@@ -303,23 +283,18 @@ class TestBudgetPdfEndpoint:
             headers={"Authorization": f"Bearer {token}"},
         )
         payload = pdf_fake.last_budget_payload
-        # Ni las palabras internas como claves del snapshot.
         internal = {"costo", "ganancia", "margen", "unit_cost"}
         assert not internal & set(payload.keys())
         for item in payload["items"]:
             assert not internal & set(item.keys())
-        # Ni los números internos como valores (costo 775, ganancia 1000).
         values = [str(v) for k, v in payload.items() if k != "items"]
         for item in payload["items"]:
             values.extend(str(v) for v in item.values())
         assert "775" not in values
         assert "1000" not in values
-        # El precio de venta (1550) SÍ se envía.
         assert "1550.00" in values
 
     async def test_pdf_incluye_direccion_de_entrega(self, client, pdf_fake):
-        """RF-P7-07: el documento muestra la direccion del snapshot si
-        esta presente."""
         token = await _login(client)
         product_id = await _setup(client, token)
         customer_id = await _make_customer(
@@ -366,8 +341,7 @@ class TestShareLink:
             f"{app_settings.PUBLIC_BASE_URL}/api/v1/pdf/"
         )
         token_part = body["url"].rsplit("/", 1)[-1]
-        assert token_part.count(".") == 1  # payload.firma
-        # TTL 72 h: expira entre 71 y 72 h desde ahora.
+        assert token_part.count(".") == 1
         expires = datetime.fromisoformat(body["expires_at"])
         delta = expires - datetime.now(timezone.utc)
         assert timedelta(hours=71) < delta < timedelta(hours=72)
@@ -384,7 +358,6 @@ class TestShareLink:
         url = share.json()["url"]
         path = url.replace(app_settings.PUBLIC_BASE_URL, "")
 
-        # SIN autenticación: el token es la credencial.
         response = await client.get(path)
         assert response.status_code == 200
         assert response.content[:4] == PDF_MAGIC
@@ -393,8 +366,8 @@ class TestShareLink:
     @pytest.mark.parametrize(
         "tamper",
         [
-            lambda t: t[:-2] + "xx",      # firma alterada
-            lambda t: t.split(".")[0] + ".AAAA",  # firma invalida
+            lambda t: t[:-2] + "xx",
+            lambda t: t.split(".")[0] + ".AAAA",
             lambda t: "token-sin-punto",
         ],
     )
@@ -412,8 +385,6 @@ class TestShareLink:
         token, _ = make_share_token("b1", "secreto")
         assert verify_share_token(token, "secreto") == "b1"
         assert verify_share_token(token, "otro") is None
-        # Un token firmado directamente con la SECRET_KEY (sin subclave,
-        # p. ej. forjado con la clave del JWT) no es válido.
         import base64
 
         payload = b"v1|b1|9999999999"
@@ -479,11 +450,8 @@ class TestWhatsAppLink:
         )
         assert response.status_code == 200, response.text
         body = response.json()
-        # E.164 desde formato local (0357...).
         assert body["url"].startswith("https://wa.me/543574223456?text=")
-        # Registro de auditoría (RF-P10-02).
         datetime.fromisoformat(body["sent_at"])
-        # Plantilla (RF-P10-01): saludo, ítems, total, firma, link PDF.
         message = unquote(body["url"].split("text=", 1)[1])
         assert "Hola María:" in message
         assert "Torta de Limón" in message
@@ -494,8 +462,6 @@ class TestWhatsAppLink:
         assert "Toscana Pastry" in message
 
     async def test_whatsapp_link_incluye_direccion_de_entrega(self, client):
-        """RF-P7-07: el mensaje muestra la direccion si esta presente en
-        el snapshot del presupuesto."""
         token = await _login(client)
         product_id = await _setup(client, token)
         customer_id = await _make_customer(
@@ -526,7 +492,6 @@ class TestWhatsAppLink:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 400
-        # RNF-P10-05: el teléfono no se devuelve en `detail`.
         assert "123456" not in response.text
 
     async def test_evento_registrado_con_telefono_enmascarado(self, client, db_session):
@@ -557,7 +522,6 @@ class TestWhatsAppLink:
         )
         assert len(events) == 1
         assert events[0].type == "whatsapp_sent"
-        # RNF-P10-05: el teléfono completo NO se registra.
         assert "5493571234567" not in events[0].payload
         assert events[0].payload == "+54 ** ****67"
 
@@ -569,7 +533,6 @@ class TestWhatsAppLink:
         )
         budget_id = await _make_budget(client, token, customer_id, product_id)
 
-        # 30 envíos previos, todos dentro de la ventana de 24 h.
         now = datetime.now(timezone.utc)
         for i in range(30):
             db_session.add(

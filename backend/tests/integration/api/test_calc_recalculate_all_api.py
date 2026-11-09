@@ -1,13 +1,3 @@
-"""Integration tests for POST /calc/products/recalculate-all (RF-P3CC-03).
-
-Covers: only active products recalculated in a single transaction,
-`last_recalculated_at` set on all actives even when the price does not
-change, versions created ONLY when the rounded final differs and
-continuing each product's append-only sequence, snapshots re-resolved
-from current materials (D4: incomplete -> 0.00 without error),
-draft/archived/deleted untouched, 0 active -> {recalculated: 0}, and
-auth (401/403, D2).
-"""
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -49,7 +39,6 @@ from data.repositories.sql_user_repository import SQLUserRepository
 from domain.models import User, UserRole
 from main import app
 
-# ─── Fixtures ───────────────────────────────────────────────────────────
 
 
 @pytest_asyncio.fixture
@@ -109,13 +98,12 @@ async def client(db_session):
         app.dependency_overrides = {}
 
 
-# ─── Helpers ────────────────────────────────────────────────────────────
 
 
 async def _token_for(client: AsyncClient, email: str) -> str:
     response = await client.post("/api/v1/auth/login", json={"email": email})
     assert response.status_code == 200
-    return response.json()["access_token"]
+    return response.cookies["auth_token"]
 
 
 async def _admin(client: AsyncClient) -> str:
@@ -155,8 +143,6 @@ async def _recalculate_all(client: AsyncClient, token: str) -> dict:
 
 
 async def _seed_full(client: AsyncClient, token: str) -> dict:
-    """Material a 100.00 + 3 activos (qty 1) + 1 draft + 1 archived +
-    1 eliminado, todos con una linea del material."""
     material = await _create_material(
         client, token, name="Mantequilla",
         unit_of_measure="kg",
@@ -212,7 +198,6 @@ async def _versions_total(client: AsyncClient, token: str, product_id: str) -> i
     return response.json()["total"]
 
 
-# ─── Auth (S3/D2: 401 sin sesion, 403 no-admin en writes) ──────────────
 
 
 class TestRecalculateAllAuth:
@@ -228,12 +213,10 @@ class TestRecalculateAllAuth:
         assert response.status_code == 403
 
 
-# ─── Recalculate-all (RF-P3CC-03) ──────────────────────────────────────
 
 
 class TestRecalculateAll:
     async def test_counts_only_active_products(self, client):
-        """3 activos + 1 draft + 1 archived + 1 eliminado -> {recalculated: 3}."""
         token = await _admin(client)
         await _seed_full(client, token)
         assert await _recalculate_all(client, token) == {"recalculated": 3}
@@ -246,8 +229,6 @@ class TestRecalculateAll:
     async def test_sets_last_recalculated_on_all_actives_without_version(
         self, client
     ):
-        """last_recalculated_at se setea en TODOS los activos, aunque el
-        precio no cambie; sin cambio de final NO hay versiones."""
         token = await _admin(client)
         seed = await _seed_full(client, token)
         await _recalculate_all(client, token)
@@ -257,8 +238,6 @@ class TestRecalculateAll:
             assert await _versions_total(client, token, seed[key]) == 0
 
     async def test_draft_archived_and_deleted_untouched(self, client):
-        """Drafts/archived/eliminados: lineas, last_recalculated_at y
-        versiones sin cambios, aunque el material cambie de precio."""
         token = await _admin(client)
         seed = await _seed_full(client, token)
         await client.patch(
@@ -274,7 +253,6 @@ class TestRecalculateAll:
             assert line["unit_cost_snapshot"] == 10000
             assert line["line_total_cost"] == 10000
             assert await _versions_total(client, token, seed[key]) == 0
-        # El eliminado ni siquiera es visible.
         response = await client.get(
             f"/api/v1/calc/products/{seed['zeta']}", headers=_auth(token)
         )
@@ -283,8 +261,6 @@ class TestRecalculateAll:
     async def test_re_resolves_snapshots_and_versions_only_on_final_change(
         self, client
     ):
-        """Snapshots re-resueltos desde el material actual; version solo
-        cuando el final redondeado difiere (aqui: todos los 3 activos)."""
         token = await _admin(client)
         seed = await _seed_full(client, token)
         await client.patch(
@@ -298,8 +274,6 @@ class TestRecalculateAll:
             line = detail["materials"][0]
             assert line["unit_cost_snapshot"] == 20000
             assert line["line_total_cost"] == 20000
-            # cost 200.00, margin 30 / discount 0 / tax 19:
-            # pbd 285.71, profit 85.71, tax 54.28, final 339.99.
             assert detail["costs"]["product_total_cost"] == 20000
             assert detail["costs"]["final_sale_price"] == 33999
             response = await client.get(
@@ -312,8 +286,6 @@ class TestRecalculateAll:
             assert versions["items"][0]["final_sale_price"] == 33999
 
     async def test_version_number_continues_product_sequence(self, client):
-        """Si un producto ya tenia versiones de recalcules individuales,
-        el recalculate-all continua la secuencia (max + 1 por producto)."""
         token = await _admin(client)
         seed = await _seed_full(client, token)
 
@@ -325,7 +297,7 @@ class TestRecalculateAll:
             )
 
         await bump(20000)
-        await _recalculate_all(client, token)  # alpha/beta/gamma -> version 1
+        await _recalculate_all(client, token)
         assert await _versions_total(client, token, seed["alpha"]) == 1
 
         await bump(30000)
@@ -349,9 +321,6 @@ class TestRecalculateAll:
         assert latest["version_number"] == 3
 
     async def test_incomplete_material_snapshots_zero_without_error(self, client):
-        """D4: material incomplete (unit_cost None) -> snapshot 0.00,
-        sin error; el recalculate-all sigue funcionando y no crea
-        version si el final no cambio."""
         token = await _admin(client)
         incomplete = await _create_material(client, token, name="Harina")
         assert incomplete["unit_cost"] is None
@@ -373,7 +342,6 @@ class TestRecalculateAll:
             status="active",
             materials=[{"material_id": priced["id"], "quantity_used": "1"}],
         )
-        # El incomplete sigue a 0.00: su producto no cambia de final.
         await client.patch(
             f"/api/v1/calc/materials/{priced['id']}",
             json={"purchase_total_price": 6000, "package_quantity": "1"},
@@ -386,5 +354,4 @@ class TestRecalculateAll:
         assert line["line_total_cost"] == 0
         assert detail["product"]["last_recalculated_at"] is not None
         assert await _versions_total(client, token, p1["product"]["id"]) == 0
-        # El otro si cambio: version 1 con el nuevo costo.
         assert await _versions_total(client, token, p2["product"]["id"]) == 1

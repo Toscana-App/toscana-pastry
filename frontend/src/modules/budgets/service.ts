@@ -1,5 +1,4 @@
-import { ACCESS_TOKEN_COOKIE, apiFetch, API_BASE_URL, ApiError } from "@/lib/api";
-import { getCookie } from "@/lib/cookies";
+import { apiFetch, ApiError, authorizedFetch } from "@/lib/api";
 import { downloadEndpoint } from "@/lib/download";
 import type {
   BudgetCreatePayload,
@@ -20,18 +19,6 @@ import type {
 
 const BASE = "/budgets";
 
-/**
- * Servicio tipado de presupuestos (Fase 7, P7/P8): espejo 1:1 del contrato
- * `backend/src/api/v1/budgets/schemas.py`.
- *
- * Regla de montos: la API emite centavos (long, RF-P8-03) y recibe centavos;
- * `margin_pct` viaja como string numérico (el backend lo parsea a Decimal).
- * La lectura NUNCA recalcula contra el catálogo: los totales vienen de los
- * items guardados. El presupuesto no toca stock (RNF-P6-02).
- *
- * RBAC (backend): listado/lectura para todo usuario autenticado; create,
- * update, items, recalculate, send, convert-to-order y delete solo admin.
- */
 
 function itemOf(raw: Record<string, unknown>): BudgetItem {
   return {
@@ -80,10 +67,6 @@ function detailOf(raw: Record<string, unknown>): BudgetDetail {
 }
 
 export const budgetsService = {
-  /**
-   * GET /budgets — listado con búsqueda (nombre/seq, sin acentos) y filtros
-   * de estado y rango de fechas (RF-P8-06). Paginado (20 por página).
-   */
   list(params: BudgetListParams = {}): Promise<BudgetListResponse> {
     const query = new URLSearchParams();
     if (params.q) query.set("q", params.q);
@@ -96,15 +79,10 @@ export const budgetsService = {
     return apiFetch<BudgetListResponse>(`${BASE}${qs ? `?${qs}` : ""}`);
   },
 
-  /** GET /budgets/{id} — detalle (lectura pura, sin recálculo). */
   getDetail(id: string): Promise<BudgetDetail> {
     return apiFetch<Record<string, unknown>>(`${BASE}/${id}`).then(detailOf);
   },
 
-  /**
-   * POST /budgets — crea el presupuesto en borrador con su secuencia
-   * #000NN (UC-03). Los costos se derivan contra el catálogo AHORA.
-   */
   create(payload: BudgetCreatePayload): Promise<BudgetDetail> {
     return apiFetch<Record<string, unknown>>(BASE, {
       method: "POST",
@@ -112,8 +90,6 @@ export const budgetsService = {
         customer_id: payload.customer_id,
         calculation_mode: payload.calculation_mode,
         margin_pct: payload.margin_pct,
-        // Solo si el wizard la capturó (Fase 7, RF-P7-06); si no, el backend
-        // hereda la del cliente.
         ...(payload.delivery_address
           ? { delivery_address: payload.delivery_address }
           : {}),
@@ -126,7 +102,6 @@ export const budgetsService = {
     }).then(detailOf);
   },
 
-  /** PUT /budgets/{id} — edición parcial (borrador y enviado, RF-P8-05). */
   update(id: string, payload: BudgetUpdatePayload): Promise<BudgetDetail> {
     const body: Record<string, unknown> = {};
     if (payload.customer_id != null) body.customer_id = payload.customer_id;
@@ -145,7 +120,6 @@ export const budgetsService = {
     }).then(detailOf);
   },
 
-  /** PATCH /budgets/{id}/items — reemplaza líneas y recalcula. */
   patchItems(id: string, items: BudgetCreatePayload["items"]): Promise<BudgetDetail> {
     return apiFetch<Record<string, unknown>>(`${BASE}/${id}/items`, {
       method: "PATCH",
@@ -159,10 +133,6 @@ export const budgetsService = {
     }).then(detailOf);
   },
 
-  /**
-   * POST /budgets/{id}/recalculate — vuelve a derivar los costos contra el
-   * catálogo actual (conserva margen y overrides).
-   */
   recalculate(id: string): Promise<RecalculateResponse> {
     return apiFetch<Record<string, unknown>>(`${BASE}/${id}/recalculate`, {
       method: "POST",
@@ -172,37 +142,22 @@ export const budgetsService = {
     }));
   },
 
-  /**
-   * POST /budgets/{id}/send — borrador → enviado (o reenviar tras editar):
-   * congela una nueva versión (RF-P8-05). 409 si no hay cambios.
-   */
   send(id: string): Promise<BudgetDetail> {
     return apiFetch<Record<string, unknown>>(`${BASE}/${id}/send`, {
       method: "POST",
     }).then(detailOf);
   },
 
-  /**
-   * POST /budgets/{id}/convert-to-order — crea el pedido (nuevo) con los
-   * mismos ítems y snapshots propios (RF-P8-08). No descuenta stock.
-   */
   convertToOrder(id: string): Promise<ConvertToOrderResponse> {
     return apiFetch<ConvertToOrderResponse>(`${BASE}/${id}/convert-to-order`, {
       method: "POST",
     });
   },
 
-  /** DELETE /budgets/{id} — borrado definitivo (no toca stock, RF-P8-07). */
   remove(id: string): Promise<void> {
     return apiFetch<void>(`${BASE}/${id}`, { method: "DELETE" });
   },
 
-  /**
-   * GET /budgets/export — descarga binaria del reporte (Fase 5).
-   * `format` = "csv" por defecto (backward-compatible) o "pdf".
-   * Mismo fetch→blob→download que los exports de pedidos: el filename
-   * sale del Content-Disposition del backend.
-   */
   exportReport(
     params: BudgetExportParams = {},
     format: ExportFormat = "csv",
@@ -214,33 +169,16 @@ export const budgetsService = {
     query.set("format", format);
     return downloadEndpoint(`${BASE}/export?${query.toString()}`, `presupuestos.${format}`);  },
 
-  /**
-   * GET /budgets/{id}/pdf (P9) — PDF binario autenticado. Devuelve un
-   * objectURL para el preview en página; el llamador revoca el anterior
-   * al reemplazarlo. fetch crudo: apiFetch siempre parsea JSON.
-   */
   async pdfUrl(id: string): Promise<string> {
-    const token = getCookie(ACCESS_TOKEN_COOKIE);
-    const res = await fetch(`${API_BASE_URL}${BASE}/${id}/pdf`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    });
+    const res = await authorizedFetch(`${BASE}/${id}/pdf`);
     if (!res.ok) throw new ApiError(res.status, "No se pudo generar el PDF");
     return URL.createObjectURL(await res.blob());
   },
 
-  /**
-   * POST /budgets/{id}/pdf (P9) — link temporal firmado de 72 h (HMAC,
-   * sin sesión): lo abre el cliente final en su navegador.
-   */
   sharePdf(id: string): Promise<PdfShare> {
     return apiFetch<PdfShare>(`${BASE}/${id}/pdf`, { method: "POST" });
   },
 
-  /**
-   * POST /budgets/{id}/whatsapp-link (P10) — wa.me prellenado con la
-   * plantilla + link firmado al PDF. 429 al superar 30 links/día
-   * (RNF-P10-06).
-   */
   whatsappLink(id: string): Promise<WhatsAppLink> {
     return apiFetch<WhatsAppLink>(`${BASE}/${id}/whatsapp-link`, { method: "POST" });  },
 };

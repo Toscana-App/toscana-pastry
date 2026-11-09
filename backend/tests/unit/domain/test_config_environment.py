@@ -8,6 +8,7 @@ def _settings(env: str, key: str, mp: str = "") -> Settings:
     s.MP_WEBHOOK_SECRET = mp
     s.ENVIRONMENT = env
     s.SECRET_KEY = key
+    s.REFRESH_SECRET_KEY = "a-real-refresh-secret"
     return s
 
 

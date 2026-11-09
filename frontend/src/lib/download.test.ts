@@ -1,12 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { downloadEndpoint } from "./download";
 
-/**
- * Tests del helper compartido de descargas binarias (Fase 5, UC-08):
- * fetch→blob→download con token en header y filename desde
- * Content-Disposition. Se mockea fetch y el DOM (jsdom no implementa
- * URL.createObjectURL ni navegación de anchors).
- */
 const API_BASE = "http://localhost:8000/api/v1";
 
 function mockBlobFetch(
@@ -27,15 +21,12 @@ function mockBlobFetch(
 let anchor: HTMLAnchorElement | null = null;
 
 beforeEach(() => {
-  document.cookie = "auth_token=tok123; path=/";
   anchor = null;
-  // jsdom no implementa object URLs ni click de anchors.
   URL.createObjectURL = vi.fn().mockReturnValue("blob:mock");
   URL.revokeObjectURL = vi.fn();
   vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
     this: HTMLAnchorElement,
   ) {
-    // Cast: `anchor = this` dispara no-this-alias; la aserción no cambia el tipo.
     anchor = this as HTMLAnchorElement;
   });
 });
@@ -43,20 +34,17 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
-  document.cookie = "auth_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
 });
 
 describe("downloadEndpoint", () => {
-  it("llama al endpoint con el token de acceso en el header", async () => {
+  it("llama al endpoint enviando las cookies de sesión", async () => {
     const fetchMock = mockBlobFetch(200);
 
     await downloadEndpoint("/orders/export?format=pdf", "pedidos.pdf");
 
     expect(fetchMock).toHaveBeenCalledWith(
       `${API_BASE}/orders/export?format=pdf`,
-      expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: "Bearer tok123" }),
-      }),
+      expect.objectContaining({ credentials: "include" }),
     );
   });
 

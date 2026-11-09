@@ -10,14 +10,11 @@ describe("GoogleIcon", () => {
     const paths = [...(svg as SVGSVGElement).querySelectorAll("path")];
     expect(paths).toHaveLength(4);
     const fills = paths.map((p) => p.getAttribute("fill"));
-    // One path per brand color, no duplicates.
     expect(new Set(fills).size).toBe(4);
     expect(fills).toContain("#4285F4");
     expect(fills).toContain("#34A853");
     expect(fills).toContain("#FBBC05");
     expect(fills).toContain("#EA4335");
-    // The segments must be distinct shapes (the old icon shipped two
-    // identical paths, which rendered the G broken).
     const dValues = paths.map((p) => p.getAttribute("d"));
     expect(new Set(dValues).size).toBe(4);
   });

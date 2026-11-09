@@ -1,14 +1,3 @@
-"""Integration tests for GET /calc/products sort + enriched items
-(RF-P3CC-01, D5).
-
-Covers: `?sort=name|cost|price|margin` + `?dir=asc|desc` (422 on
-invalid values), sorting against engine-computed values (cost/price)
-and the stored margin, name as tie-breaker, Python-side pagination,
-and the enriched list item: `id, name, sku, category_name, status,
-product_total_cost, final_sale_price, margin_percent,
-last_recalculated_at` — costs always from the engine, never from the
-client.
-"""
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -50,7 +39,6 @@ from data.repositories.sql_user_repository import SQLUserRepository
 from domain.models import User, UserRole
 from main import app
 
-# ─── Fixtures ───────────────────────────────────────────────────────────
 
 
 @pytest_asyncio.fixture
@@ -107,7 +95,6 @@ async def client(db_session):
         app.dependency_overrides = {}
 
 
-# ─── Helpers ────────────────────────────────────────────────────────────
 
 
 async def _admin(client: AsyncClient) -> str:
@@ -115,7 +102,7 @@ async def _admin(client: AsyncClient) -> str:
         "/api/v1/auth/login", json={"email": "admin@example.com"}
     )
     assert response.status_code == 200
-    return response.json()["access_token"]
+    return response.cookies["auth_token"]
 
 
 def _auth(token: str) -> dict:
@@ -153,14 +140,6 @@ async def _create_product_category(
 
 
 async def _seed_sort_products(client: AsyncClient, token: str) -> dict:
-    """Material 100.00 + 3 productos qty 1 x 100 con margenes distintos.
-
-    Valores esperados (motor: margin m, discount 0, tax 19, rounding
-    none) — calculados a mano, independientes de la implementacion:
-      Alpha (m50): cost 100.00, final 238.00
-      Beta  (m30): cost 100.00, final 170.00
-      Gamma (m10): cost 100.00, final 132.22
-    """
     material = await _create_material(
         client, token,
         unit_of_measure="kg",
@@ -193,7 +172,6 @@ async def _names(client: AsyncClient, token: str, **params) -> list:
     return [item["name"] for item in response.json()["items"]]
 
 
-# ─── Sort + dir (RF-P3CC-01, D5) ───────────────────────────────────────
 
 
 class TestSortParam:
@@ -212,7 +190,6 @@ class TestSortParam:
         assert response.status_code == 422
 
     async def test_default_sort_is_name_asc(self, client):
-        """Comportamiento B9 intacto por defecto."""
         token = await _admin(client)
         await _seed_sort_products(client, token)
         assert await _names(client, token) == ["Alpha", "Beta", "Gamma"]
@@ -227,8 +204,6 @@ class TestSortParam:
         ]
 
     async def test_sort_price_desc_uses_engine_values(self, client):
-        """`price` ordena por `final_sale_price` calculado por el motor
-        (nunca por columna): Alpha 238.00 > Beta 170.00 > Gamma 132.22."""
         token = await _admin(client)
         await _seed_sort_products(client, token)
         assert await _names(client, token, sort="price", dir="desc") == [
@@ -243,8 +218,6 @@ class TestSortParam:
         ]
 
     async def test_sort_price_follows_settings_rounding(self, client):
-        """El orden de `price` usa el final con el redondeo del
-        rounding_mode de settings."""
         token = await _admin(client)
         await _seed_sort_products(client, token)
         payload = {
@@ -260,9 +233,6 @@ class TestSortParam:
             "/api/v1/calc/settings", json=payload, headers=_auth(token)
         )
         assert response.status_code == 200, response.text
-        # 238.00 -> 299, 170.00 -> 199, 132.22 -> 199: desc =
-        # [Alpha, Beta, Gamma] (Beta/Gamma empatan en 199 -> ties por
-        # name asc, incluso con dir=desc).
         assert await _names(client, token, sort="price", dir="desc") == [
             "Alpha",
             "Beta",
@@ -270,8 +240,6 @@ class TestSortParam:
         ]
 
     async def test_sort_cost_desc_ties_by_name_asc(self, client):
-        """`cost` ordena por `product_total_cost` del motor; todos en
-        100.00 -> ties rotos por name asc (incluso con dir=desc)."""
         token = await _admin(client)
         await _seed_sort_products(client, token)
         assert await _names(client, token, sort="cost", dir="desc") == [
@@ -286,8 +254,6 @@ class TestSortParam:
         ]
 
     async def test_sort_margin_uses_stored_percent(self, client):
-        """`margin` ordena por el `margin_percent` almacenado (String):
-        Gamma 10 < Beta 30 < Alpha 50."""
         token = await _admin(client)
         await _seed_sort_products(client, token)
         assert await _names(client, token, sort="margin", dir="asc") == [
@@ -313,7 +279,6 @@ class TestSortParam:
         assert set(names) == {"Alpha", "Beta", "Gamma"}
 
     async def test_python_side_pagination_with_sort(self, client):
-        """Paginacion consistente con el orden pedido (sort en Python)."""
         token = await _admin(client)
         await _seed_sort_products(client, token)
         page1 = await client.get(
@@ -334,7 +299,6 @@ class TestSortParam:
         assert [item["name"] for item in body2["items"]] == ["Gamma"]
 
     async def test_sort_name_paginates_with_costs_for_page(self, client):
-        """sort=name pagina en SQL; asc/desc, total y costs por item."""
         token = await _admin(client)
         await _seed_sort_products(client, token)
         for direction, p1, p2 in (
@@ -360,13 +324,10 @@ class TestSortParam:
             assert bodies[0]["total"] == bodies[1]["total"] == 3
 
 
-# ─── Item enriquecido (RF-P3CC-01) ─────────────────────────────────────
 
 
 class TestEnrichedItem:
     async def test_item_fields_and_computed_costs(self, client):
-        """El item incluye `category_name` + montos calculados por el
-        motor; `last_recalculated_at` null hasta recalcular."""
         token = await _admin(client)
         cat = await _create_product_category(client, token, name="Postres")
         material = await _create_material(
@@ -404,7 +365,6 @@ class TestEnrichedItem:
         assert item["sku"] == "AL-1"
         assert item["category_name"] == "Postres"
         assert item["status"] == "active"
-        # cost 100.00, margin 50 / discount 0 / tax 19: final 238.00.
         assert item["product_total_cost"] == 10000
         assert item["final_sale_price"] == 23800
         assert float(item["margin_percent"]) == 50.0
@@ -421,7 +381,6 @@ class TestEnrichedItem:
         assert item["category_name"] is None
 
     async def test_filters_and_search_still_work_with_sort(self, client):
-        """`?q` (nombre Y SKU) y `?status` combinan con el sort nuevo."""
         token = await _admin(client)
         seed = await _seed_sort_products(client, token)
         await client.patch(
@@ -445,6 +404,4 @@ class TestEnrichedItem:
             headers=_auth(token),
         )
         assert response.status_code == 200
-        # Beta si existe (q="bet") pero su status es "draft": la
-        # combinacion q + status excluye -> 0 resultados.
         assert response.json()["total"] == 0

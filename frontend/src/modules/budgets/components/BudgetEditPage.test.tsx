@@ -5,10 +5,6 @@ import { Provider } from "@/providers/ChakraProvider";
 import { BudgetEditPage } from "./BudgetEditPage";
 import type { BudgetDetail } from "../types";
 
-/**
- * Pins the PR #15 review fixes: monotonic row keys, price_override only in
- * manual mode, preload only of real overrides, and editing a sent budget.
- */
 const mocks = vi.hoisted(() => ({
   getDetail: vi.fn(),
   update: vi.fn(),

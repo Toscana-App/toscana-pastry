@@ -1,15 +1,7 @@
-"""Motor de precios de Toscana Pastry.
-
-Módulo puro: Decimal adentro, Decimal afuera. Sin frameworks, sin I/O.
-La formula sigue master_plan.md §1.3; el modo de redondeo es
-ROUND_HALF_UP al paso configurado (RNF-P4-03).
-"""
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Sequence
 
-# Factor de conversion a la unidad base de cada familia:
-# peso -> g, volumen -> ml, unidad -> unidad.
 _BASE_FACTORS = {
     "g": Decimal("1"),
     "kg": Decimal("1000"),
@@ -28,8 +20,6 @@ _UNIT_FAMILY = {
 
 
 def _fold_unit(unit: str) -> str:
-    # El contrato de ingredientes usa "L" mayuscula (STOCK_UNITS) y el
-    # preview usa "l": ambas equivalen sin migrar datos existentes.
     return unit.casefold() if isinstance(unit, str) else unit
 
 
@@ -37,11 +27,10 @@ _CENT = Decimal("0.01")
 
 
 class UnitConversionError(ValueError):
-    """Unidades desconocidas o incompatibles entre receta y compra."""
+    pass
 
 
 def to_base_units(qty: Decimal, unit: str) -> Decimal:
-    """Cantidad expresada en la unidad base de su familia."""
     factor = _BASE_FACTORS.get(_fold_unit(unit))
     if factor is None:
         raise UnitConversionError(
@@ -65,11 +54,6 @@ def cost_of_quantity(
     price_per_purchase_unit: Decimal,
     purchase_unit: str,
 ) -> Decimal:
-    """Costo de `qty` (en unidades de receta) cuando el precio se da por unidad de compra.
-
-    Las unidades deben pertenecer a la misma familia: peso (g/kg),
-    volumen (ml/l) o unidad. Ej: 250g a $2.800/kg = $700.00.
-    """
     if qty < 0:
         raise ValueError(f"qty no puede ser negativa: {qty}")
     if price_per_purchase_unit < 0:
@@ -88,7 +72,6 @@ def cost_of_quantity(
 
 @dataclass(frozen=True)
 class PricingSettings:
-    """Parametros de la formula: valor hora, margen, redondeo e inclusiones."""
 
     hourly_rate: Decimal
     margin_pct: Decimal
@@ -126,7 +109,6 @@ class CostBreakdown:
 
 
 def round_to_step(value: Decimal, step: Decimal) -> Decimal:
-    """Valor al multiplo del paso mas cercano, modo HALF_UP."""
     if step <= 0:
         raise ValueError(f"round_step debe ser mayor que cero: {step}")
     return (value / step).quantize(Decimal("1"), rounding=ROUND_HALF_UP) * step
@@ -137,10 +119,6 @@ def calculate_price(
     prep_minutes: int | Decimal,
     settings: PricingSettings,
 ) -> CostBreakdown:
-    """Aplica la formula del plan (master_plan.md §1.3).
-
-    line_items: (qty, qty_unit, price_per_purchase_unit, purchase_unit).
-    """
     if prep_minutes < 0:
         raise ValueError(f"prep_minutes no puede ser negativa: {prep_minutes}")
 

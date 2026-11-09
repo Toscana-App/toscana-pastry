@@ -1,15 +1,3 @@
-"""Dominio de envios WhatsApp (RF-P10-07/08, C7).
-
-Entidad frozen + maquina de estados idempotente y tolerante a
-desorden (prioridad read > delivered > sent; failed es terminal):
-- `delivered` fija `delivered_at`; `read` fija `read_at` y backfill
-  `delivered_at` si falta.
-- `failed` termina el ciclo: ningun otro estado lo revive. El
-  reintento (`reset_for_resend`) lo devuelve a `sent` con un nuevo
-  `message_id` y borra la trazabilidad de fallo.
-- Solo `provider=business_api` con `status=failed` es reintenable
-  (`can_resend`); `wa_me` no tiene estados de entrega.
-"""
 
 import uuid
 from dataclasses import dataclass, field, replace
@@ -23,9 +11,6 @@ ALLOWED_STATUSES = ("sent", "delivered", "read", "failed")
 ALLOWED_PROVIDERS = ("wa_me", "business_api")
 STATUS_PRIORITY = {"sent": 1, "delivered": 2, "read": 3}
 
-# RNF-P10-06: budget de envios directos por Business API (por tenant/dia).
-# Los reintentos cuentan contra el mismo budget. Sin Cloud API no aplica
-# (wa.me sigue bajo RF-P10-06).
 BUSINESS_API_DAILY_LIMIT = 500
 
 
@@ -39,7 +24,6 @@ def _strip(value: str) -> str:
 
 @dataclass(frozen=True)
 class WhatsAppSend:
-    """Registro de un envio de WhatsApp (wa.me o Business API)."""
 
     provider: SendProvider
     phone: str
@@ -82,16 +66,6 @@ def apply_status(
     failed_reason: str | None = None,
     now: datetime | None = None,
 ) -> WhatsAppSend:
-    """Aplica un evento de estado de forma idempotente.
-
-    Reglas:
-    - `failed` es terminal: un envio failed no regresa a otro estado.
-    - El resto avanza por prioridad (sent -> delivered -> read);
-      eventos desordenados o repetidos son no-ops (retorna la misma
-      instancia).
-    - `delivered` fija `delivered_at`; `read` fija `read_at` y backfill
-      `delivered_at` si no estaba presente.
-    """
     if new_status not in ALLOWED_STATUSES:
         raise ValueError(
             f"status invalido: {new_status!r} (permitido: {ALLOWED_STATUSES})"
@@ -122,17 +96,12 @@ def apply_status(
 
 
 def can_resend(send: WhatsAppSend) -> bool:
-    """Solo un envio `failed` enviado por `business_api` es reintenable."""
     return send.status == "failed" and send.provider == "business_api"
 
 
 def reset_for_resend(
     send: WhatsAppSend, *, new_message_id: str, now: datetime | None = None
 ) -> WhatsAppSend:
-    """Reinicia un envio reintenable a `sent` con el nuevo message_id.
-
-    Borra la trazabilidad de fallo (failed_reason, delivered_at, read_at).
-    """
     if not can_resend(send):
         raise ValueError("el envio no es reintenable (solo failed + business_api)")
     return replace(
@@ -147,7 +116,6 @@ def reset_for_resend(
 
 
 def read_rate(total: int, read: int) -> float:
-    """Fraccion de envios leidos (0.0 si no hay envios en la ventana)."""
     if total <= 0:
         return 0.0
     return read / total

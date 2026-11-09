@@ -6,7 +6,6 @@ export const metadata: Metadata = {
   title: "Editar presupuesto",
 };
 
-/** Las mutaciones de presupuestos son de administración (RBAC). */
 export default async function EditBudgetRoute({
   params,
 }: {

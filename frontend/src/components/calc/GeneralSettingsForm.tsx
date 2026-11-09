@@ -15,7 +15,6 @@ import { calcSettingsService } from "@/services/calcSettingsService";
 import { toaster } from "@/lib/toaster";
 import type { CalcSettingsResponse, RoundingMode } from "@/types/calc";
 
-// Allow-list exacta de modos de redondeo (RF-P5CC-02).
 const ROUNDING_MODE_OPTIONS: { value: RoundingMode; label: string }[] = [
   { value: "none", label: "Sin redondeo" },
   { value: "integer", label: "Entero" },
@@ -23,7 +22,6 @@ const ROUNDING_MODE_OPTIONS: { value: RoundingMode; label: string }[] = [
   { value: "commercial_99", label: "Comercial 99" },
 ];
 
-// Ark UI (Chakra v3) usa colecciones para sus selects: items {value, label}.
 const ROUNDING_MODE_COLLECTION = createListCollection({
   items: ROUNDING_MODE_OPTIONS.map((option) => ({
     value: option.value,
@@ -90,8 +88,6 @@ export default function GeneralSettingsForm() {
     form.main_currency_name,
     form.main_currency_symbol,
   ];
-  // Validación client-side: no depender del 422 del backend para rango 0-100
-  // ni para campos requeridos vacíos.
   const canSave =
     !saving &&
     percents.every(isValidPercent) &&
@@ -101,7 +97,6 @@ export default function GeneralSettingsForm() {
     if (!canSave || !form) return;
     setSaving(true);
     try {
-      // PUT = reemplazo completo atómico: SIEMPRE los 7 campos.
       const saved = await calcSettingsService.updateSettings({
         business_name: form.business_name,
         main_currency_name: form.main_currency_name,
@@ -197,8 +192,7 @@ export default function GeneralSettingsForm() {
 
       <Field.Root>
         <Field.Label>Modo de redondeo</Field.Label>
-        {/* API collection-based de Ark UI: value es string[] y cada item
-            se declara con item={{ value, label }}. */}
+        {}
         <Select.Root
           collection={ROUNDING_MODE_COLLECTION}
           value={[form.rounding_mode]}

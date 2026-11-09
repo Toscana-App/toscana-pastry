@@ -19,7 +19,6 @@ import { toaster } from "@/lib/toaster";
 import { formatCents } from "@/lib/format";
 import type { DashboardResponse, DashboardTopItem, DashboardBottomItem } from "@/types/calc";
 
-// KPI Card component (defined outside render)
 const KPICard = ({ title, value, subtitle, color = "gray" }: {
   title: string;
   value: string | number;
@@ -41,7 +40,6 @@ const KPICard = ({ title, value, subtitle, color = "gray" }: {
   </Box>
 );
 
-// Section Card component (defined outside render)
 const SectionCard = ({ title, children }: { title: string; children: React.ReactNode }) => (
   <Box p={4} bg="bg.panel" borderRadius="md" shadow="sm" border="1px solid" borderColor="border">
     <Heading size="md" mb={4}>
@@ -80,7 +78,7 @@ export default function Dashboard() {
 
   return (
     <Flex direction="column" gap={6}>
-      {/* KPI Cards */}
+      {}
       <SimpleGrid columns={{ base: 1, sm: 2, md: 4 }} gap={4}>
         <KPICard
           title="Productos Activos"
@@ -120,9 +118,9 @@ export default function Dashboard() {
         />
       </SimpleGrid>
 
-      {/* Top and Bottom Items */}
+      {}
       <SimpleGrid columns={{ base: 1, lg: 2 }} gap={6}>
-        {/* Top by Price */}
+        {}
         <SectionCard title="🏆 Productos con Mayor Precio Final">
           <Table.Root size="sm">
             <Table.Header>
@@ -164,7 +162,7 @@ export default function Dashboard() {
           </Table.Root>
         </SectionCard>
 
-        {/* Bottom by Margin */}
+        {}
         <SectionCard title="📉 Productos con Menor Margen">
           <Table.Root size="sm">
             <Table.Header>

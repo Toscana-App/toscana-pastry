@@ -1,18 +1,9 @@
-"""Dominio del libro de direcciones por cliente (RF-P11-09, C2).
-
-Entidad frozen con __post_init__ para validacion de campos. Reglas de
-invariant:
-- MAX_ADDRESSES_PER_CUSTOMER direcciones por cliente.
-- Exactamente una direccion default por cliente (la primera creada pasa
-  a default; al borrar la default, la mas antigua restante la hereda).
-"""
 import datetime
 import uuid
 from dataclasses import dataclass, field, replace
 
 MAX_ADDRESSES_PER_CUSTOMER = 5
 
-# String length limits (RF-P11-09)
 MAX_STREET_LINE_1 = 120
 MAX_STREET_LINE_2 = 120
 MAX_CITY = 120
@@ -23,7 +14,6 @@ MAX_PHONE = 30
 
 @dataclass(frozen=True)
 class CustomerAddress:
-    """Direccion de entrega de un cliente (RF-P11-09)."""
 
     street_line_1: str
     street_line_2: str | None = None
@@ -69,7 +59,7 @@ class CustomerAddress:
 
 
 class AddressBookError(ValueError):
-    """Violacion de una regla del libro de direcciones."""
+    pass
 
 
 class AddressLimitExceeded(AddressBookError):
@@ -87,10 +77,6 @@ class CannotRemoveOnlyAddress(AddressBookError):
 def add_address(
     existing: list[CustomerAddress], new: CustomerAddress
 ) -> CustomerAddress:
-    """Valida el limite y devuelve `new` con el flag default correcto.
-
-    La primera direccion del cliente pasa a default (exactly-one-default).
-    """
     if len(existing) >= MAX_ADDRESSES_PER_CUSTOMER:
         raise AddressLimitExceeded(
             f"Maximo {MAX_ADDRESSES_PER_CUSTOMER} direcciones por cliente"
@@ -101,11 +87,6 @@ def add_address(
 def apply_changes(
     address: CustomerAddress, changes: dict, *, set_default: bool | None = None
 ) -> CustomerAddress:
-    """Aplica cambios de campos y el flag `is_default` solicitado.
-
-    `set_default=False` sobre la default vigente rompe exactly-one-default.
-    Los valores None en `changes` limpian el campo.
-    """
     if set_default is False and address.is_default:
         raise CannotUnsetDefault(
             "No se puede quitar el default: debe existir exactamente una"
@@ -118,18 +99,12 @@ def apply_changes(
 def default_to_demote(
     addresses: list[CustomerAddress], promoted_id: str
 ) -> list[str]:
-    """Ids de las defaults previas a demover al marcar `promoted_id` default."""
     return [a.id for a in addresses if a.is_default and a.id != promoted_id]
 
 
 def remove_address(
     addresses: list[CustomerAddress], address_id: str
 ) -> str | None:
-    """Valida el borrado y devuelve el id que hereda el default (o None).
-
-    `addresses` va ordenado de la mas antigua a la mas nueva; al borrar la
-    default hereda la mas antigua restante.
-    """
     if len(addresses) <= 1:
         raise CannotRemoveOnlyAddress(
             "No se puede borrar la unica direccion del cliente"

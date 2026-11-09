@@ -1,11 +1,5 @@
 "use client";
 
-/** Public contact form (F4 — C5, RF-P11-13).
-
-Lead capture without auth (POST /leads, 202). Fields: name, email,
-type (consumer/business), message, phone; if business: company name and
-location. Success → confirmation state.
-*/
 
 import {
   Alert,

@@ -2,11 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api";
 import { ingredientsService } from "./service";
 
-/**
- * Tests del service de ingredientes: verifican el contrato HTTP (path, método,
- * body) y el manejo de las respuestas especiales (204 en DELETE, 409 con
- * impacto). Se mockea fetch — nada de red.
- */
 const API_BASE = "http://localhost:8000/api/v1";
 
 function mockFetch(status: number, body: unknown) {

@@ -3,7 +3,6 @@
 import { Box, Button, Flex, Grid, Heading, Icon, Link, Text } from "@chakra-ui/react"
 import NextLink from "next/link"
 
-/** One card of the hero value row: an attribute and what it means for the buyer. */
 interface HeroAttribute {
   label: string
   status: string
@@ -15,25 +14,13 @@ export const HERO_ATTRIBUTES: readonly HeroAttribute[] = [
   { label: "Ricos", status: "Pastelería artesanal" },
 ]
 
-/** Anchor of the catalog rendered right below the hero on the portal home. */
 export const CATALOG_ANCHOR = "catalogo"
 
-// Entrance: opacity + transform only (compositor), expo-out, disabled under
-// prefers-reduced-motion. Keyframes live in components/ui/theme.ts.
 const ENTRANCE = "600ms cubic-bezier(0.16, 1, 0.3, 1) both"
 const WELCOME_DELAY_MS = 0
 const CARD_BASE_DELAY_MS = 200
 const CARD_STAGGER_MS = 90
 
-/**
- * Portal home hero. Estructura tomada del hero de ancestral.com.ar
- * (ingeniería inversa): welcome centrado (eyebrow + H1 + tagline + acción)
- * seguido de una fila de tres tarjetas de valor redondeadas. Copy: solo
- * "sin gluten, sanos y ricos" — nunca se nombran dietas (keto) ni
- * condiciones (celiaquía, TACC). Colores, type y shapes del design system
- * Toscana (DESIGN.md): superficies planas, reglas de 1px, coral como único
- * acento de acción, green.fg para estado positivo.
- */
 export function HeroSection() {
   return (
     <Box as="section" aria-labelledby="hero-title" bg="bg" borderBottomWidth="1px" borderColor="border.muted">

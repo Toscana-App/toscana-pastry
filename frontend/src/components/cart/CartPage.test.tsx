@@ -4,7 +4,6 @@ import { renderWithProviders as render } from "../../test-utils";
 import CartPage from "./CartPage";
 import type { CartResponse } from "@/types/orders";
 
-// Mock Next.js router
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => ({
     push: vi.fn(),
@@ -16,7 +15,6 @@ vi.mock("next/navigation", () => ({
   })),
 }));
 
-// Seams: cart service functions and toaster.
 vi.mock("@/services/cartService", () => ({
   fetchCart: vi.fn(),
   addCartItem: vi.fn(),
@@ -65,7 +63,6 @@ beforeEach(() => {
 
 describe("CartPage", () => {
   it("should render cart with items", async () => {
-    // Set up the mock BEFORE rendering
     vi.mocked(fetchCart).mockResolvedValue(mockCart);
     
     render(<CartPage />);
@@ -96,7 +93,6 @@ describe("CartPage", () => {
   });
 
   it("should increase item quantity when plus button clicked", async () => {
-    // Set up the mock BEFORE rendering
     vi.mocked(fetchCart).mockResolvedValue(mockCart);
     
     render(<CartPage />);

@@ -1,11 +1,6 @@
 import { Link } from "@chakra-ui/react";
 import { PORTAL_CONTACT } from "./PortalFooter";
 
-/**
- * Botón flotante de WhatsApp (abajo a la derecha), visible en todo el
- * portal. Markup del icono tal cual el patrón pedido:
- * `<svg class="icon-inline"><use xlink:href="#whatsapp"></use></svg>`.
- */
 export function WhatsAppFloat() {
   return (
     <Link

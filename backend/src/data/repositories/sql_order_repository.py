@@ -1,7 +1,3 @@
-"""Order repository (C1.2 / C6).
-
-Mapeo ORM↔dominio y operaciones de pago + order_window singleton.
-"""
 
 from __future__ import annotations
 
@@ -53,49 +49,45 @@ from domain.use_cases.transition_order_status import TransitionOrderStatus
 
 
 def _to_domain(orm: OrderORM, item_orms: Sequence[OrderItemORM] | None = None) -> Order:
-    """Convert OrderORM to domain Order."""
     if item_orms is None:
-        item_orms = []  # type: ignore[assignment]
+        item_orms = []
     items = []
     for item_orm in item_orms:
         items.append(
-            OrderItem(  # type: ignore[arg-type]
-                product_id=item_orm.product_id,  # type: ignore[arg-type]
-                product_name=item_orm.product_name,  # type: ignore[arg-type]
-                quantity=item_orm.quantity,  # type: ignore[arg-type]
-                unit_price=Decimal(item_orm.unit_price),  # type: ignore[arg-type]
-                portion_note=item_orm.portion_note,  # type: ignore[arg-type]
+            OrderItem(
+                product_id=item_orm.product_id,
+                product_name=item_orm.product_name,
+                quantity=item_orm.quantity,
+                unit_price=Decimal(item_orm.unit_price),
+                portion_note=item_orm.portion_note,
             )
         )
-    return Order(  # type: ignore[arg-type]
-        id=orm.id,  # type: ignore[arg-type]
-        customer_id=orm.customer_id,  # type: ignore[arg-type]
-        code=orm.code,  # type: ignore[arg-type]
-        date=orm.date,  # type: ignore[arg-type]
-        status=OrderStatus(orm.status),  # type: ignore[arg-type]
-        payment_method=PaymentMethod(orm.payment_method),  # type: ignore[arg-type]
-        delivery_mode=(orm.delivery_mode if orm.delivery_mode else "delivery"),  # type: ignore[arg-type]
-        delivery_address=(orm.delivery_address or ""),  # type: ignore[arg-type]
-        coupon_code=orm.coupon_code,  # type: ignore[arg-type]
-        discount_amount=(  # type: ignore[arg-type]
+    return Order(
+        id=orm.id,
+        customer_id=orm.customer_id,
+        code=orm.code,
+        date=orm.date,
+        status=OrderStatus(orm.status),
+        payment_method=PaymentMethod(orm.payment_method),
+        delivery_mode=(orm.delivery_mode if orm.delivery_mode else "delivery"),
+        delivery_address=(orm.delivery_address or ""),
+        coupon_code=orm.coupon_code,
+        discount_amount=(
             Decimal(orm.discount_amount) if orm.discount_amount else None
         ),
-        payment_reference=orm.payment_reference,  # type: ignore[arg-type]
-        paid_at=orm.paid_at,  # type: ignore[arg-type]
-        payment_status=(  # type: ignore[arg-type]
-            PaymentStatus(orm.payment_status)  # type: ignore[arg-type]
+        payment_reference=orm.payment_reference,
+        paid_at=orm.paid_at,
+        payment_status=(
+            PaymentStatus(orm.payment_status)
             if orm.payment_status
             else None
         ),
-        created_at=orm.created_at,  # type: ignore[arg-type]
+        created_at=orm.created_at,
         items=items,
     )
 
 
 
-# ---------------------------------------------------------------------------
-# (De)serializacion del snapshot (JSON en TEXT: money como texto, RNF-P4-02)
-# ---------------------------------------------------------------------------
 
 
 def _snapshot_to_json(snapshot: OrderItemSnapshot) -> str:
@@ -153,13 +145,10 @@ def _json_to_snapshot(raw: str) -> OrderItemSnapshot:
     )
 
 
-# ---------------------------------------------------------------------------
 
 
 
 def _as_date(value: datetime.date | datetime.datetime) -> datetime.date:
-    """OrderORM.date is a timestamptz (portal orders carry a delivery moment);
-    the P6 aggregate works with a plain delivery date."""
     if isinstance(value, datetime.datetime):
         return value.date()
     return value
@@ -168,8 +157,6 @@ def _as_date(value: datetime.date | datetime.datetime) -> datetime.date:
 def _as_datetime(
     value: datetime.date | datetime.datetime, end_of_day: bool = False
 ) -> datetime.datetime:
-    """Plain date -> UTC datetime for the timestamptz column (start of day,
-    or end of day for inclusive upper bounds)."""
     if isinstance(value, datetime.datetime):
         return value
     time = datetime.time.max if end_of_day else datetime.time.min
@@ -189,7 +176,12 @@ def _order_to_domain(orm: OrderORM) -> P6Order:
         for item in orm.order_items
     )
     snapshots = {
-        item.id: _json_to_snapshot(item.snapshot) for item in orm.order_items
+        item.id: (
+            _json_to_snapshot(item.snapshot)
+            if item.snapshot
+            else OrderItemSnapshot()
+        )
+        for item in orm.order_items
     }
     return P6Order(
         customer_id=orm.customer_id,
@@ -199,7 +191,7 @@ def _order_to_domain(orm: OrderORM) -> P6Order:
         status=orm.status,
         margin_pct=Decimal(orm.margin_pct) if orm.margin_pct is not None else None,
         created_at=orm.created_at,
-        updated_at=orm.updated_at,
+        updated_at=orm.updated_at or orm.created_at,
         whatsapp_sent_at=orm.whatsapp_sent_at,
         id=orm.id,
         paid=orm.paid_at is not None,
@@ -210,7 +202,6 @@ def _order_to_domain(orm: OrderORM) -> P6Order:
 
 
 class SQLOrderRepository:
-    """SQL repository for Order entities."""
 
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -223,7 +214,6 @@ class SQLOrderRepository:
         if orm is None:
             return None
 
-        # Fetch order items separately to avoid lazy-load issues
         items_result = await self.session.execute(
             select(OrderItemORM).where(OrderItemORM.order_id == order_id)
         )
@@ -235,6 +225,8 @@ class SQLOrderRepository:
         orm = OrderORM(
             id=order.id,
             customer_id=order.customer_id,
+            customer_name=order.customer_name or None,
+            customer_phone=order.customer_phone or None,
             code=order.code,
             date=order.date,
             status=order.status.value,
@@ -247,31 +239,36 @@ class SQLOrderRepository:
             paid_at=order.paid_at,
             payment_status=order.payment_status.value if order.payment_status else None,
             created_at=order.created_at,
+            updated_at=order.created_at,
         )
         self.session.add(orm)
         await self.session.flush()
         return order
 
     async def add(self, order: Order) -> Order:
-        """Persist a new order with its line items in one transaction."""
         await self.create(order)
-        for item in order.items:
+        for index, item in enumerate(order.items):
+            snapshot = order.snapshots.get(item.id)
             self.session.add(
                 OrderItemORM(
-                    id=str(uuid.uuid4()),
+                    id=item.id,
                     order_id=order.id,
                     product_id=item.product_id,
                     product_name=item.product_name,
                     quantity=item.quantity,
                     unit_price=str(item.unit_price),
                     portion_note=item.portion_note,
+                    qty=item.quantity,
+                    portions=item.portions or None,
+                    note=item.portion_note,
+                    position=index,
+                    snapshot=_snapshot_to_json(snapshot) if snapshot is not None else None,
                 )
             )
         await self.session.commit()
         return order
 
     async def get_by_code(self, code: str) -> Order | None:
-        """Fetch order by its portal code (RF-P11-08)."""
         result = await self.session.execute(
             select(OrderORM).where(OrderORM.code == code)
         )
@@ -284,7 +281,6 @@ class SQLOrderRepository:
         return _to_domain(orm, items_result.scalars().all())
 
     async def list_by_customer(self, customer_id: str, *, page: int = 1, page_size: int = 20) -> tuple[list[Order], int]:
-        """List orders for a customer (RF-P11-08). Returns (orders, total_count)."""
         count_query = select(OrderORM).where(OrderORM.customer_id == customer_id)
         count_result = await self.session.execute(count_query)
         total = len(count_result.scalars().all())
@@ -307,13 +303,11 @@ class SQLOrderRepository:
         return orders, total
 
     async def get_order_window(self) -> OrderWindow:
-        """Get the singleton order window configuration."""
         result = await self.session.execute(
             select(OrderWindowORM).where(OrderWindowORM.id == "singleton")
         )
         orm = result.scalars().first()
         if orm is None:
-            # Create default (open)
             orm = OrderWindowORM(
                 id="singleton",
                 open=True,
@@ -322,20 +316,19 @@ class SQLOrderRepository:
             )
             self.session.add(orm)
             await self.session.flush()
-        return OrderWindow(  # type: ignore[arg-type]
-            open=orm.open,  # type: ignore[arg-type]
-            reopens_at=orm.reopens_at,  # type: ignore[arg-type]
-            message=orm.message,  # type: ignore[arg-type]
+        return OrderWindow(
+            open=orm.open,
+            reopens_at=orm.reopens_at,
+            message=orm.message,
         )
 
     async def update_order_window(self, window: OrderWindow) -> None:
-        """Update the singleton order window configuration."""
         result = await self.session.execute(
             select(OrderWindowORM).where(OrderWindowORM.id == "singleton")
         )
         orm = result.scalars().first()
         if orm is None:
-            orm = OrderWindowORM(  # type: ignore[arg-type]
+            orm = OrderWindowORM(
                 id="singleton",
                 open=window.open,
                 reopens_at=window.reopens_at,
@@ -343,9 +336,9 @@ class SQLOrderRepository:
             )
             self.session.add(orm)
         else:
-            orm.open = window.open  # type: ignore[assignment]
-            orm.reopens_at = window.reopens_at  # type: ignore[assignment]
-            orm.message = window.message  # type: ignore[assignment]
+            orm.open = window.open
+            orm.reopens_at = window.reopens_at
+            orm.message = window.message
         await self.session.commit()
 
     async def update_payment_status(
@@ -355,40 +348,31 @@ class SQLOrderRepository:
         status: PaymentStatus,
         paid_at: datetime.datetime | None = None,
     ) -> Order | None:
-        """Update payment fields on an order in a single transaction."""
         result = await self.session.execute(
             select(OrderORM).where(OrderORM.id == order_id)
         )
         orm = result.scalars().first()
         if orm is None:
             return None
-        orm.payment_reference = reference  # type: ignore[assignment]
-        orm.payment_status = status.value  # type: ignore[assignment]
+        orm.payment_reference = reference
+        orm.payment_status = status.value
         if paid_at is not None:
-            orm.paid_at = paid_at  # type: ignore[assignment]
+            orm.paid_at = paid_at
         await self.session.commit()
         return _to_domain(orm)
 
     async def mark_paid_at(
         self, order_id: str, paid_at: datetime.datetime
     ) -> bool:
-        """Set only ``paid_at`` (cash orders keep ``payment_status`` null).
-
-        Guarded on ``paid_at IS NULL`` so ``paid`` stays monotonic.
-        """
         result = await self.session.execute(
             update(OrderORM)
             .where(OrderORM.id == order_id, OrderORM.paid_at.is_(None))
             .values(paid_at=paid_at)
         )
         await self.session.commit()
-        return result.rowcount == 1  # type: ignore[attr-defined]
+        return result.rowcount == 1
 
     async def claim_payment_pending(self, order_id: str) -> bool:
-        """Atomically move an unpaid order with no payment to ``pending``.
-
-        Row-guarded: of several concurrent initiations only one claims.
-        """
         result = await self.session.execute(
             update(OrderORM)
             .where(
@@ -399,10 +383,9 @@ class SQLOrderRepository:
             .values(payment_status=PaymentStatus.PENDING.value)
         )
         await self.session.commit()
-        return result.rowcount == 1  # type: ignore[attr-defined]
+        return result.rowcount == 1
 
     async def release_payment_pending(self, order_id: str) -> None:
-        """Undo a claim whose preference was never created."""
         await self.session.execute(
             update(OrderORM)
             .where(
@@ -415,13 +398,6 @@ class SQLOrderRepository:
         await self.session.commit()
 
     async def expire_pending_payment(self, order_id: str) -> bool:
-        """Cancel an unpaid order whose payment is still pending and release its coupon use.
-
-        The caller decides expiry (``domain.order.is_payment_expired``). The
-        update is row-guarded (nuevo + pending + unpaid) so a concurrent
-        webhook that already approved the payment wins. Returns True when this
-        call cancelled the order.
-        """
         coupon_code = (
             await self.session.execute(
                 select(OrderORM.coupon_code).where(OrderORM.id == order_id)
@@ -440,7 +416,7 @@ class SQLOrderRepository:
                 payment_status=PaymentStatus.FAILED.value,
             )
         )
-        cancelled = result.rowcount == 1  # type: ignore[attr-defined]
+        cancelled = result.rowcount == 1
         if cancelled and coupon_code:
             await self.session.execute(
                 update(CouponORM)
@@ -461,13 +437,6 @@ class SQLOrderRepository:
         status: PaymentStatus,
         paid_at: datetime.datetime,
     ) -> bool:
-        """Record the event and apply its status in ONE transaction.
-
-        The event is inserted first (primary key = dedupe); a duplicate
-        returns False with no effect. The order update is conditional on the
-        status priority (approved > rejected = failed > pending) and, for
-        ``approved``, on ``paid_at IS NULL``; cash orders are never touched.
-        """
         self.session.add(
             PaymentEventORM(
                 id=event_id,
@@ -506,11 +475,6 @@ class SQLOrderRepository:
     async def record_payment_event(
         self, event_id: str, order_id: str, provider_payment_id: str, status: PaymentStatus
     ) -> bool:
-        """Record a payment event for dedupe.
-
-        Returns True if the event was newly inserted, False if it was a
-        duplicate (already exists).
-        """
         event = PaymentEventORM(
             id=event_id,
             provider_payment_id=provider_payment_id,
@@ -529,17 +493,14 @@ class SQLOrderRepository:
     async def get_payment_attempt(
         self, order_id: str, idempotency_key: str
     ) -> PaymentResult | None:
-        """Saved POST /orders/{id}/payment response for this key, if any."""
         orm = await self.session.get(PaymentAttemptORM, f"{order_id}:{idempotency_key}")
         if orm is None:
             return None
-        return PaymentResult(reference=orm.reference, checkout_url=orm.checkout_url)  # type: ignore[arg-type]
+        return PaymentResult(reference=orm.reference, checkout_url=orm.checkout_url)
 
     async def save_payment_attempt(
         self, order_id: str, idempotency_key: str, result: PaymentResult
     ) -> PaymentResult:
-        """Store the response for this key; on a concurrent duplicate, return
-        the one that was stored first."""
         self.session.add(
             PaymentAttemptORM(
                 id=f"{order_id}:{idempotency_key}",
@@ -566,18 +527,9 @@ class SQLOrderRepository:
             return saved or result
 
     async def get_payment_event(self, event_id: str) -> bool:
-        """Check if a payment event already exists (dedupe).
-
-        Returns True if the event exists, False otherwise.
-        """
         return await self.session.get(PaymentEventORM, event_id) is not None
 
-    # ------------------------------------------------------------------
-    # Admin orders (P6): Order from domain.orders. Portal (C1/C6) orders
-    # use get/create/add; the P6 aggregate uses the *_full/list_orders names.
-    # ------------------------------------------------------------------
 
-    # ------------------------------------------------------------------ get
 
     async def get_full(self, order_id: str) -> Optional[P6Order]:
         result = await self.session.execute(
@@ -605,7 +557,6 @@ class SQLOrderRepository:
         if customer_id:
             filters.append(OrderORM.customer_id == customer_id)
         if paid is not None:
-            # `paid` no es columna: se deriva de paid_at (RF-P6-10).
             filters.append(
                 OrderORM.paid_at.isnot(None) if paid else OrderORM.paid_at.is_(None)
             )
@@ -637,7 +588,6 @@ class SQLOrderRepository:
         ).scalars().all()
         return [_order_to_domain(orm) for orm in rows], total
 
-    # -------------------------------------------------------------- mutables
 
     async def create_full(self, order: P6Order) -> P6Order:
         now = datetime.datetime.now(datetime.UTC)
@@ -673,15 +623,10 @@ class SQLOrderRepository:
         return dataclasses.replace(order, created_at=now, updated_at=now)
 
     async def update_full(self, order: P6Order) -> Optional[P6Order]:
-        """Reemplazo de lineas + snapshots (solo estado `nuevo`; el router
-        valida antes). Los snapshots antiguos se borran: un pedido nuevo no
-        tiene historico de precio que conservar."""
         orm = await self._lock_order(order.id)
         if orm is None:
             return None
         if orm.status != "nuevo":
-            # Revalidado bajo lock: un confirm concurrente no puede quedar
-            # con snapshots reemplazados (RNF-P6-03).
             current = orm.status
             await self.session.rollback()
             raise OrderNotEditableError(current)
@@ -713,23 +658,16 @@ class SQLOrderRepository:
         await self.session.commit()
         return order
 
-    # ------------------------------------------------- stock + estado atomico
-    # Las reglas (transicion valida, stock suficiente) las decide el caso de
-    # uso TransitionOrderStatus; estos metodos solo delegan.
 
     async def confirm(self, order: P6Order) -> P6Order:
-        """nuevo -> confirmado con descuento de stock atomico (RNF-P6-02/04)."""
         return await TransitionOrderStatus(self).execute(order.id, "confirmado")
 
     async def cancel(self, order: P6Order) -> P6Order:
-        """confirmado -> cancelado con reposicion de stock (RNF-P6-01)."""
         return await TransitionOrderStatus(self).execute(order.id, "cancelado")
 
     async def mark_delivered(self, order: P6Order) -> P6Order:
-        """confirmado -> entregado (RNF-P6-01): sin efecto sobre stock."""
         return await TransitionOrderStatus(self).execute(order.id, "entregado")
 
-    # ------------------------------------------- primitivas transaccionales
 
     async def lock_order(self, order_id: str) -> Optional[P6Order]:
         orm = await self._lock_order(order_id)
@@ -769,7 +707,6 @@ class SQLOrderRepository:
     async def rollback(self) -> None:
         await self.session.rollback()
 
-    # ------------------------------------------------------------- whatsapp
 
     async def mark_whatsapp_sent(
         self, order: P6Order, sent_at: datetime
@@ -789,12 +726,8 @@ class SQLOrderRepository:
         )
         await self.session.commit()
 
-    # ---------------------------------------------------------------- utils
 
     async def _lock_order(self, order_id: str) -> Optional[OrderORM]:
-        """Lee la fila del pedido con FOR UPDATE (primer lock de la
-        transaccion; despues los insumos, siempre en ese orden) y refresca
-        el estado desde la base, no desde el identity map."""
         result = await self.session.execute(
             select(OrderORM)
             .where(OrderORM.id == order_id)
@@ -807,8 +740,6 @@ class SQLOrderRepository:
     async def _lock_ingredients(
         self, ingredient_ids: List[str]
     ) -> Dict[str, IngredientORM]:
-        """FOR UPDATE de insumos en orden determinista por id (evita
-        deadlocks entre pedidos que comparten insumos)."""
         if not ingredient_ids:
             return {}
         rows = (

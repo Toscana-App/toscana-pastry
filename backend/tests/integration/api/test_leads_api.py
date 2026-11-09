@@ -1,8 +1,3 @@
-"""Integration tests for Leads API (RF-P11-13, C5).
-
-Covers public POST /leads + admin GET /leads, PATCH /leads/{id}/read,
-POST /leads/read-all.
-"""
 
 import pytest
 import pytest_asyncio
@@ -17,7 +12,6 @@ app = FastAPI()
 
 @pytest_asyncio.fixture
 async def client(db_session):
-    """Test client with DB override."""
 
     async def override_get_db():
         yield db_session
@@ -29,7 +23,6 @@ async def client(db_session):
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_lead_repository] = override_get_lead_repo
 
-    # Import and include routers AFTER dependency overrides are set
     from api.v1.leads.router import router as leads_router
     app.include_router(leads_router, prefix="/api/v1")
 
@@ -39,7 +32,6 @@ async def client(db_session):
     app.dependency_overrides.clear()
 
 
-# ─── Public POST /leads ──────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -89,20 +81,15 @@ async def test_create_lead_validates_customer_type(client: TestClient):
     assert response.status_code == 422
 
 
-# ─── Admin endpoints (require auth) ──────────────────────────────────
 
-# Note: These tests need a valid auth token. For now, they verify the
-# endpoint structure. Full admin tests would require mocking get_current_user.
 
 @pytest.mark.asyncio
 async def test_list_leads_requires_admin(client: TestClient):
-    """Without auth → 401."""
     response = client.get("/api/v1/leads")
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
 async def test_patch_lead_read_requires_admin(client: TestClient):
-    """Without auth → 401."""
     response = client.patch("/api/v1/leads/some-id/read", json={"read": True})
     assert response.status_code == 401

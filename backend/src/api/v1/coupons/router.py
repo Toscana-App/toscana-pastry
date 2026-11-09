@@ -1,8 +1,3 @@
-"""Router del ABM de cupones (RF-P11-14, C3).
-
-Todos los endpoints son admin-only (spec: ABM admin).
-Namespace: /api/v1/coupons.
-"""
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -24,7 +19,6 @@ router = APIRouter(prefix="/coupons", tags=["coupons"])
 
 PAGINATION_MAX = 100
 
-# Campos que un PATCH puede volver a None explicitamente.
 NULLABLE_UPDATE_FIELDS = {"valid_from", "valid_until", "max_uses"}
 
 
@@ -53,7 +47,6 @@ async def list_coupons(
     repo: SQLCouponRepository = Depends(get_coupon_repository),
     _admin: User = Depends(require_admin),
 ):
-    """GET /coupons: listado admin con ?q (code, case/accent-insensitive) y ?status."""
     items, total = await repo.list(q, status, page, page_size)
     return CouponListResponse(
         items=[_response(item) for item in items],
@@ -71,7 +64,6 @@ async def create_coupon(
     repo: SQLCouponRepository = Depends(get_coupon_repository),
     _admin: User = Depends(require_admin),
 ):
-    """POST /coupons: crea un cupon (code unico case-insensitive → 409)."""
     existing = await repo.get_by_code(payload.code)
     if existing is not None:
         raise HTTPException(
@@ -109,12 +101,6 @@ async def update_coupon(
     repo: SQLCouponRepository = Depends(get_coupon_repository),
     _admin: User = Depends(require_admin),
 ):
-    """PATCH /coupons/{id}: edita campos / pausa-reactiva (RF-P11-14).
-
-    El estado mergeado se revalida contra el dominio (percent 0-100,
-    ventana de vigencia, max_uses → 422). Cambiar `code` a uno ya
-    existente (cualquier case) → 409.
-    """
     existing = await repo.get(coupon_id)
     if existing is None:
         raise HTTPException(
@@ -182,11 +168,6 @@ async def delete_coupon(
     repo: SQLCouponRepository = Depends(get_coupon_repository),
     _admin: User = Depends(require_admin),
 ):
-    """DELETE /coupons/{id}: usado en pedidos → 409 y se pausa en su lugar.
-
-    Sin usos se borra (204). El "uso" se refleja en `uses` (C4 lo
-    incrementa al confirmar pedidos).
-    """
     existing = await repo.get(coupon_id)
     if existing is None:
         raise HTTPException(

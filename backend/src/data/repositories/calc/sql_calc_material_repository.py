@@ -1,14 +1,4 @@
-"""Repository para CalcMaterial (RF-P2CC-01..05).
 
-CRUD de materiales + historial append-only de costo unitario
-(RF-P2CC-04). `unit_cost` y `status` llegan ya derivados en el dominio
-(RF-P2CC-02/03): el repository solo persiste y registra cambios.
-"""
-
-# pyright: reportArgumentType=false, reportAttributeAccessIssue=false
-# El ORM usa el estilo Column legacy (mismo que B1-B7): pyright tipa los
-# atributos de instancia como Column[T], no como el valor. En runtime son
-# los valores; el mapeo ORM->dominio pasa por Decimal()/str() explicitos.
 
 from __future__ import annotations
 
@@ -101,8 +91,6 @@ class SQLCalcMaterialRepository:
         page: int,
         page_size: int,
     ) -> tuple[list[CalcMaterial], int]:
-        """Lista con busqueda por nombre Y codigo interno (RF-P2CC-05),
-        filtros por categoria/proveedor/status y paginacion."""
         filters = []
         if q and q.strip():
             folded = accent_fold(q) or q
@@ -146,11 +134,7 @@ class SQLCalcMaterialRepository:
         return _to_domain(orm) if orm else None
 
     async def create(self, material: CalcMaterial) -> CalcMaterial:
-        """Crea el material; si queda con unit_cost, registra la alta
-        inicial en el historial (RF-P2CC-04): previous=None, new=valor."""
         self.session.add(_to_orm(material))
-        # Sin relationship() el UoW no ordena por FK: insertar el material
-        # primero para que el historial no viole la FK (Postgres / PRAGMA).
         await self.session.flush()
         if material.unit_cost is not None:
             self.session.add(
@@ -166,9 +150,6 @@ class SQLCalcMaterialRepository:
         return material
 
     async def update(self, material: CalcMaterial) -> CalcMaterial | None:
-        """Edita el material y registra en el historial SOLO si el
-        unit_cost computado cambio (RF-P2CC-04): incluye valor -> None
-        al quitar precio o cantidad."""
         result = await self.session.execute(
             select(CalcMaterialORM).where(CalcMaterialORM.id == material.id)
         )
@@ -232,9 +213,6 @@ class SQLCalcMaterialRepository:
         return _to_domain(orm)
 
     async def count_in_use(self, material_id: str) -> int:
-        """Productos no eliminados con lineas que referencian este
-        material (B9): COUNT DISTINCT product_id en
-        calc_product_materials, excluyendo soft-deletes."""
         result = await self.session.execute(
             select(func.count(func.distinct(CalcProductMaterialORM.product_id)))
             .join(
@@ -249,9 +227,6 @@ class SQLCalcMaterialRepository:
         return result.scalar_one()
 
     async def count_by_status(self) -> dict[str, int]:
-        """Counts de materiales por status derivado persistido (B8):
-        {"active": N, "incomplete": M}; para el dashboard
-        (RF-P3CC-05)."""
         rows = (
             await self.session.execute(
                 select(CalcMaterialORM.status, func.count()).group_by(
@@ -262,7 +237,6 @@ class SQLCalcMaterialRepository:
         return {str(status_value): count for status_value, count in rows}
 
     async def count_cost_history(self, material_id: str) -> int:
-        """Filas de historial de costo (append-only) del material."""
         result = await self.session.execute(
             select(func.count())
             .select_from(CalcMaterialCostHistoryORM)
@@ -273,7 +247,6 @@ class SQLCalcMaterialRepository:
     async def list_cost_history(
         self, material_id: str, page: int, page_size: int
     ) -> tuple[list[CalcMaterialCostHistory], int]:
-        """Historial paginado, mas recientes primero (RF-P2CC-04)."""
         filters = [CalcMaterialCostHistoryORM.material_id == material_id]
         count_stmt = (
             select(func.count()).select_from(CalcMaterialCostHistoryORM).where(*filters)

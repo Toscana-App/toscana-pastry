@@ -24,17 +24,6 @@ import { ProductCard } from "./ProductCard";
 
 const PAGE_SIZE = 20;
 
-/**
- * Vitrina de productos (Fase 5, P3) — /productos.
- *
- * RF-P3-01: grilla paginada (20/página). RF-P3-02: chips de categoría
- * derivadas de los productos activos, con "Todas" por defecto. RF-P3-03:
- * búsqueda con debounce 250 ms combinable con el filtro. RF-P3-05: badge
- * "sin precio" en las cards incompletas. RF-P3-06: estado vacío con CTA.
- *
- * El botón de alta es solo para admin: las mutaciones de productos son de
- * administración (mismo RBAC que ingredientes).
- */
 export function ProductsPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
@@ -181,7 +170,7 @@ export function ProductsPage() {
         />
       ) : (
         <>
-          {/* RNF-P3-02: 1 col en mobile, 2 en tablet, 3 en desktop. */}
+          {}
           <Grid
             gap={4}
             gridTemplateColumns={{

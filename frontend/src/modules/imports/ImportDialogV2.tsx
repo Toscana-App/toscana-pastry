@@ -24,14 +24,13 @@ import {
 } from "./validation";
 import { ENTITY_LABELS, type ConfirmResponse, type ImportEntity, type ImportRowOut } from "./types";
 
-const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB (RF-CSV / v1)
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const PREVIEW_PAGE_SIZE = 100;
 
 interface ImportDialogV2Props {
   entity: ImportEntity;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Se llama cuando el confirm creó registros (para re-fetchar la lista). */
   onImported: () => void;
 }
 
@@ -43,7 +42,6 @@ interface PreviewState {
   totalRows: number;
 }
 
-/** Lee el contenido de un File como texto (FileReader: soportado en jsdom). */
 function readFileText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -53,29 +51,11 @@ function readFileText(file: File): Promise<string> {
   });
 }
 
-/**
- * Importar CSV (T-CSV-8). Solo monta el contenido cuando el diálogo está
- * abierto: cada apertura arranca con estado limpio (sin setState en un effect)
- * y el botón "Confirmar" queda deshabilitado hasta que el backend reporte cero
- * filas inválidas.
- */
 export function ImportDialogV2(props: ImportDialogV2Props) {
   if (!props.open) return null;
   return <ImportDialogContent {...props} />;
 }
 
-/**
- * Diálogo de importación CSV (T-CSV-8) — reemplaza al textarea de insumos y se
- * reusa para insumos, productos y clientes.
- *
- * Flujo: subir (botón o drag&drop) → validación client-side estricta de
- * columnas contra la plantilla (RF-CSV-13: si no coincide, error y NO se sube)
- * → upload multipart → preview de las filas staged → Confirmar (deshabilitado
- * si el backend reporta filas inválidas) → descartar.
- *
- * La validación autoritativa es del backend (Pydantic, fila por fila); lo que
- * hace el client es rechazar el archivo antes de subirlo y dar feedback rápido.
- */
 function ImportDialogContent({
   entity,
   open,
@@ -95,10 +75,6 @@ function ImportDialogContent({
 
   const label = ENTITY_LABELS[entity];
 
-  // El componente interno solo se monta con el diálogo abierto, así el estado
-  // transitorio (columnError, preview, ...) nace limpio en cada apertura y no
-  // hace falta resetearlo en un effect. Aquí solo se refinan las columnas
-  // esperadas usando la plantilla real del backend (fallback: ENTITY_COLUMNS).
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -114,7 +90,6 @@ function ImportDialogContent({
           if (headers.length > 0) setExpectedHeaders(headers);
         }
       } catch {
-        // La descarga de la plantilla falló: se usa el fallback (ENTITY_COLUMNS).
       }
     })();
     return () => {
@@ -148,15 +123,12 @@ function ImportDialogContent({
           return;
         }
 
-        // RF-CSV-13: el set de columnas debe coincidir EXACTAMENTE con la
-        // plantilla. Si no coincide, error visible y NO se sube.
         const diff = compareColumns(expectedHeaders, headers);
         if (!diff.ok) {
           setColumnError(diff);
           return;
         }
 
-        // Cheque básico por fila (informativo; el backend es el autoritativo).
         setUploading(true);
         const res = await importsService.upload(file, entity);
         trackEvent("csv_import_started", { entity, rows: res.total_rows });
@@ -256,7 +228,7 @@ function ImportDialogContent({
           </Dialog.Header>
           <Dialog.Body>
             <Flex direction="column" gap={4}>
-              {/* Zona de carga */}
+              {}
               {!preview && (
                 <Box
                   {...getRootProps()}
@@ -286,7 +258,7 @@ function ImportDialogContent({
                 </Button>
               </Flex>
 
-              {/* Error de columnas (RF-CSV-13): no se subió nada */}
+              {}
               {columnError && (
                 <Alert.Root status="error">
                   <Alert.Content>
@@ -307,7 +279,7 @@ function ImportDialogContent({
                 </Alert.Root>
               )}
 
-              {/* Otros errores del client */}
+              {}
               {clientError && !columnError && (
                 <Alert.Root status="error">
                   <Alert.Content>
@@ -323,7 +295,7 @@ function ImportDialogContent({
                 </Flex>
               )}
 
-              {/* Preview de filas staged */}
+              {}
               {preview && (
                 <Box>
                   <Text fontWeight="600" mb={2}>
@@ -374,7 +346,7 @@ function ImportDialogContent({
                 </Box>
               )}
 
-              {/* Resultado del confirm */}
+              {}
               {confirmResult && (
                 <Alert.Root status={confirmResult.errors.length > 0 ? "warning" : "success"}>
                   <Alert.Content>

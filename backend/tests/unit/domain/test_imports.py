@@ -1,8 +1,3 @@
-"""Tests de dominio puro de la importacion CSV con staging (T-CSV-1, RF-CSV-01/02/07/10/11).
-
-Sin I/O: solo se prueban estados, totales, TTL (7 dias) y la regla de
-coincidencia exacta de columnas (RF-CSV-02/13).
-"""
 from datetime import timedelta
 
 import pytest
@@ -53,7 +48,7 @@ class TestSesionYTotales:
         assert s.valid_rows == 8
         assert s.status is ImportStatus.RECEIVED
         assert s.confirmed_at is None
-        assert s.id  # uuid generado
+        assert s.id
 
     def test_totales(self):
         s = ImportSession.create(
@@ -76,7 +71,6 @@ class TestSesionYTotales:
 
 class TestValidacionDeColumnas:
     def test_coincide_sin_importar_orden(self):
-        # No debe lanzar: el set es igual, el orden no importa (RF-CSV-02).
         check_columns(["nombre", "cantidad", "unidad", "precio"],
                       ["precio", "unidad", "cantidad", "nombre"])
 

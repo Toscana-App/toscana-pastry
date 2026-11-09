@@ -1,18 +1,10 @@
-"""Unit tests for the Lead domain entity (RF-P11-13, C5).
-
-Lead captures public contact form submissions:
-- name* (non-blank), email* (non-blank), customer_type* (consumer|business)
-- phone?, business_name? (required if business), location?
-- message* (non-blank)
-- read: default False
-"""
 
 import pytest
 
 from domain.lead import (
     ALLOWED_CUSTOMER_TYPES,
     Lead,
-)  # type: ignore[attr-defined]
+)
 
 
 class TestLeadCreation:

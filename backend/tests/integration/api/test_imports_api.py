@@ -1,10 +1,3 @@
-"""Tests de integracion de la API de importacion CSV (T-CSV-2/3/4/6/7).
-
-ESCRITOS PERO NO EJECUTADOS en el entorno de esta feature (sin Postgres).
-Requieren el conftest de tests/integration (motor de Postgres). El contrato de
-columnas estricto (RF-CSV-02/13) y la atomicidad del confirm (RNF-CSV-05) son
-los puntos clave cubiertos aqui.
-"""
 import pytest
 import pytest_asyncio
 import uuid
@@ -75,7 +68,7 @@ async def client(db_session):
 async def _login(client: AsyncClient, email: str = "admin@example.com") -> str:
     response = await client.post("/api/v1/auth/login", json={"email": email})
     assert response.status_code == 200, response.text
-    return response.json()["access_token"]
+    return response.cookies["auth_token"]
 
 
 async def _upload_body(client: AsyncClient, token: str, csv_text: str, entity: str):
@@ -87,7 +80,6 @@ async def _upload_body(client: AsyncClient, token: str, csv_text: str, entity: s
     )
 
 
-# --- Auth / RBAC (RNF-CSV-08) --------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -109,7 +101,6 @@ async def test_imports_forbidden_for_non_admin(client):
     assert response.status_code == 403
 
 
-# --- Template (RF-CSV-01) -------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -136,7 +127,6 @@ async def test_template_unknown_entity_422(client):
     assert "widgets" in response.json()["detail"]["message"]
 
 
-# --- Upload: contrato de columnas (RF-CSV-02/13) --------------------------
 
 
 @pytest.mark.asyncio
@@ -167,7 +157,6 @@ async def test_upload_unknown_column_422_no_staging(client, db_session):
     assert response.status_code == 422
     detail = response.json()["detail"]
     assert detail["extra"] == ["costo"]
-    # Nada se estadia: no se creo ninguna sesion.
     count = (
         await db_session.execute(select(func.count()).select_from(ImportSessionORM))
     ).scalar()
@@ -198,7 +187,6 @@ async def test_upload_empty_file_422(client):
 @pytest.mark.asyncio
 async def test_upload_oversize_413(client):
     token = await _login(client)
-    # ~6.1 MB: supera MAX_FILE_BYTES (5 MiB) sin tocar el limite de filas.
     big = "nombre,cantidad,unidad,precio\n" + ("Harina,1,kg,10" + "x" * 600 + "\n") * 10000
     response = await client.post(
         "/api/v1/imports",
@@ -214,9 +202,9 @@ async def test_upload_mixed_rows_reports_invalid(client):
     token = await _login(client)
     csv = (
         "nombre,cantidad,unidad,precio\n"
-        "Harina,10,kg,1200\n"      # valida
-        ",10,kg,1200\n"             # falta nombre
-        "Azúcar,1,kg,abc\n"         # precio no numerico
+        "Harina,10,kg,1200\n"
+        ",10,kg,1200\n"
+        "Azúcar,1,kg,abc\n"
     )
     response = await _upload_body(client, token, csv, "ingredients")
     assert response.status_code == 201
@@ -230,7 +218,7 @@ async def test_upload_mixed_rows_reports_invalid(client):
 @pytest.mark.asyncio
 async def test_upload_bom_and_semicolon(client):
     token = await _login(client)
-    csv_bytes = INGREDIENTS_SEMI_CSV.encode("utf-8-sig")  # BOM + separador ;
+    csv_bytes = INGREDIENTS_SEMI_CSV.encode("utf-8-sig")
     response = await client.post(
         "/api/v1/imports",
         files={"file": ("semi.csv", csv_bytes, "text/csv")},
@@ -241,7 +229,6 @@ async def test_upload_bom_and_semicolon(client):
     assert response.json()["valid_rows"] == 2
 
 
-# --- Rows (RF-CSV-06/07) --------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -288,10 +275,6 @@ async def test_rows_unknown_id_404(client):
 
 @pytest.mark.asyncio
 async def test_rows_scoped_by_owner(client, db_session):
-    """Otro admin no ve el import (scope por owner): 404.
-
-    (Un usuario no-admin seria 403 por RBAC antes que por scope, asi que
-    el "otro" usuario tambien tiene que ser admin para probar el scope.)"""
     await SQLUserRepository(db_session).save(
         User(email="admin2@example.com", role=UserRole.ADMIN)
     )
@@ -305,7 +288,6 @@ async def test_rows_scoped_by_owner(client, db_session):
     assert response.status_code == 404
 
 
-# --- Confirm (RNF-CSV-05, duplicados → skipped) --------------------------
 
 
 @pytest.mark.asyncio
@@ -321,7 +303,6 @@ async def test_confirm_inserts_valid_ingredients(client, db_session):
     assert body["created"] == 2
     assert body["skipped"] == 0
     assert body["status"] == "confirmed"
-    # Los registros quedaron en la base (commit unico aplicado):
     count = (await db_session.execute(select(func.count()).select_from(IngredientORM))).scalar()
     assert count == 2
 
@@ -329,7 +310,6 @@ async def test_confirm_inserts_valid_ingredients(client, db_session):
 @pytest.mark.asyncio
 async def test_confirm_skips_duplicates(client, db_session):
     token = await _login(client)
-    # Preexiste un insumo "Harina 000" (mismo nombre, acento-insensible).
     db_session.add(
         IngredientORM(
             id=str(uuid.uuid4()),
@@ -374,7 +354,6 @@ async def test_confirm_unknown_404(client):
 
 @pytest.mark.asyncio
 async def test_confirm_rolls_back_on_insert_error(client, db_session, monkeypatch):
-    """RNF-CSV-05: un fallo en un insert deshace todo el lote (transaccion unica)."""
 
     async def boom(session, data):
         raise RuntimeError("fallo simulado")
@@ -382,9 +361,6 @@ async def test_confirm_rolls_back_on_insert_error(client, db_session, monkeypatc
     monkeypatch.setattr(IngredientsAdapter, "insert", staticmethod(boom))
     token = await _login(client)
     import_id = (await _upload_body(client, token, INGREDIENTS_CSV, "ingredients")).json()["import_id"]
-    # Starlette re-levanta la exception al cliente ASGI despues de generar el
-    # 500 (documentado en ServerErrorMiddleware): el fallo se observa como
-    # exception, no como response.
     with pytest.raises(RuntimeError, match="fallo simulado"):
         await client.post(
             f"/api/v1/imports/{import_id}/confirm",
@@ -394,7 +370,6 @@ async def test_confirm_rolls_back_on_insert_error(client, db_session, monkeypatc
     assert count == 0
 
 
-# --- Delete ----------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -406,7 +381,6 @@ async def test_delete_discards(client, db_session):
     )
     assert response.status_code == 200
     assert response.json()["status"] == "discarded"
-    # La sesion queda registrada como descartada; el staging se elimino:
     rows_response = await client.get(
         f"/api/v1/imports/{import_id}/rows",
         headers={"Authorization": f"Bearer {token}"},
@@ -436,7 +410,6 @@ async def test_delete_unknown_404(client):
     assert response.status_code == 404
 
 
-# --- Products y customers (decisiones v1) ---------------------------------
 
 
 @pytest.mark.asyncio
@@ -451,7 +424,6 @@ async def test_products_confirm_v1_no_inserts(client, db_session):
     body = response.json()
     assert body["created"] == 0
     assert "receta" in body["message"]
-    # No se crearon productos:
     from data.models import ProductORM
     count = (await db_session.execute(select(func.count()).select_from(ProductORM))).scalar()
     assert count == 0
@@ -463,7 +435,7 @@ async def test_customers_confirm_creates_and_dedups(client, db_session):
     csv = (
         "nombre,telefono\n"
         "María González,11 5555-0101\n"
-        "María González,1155550101\n"   # mismo (nombre, telefono) normalizado
+        "María González,1155550101\n"
         "Pedro López,11-5555-0202\n"
     )
     import_id = (await _upload_body(client, token, csv, "customers")).json()["import_id"]

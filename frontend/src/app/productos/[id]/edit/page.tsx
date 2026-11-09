@@ -6,7 +6,6 @@ export const metadata: Metadata = {
   title: "Editar producto",
 };
 
-/** Las mutaciones de productos son de administración (RBAC). */
 export default async function EditProductRoute({
   params,
 }: {

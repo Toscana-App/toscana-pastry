@@ -4,7 +4,7 @@ from .get_settings import GetSettings
 from .update_settings import UpdateSettings
 from .derive_budget_items import BudgetItemDraft, DeriveBudgetItems, UnknownProductError
 from .convert_budget_to_order import BudgetNotFoundError, ConversionResult, ConvertBudgetToOrder
-from .product_assembly import ProductValidationError
+from .product_assembly import ProductPublishBlockedError, ProductValidationError
 from .create_product import CreateProduct
 from .update_product import UpdateProduct
 
@@ -19,6 +19,7 @@ __all__ = [
     "BudgetNotFoundError",
     "ConversionResult",
     "ConvertBudgetToOrder",
+    "ProductPublishBlockedError",
     "ProductValidationError",
     "CreateProduct",
     "UpdateProduct",

@@ -7,23 +7,11 @@ interface DeleteIngredientDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   ingredientName: string;
-  /**
-   * Impacto devuelto por el backend (409): el ingrediente está en uso.
-   * Cuando viene, la eliminación no está permitida y solo se puede cerrar.
-   */
   impact: DeleteImpact | null;
   deleting: boolean;
   onConfirm: () => void;
 }
 
-/**
- * Confirmación de borrado (Fase 4, WU6, UC-05).
- *
- * Dos estados:
- * - Sin impacto: confirmación normal (borrado irreversible).
- * - Con impacto (409): el ingrediente es parte de N recetas; el sistema no
- *   permite borrarlo. El diálogo lo explica y no ofrece confirmar.
- */
 export function DeleteIngredientDialog({
   open,
   onOpenChange,

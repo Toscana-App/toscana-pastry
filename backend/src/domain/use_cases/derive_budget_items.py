@@ -9,7 +9,6 @@ from domain.repositories import IngredientRepository, ProductRepository
 
 
 class UnknownProductError(LookupError):
-    """El producto no existe o fue eliminado."""
 
     def __init__(self, product_id: str):
         super().__init__(f"Producto desconocido o eliminado: {product_id}")
@@ -18,8 +17,6 @@ class UnknownProductError(LookupError):
 
 @dataclass(frozen=True)
 class BudgetItemDraft:
-    """Entrada de un item: producto, cantidad y precio manual opcional
-    (Decimal en unidades; la conversion desde centavos es del borde)."""
 
     product_id: str
     qty: int
@@ -39,8 +36,6 @@ async def load_products(
 
 
 async def load_ingredients(repo: IngredientRepository) -> Dict[str, Ingredient]:
-    """Insumos activos paginados (los borrados quedan con costo 0, mismo
-    criterio que el pedido)."""
     by_id: Dict[str, Ingredient] = {}
     page = 1
     while True:
@@ -54,8 +49,6 @@ async def load_ingredients(repo: IngredientRepository) -> Dict[str, Ingredient]:
 
 
 class DeriveBudgetItems:
-    """Deriva (items, margen aplicado) contra el catalogo corriente. El
-    override de precio solo rige en modo manual (RF-P7-05)."""
 
     def __init__(
         self, product_repo: ProductRepository, ingredient_repo: IngredientRepository

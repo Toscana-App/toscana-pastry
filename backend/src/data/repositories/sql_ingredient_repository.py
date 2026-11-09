@@ -11,25 +11,25 @@ from domain.models import Ingredient, StockMovement, StockStatus
 
 
 def _to_domain(orm: IngredientORM) -> Ingredient:
-    return Ingredient(  # type: ignore[arg-type]
-        name=orm.name,  # type: ignore[arg-type]
-        unit=orm.unit,  # type: ignore[arg-type]
-        price_per_unit=Decimal(orm.price_per_unit),  # type: ignore[arg-type]
-        stock_qty=Decimal(orm.stock_qty),  # type: ignore[arg-type]
-        low_stock_threshold=Decimal(orm.low_stock_threshold),  # type: ignore[arg-type]
-        id=orm.id,  # type: ignore[arg-type]
-        deleted_at=orm.deleted_at,  # type: ignore[arg-type]
+    return Ingredient(
+        name=orm.name,
+        unit=orm.unit,
+        price_per_unit=Decimal(orm.price_per_unit),
+        stock_qty=Decimal(orm.stock_qty),
+        low_stock_threshold=Decimal(orm.low_stock_threshold),
+        id=orm.id,
+        deleted_at=orm.deleted_at,
     )
 
 
 def _movement_to_domain(orm: StockMovementORM) -> StockMovement:
-    return StockMovement(  # type: ignore[arg-type]
-        qty_delta=Decimal(orm.qty_delta),  # type: ignore[arg-type]
-        reason=orm.reason,  # type: ignore[arg-type]
-        id=orm.id,  # type: ignore[arg-type]
-        ingredient_id=orm.ingredient_id,  # type: ignore[arg-type]
-        ref=orm.ref,  # type: ignore[arg-type]
-        created_at=orm.created_at,  # type: ignore[arg-type]
+    return StockMovement(
+        qty_delta=Decimal(orm.qty_delta),
+        reason=orm.reason,
+        id=orm.id,
+        ingredient_id=orm.ingredient_id,
+        ref=orm.ref,
+        created_at=orm.created_at,
     )
 
 
@@ -38,8 +38,6 @@ def _not_deleted():
 
 
 def _status_filter(status: StockStatus):
-    """Estado derivado comparado en SQL. El CAST a REAL es solo para
-    comparar (cero / orden); ninguna aritmetica de dinero pasa por aca."""
     qty = func.cast(IngredientORM.stock_qty, REAL)
     threshold = func.cast(IngredientORM.low_stock_threshold, REAL)
     if status is StockStatus.EMPTY:
@@ -61,14 +59,7 @@ class SQLIngredientRepository:
         page_size: int,
     ) -> Tuple[List[Ingredient], int]:
         filters = _not_deleted()
-        if q is not None:  # estricto: blank/control/>120 → 422 (min_length=1 evita q="")
-            # accent_fold esta registrada en el engine (data/db.py): "cafe"
-            # encuentra "Cafe" sin importar acentos. build_search_pattern
-            # valida el término (422 vía SearchQueryError), pliega acentos y
-            # escapa los metacaracteres de LIKE: la búsqueda es siempre un
-            # substring literal (anti wildcard-injection); `escape="\"` hace
-            # que SQLite y Postgres respeten el escape. El valor viaja como
-            # parámetro bind, nunca concatena texto SQL.
+        if q is not None:
             filters.append(
                 func.accent_fold(IngredientORM.name).like(
                     build_search_pattern(q), escape="\\"
@@ -167,8 +158,6 @@ class SQLIngredientRepository:
         return _to_domain(orm)
 
     async def count_active_recipes(self, ingredient_id: str) -> int:
-        # Fase 5 (productos): cuenta los productos NO borrados cuya receta
-        # referencia a este insumo. Alimenta el 409 de borrado (UC-05).
         result = await self.session.execute(
             select(func.count())
             .select_from(RecipeItemORM)
@@ -196,8 +185,6 @@ class SQLIngredientRepository:
         movement: StockMovement,
         new_stock_qty: Decimal,
     ) -> Optional[StockMovement]:
-        """Stock nuevo y movimiento en UN commit: el historial y el saldo
-        nunca divergen (RF-P2-04)."""
         result = await self.session.execute(
             select(IngredientORM).where(
                 IngredientORM.id == ingredient_id,

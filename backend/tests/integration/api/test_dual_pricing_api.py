@@ -1,13 +1,3 @@
-"""Tests for dual pricing by audience (S1/S2 — T3).
-
-Reglas cubiertas:
-  1) admin → ambos precios
-  2) negocio → solo revendedores; pedir consumidor → 403
-  3) cliente → solo consumidor_final; pedir revendedores → 403
-  4) markup configurable (default 40; ej. 25 → base × 1.25)
-  5) verificación numérica exacta base × 1.40 (default markup)
-  6-8) matriz de 403/200 entre roles y audiencias
-"""
 
 from pg_support import make_test_engine
 import pytest
@@ -71,7 +61,7 @@ def _override_deps(session_factory):
 async def _token_for(ac: AsyncClient, email: str) -> str:
     resp = await ac.post("/api/v1/auth/login", json={"email": email})
     assert resp.status_code == 200
-    return resp.json()["access_token"]
+    return resp.cookies["auth_token"]
 
 
 async def _put_settings(ac: AsyncClient, token: str, markup: str = "40") -> None:
@@ -96,12 +86,10 @@ async def _put_settings(ac: AsyncClient, token: str, markup: str = "40") -> None
     )
 
 
-# ─── Test 1: admin → ambos precios ───────────────────────────────────────
 
 
 @pytest.mark.asyncio
 async def test_admin_gets_both_prices():
-    """T3-1: admin puede solicitar revendedores y consumidor_final."""
     engine = _make_engine()
     factory = _make_session_factory(engine)
     await _seed(engine, [User(id="admin-1", email="admin@example.com", role=UserRole.ADMIN)])
@@ -112,7 +100,6 @@ async def test_admin_gets_both_prices():
         headers = {"Authorization": f"Bearer {token}"}
         await _put_settings(ac, token, markup="40")
 
-        # revendedores
         r = await ac.post(
             "/api/v1/pricing/preview/dual",
             json={"line_items": TORTA_ITEMS, "prep_minutes": 30, "audience": "revendedores"},
@@ -122,7 +109,6 @@ async def test_admin_gets_both_prices():
         assert r.json()["audience"] == "revendedores"
         assert "rounded" in r.json()
 
-        # consumidor_final
         r = await ac.post(
             "/api/v1/pricing/preview/dual",
             json={"line_items": TORTA_ITEMS, "prep_minutes": 30, "audience": "consumidor_final"},
@@ -134,12 +120,10 @@ async def test_admin_gets_both_prices():
     app.dependency_overrides.clear()
 
 
-# ─── Test 2: negocio → solo revendedores ─────────────────────────────────
 
 
 @pytest.mark.asyncio
 async def test_negocio_only_revendedores():
-    """T3-2: negocio solo accede a revendedores; consumidor_final → 403."""
     engine = _make_engine()
     factory = _make_session_factory(engine)
     await _seed(engine, [User(id="negocio-1", email="negocio@example.com", role=UserRole.NEGOCIO)])
@@ -150,7 +134,6 @@ async def test_negocio_only_revendedores():
         headers = {"Authorization": f"Bearer {token}"}
         await _put_settings(ac, token, markup="40")
 
-        # revendedores → OK
         r = await ac.post(
             "/api/v1/pricing/preview/dual",
             json={"line_items": TORTA_ITEMS, "prep_minutes": 30, "audience": "revendedores"},
@@ -159,7 +142,6 @@ async def test_negocio_only_revendedores():
         assert r.status_code == 200
         assert r.json()["audience"] == "revendedores"
 
-        # consumidor_final → 403
         r = await ac.post(
             "/api/v1/pricing/preview/dual",
             json={"line_items": TORTA_ITEMS, "prep_minutes": 30, "audience": "consumidor_final"},
@@ -170,12 +152,10 @@ async def test_negocio_only_revendedores():
     app.dependency_overrides.clear()
 
 
-# ─── Test 3: cliente → solo consumidor_final ─────────────────────────────
 
 
 @pytest.mark.asyncio
 async def test_cliente_only_consumer_final():
-    """T3-3: cliente solo accede a consumidor_final; revendedores → 403."""
     engine = _make_engine()
     factory = _make_session_factory(engine)
     await _seed(engine, [User(id="cliente-1", email="cliente@example.com", role=UserRole.CUSTOMER)])
@@ -186,7 +166,6 @@ async def test_cliente_only_consumer_final():
         headers = {"Authorization": f"Bearer {token}"}
         await _put_settings(ac, token, markup="40")
 
-        # consumidor_final → OK
         r = await ac.post(
             "/api/v1/pricing/preview/dual",
             json={"line_items": TORTA_ITEMS, "prep_minutes": 30, "audience": "consumidor_final"},
@@ -195,7 +174,6 @@ async def test_cliente_only_consumer_final():
         assert r.status_code == 200
         assert r.json()["audience"] == "consumidor_final"
 
-        # revendedores → 403
         r = await ac.post(
             "/api/v1/pricing/preview/dual",
             json={"line_items": TORTA_ITEMS, "prep_minutes": 30, "audience": "revendedores"},
@@ -206,12 +184,10 @@ async def test_cliente_only_consumer_final():
     app.dependency_overrides.clear()
 
 
-# ─── Test 4: markup configurable (default 40, ej. 25) ───────────────────
 
 
 @pytest.mark.asyncio
 async def test_markup_configurable_25():
-    """T3-4: markup configurable; con 25 → consumidor_final = base × 1.25."""
     engine = _make_engine()
     factory = _make_session_factory(engine)
     await _seed(engine, [User(id="admin-1", email="admin@example.com", role=UserRole.ADMIN)])
@@ -235,12 +211,10 @@ async def test_markup_configurable_25():
     app.dependency_overrides.clear()
 
 
-# ─── Test 5: verificación numérica exacta base × 1.40 ───────────────────
 
 
 @pytest.mark.asyncio
 async def test_exact_numeric_base_x_1_40():
-    """T3-5: con markup 40, consumidor_final rounded = base × 1.40."""
     engine = _make_engine()
     factory = _make_session_factory(engine)
     await _seed(engine, [User(id="admin-1", email="admin@example.com", role=UserRole.ADMIN)])
@@ -251,7 +225,6 @@ async def test_exact_numeric_base_x_1_40():
         headers = {"Authorization": f"Bearer {token}"}
         await _put_settings(ac, token, markup="40")
 
-        # revendedores
         r_base = await ac.post(
             "/api/v1/pricing/preview/dual",
             json={"line_items": TORTA_ITEMS, "prep_minutes": 30, "audience": "revendedores"},
@@ -260,7 +233,6 @@ async def test_exact_numeric_base_x_1_40():
         assert r_base.status_code == 200
         base_rounded = Decimal(r_base.json()["rounded"])
 
-        # consumidor_final
         r_cons = await ac.post(
             "/api/v1/pricing/preview/dual",
             json={"line_items": TORTA_ITEMS, "prep_minutes": 30, "audience": "consumidor_final"},
@@ -269,7 +241,6 @@ async def test_exact_numeric_base_x_1_40():
         assert r_cons.status_code == 200
         cons_rounded = Decimal(r_cons.json()["rounded"])
 
-        # consumer_final = base × 1.40
         expected = (base_rounded * Decimal("1.40")).quantize(
             Decimal("0.01"), rounding="ROUND_HALF_UP"
         )
@@ -278,12 +249,10 @@ async def test_exact_numeric_base_x_1_40():
     app.dependency_overrides.clear()
 
 
-# ─── Tests 6-8: matriz de 403/200 entre roles ───────────────────────────
 
 
 @pytest.mark.asyncio
 async def test_role_audience_matrix():
-    """T3-6/7/8: matriz completa de accesos por rol × audiencia."""
     engine = _make_engine()
     factory = _make_session_factory(engine)
     await _seed(
@@ -325,12 +294,10 @@ async def test_role_audience_matrix():
     app.dependency_overrides.clear()
 
 
-# ─── Test: preview sin audience param usa audience del rol ───────────────
 
 
 @pytest.mark.asyncio
 async def test_preview_without_audience_param_uses_role_default():
-    """T3: sin audience param, el endpoint usa la audiencia por defecto del rol."""
     engine = _make_engine()
     factory = _make_session_factory(engine)
     await _seed(
@@ -348,7 +315,6 @@ async def test_preview_without_audience_param_uses_role_default():
 
         await _put_settings(ac, tok_negocio, markup="40")
 
-        # negocio sin audience → revendedores (default)
         r = await ac.post(
             "/api/v1/pricing/preview/dual",
             json={"line_items": TORTA_ITEMS, "prep_minutes": 30},
@@ -357,7 +323,6 @@ async def test_preview_without_audience_param_uses_role_default():
         assert r.status_code == 200
         assert r.json()["audience"] == "revendedores"
 
-        # cliente sin audience → consumidor_final (default)
         r = await ac.post(
             "/api/v1/pricing/preview/dual",
             json={"line_items": TORTA_ITEMS, "prep_minutes": 30},
@@ -369,12 +334,10 @@ async def test_preview_without_audience_param_uses_role_default():
     app.dependency_overrides.clear()
 
 
-# ─── Test: admin sin audience param → default revendedores ───────────────
 
 
 @pytest.mark.asyncio
 async def test_admin_without_audience_param_defaults_to_revendedores():
-    """T3: admin sin audience param → revendedores por defecto."""
     engine = _make_engine()
     factory = _make_session_factory(engine)
     await _seed(engine, [User(id="admin-1", email="admin@example.com", role=UserRole.ADMIN)])

@@ -1,7 +1,6 @@
-"""Regression tests for PR #23 review fixes (no-leak, CSV injection, PDF 503,
-full-list pagination, resolve_audience)."""
 
 import csv
+import uuid
 from decimal import Decimal
 
 import pytest
@@ -12,13 +11,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from main import app
 from data.accent import accent_fold
-from data.models import Base
+from data.models import Base, ProductORM, RecipeItemORM
 from data.repositories.sql_ingredient_repository import SQLIngredientRepository
+from data.repositories.sql_product_repository import SQLProductRepository
 from data.repositories.sql_settings_repository import SQLSettingsRepository
 from data.repositories.sql_user_repository import SQLUserRepository
 from data.db import get_db
 from api.v1.auth.dependencies import get_user_repository
 from api.v1.ingredients.dependencies import get_ingredient_repository
+from api.v1.products.dependencies import get_product_repository
 from api.v1.settings.dependencies import get_settings_repository
 from domain.models import Ingredient, User, UserRole
 from domain.pricing_service import AudienceForbiddenError, resolve_audience
@@ -60,10 +61,14 @@ async def client():
         async def ings():
             yield SQLIngredientRepository(session)
 
+        async def prods():
+            yield SQLProductRepository(session)
+
         app.dependency_overrides[get_db] = db
         app.dependency_overrides[get_user_repository] = users
         app.dependency_overrides[get_settings_repository] = sets
         app.dependency_overrides[get_ingredient_repository] = ings
+        app.dependency_overrides[get_product_repository] = prods
         for email, role in [
             ("admin@example.com", UserRole.ADMIN),
             ("negocio@example.com", UserRole.NEGOCIO),
@@ -73,7 +78,7 @@ async def client():
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as ac:
-            ac.session = session  # type: ignore[attr-defined]
+            ac.session = session
             try:
                 yield ac
             finally:
@@ -82,13 +87,36 @@ async def client():
 
 async def _h(ac, email):
     r = await ac.post("/api/v1/auth/login", json={"email": email})
-    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+    return {"Authorization": f"Bearer {r.cookies['auth_token']}"}
 
 
 async def _add(ac, name, price="100"):
-    await SQLIngredientRepository(ac.session).create(
+    ingredient = await SQLIngredientRepository(ac.session).create(
         Ingredient(name=name, unit="kg", price_per_unit=Decimal(price), stock_qty=Decimal("5"))
     )
+    product_id = str(uuid.uuid4())
+    product = ProductORM(
+        id=product_id,
+        name=name,
+        category="General",
+        description="",
+        prep_time_min=0,
+        servings=6,
+        difficulty="simple",
+        available=True,
+    )
+    product.recipe_items = [
+        RecipeItemORM(
+            id=str(uuid.uuid4()),
+            product_id=product_id,
+            ingredient_id=ingredient.id,
+            qty="1",
+            unit="kg",
+            position=0,
+        )
+    ]
+    ac.session.add(product)
+    await ac.session.commit()
 
 
 @pytest.mark.asyncio
@@ -120,11 +148,9 @@ async def test_preview_dual_admin_keeps_full_breakdown(client):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("email", ["negocio@example.com", "cliente@example.com"])
-async def test_get_settings_hides_consumer_markup_for_non_admin(client, email):
+async def test_get_settings_forbidden_for_non_admin(client, email):
     r = await client.get(SETTINGS, headers=await _h(client, email))
-    assert r.status_code == 200
-    assert "consumer_markup_pct" not in r.json()
-    assert "hourly_rate" in r.json()
+    assert r.status_code == 403
 
 
 @pytest.mark.asyncio
@@ -167,8 +193,6 @@ async def test_lists_and_csv_are_not_truncated_by_page_size(client, monkeypatch)
 
 @pytest.mark.asyncio
 async def test_pdf_render_failure_is_generic_503(client, monkeypatch):
-    """Si pdfgenerator falla, el endpoint devuelve 503 genérico problem+json
-    sin filtrar detalles internos del error (path, lib, etc.)."""
     from api.v1.pdf.dependencies import get_pdf_client
     from data.pdf.client import PdfServiceError
 

@@ -4,11 +4,6 @@ import { IconButton } from "@chakra-ui/react"
 import { ThemeProvider, useTheme } from "next-themes"
 import { useEffect, useState } from "react"
 
-/**
- * Light/dark mode via next-themes: toggles the `dark` class on <html>,
- * which Chakra's `_dark` condition reads. Follows the OS preference until
- * the user picks a mode; the choice is persisted in localStorage.
- */
 export function ColorModeProvider({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
@@ -17,11 +12,9 @@ export function ColorModeProvider({ children }: { children: React.ReactNode }) {
   )
 }
 
-/** Resolved mode; `undefined` until mounted (the server cannot know it). */
 export function useColorMode() {
   const { resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
-  // Mount flag: the theme lives in localStorage/matchMedia, unknown on the server.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), [])
   const colorMode = mounted ? (resolvedTheme as "light" | "dark" | undefined) : undefined
@@ -38,7 +31,6 @@ export function ColorModeButton() {
       size="sm"
       aria-label={isDark ? "Activar modo claro" : "Activar modo oscuro"}
       onClick={() => setColorMode(isDark ? "light" : "dark")}
-      // Hidden until mounted so the icon never flashes the wrong mode.
       visibility={colorMode ? "visible" : "hidden"}
     >
       {isDark ? <SunIcon /> : <MoonIcon />}

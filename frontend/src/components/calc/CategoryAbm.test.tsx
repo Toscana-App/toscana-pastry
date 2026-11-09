@@ -3,8 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders as render } from "../../test-utils";
 import CategoryAbm from "./CategoryAbm";
 
-// Seams: el service y el toaster. Se corre contra el endpoint
-// "material-categories"; el de productos reusa el mismo componente.
 vi.mock("@/services/calcSettingsService", () => ({
   calcSettingsService: {
     listCategories: vi.fn(),
@@ -111,7 +109,6 @@ describe("CategoryAbm (material-categories)", () => {
 
     fireEvent.change(createNameInput(), { target: { value: "Hojaldres" } });
     fireEvent.change(createDescInput(), { target: { value: "Masa hojaldrada" } });
-    // La lista se refetchea tras crear: el server ya devuelve el nuevo item.
     setupList([nueva]);
     fireEvent.click(screen.getByRole("button", { name: "Crear" }));
 
@@ -152,7 +149,6 @@ describe("CategoryAbm (material-categories)", () => {
     render(<CategoryAbm endpoint="material-categories" title="Categorías de materiales" />);
     await screen.findByText("Pasta");
 
-    // Tras el DELETE la lista se refetchea sin el item borrado.
     setupList([salsa]);
     await openDeleteConfirm("Pasta");
     fireEvent.click(screen.getByRole("button", { name: "Eliminar" }));
@@ -166,7 +162,6 @@ describe("CategoryAbm (material-categories)", () => {
     await waitFor(() =>
       expect(screen.queryByText("Pasta")).not.toBeInTheDocument()
     );
-    // El refetch pasa por data=null antes de resolver: esperar el render.
     await screen.findByText("Salsas");
     expect(toaster.create).toHaveBeenCalledWith(
       expect.objectContaining({ type: "success" })
@@ -174,7 +169,6 @@ describe("CategoryAbm (material-categories)", () => {
   });
 
   it("keeps the row intact and shows a danger toast when DELETE returns 409 in-use", async () => {
-    // El 409 in-use viaja como {"in_use_by": N} sin `detail`.
     vi.mocked(calcSettingsService.deleteCategory).mockRejectedValue(
       new ApiError(409, "Network error", { in_use_by: 3 })
     );
@@ -201,7 +195,6 @@ describe("CategoryAbm (material-categories)", () => {
     await screen.findByText("Pasta");
     expect(calcSettingsService.listCategories).toHaveBeenCalledTimes(1);
 
-    // Debounce real de 300 ms: waitFor (timeout 1 s) lo cubre.
     fireEvent.change(screen.getByLabelText("Buscar"), {
       target: { value: "sal" },
     });

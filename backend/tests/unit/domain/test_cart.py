@@ -1,8 +1,3 @@
-"""Unit tests for the cart domain (RF-P11-03/14, C4).
-
-Pure module: line totals, discount (percent/fixed, capped at total),
-rounding after discount, coupon window/uses validation, limits.
-"""
 
 import datetime
 from decimal import Decimal
@@ -27,11 +22,10 @@ def _coupon(**overrides: object) -> Coupon:
         "type": "percent",
         "value": Decimal(10),
     }
-    base.update(overrides)  # type: ignore[arg-type]
-    return Coupon(**base)  # type: ignore[arg-type]
+    base.update(overrides)
+    return Coupon(**base)
 
 
-# ─── Limits ───────────────────────────────────────────────────────────
 
 class TestLimits:
     def test_qty_bounds(self):
@@ -42,7 +36,6 @@ class TestLimits:
         assert MAX_CART_LINES == 50
 
 
-# ─── Line totals ──────────────────────────────────────────────────────
 
 class TestCartTotals:
     def test_subtotal_sums_lines(self):
@@ -61,7 +54,6 @@ class TestCartTotals:
         assert totals.final == Decimal(0)
 
     def test_final_rounded_to_step(self):
-        # subtotal 2750, no coupon → round to step 100 → 2800 (HALF_UP)
         lines = [
             CartLine(product_id="p1", product_name="Torta", unit_price=Decimal("1000.00"), qty=2),
             CartLine(product_id="p2", product_name="Alfajor", unit_price=Decimal("250.00"), qty=3),
@@ -77,7 +69,6 @@ class TestCartTotals:
         assert totals.final == Decimal(1235)
 
 
-# ─── Discount ─────────────────────────────────────────────────────────
 
 class TestComputeDiscount:
     def test_no_coupon(self):
@@ -88,7 +79,6 @@ class TestComputeDiscount:
         assert discount == Decimal("1000.00")
 
     def test_percent_quantized_half_up(self):
-        # 100.05 * 10% = 10.005 → 10.01
         discount = compute_discount(Decimal("100.05"), _coupon(value=Decimal(10)))
         assert discount == Decimal("10.01")
 
@@ -99,7 +89,6 @@ class TestComputeDiscount:
         assert discount == Decimal("500.00")
 
     def test_fixed_capped_at_total(self):
-        # fixed discount can never exceed the total
         discount = compute_discount(
             Decimal(500), _coupon(type="fixed", value=Decimal(1000))
         )
@@ -110,7 +99,6 @@ class TestComputeDiscount:
         assert discount == Decimal("321.99")
 
     def test_discount_computed_before_rounding(self):
-        # discount on the raw subtotal (3750), then rounding on the net
         lines = [
             CartLine(product_id="p1", product_name="Torta", unit_price=Decimal("1000.00"), qty=2),
             CartLine(product_id="p2", product_name="Alfajor", unit_price=Decimal("250.00"), qty=3),
@@ -118,10 +106,9 @@ class TestComputeDiscount:
         totals = cart_totals(lines, _coupon(value=Decimal(10)), Decimal(100))
         assert totals.subtotal == Decimal("2750.00")
         assert totals.discount_amount == Decimal("275.00")
-        assert totals.final == Decimal(2500)  # 2475 → step 100 HALF_UP
+        assert totals.final == Decimal(2500)
 
 
-# ─── Coupon validation ────────────────────────────────────────────────
 
 class TestValidateCouponForCart:
     NOW = datetime.datetime(2026, 10, 26, 12, 0, 0)
@@ -172,12 +159,9 @@ class TestValidateCouponForCart:
         ),
     ])
     def test_mixed_naive_aware_windows_are_normalized(self, dt_naive, dt_aware):
-        # Coupon.__post_init__ normalizes to naive UTC; validation must not
-        # crash comparing naive windows built from mixed inputs.
         coupon = _coupon(
             valid_from=dt_naive,
             valid_until=dt_aware,
         )
         err = validate_coupon_for_cart(coupon, self.NOW)
-        # now=2026-10-26 is after valid_until (2026-10-01) → expired
         assert err == "coupon_expired"

@@ -7,11 +7,6 @@ import {
 } from "./validation";
 import type { ImportEntity } from "./types";
 
-/**
- * Validación client-side de la importación CSV (RF-CSV-02/13, línea 1).
- * Es la PRIMERA línea: rechaza el archivo ANTES de subirlo. El backend sigue
- * siendo la última línea de validación (autoritativa).
- */
 
 describe("compareColumns — set exacto, orden irrelevante (RF-CSV-13)", () => {
   it("acepta el mismo set aunque cambie el orden", () => {

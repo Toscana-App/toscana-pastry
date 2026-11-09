@@ -1,15 +1,3 @@
-"""PDF de presupuestos (Fase 8, P9).
-
-- GET  /budgets/{id}/pdf  : PDF binario (autenticado). Cache por hash de
-  contenido: la primera llamada genera y almacena; presupuesto editado →
-  hash nuevo → regenera.
-- POST /budgets/{id}/pdf  : link temporal firmado de 72 h (admin).
-- GET  /pdf/{token}       : acceso público con token (sin sesión).
-
-Seguridad: el documento renderizado no contiene costos ni margen — el
-servicio pdfgenerator (ADR-0001) solo recibe el snapshot del cliente, y la
-suite de tests lo verifica contra el PDF real.
-"""
 import asyncio
 from datetime import datetime, timezone
 
@@ -33,7 +21,6 @@ router = APIRouter(tags=["pdf"])
 
 PDF_MEDIA_TYPE = "application/pdf"
 
-# Endpoint público (sin sesión): 30 requests/min por IP.
 public_pdf_limiter = SlidingWindowRateLimiter(max_requests=30, window_seconds=60)
 
 
@@ -44,7 +31,6 @@ async def _pdf_for_budget(
     renderer: PdfRenderer,
     budget_id: str,
 ) -> tuple[bytes, str, Budget]:
-    """Obtén o genera el PDF con cache por hash de contenido (P9)."""
     budget = await budget_repo.get(budget_id)
     if budget is None:
         raise HTTPException(
@@ -85,10 +71,8 @@ async def get_budget_pdf(
     document_repo: DocumentRepository = Depends(get_document_repository),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     renderer: PdfRenderer = Depends(get_pdf_client),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
-    """PDF server-side (P9): application/pdf con ETag por hash de
-    contenido (304 si no cambió)."""
     pdf, content_hash, budget = await _pdf_for_budget(
         budget_repo, document_repo, settings_repo, renderer, budget_id
     )
@@ -104,8 +88,6 @@ async def share_budget_pdf(
     budget_repo: BudgetRepository = Depends(get_budget_repository),
     _admin: User = Depends(require_admin),
 ):
-    """Link temporal firmado (P9): 72 h, sin estado (HMAC), sin sesión.
-    El cliente lo abre en el navegador del cliente final."""
     budget = await budget_repo.get(budget_id)
     if budget is None:
         raise HTTPException(
@@ -128,9 +110,6 @@ async def get_shared_pdf(
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     renderer: PdfRenderer = Depends(get_pdf_client),
 ):
-    """Acceso público con token firmado (sin autenticación). Token
-    vencido o alterado → 404 genérico (no se revela el motivo: evita
-    enumeración)."""
     budget_id = verify_share_token(token, app_settings.SECRET_KEY)
     if budget_id is None:
         raise HTTPException(

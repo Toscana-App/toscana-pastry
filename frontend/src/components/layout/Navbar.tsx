@@ -10,17 +10,6 @@ import { ColorModeButton } from "@/components/ui/color-mode";
 import { PortalSearch } from "@/components/layout/PortalSearch";
 import { BrandLogo } from "./BrandLogo";
 
-/**
- * Navbar global (única navegación del sitio, p11 "UI — portal shell").
- *
- * - portal (negocio/customer): logo · search grande (búsqueda REST por
- *   colección: `GET /api/v1/products?audience=...&q=...`) · "Mi cuenta" +
- *   carrito (SVG con badge de unidades) arriba a la derecha.
- * - admin: logo · enlaces de administración · Profile · Logout.
- * - sin sesión: logo · Login.
- *
- * El rol del usuario nunca se muestra como etiqueta: solo el logo.
- */
 function CartButton() {
   const count = useCartCount();
   return (
@@ -66,9 +55,6 @@ export function Navbar() {
   const isAdmin = role === "admin";
   const isPortal = isPortalRole(role);
 
-  // /login is a standalone screen with its own centered brand lockup:
-  // rendering the navbar there duplicates the logo and adds a
-  // redundant "Login" link to a page that already IS the login.
   if (pathname === "/login") {
     return null;
   }
@@ -105,9 +91,6 @@ export function Navbar() {
               <>
                 {isAdmin && (
                   <>
-                    <Button variant="ghost" asChild>
-                      <NextLink href="/productos">Productos</NextLink>
-                    </Button>
                     <Button variant="ghost" asChild>
                       <NextLink href="/pedidos">Pedidos</NextLink>
                     </Button>

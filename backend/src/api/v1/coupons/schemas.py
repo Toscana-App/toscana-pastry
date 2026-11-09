@@ -1,11 +1,3 @@
-"""Schemas para el ABM de cupones (RF-P11-14, C3).
-
-Pydantic v2 con extra="forbid" en todos los esquemas de escritura.
-`value` viaja como decimal crudo (serializado a str, NUNCA float):
-`percent` -> 0-100; `fixed` -> dinero en unidades. No aplica el
-validador de centavos de Money (x100): el contrato C3 round-trips
-el decimal tal cual (api.v1.money.Qty).
-"""
 from datetime import datetime
 from decimal import Decimal
 from typing import Literal
@@ -20,7 +12,6 @@ COUPON_STATUSES = Literal["active", "paused"]
 
 
 class CouponCreate(BaseModel):
-    """POST /coupons (RF-P11-14)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -41,10 +32,6 @@ class CouponCreate(BaseModel):
 
 
 class CouponUpdate(BaseModel):
-    """PATCH /coupons/{id} (RF-P11-14).
-
-    All fields optional; the router enforces at-least-one via exclude_unset.
-    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -67,7 +54,6 @@ class CouponUpdate(BaseModel):
 
 
 class CouponResponse(BaseModel):
-    """Cupon serializado para la API."""
 
     id: str
     code: str
@@ -83,13 +69,11 @@ class CouponResponse(BaseModel):
 
 
 class CouponEnvelope(BaseModel):
-    """Envoltorio {coupon} de POST/PATCH."""
 
     coupon: CouponResponse
 
 
 class CouponListResponse(BaseModel):
-    """GET /coupons."""
 
     items: list[CouponResponse]
     total: int

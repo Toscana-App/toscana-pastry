@@ -1,8 +1,3 @@
-"""Ventana de pedidos / corte de pedidos (RF-P5-07 y RF-P6-09): API.
-
-Fixture por test: sesión SQLite en memoria con los overrides de la
-suite. Sin configuración previa la ventana existe por defecto abierta.
-"""
 
 import pytest
 import pytest_asyncio
@@ -48,7 +43,7 @@ async def client(db_session):
 async def _token_for(client: AsyncClient, email: str) -> str:
     response = await client.post("/api/v1/auth/login", json={"email": email})
     assert response.status_code == 200
-    return response.json()["access_token"]
+    return response.cookies["auth_token"]
 
 
 async def _admin_token(client: AsyncClient) -> str:
@@ -77,8 +72,6 @@ async def test_get_order_window_forbidden_for_customer(client):
 
 @pytest.mark.asyncio
 async def test_get_order_window_returns_default_open(client):
-    # RF-P6-09: sin configuración previa la ventana existe por defecto
-    # abierta, sin fecha de reapertura y sin mensaje.
     token = await _admin_token(client)
     response = await client.get(
         WINDOW_PATH, headers={"Authorization": f"Bearer {token}"}
@@ -92,7 +85,6 @@ async def test_get_order_window_returns_default_open(client):
 
 @pytest.mark.asyncio
 async def test_patch_order_window_closes_with_reopens_at(client):
-    # RF-P5-07: cerrar con reopens_at → 200 y el estado persiste.
     token = await _admin_token(client)
     headers = {"Authorization": f"Bearer {token}"}
     reopens = "2026-11-08T20:00:00"
@@ -114,7 +106,6 @@ async def test_patch_order_window_closes_with_reopens_at(client):
 
 @pytest.mark.asyncio
 async def test_patch_order_window_close_without_reopens_at_422(client):
-    # Cerrar sin reopens_at → 422 con mensaje de sugerencia.
     token = await _admin_token(client)
     response = await client.patch(
         WINDOW_PATH,
@@ -127,7 +118,6 @@ async def test_patch_order_window_close_without_reopens_at_422(client):
 
 @pytest.mark.asyncio
 async def test_patch_order_window_message_too_long_422(client):
-    # message > 200 caracteres → 422 (validación del schema).
     token = await _admin_token(client)
     response = await client.patch(
         WINDOW_PATH,
@@ -143,11 +133,9 @@ async def test_patch_order_window_message_too_long_422(client):
 
 @pytest.mark.asyncio
 async def test_patch_order_window_open_forces_reopens_at_null(client):
-    # open=true → reopens_at siempre nulo, aunque el payload la traiga.
     token = await _admin_token(client)
     headers = {"Authorization": f"Bearer {token}"}
 
-    # Primero cerrar (para tener un reopens_at previo que limpiar).
     closed = await client.patch(
         WINDOW_PATH,
         json={"open": False, "reopens_at": "2026-11-08T20:00:00", "message": ""},
@@ -168,7 +156,6 @@ async def test_patch_order_window_open_forces_reopens_at_null(client):
 
 @pytest.mark.asyncio
 async def test_patch_order_window_requires_open_field(client):
-    # `open` es requerido en el body: sin él → 422.
     token = await _admin_token(client)
     response = await client.patch(
         WINDOW_PATH,

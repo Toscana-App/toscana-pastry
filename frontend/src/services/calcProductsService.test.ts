@@ -39,7 +39,6 @@ describe("calcProductsService money boundary (S1/S3)", () => {
     const body = JSON.parse(String((mocked.mock.calls[0][1] as RequestInit).body));
     expect(body.labor[0].hourly_rate).toBe(300000);
     expect(body.extra_costs[0].unit_cost).toBe(80000);
-    // Qty no se toca.
     expect(body.materials[0].quantity_used).toBe("1");
     expect(body.labor[0].minutes_required).toBe("120");
   });
@@ -96,8 +95,6 @@ describe("calcProductsService money boundary (S1/S3)", () => {
       extra_costs: [{ concept_name: "X", unit_cost: "0.125", quantity: "1" }],
     });
     const body = JSON.parse(String((mocked.mock.calls[0][1] as RequestInit).body));
-    // "0.125" -> 12 ctvs: pesosToCents usa aritmética entera y trunca
-    // el tercer decimal (comportamiento existente del helper compartido).
     expect(body.extra_costs[0].unit_cost).toBe(12);
   });
 

@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders as render } from "../../test-utils";
 import DefaultCostsAbm from "./DefaultCostsAbm";
 
-// Seams: el service y el toaster. Sin backend real (PREGUNTAS.md → F1).
 vi.mock("@/services/calcSettingsService", () => ({
   calcSettingsService: {
     listDefaultCosts: vi.fn(),
@@ -19,7 +18,6 @@ vi.mock("@/lib/toaster", () => ({
 import { calcSettingsService } from "@/services/calcSettingsService";
 import type { DefaultCost, DefaultCostListResponse } from "@/types/calc";
 
-// Montos/quantities como str (serialización money.py del backend).
 const manoDeObra: DefaultCost = {
   id: "d1",
   name: "Mano de obra",
@@ -50,8 +48,6 @@ describe("DefaultCostsAbm", () => {
   it("renders the default costs fetched from the API", async () => {
     render(<DefaultCostsAbm />);
 
-    // El monto 250.00 es único: "Mano de obra" también está en el label
-    // del select Tipo del form de creación.
     expect(await screen.findByText("250.00")).toBeInTheDocument();
   });
 
@@ -74,11 +70,8 @@ describe("DefaultCostsAbm", () => {
     fireEvent.change(screen.getByLabelText("Nombre"), {
       target: { value: "Embalaje" },
     });
-    // type y status via selects con allow-lists (el popup se abre en un
-    // tick asincrónico de la máquina de estados de Ark UI).
     fireEvent.click(screen.getByRole("combobox", { name: /Tipo/ }));
     fireEvent.click(await screen.findByRole("option", { name: "Costo extra" }));
-    // Espera a que el popup del Tipo cierre antes de abrir el de Estado.
     await waitFor(() =>
       expect(
         screen.queryByRole("option", { name: "Costo extra" })
@@ -86,8 +79,6 @@ describe("DefaultCostsAbm", () => {
     );
     fireEvent.click(screen.getByRole("combobox", { name: /Estado/ }));
     fireEvent.click(await screen.findByRole("option", { name: "Inactivo" }));
-    // Espera a que el popup del Estado cierre: es ahí donde se
-    // committea el estado de la selección antes de enviar.
     await waitFor(() =>
       expect(
         screen.queryByRole("option", { name: "Inactivo" })
@@ -100,7 +91,6 @@ describe("DefaultCostsAbm", () => {
     fireEvent.change(screen.getByLabelText("Cantidad o minutos"), {
       target: { value: "1" },
     });
-    // La lista se refetchea tras crear: el server ya devuelve el nuevo item.
     setupList([manoDeObra, nuevo]);
     fireEvent.click(screen.getByRole("button", { name: "Crear" }));
 

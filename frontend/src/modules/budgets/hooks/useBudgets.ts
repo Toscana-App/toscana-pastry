@@ -5,7 +5,6 @@ import { useDebounce } from "@/modules/shared/useDebounce";
 import { budgetsService } from "../service";
 import type { BudgetListItem, BudgetStatus } from "../types";
 
-/** RF-P8-06: paginación de 20 por página (mismo page_size del backend). */
 const PAGE_SIZE = 20;
 
 export interface UseBudgetsResult {
@@ -26,13 +25,6 @@ export interface UseBudgetsResult {
   reload: () => void;
 }
 
-/**
- * Estado del listado de presupuestos (Fase 7, RF-P8-06).
- *
- * - Filtros combinables: búsqueda por nombre/seq (debounce 250 ms), estado
- *   y rango de fechas; cualquier cambio vuelve a la página 1.
- * - Paginación server-side (page_size = 20).
- */
 export function useBudgets(): UseBudgetsResult {
   const [query, setQueryState] = useState("");
   const [status, setStatusState] = useState<BudgetStatus | null>(null);

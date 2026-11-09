@@ -14,6 +14,7 @@ export const PRODUCT_CREATE_DEFAULTS: ProductFormValues = {
   servings: 1,
   difficulty: "simple",
   recipe: [],
+  available: false,
 };
 
 interface UseProductDraftArgs {
@@ -26,17 +27,10 @@ interface UseProductDraftArgs {
 
 export interface UseProductDraftResult {
   draftRestored: boolean;
-  /** Borra el borrador guardado (tras guardar con éxito). */
   clearDraft: () => void;
-  /** Borra el borrador y vuelve el formulario a los defaults del alta. */
   discardDraft: () => void;
 }
 
-/**
- * Borrador local en sessionStorage (RNF-P4-02), solo en alta: en edición el
- * producto se carga siempre del servidor y nunca se escribe ni se lee draft.
- * La restauración usa un schema laxo y mezcla sobre los defaults del alta.
- */
 export function useProductDraft({
   draftKey,
   isEdit,
@@ -59,12 +53,10 @@ export function useProductDraft({
       const parsed = productDraftSchema.safeParse(JSON.parse(raw));
       if (parsed.success) {
         reset({ ...PRODUCT_CREATE_DEFAULTS, ...parsed.data });
-        // Restaurar desde sessionStorage (sistema externo) solo es posible tras el mount.
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setDraftRestored(true);
       }
     } catch {
-      // Draft corrupto: se ignora y el formulario arranca vacio.
     }
   }, [isEdit, draftKey, reset]);
 
@@ -77,7 +69,6 @@ export function useProductDraft({
         try {
           sessionStorage.setItem(draftKey, JSON.stringify(values));
         } catch {
-          // sessionStorage lleno o bloqueado: el draft es best-effort.
         }
       }, DRAFT_DEBOUNCE_MS);
     });

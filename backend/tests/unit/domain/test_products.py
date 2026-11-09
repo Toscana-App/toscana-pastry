@@ -49,7 +49,6 @@ def _product(recipe, **overrides):
     return Product(recipe=tuple(recipe), **base)
 
 
-# --- Validaciones de dominio ---------------------------------------------
 
 
 def test_product_minimal_ok():
@@ -132,7 +131,6 @@ def test_recipe_item_invalid_unit_raises():
         _recipe_item(unit="onza")
 
 
-# --- Derivación de precio --------------------------------------------------
 
 
 def test_derive_complete_product():
@@ -150,16 +148,12 @@ def test_derive_complete_product():
     price = derive_product_price(product, ingredients, _settings())
     assert price.complete is True
     assert price.missing == ()
-    # 250 g @ 2800/kg = 700 + 200 ml @ 1200/l = 240 → 940
     assert price.breakdown.materials == Decimal("940.00")
-    # merma 3% → 968.20; mano de obra 30 min @ 3000/h = 1500;
-    # gas 3% de 968.20 = 29.05 → base 2497.25; margen 30% → 3246.43
     assert price.breakdown.materials_con_merma == Decimal("968.20")
     assert price.breakdown.labor == Decimal("1500.00")
     assert price.breakdown.base == Decimal("2497.25")
     assert price.breakdown.final == Decimal("3246.43")
     assert price.breakdown.rounded == Decimal("3200")
-    # 3246.43 / 2 = 1623.215 → 1623.22 (ROUND_HALF_UP)
     assert price.per_serving == Decimal("1623.22")
 
 
@@ -190,8 +184,6 @@ def test_derive_incomplete_when_ingredient_unknown():
 
 def test_derive_missing_dedupes_and_keeps_recipe_order():
     ingredients = {}
-    # El dominio rechaza insumos duplicados; se prueba la dedup a nivel de
-    # derivacion construyendo la receta sin la validacion.
     recipe = tuple(
         RecipeItem(ingredient_id=r.ingredient_id, qty=r.qty, unit=r.unit)
         for r in (
@@ -217,7 +209,6 @@ def test_line_cost():
     assert line_cost_of_item(_recipe_item("harina"), zero) is None
 
 
-# --- Motor: "L" mayuscula equivale a "l" (fix de contrato Fase 5) -----------
 
 
 def test_engine_accepts_uppercase_L():

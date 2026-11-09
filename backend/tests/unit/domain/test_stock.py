@@ -1,4 +1,3 @@
-"""Reglas puras de stock (spec p02 RF-P2-03, casos límite de la spec de tests)."""
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -18,7 +17,6 @@ def _ingredient(qty="0", threshold="0"):
     )
 
 
-# --- Estados (RF-P2-03) -------------------------------------------------
 
 
 def test_status_empty_when_zero():
@@ -26,7 +24,6 @@ def test_status_empty_when_zero():
 
 
 def test_status_empty_wins_over_threshold():
-    # Umbral alto no vuelve LOW a un stock a cero: EMPTY.
     assert stock_status(Decimal("0"), Decimal("100")) is _empty()
 
 
@@ -35,7 +32,6 @@ def test_status_low_below_threshold():
 
 
 def test_status_low_at_exact_threshold():
-    # "2 kg restantes" (umbral bajo) de la app original: <= incluye el borde.
     assert stock_status(Decimal("5"), Decimal("5")) is _low()
 
 
@@ -44,7 +40,6 @@ def test_status_ok_above_threshold():
 
 
 def test_status_ok_with_zero_threshold():
-    # Umbral 0: cualquier cantidad positiva es OK.
     assert stock_status(Decimal("1"), Decimal("0")) is _ok()
 
 
@@ -66,7 +61,6 @@ def _ok():
     return StockStatus.OK
 
 
-# --- Movimientos (RF-P2-04) ---------------------------------------------
 
 
 def test_apply_positive_movement():
@@ -86,7 +80,6 @@ def test_apply_negative_movement():
 
 
 def test_apply_movement_down_to_zero_is_allowed():
-    # Vaciar el stock es legitimo (estado EMPTY); lo que no es negativo.
     ingredient = _ingredient(qty="5")
     updated, _ = apply_movement(ingredient, Decimal("-5"), "ajuste")
     assert updated.stock_qty == Decimal("0")
@@ -112,7 +105,6 @@ def test_apply_movement_invalid_reason_raises():
 
 
 def test_apply_movement_does_not_mutate_original():
-    # Entidad inmutable: el llamador decide persistir, no el dominio.
     ingredient = _ingredient(qty="10")
     apply_movement(ingredient, Decimal("5"), "compra")
     assert ingredient.stock_qty == Decimal("10")

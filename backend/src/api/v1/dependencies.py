@@ -1,21 +1,25 @@
-from fastapi import Depends, HTTPException, status, Header
+from fastapi import Cookie, Depends, HTTPException, Query, status, Header
 from domain.models import User, UserRole
 from data.repositories.sql_user_repository import SQLUserRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 from data.db import get_db
 from domain.auth.logic import decode_access_token
+from api.v1.auth.cookies import ACCESS_COOKIE
 
 async def get_current_user(
     authorization: str = Header(None),
+    access_cookie: str | None = Cookie(None, alias=ACCESS_COOKIE),
     db: AsyncSession = Depends(get_db)
 ) -> User:
-    if not authorization or not authorization.startswith("Bearer "):
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+    elif access_cookie:
+        token = access_cookie
+    else:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing token",
         )
-    
-    token = authorization.split(" ")[1]
     
     try:
         payload = decode_access_token(token)
@@ -42,7 +46,6 @@ async def get_current_user(
 
 
 def require_admin(current_user: User = Depends(get_current_user)) -> User:
-    """Authorization by role: only ADMIN passes. 403 explicit, not 404."""
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -51,11 +54,19 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
     return current_user
 
 
-def require_role(*roles: UserRole):
-    """Generic role guard: only users whose role is in *roles pass.
+def require_admin_or_audience(
+    audience: str | None = Query(default=None),
+    current_user: User = Depends(get_current_user),
+) -> User:
+    if audience is None and current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required",
+        )
+    return current_user
 
-    Returns 403 with a clear message listing the required role(s).
-    """
+
+def require_role(*roles: UserRole):
     role_names = ", ".join(r.value for r in roles)
 
     def _guard(current_user: User = Depends(get_current_user)) -> User:

@@ -1,5 +1,3 @@
-"""Dominio de pedidos (Fase 6): maquina de estados, normalizacion de
-cliente, escalado por porciones, override de margen y snapshots."""
 import datetime
 from decimal import Decimal
 
@@ -55,7 +53,6 @@ def make_torta(flour_id: str = "flour") -> Product:
     )
 
 
-# --- Maquina de estados (RNF-P6-01) --------------------------------------
 
 
 class TestTransitions:
@@ -90,7 +87,6 @@ class TestTransitions:
             transition_status("perdido", "nuevo")
 
 
-# --- Cliente (RF-P6-08) ---------------------------------------------------
 
 
 class TestCustomer:
@@ -125,7 +121,6 @@ class TestCustomer:
             Customer(name="M", phone="3575551234")
 
 
-# --- Escalado por porciones (decisión de negocio F6) ----------------------
 
 
 class TestPortionScaling:
@@ -142,7 +137,6 @@ class TestPortionScaling:
         assert snap.labor == Decimal("75.00")
 
     def test_dobles_porciones_dobla_insumos_y_mano_de_obra(self):
-        # 12 porciones = 2x: harina 500g (1400) + mano 60min (150)
         snap = price_order_item(
             make_torta(),
             {"flour": make_flour()},
@@ -153,12 +147,10 @@ class TestPortionScaling:
         assert snap.lines[0].qty == Decimal("500")
         assert snap.materials == Decimal("1400.00")
         assert snap.labor == Decimal("150.00")
-        # base 1550, margen 100% -> 3100, paso 5 -> 3100
         assert snap.base == Decimal("1550.00")
         assert snap.rounded == Decimal("3100.00")
 
     def test_qty_multiplica_tambien(self):
-        # 2 tortas de 12 porciones: harina 1000g, mano 2x60
         snap = price_order_item(
             make_torta(),
             {"flour": make_flour()},
@@ -171,7 +163,6 @@ class TestPortionScaling:
         assert snap.rounded == Decimal("6200.00")
 
     def test_porciones_fraccionales_escalas_proporcional(self):
-        # 9 porciones = 1.5x: harina 375g -> 1050
         snap = price_order_item(
             make_torta(),
             {"flour": make_flour()},
@@ -183,12 +174,10 @@ class TestPortionScaling:
         assert snap.materials == Decimal("1050.00")
 
 
-# --- Override de margen por pedido ----------------------------------------
 
 
 class TestMarginOverride:
     def test_override_reemplaza_el_del_tenant(self):
-        # base 775; override 200% -> 2325 (reemplaza, no suma al 100%)
         snap = price_order_item(
             make_torta(),
             {"flour": make_flour()},
@@ -209,7 +198,6 @@ class TestMarginOverride:
             portions=6,
             margin_override=Decimal("0"),
         )
-        # 775 -> paso 5 -> 775
         assert snap.rounded == Decimal("775.00")
 
     def test_override_fuera_de_rango_lanza(self):
@@ -233,14 +221,13 @@ class TestMarginOverride:
             )
 
 
-# --- Productos incompletos (decisión de negocio F6) ------------------------
 
 
 class TestIncompleteProduct:
     def test_insumo_borrado_entra_con_costo_cero(self):
         snap = price_order_item(
             make_torta(),
-            {},  # insumo no encontrado
+            {},
             make_tenant_settings(),
             qty=1,
             portions=6,
@@ -251,11 +238,9 @@ class TestIncompleteProduct:
         line = snap.lines[0]
         assert line.is_missing is True
         assert line.cost == Decimal("0")
-        # base 75 (solo mano), margen 100% -> final 150, paso 5 -> 150
         assert snap.rounded == Decimal("150.00")
 
     def test_insumo_con_precio_cero_es_missing(self):
-        # Regla Fase 5: precio 0 = sin precio
         snap = price_order_item(
             make_torta(),
             {"flour": make_flour(price="0")},
@@ -306,7 +291,6 @@ class TestIncompleteProduct:
             )
 
 
-# --- check_stock (RNF-P6-04) ----------------------------------------------
 
 
 class TestCheckStock:
@@ -327,7 +311,6 @@ class TestCheckStock:
         assert shortage == {"flour": Decimal("2")}
 
 
-# --- Order.total -----------------------------------------------------------
 
 
 class TestOrderTotal:

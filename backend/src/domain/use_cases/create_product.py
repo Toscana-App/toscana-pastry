@@ -11,8 +11,6 @@ from domain.use_cases.product_assembly import assemble_product
 
 
 class CreateProduct:
-    """Crea un producto aplicando los default de settings (RF-P4-01) y
-    validando la receta. Lanza ProductValidationError."""
 
     def __init__(
         self,

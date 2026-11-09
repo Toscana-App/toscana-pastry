@@ -25,8 +25,6 @@ async def client(db_session):
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_user_repository] = override_get_user_repository
     app.dependency_overrides[get_settings_repository] = override_get_settings_repository
-    # El login crea usuarios con rol CUSTOMER; el preview y el guardado de
-    # settings son de administración (RBAC), así que se siembra el ADMIN.
     await SQLUserRepository(db_session).save(
         User(email="admin@example.com", role=UserRole.ADMIN)
     )
@@ -44,7 +42,7 @@ async def _admin_token(client: AsyncClient) -> str:
         "/api/v1/auth/login", json={"email": "admin@example.com"}
     )
     assert response.status_code == 200
-    return response.json()["access_token"]
+    return response.cookies["auth_token"]
 
 
 async def _set_settings(client: AsyncClient, headers) -> None:
@@ -98,7 +96,6 @@ async def test_preview_uses_persisted_settings(client):
     )
     assert response.status_code == 200
     body = response.json()
-    # Money viaja como int de centavos en la respuesta (RF-P5-01)
     assert body["materials"] == 286000
     assert body["labor"] == 7500
     assert body["base"] == 293500
@@ -108,11 +105,10 @@ async def test_preview_uses_persisted_settings(client):
 
 @pytest.mark.asyncio
 async def test_preview_forbidden_for_customer(client):
-    # El preview expone el desglose de costos: sólo administración.
     login = await client.post(
         "/api/v1/auth/login", json={"email": "customer@example.com"}
     )
-    token = login.json()["access_token"]
+    token = login.cookies["auth_token"]
     response = await client.post(
         "/api/v1/pricing/preview",
         json={"line_items": TORTA_ITEMS, "prep_minutes": 30},

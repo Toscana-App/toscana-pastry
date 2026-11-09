@@ -17,11 +17,8 @@ router = APIRouter(prefix="/pricing", tags=["pricing"])
 async def preview(
     payload: PreviewRequest,
     settings_repo: SettingsRepository = Depends(get_settings_repository),
-    # El preview expone el desglose de costos: herramienta de administracion.
     _admin: User = Depends(require_admin),
 ):
-    """Carga el producto sin guardarlo (spec p04 §4): el usuario edita en vivo
-    y el motor aplica los settings persistidos."""
     settings = await GetSettings(settings_repo).execute()
     items = [
         (item.qty, item.unit, cents_to_decimal(item.price_per_purchase_unit), item.purchase_unit)
@@ -51,15 +48,6 @@ async def preview_dual(
     user: User = Depends(require_role(UserRole.ADMIN, UserRole.NEGOCIO, UserRole.CUSTOMER)),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
 ):
-    """Preview con precios duales por audiencia.
-
-    - admin: puede solicitar ``revendedores`` o ``consumidor_final``.
-    - negocio: siempre ``revendedores``.
-    - cliente: siempre ``consumidor_final``.
-
-    Solo admin recibe el desglose completo; negocio y cliente reciben
-    ``{audience, price}`` para no filtrar costos ni el precio base.
-    """
     settings = await GetSettings(settings_repo).execute()
     items = [
         (item.qty, item.unit, cents_to_decimal(item.price_per_purchase_unit), item.purchase_unit)
