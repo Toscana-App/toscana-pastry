@@ -61,8 +61,6 @@ class SettingsRepository(ABC):
 
 
 class IngredientRepository(ABC):
-    """P2 ingredientes. Borrado suave: lo eliminado queda en la tabla pero
-    es invisible a list/get; `count_active_recipes` alimenta el 409 de UC-05."""
 
     @abstractmethod
     async def list(
@@ -80,7 +78,6 @@ class IngredientRepository(ABC):
 
     @abstractmethod
     async def get_many(self, ingredient_ids: Sequence[str]) -> List[Ingredient]:
-        """Insumos activos cuyo id esta en `ingredient_ids` (una consulta)."""
         pass
 
     @abstractmethod
@@ -122,11 +119,11 @@ class IngredientRepository(ABC):
 class CustomerAddressRepository(ABC):
     @abstractmethod
     async def lock_book(self, user_id: str) -> None:
-        """Serializa escrituras concurrentes sobre el libro del usuario."""
+        pass
 
     @abstractmethod
     async def list_by_user(self, user_id: str) -> List[CustomerAddress]:
-        """Direcciones del usuario, de la mas antigua a la mas nueva."""
+        pass
 
     @abstractmethod
     async def get_for_user(
@@ -159,9 +156,6 @@ class CustomerAddressRepository(ABC):
         pass
 
 class ProductRepository(ABC):
-    """P3/P4 productos. Borrado suave: lo eliminado queda en la tabla pero
-    es invisible a list/get (UC-07). `count_orders` alimenta la respuesta
-    de UC-07 cuando el producto tiene pedidos historicos (Fase 6)."""
 
     @abstractmethod
     async def list(
@@ -199,9 +193,6 @@ class ProductRepository(ABC):
 
 
 class CustomerRepository(ABC):
-    """P6 clientes. Dedup por (nombre normalizado, telefono normalizado):
-    crear un duplicado devuelve el existente (RF-P6-08). Sin borrado:
-    el historial de pedidos no se rompe."""
 
     @abstractmethod
     async def list(
@@ -220,22 +211,16 @@ class CustomerRepository(ABC):
     async def update_address(
         self, customer_id: str, delivery_address: Optional[str]
     ) -> Optional["Customer"]:
-        """Direccion de entrega (RF-P7-06); None si el cliente no existe."""
         pass
 
     @abstractmethod
     async def get_or_create(
         self, customer: "Customer"
     ) -> tuple["Customer", bool]:
-        """Devuelve (cliente, creado). Si ya existe (dedup), devuelve el
-        existente con creado=False; si no, persiste el nuevo (creado=True)."""
         pass
 
 
 class OrderRepository(ABC):
-    """P6 pedidos. Los snapshots de items son inmutables (RNF-P6-03):
-    solo se escriben en create. `confirm`/`cancel` gestionan stock y
-    estado en una sola transaccion (RNF-P6-02/04)."""
 
     @abstractmethod
     async def list_orders(
@@ -261,8 +246,6 @@ class OrderRepository(ABC):
 
     @abstractmethod
     async def update_full(self, order: "Order") -> Optional["Order"]:
-        """Reemplaza lineas/snapshot en pedidos estado `nuevo` (el router
-        valida el estado antes de llamar)."""
         pass
 
     @abstractmethod
@@ -273,11 +256,6 @@ class OrderRepository(ABC):
 
 
 class BudgetRepository(ABC):
-    """P7/P8 presupuestos. Los items guardan costo/precio derivados
-    contra el catalogo al momento de la escritura; las lecturas son puras.
-    La secuencia `#000NN` se asigna en create (misma transaccion) y no se
-    reusa tras borrado (RNF-P8-04). `mark_sent` congela un snapshot de
-    version (RF-P8-05)."""
 
     @abstractmethod
     async def list(
@@ -297,57 +275,45 @@ class BudgetRepository(ABC):
 
     @abstractmethod
     async def create(self, budget: "Budget") -> "Budget":
-        """Asigna la secuencia del tenant en la misma transaccion."""
         pass
 
     @abstractmethod
     async def update(self, budget: "Budget") -> Optional["Budget"]:
-        """Reemplaza items/parametros. Conserva seq/status/version.
-        El estado lo valida el router antes de llamar."""
         pass
 
     @abstractmethod
     async def delete(self, budget_id: str) -> bool:
-        """Borrado duro: no tiene efecto sobre stock ni secuencia."""
         pass
 
     @abstractmethod
     async def mark_converted(self, budget_id: str, order_id: str) -> bool:
-        """Persiste el pedido asociado solo si aun no hay uno (RF-P8-08).
-        False = ya convertido o inexistente."""
         pass
 
     @abstractmethod
     async def mark_sent(self, budget: "Budget") -> "Budget":
-        """enviado (version nueva) con snapshot congelado (RF-P8-05).
-        `budget` ya pasa por transition_to_sent."""
+        pass
 
 class OrderTransitionStore(ABC):
-    """Primitivas transaccionales para transicionar un pedido. No decide
-    reglas de negocio: el caso de uso TransitionOrderStatus las orquesta.
-    Orden de locks obligatorio: `lock_order` primero, `lock_ingredients`
-    despues (ids ordenados) para evitar deadlocks."""
 
     @abstractmethod
     async def lock_order(self, order_id: str) -> Optional["Order"]:
-        """Lockea el pedido y lo devuelve fresco desde la base (None si no
-        existe). Abre la transaccion."""
+        pass
 
     @abstractmethod
     async def lock_ingredients(
         self, ingredient_ids: List[str]
     ) -> Dict[str, Ingredient]:
-        """Lockea los insumos existentes (no borrados), ordenados por id."""
+        pass
 
     @abstractmethod
     async def apply_movements(
         self, changes: List[Tuple[Ingredient, StockMovement]]
     ) -> None:
-        """Persiste el nuevo stock de cada insumo y su movimiento (sin commit)."""
+        pass
 
     @abstractmethod
     async def set_status(self, order_id: str, status: str) -> None:
-        """Cambia el estado del pedido lockeado (sin commit)."""
+        pass
 
     @abstractmethod
     async def commit(self) -> None:
@@ -357,24 +323,15 @@ class OrderTransitionStore(ABC):
     async def rollback(self) -> None:
         pass
 
-    # -------------------------------------------------------------- WhatsApp
 
     @abstractmethod
     async def record_whatsapp_sent_within_limit(
         self, budget_id: str, masked_phone: str, since: datetime, limit: int
     ) -> Optional[datetime]:
-        """Conteo + registro ATÓMICOS (un solo INSERT ... SELECT): None
-        si ya hay `limit` envíos desde `since` (RF-P10-06). El teléfono
-        se almacena ENMASCARADO (RNF-P10-05)."""
         pass
 
 
 class DocumentRepository(ABC):
-    """P9 (Fase 8): PDFs de presupuesto generados.
-
-    Clave: (budget_id, content_hash). Presupuesto editado → hash nuevo →
-    el documento se regenera (invalidación de cache por edición, P9).
-    """
 
     @abstractmethod
     async def get(self, budget_id: str, content_hash: str) -> Optional[bytes]:
@@ -386,14 +343,6 @@ class DocumentRepository(ABC):
 
 
 class ImportRepository(ABC):
-    """CSV import (T-CSV-1/4): staging de sesiones + filas.
-
-    Los metodos de staging (create_session, bulk_insert_rows) commitan por
-    cuenta propia. El confirm es una sola transaccion: el router orquesta
-    (find_duplicate/insert del adapter) y llama set_status +
-    delete_staging_rows SIN commit, y hace el commit unico al final
-    (RNF-CSV-05: nada de escrituras parciales).
-    """
 
     @abstractmethod
     async def create_session(self, session: ImportSession) -> ImportSession:
@@ -403,14 +352,12 @@ class ImportRepository(ABC):
     async def bulk_insert_rows(
         self, import_id: str, tenant_id: str, rows: Sequence[ImportRow]
     ) -> int:
-        """Persiste las filas en lotes (RNF-CSV-11: sin N+1)."""
         pass
 
     @abstractmethod
     async def get_session(
         self, import_id: str, tenant_id: str
     ) -> Optional[ImportSession]:
-        """None si no existe O no pertenece al tenant (404 en el router)."""
         pass
 
     @abstractmethod
@@ -430,16 +377,12 @@ class ImportRepository(ABC):
         status: str,
         confirmed_at: Optional[datetime] = None,
     ) -> None:
-        """Cambia el estado de la sesion (SIN commit; el commit lo hace el
-        orquestador para que sea una sola transaccion)."""
         pass
 
     @abstractmethod
     async def delete_staging_rows(self, import_id: str) -> int:
-        """Borra las filas estadiadas (SIN commit)."""
         pass
 
     @abstractmethod
     async def purge_expired(self, now: datetime) -> int:
-        """RF-CSV-07: limpia sesiones cuyo TTL expiro (filas via cascade)."""
         pass

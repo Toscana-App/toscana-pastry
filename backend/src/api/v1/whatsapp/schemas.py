@@ -1,4 +1,3 @@
-"""WhatsApp sends API schemas (RF-P10-07/08, C7)."""
 
 from __future__ import annotations
 
@@ -8,7 +7,6 @@ from pydantic import BaseModel, Field
 
 
 class SendResponse(BaseModel):
-    """Un envio con su estado actual."""
 
     id: str
     provider: str
@@ -23,7 +21,6 @@ class SendResponse(BaseModel):
 
 
 class SendListResponse(BaseModel):
-    """Paginated sends list (owner)."""
 
     items: list[SendResponse]
     total: int
@@ -32,7 +29,6 @@ class SendListResponse(BaseModel):
 
 
 class SendStatsResponse(BaseModel):
-    """Métricas de envios (ventana 30 dias)."""
 
     total: int
     sent: int
@@ -43,13 +39,11 @@ class SendStatsResponse(BaseModel):
 
 
 class ResendResponse(BaseModel):
-    """Respuesta de POST /sends/{id}/resend."""
 
     send: SendResponse
 
 
 class ResendBudgetDetail(BaseModel):
-    """Detalle del 429 por budget (RNF-P10-06)."""
 
     code: str = "whatsapp_budget_exceeded"
     limit: int = 500

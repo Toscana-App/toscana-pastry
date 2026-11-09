@@ -5,22 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Box, Button, Input, InputGroup } from "@chakra-ui/react";
 import { SearchIcon } from "@/components/ui/search-icon";
 
-/**
- * Search grande del portal (estilo ancestral.com.ar): busca productos por
- * nombre sobre la colección base del REST —
- * `GET /api/v1/products?audience=...&q=<term>&page=1&page_size=20` —
- * navegando a la home del portal con el filtro en la URL (`?q=term`), que
- * el catálogo lee y aplica.
- *
- * Debounce: la navegación se dispara sola 400 ms después de que el usuario
- * deja de escribir (cada pausa, no cada tecla); Enter/Buscar saltan el
- * timer y filtran de inmediato. Se usa `router.replace` para no inundar el
- * historial con una entrada por tecla.
- *
- * `useSearchParams` rompe el prerender de client components: `PortalSearch`
- * se renderiza dentro de un `<Suspense>` (patrón del skill toscana-pastry)
- * y el componente interno hace el trabajo.
- */
 const DEBOUNCE_MS = 400;
 
 function PortalSearchInner() {
@@ -38,9 +22,6 @@ function PortalSearchInner() {
     [router]
   );
 
-  // term -> URL, con debounce: 400 ms de pausa tras el último carácter.
-  // Si la URL ya refleja el término (navegación externa o propia), no hace
-  // nada — eso evita el loop input->URL->input.
   useEffect(() => {
     const q = term.trim();
     if (q === urlQ) return;
@@ -51,10 +32,6 @@ function PortalSearchInner() {
     };
   }, [term, urlQ, navigate]);
 
-  // URL -> input: la q de la URL cambió por fuera (p. ej. el botón
-  // "Quitar" del catálogo) y el input la refleja. Se ajusta durante el
-  // render (patrón que React recomienda al cambiar un prop), no en un
-  // effect: sin cascading renders ni react-hooks/set-state-in-effect.
   const [lastUrlQ, setLastUrlQ] = useState(urlQ);
   if (urlQ !== lastUrlQ) {
     setLastUrlQ(urlQ);

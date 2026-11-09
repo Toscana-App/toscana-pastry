@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { SN_Pro } from "next/font/google";
 import "./globals.css";
 import { Provider } from "@/providers/ChakraProvider"
@@ -9,7 +10,6 @@ import { Toaster } from "@/lib/toaster"
 import { AppGooeyToaster } from "@/components/ui/GoeyToasterClient"
 import "goey-toast/styles.css"
 
-// Consumed by the Chakra font tokens in components/ui/theme.ts.
 const snPro = SN_Pro({
   variable: "--font-sn-pro",
   subsets: ["latin", "latin-ext"],
@@ -31,7 +31,9 @@ export default function RootLayout({
         <Provider>
           <AuthProvider>
             <IconSprite />
-            <Navbar />
+            <Suspense fallback={null}>
+              <Navbar />
+            </Suspense>
             <main>{children}</main>
             <Toaster />
             <AppGooeyToaster />

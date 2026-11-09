@@ -5,18 +5,13 @@ from typing import Any, Dict
 from core.config import settings
 
 
-# --- Google Sign-In ---------------------------------------------------------
-
 def validate_google_id_token(payload: Dict[str, Any]) -> Dict[str, str]:
-    """Valida el payload de un ID token de Google y normaliza los datos del usuario."""
     if not payload.get("sub"):
         raise ValueError("Missing 'sub' in payload")
     if not payload.get("email_verified"):
         raise ValueError("Email not verified")
     return {"google_id": payload["sub"], "email": payload.get("email", "")}
 
-
-# --- JWT (access / refresh) -------------------------------------------------
 
 def _now() -> datetime.datetime:
     return datetime.datetime.now(datetime.UTC)
@@ -34,8 +29,6 @@ def create_access_token(data: Dict[str, Any]) -> str:
 
 
 def create_refresh_token(sub: str, jti: str, family_id: str) -> str:
-    """Refresh token: `jti` identifies this token in the store, `fam` the
-    login session it belongs to (every rotation keeps the family)."""
     now = _now()
     to_encode = {
         "sub": sub,

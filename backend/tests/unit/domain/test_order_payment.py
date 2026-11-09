@@ -1,10 +1,3 @@
-"""Unit tests for Order payment invariants (C1.1).
-
-Covers:
-    - payment_method is immutable once status != "nuevo"
-    - paid (derived: paid_at is not None) is monotonic false → true
-    - For cash orders, payment_status is always None
-"""
 
 import datetime
 from decimal import Decimal
@@ -21,7 +14,6 @@ from domain.order import (
 
 
 def _make_order(**overrides):
-    """Build a minimal Order with defaults overridden by *overrides*."""
     return Order(
         customer_id="cust-1",
         date=datetime.datetime.now(datetime.UTC),
@@ -38,7 +30,6 @@ def _make_order(**overrides):
 
 
 class TestPaymentMethodImmutable:
-    """payment_method cannot change after order confirmation."""
 
     def test_can_set_mercadopago_on_nuevo(self):
         order = _make_order()
@@ -52,7 +43,6 @@ class TestPaymentMethodImmutable:
             order.init_mercadopago()
 
     def test_cannot_switch_mercadopago_on_nuevo_if_already_mp(self):
-        """Calling init_mercadopago twice is a no-op (idempotent)."""
         order = _make_order()
         order.init_mercadopago()
         order.init_mercadopago()
@@ -60,7 +50,6 @@ class TestPaymentMethodImmutable:
 
 
 class TestPaidMonotonic:
-    """paid transitions false → true only; cannot revert."""
 
     def test_paid_is_false_by_default(self):
         order = _make_order()
@@ -113,7 +102,6 @@ class TestPaidMonotonic:
 
 
 class TestCashPaymentStatusNull:
-    """For cash orders, payment_status is always None."""
 
     def test_cash_order_has_null_payment_status(self):
         order = _make_order(payment_method=PaymentMethod.CASH)

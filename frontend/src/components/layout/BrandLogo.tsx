@@ -1,7 +1,6 @@
 import { Box } from "@chakra-ui/react"
 import Image from "next/image"
 
-// Assets versionados en public/brand (derivados de docs/images).
 const LOGOS = {
   horizontal: { file: "logo_horizontal", ratio: 4766.81 / 1470.78, alt: "Toscana" },
   vertical: { file: "logo_vertical_tagline", ratio: 5017.02 / 4662.21, alt: "Toscana, horneando momentos" },
@@ -9,12 +8,10 @@ const LOGOS = {
 
 interface BrandLogoProps {
   variant: keyof typeof LOGOS
-  /** Rendered height in px. */
   height: number
   priority?: boolean
 }
 
-/** Toscana logo in ink on light surfaces and cream on dark ones. */
 export function BrandLogo({ variant, height, priority }: BrandLogoProps) {
   const { file, ratio, alt } = LOGOS[variant]
   const size = { width: Math.round(height * ratio), height }

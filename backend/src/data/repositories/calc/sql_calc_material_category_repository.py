@@ -1,4 +1,3 @@
-"""Repository para CalcMaterialCategory (RF-P5CC-03)."""
 from typing import List, Optional, Tuple
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -102,8 +101,6 @@ class SQLCalcMaterialCategoryRepository:
         return _to_domain(orm)
 
     async def count_in_use(self, category_id: str) -> int:
-        """Materiales que referencian esta categoria (FK real en
-        calc_materials.material_category_id, B8)."""
         stmt = select(func.count()).select_from(CalcMaterialORM).where(
             CalcMaterialORM.material_category_id == category_id
         )

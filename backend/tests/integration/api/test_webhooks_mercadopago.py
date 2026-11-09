@@ -1,16 +1,3 @@
-"""Integration tests for POST /webhooks/mercadopago (C1.6, S1/S2).
-
-The real MercadoPagoCheckoutProvider is used; only the Mercado Pago REST API
-is replaced by an httpx.MockTransport serving ``GET /v1/payments/{id}``.
-
-Covers:
-    - Official x-signature (HMAC over id/request-id/ts manifest) → 200 / 401
-    - Non-payment notifications → 200 no effect
-    - Dedupe by (payment id, status); same payment with a new status applies
-    - Out-of-order states: pending never overwrites approved
-    - rejected/failed don't set paid; cash orders remain paid=false
-    - Unknown order / provider failure handling
-"""
 
 from __future__ import annotations
 
@@ -44,12 +31,10 @@ from domain.models import User, UserRole
 from domain.order import Order, OrderItem, PaymentMethod, PaymentStatus
 from main import app
 
-# ─── Fixtures ─────────────────────────────────────────────────────────
 
 WEBHOOK_SECRET = "test-webhook-secret"
 REQUEST_ID = "req-1"
 
-# Mercado Pago payments served by the mocked API: id -> payment JSON.
 _MP_PAYMENTS: dict[str, dict] = {}
 _MP_API_CALLS: list[str] = []
 
@@ -131,12 +116,12 @@ async def mercadopago_order(db_session):
         payment_method=PaymentMethod.MERCADOPAGO,
     )
     repo = SQLOrderRepository(db_session)
-    await repo.add(order)  # header + line items: the amount check needs the total
+    await repo.add(order)
 
     async def refresh():
         return await repo.get(order.id)
 
-    order._refresh = refresh  # type: ignore[attr-defined]
+    order._refresh = refresh
     return order
 
 
@@ -161,11 +146,10 @@ async def cash_order(db_session):
     async def refresh():
         return await repo.get(order.id)
 
-    order._refresh = refresh  # type: ignore[attr-defined]
+    order._refresh = refresh
     return order
 
 
-# ─── Helpers ──────────────────────────────────────────────────────────
 
 
 def _set_payment(
@@ -205,7 +189,6 @@ async def _notify(
     )
 
 
-# ─── Tests ────────────────────────────────────────────────────────────
 
 
 class TestWebhookSignature:
@@ -310,8 +293,6 @@ class TestWebhookPayload:
         )
 
     async def test_non_object_payload_never_reaches_500(self, client):
-        # The signature manifest needs data.id, so a non-object body is
-        # rejected as unverifiable before any payload handling.
         response = await self._post(client, b"[1, 2]")
         assert response.status_code in (401, 422)
 
@@ -386,7 +367,6 @@ class TestWebhookPriorityAndAtomicity:
         order = await repo.get(mercadopago_order.id)
         assert order.paid is True
 
-        # Replay of the same event: no effect, no error.
         assert await repo.apply_payment_event(**{**args, "paid_at": now + datetime.timedelta(hours=1)}) is False
         assert (await repo.get(mercadopago_order.id)).paid_at == order.paid_at
 
@@ -485,7 +465,7 @@ class TestWebhookAntiReplayAndAmount:
         )
         repo = SQLOrderRepository(db_session)
         await repo.add(order)
-        _set_payment("1001", "approved", order.id, amount=1000)  # ignores discount
+        _set_payment("1001", "approved", order.id, amount=1000)
         await _notify(client, "1001")
         assert (await repo.get(order.id)).paid is False
         _set_payment("1002", "approved", order.id, amount=900)

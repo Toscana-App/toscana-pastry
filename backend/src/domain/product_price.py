@@ -1,13 +1,3 @@
-"""Derivacion de precio de producto (P3/P4, Fase 5).
-
-Complemento puro de `pricing.py`: toma la receta y los insumos actuales y
-devuelve o bien el desglose completo (producto completo) o la lista de
-insumos que faltan (producto incompleto). El precio NUNCA se persiste:
-siempre se recalcula en lectura con los datos corrientes (RF-P3-04).
-
-Un insumo "no tiene precio" cuando: no existe, esta borrado suave, o su
-price_per_unit es 0 (decision de negocio Fase 5: 0 = sin precio).
-"""
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -27,12 +17,6 @@ def _has_price(ingredient: Ingredient | None) -> bool:
 
 @dataclass(frozen=True)
 class ProductPrice:
-    """Resultado de la derivacion.
-
-    complete=True: breakdown y per_serving poblados, missing vacio.
-    complete=False: breakdown/per_serving None, missing con los nombres
-    de los insumos sin precio (orden de la receta, sin duplicados).
-    """
 
     complete: bool
     missing: tuple
@@ -80,10 +64,6 @@ def derive_product_price(
 def line_cost_of_item(
     item: RecipeItem, ingredients_by_id: dict[str, Ingredient]
 ) -> Decimal | None:
-    """Costo de una linea de receta (tab Ingredientes del P4 §3).
-
-    None cuando el insumo no existe, esta borrado o no tiene precio.
-    """
     ingredient = ingredients_by_id.get(item.ingredient_id)
     if ingredient is None or not _has_price(ingredient):
         return None

@@ -25,7 +25,6 @@ import { INGREDIENT_UNITS } from "../types";
 
 interface IngredientFormPageProps {
   mode: "create" | "edit";
-  /** Solo en modo edit: id del ingrediente a cargar. */
   ingredientId?: string;
 }
 
@@ -37,18 +36,6 @@ const CREATE_DEFAULTS: IngredientCreateValues = {
   low_stock_threshold: 0,
 };
 
-/**
- * Formulario de alta/edición de ingredientes (Fase 4, WU5).
- *
- * - react-hook-form + zodResolver (RF-P2-02): validación por campo sin perder
- *   el foco en cada tecla.
- * - create: POST con stock inicial y umbral → 201 → vuelve a la lista.
- * - edit: carga el detalle (sin movimientos) y hace PATCH de los campos
- *   editables. El stock NO se edita acá: tiene su drawer en el detalle, porque
- *   cada cambio debe quedar registrado como movimiento (RF-P2-03).
- * - Cancelar con cambios sin guardar: diálogo de confirmación.
- * - Errores del backend (422/400): banner con el mensaje original.
- */
 export function IngredientFormPage({ mode, ingredientId }: IngredientFormPageProps) {
   const router = useRouter();
   const isEdit = mode === "edit";
@@ -110,7 +97,6 @@ export function IngredientFormPage({ mode, ingredientId }: IngredientFormPagePro
     };
   }, [isEdit, ingredientId, reset]);
 
-  /** Un numérico borrado queda en NaN: se normaliza a 0 para no bloquear el submit. */
   function zeroOnNaN(
     event: React.ChangeEvent<HTMLInputElement>,
     field: "stock_qty" | "low_stock_threshold",

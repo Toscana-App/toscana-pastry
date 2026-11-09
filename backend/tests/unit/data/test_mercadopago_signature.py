@@ -1,4 +1,3 @@
-"""Mercado Pago webhook signature (S1): HMAC-SHA256 over the official manifest."""
 
 from __future__ import annotations
 
@@ -12,7 +11,7 @@ SECRET = "webhook-secret"
 DATA_ID = "123456"
 REQUEST_ID = "req-abc"
 TS = "1704908010"
-NOW = float(TS)  # fixed clock: the signed ts is "now"
+NOW = float(TS)
 
 
 def verify_mp_signature(secret, data_id, request_id, header, now=NOW):

@@ -35,15 +35,6 @@ function DataRow({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-/**
- * Detalle del ingrediente (Fase 4, WU6) — /admin/ingredients/[id].
- *
- * Reúne las tres acciones del ciclo de vida (RF-P2-03):
- * - Ajustar stock (drawer, con motivo y referencia).
- * - Editar (formulario en /edit).
- * - Eliminar (con confirmación y manejo del 409 por recetas asociadas).
- * El historial de movimientos vive en la segunda pestaña.
- */
 export function IngredientDetailPage({ id }: IngredientDetailPageProps) {
   const router = useRouter();
   const { ingredient, movements, loading, error, adjustStock, remove } =

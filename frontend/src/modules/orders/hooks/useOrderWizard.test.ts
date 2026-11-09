@@ -102,7 +102,6 @@ describe("useOrderWizard — edit mode", () => {
 describe("useOrderWizard — default date", () => {
   it("uses the local date, not UTC", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
-    // 23:30 local on Jan 10 (UTC-3 would already be Jan 11 in UTC).
     vi.setSystemTime(new Date(2026, 0, 10, 23, 30));
     const { result } = renderHook(() => useOrderWizard());
     expect(result.current.date).toBe("2026-01-10");

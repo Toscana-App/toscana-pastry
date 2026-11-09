@@ -62,6 +62,21 @@ describe("productFormSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("available es opcional (nace oculto hasta publicarlo)", () => {
+    const parsed = productFormSchema.safeParse(VALID);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.available).toBeUndefined();
+    expect(productFormSchema.safeParse({ ...VALID, available: true }).success).toBe(
+      true,
+    );
+  });
+
+  it("rechaza available no booleano (switch del form)", () => {
+    expect(
+      productFormSchema.safeParse({ ...VALID, available: "si" }).success,
+    ).toBe(false);
+  });
+
   it("valida la dificultad contra el enum del contrato", () => {
     expect(
       productFormSchema.safeParse({ ...VALID, difficulty: "extremo" }).success,

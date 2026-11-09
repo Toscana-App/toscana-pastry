@@ -15,12 +15,6 @@ from domain.stock import apply_movement
 
 
 class TransitionOrderStatus:
-    """Orquesta una transicion de estado del pedido (RNF-P6-01/02/04).
-
-    Las reglas viven aca: validar la transicion bajo lock, decidir si el
-    stock alcanza, calcular movimientos. El repositorio solo aporta
-    primitivas transaccionales (lock, aplicar movimientos, estado,
-    commit/rollback). Orden de locks: pedido primero, insumos por id."""
 
     def __init__(self, store: OrderTransitionStore):
         self._store = store
@@ -91,8 +85,6 @@ class TransitionOrderStatus:
         for ingredient_id, needed in deductions.items():
             ingredient = ingredients.get(ingredient_id)
             if ingredient is None:
-                # Insumo borrado despues de confirmar: no hay saldo que
-                # reponer (la decision de negocio lo permite).
                 continue
             updated, movement = apply_movement(
                 ingredient, needed, reason="anulacion", ref=order.id

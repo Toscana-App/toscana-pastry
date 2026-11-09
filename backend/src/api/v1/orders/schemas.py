@@ -1,15 +1,3 @@
-"""Schemas Pydantic de la API de pedidos (Fase 6, P6).
-
-Reglas del contrato:
-- Money viaja como long de centavos (int) en el wire (RF-P5-01/04); el
-  dominio trabaja en Decimal y la conversion vive en el borde (money.py).
-- `margin_pct` es Pct (0-100, string decimal): override por pedido
-  (mismo rango que el motor), null = margen del tenant.
-- `qty`/`available`/`required` son Qty (cantidades, no dinero).
-- El desglose de cada item es el SNAPSHOT congelado al crear el pedido
-  (RNF-P6-03): las responses nunca recalculan contra el catalogo.
-- `date` es la fecha del pedido (entrega/produccion), elegible libremente.
-"""
 from __future__ import annotations
 
 import datetime as dt
@@ -19,20 +7,17 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class PaidResponse(BaseModel):
-    """Response from PATCH /orders/{id}/paid."""
 
     paid: bool
 
 
 class PaymentInitResponse(BaseModel):
-    """Response from POST /orders/{id}/payment."""
 
     reference: str
     checkout_url: str
 
 
 class PaymentStatusResponse(BaseModel):
-    """Response from GET /orders/{id}/payment."""
 
     status: str | None
     paid: bool
@@ -41,29 +26,24 @@ class PaymentStatusResponse(BaseModel):
 
 
 class WebhookResponse(BaseModel):
-    """Response from POST /webhooks/mercadopago."""
 
     ok: bool = True
 
 
 class WebhookNotificationData(BaseModel):
-    """``data`` object of a Mercado Pago notification."""
 
     id: str | int = Field(..., description="Provider payment id")
 
 
 class WebhookNotification(BaseModel):
-    """Mercado Pago notification body (validated after the signature)."""
 
     type: str | None = None
     data: WebhookNotificationData | None = None
 
 
-# ─── C6 Portal schemas ──────────────────────────────────────────────
 
 
 class OrderItemSchema(BaseModel):
-    """Order line item (read)."""
 
     product_id: str
     product_name: str
@@ -74,7 +54,6 @@ class OrderItemSchema(BaseModel):
 
 
 class OrderDetailSchema(BaseModel):
-    """Order detail for portal "mis pedidos" (RF-P11-08)."""
 
     id: str
     code: str
@@ -94,7 +73,6 @@ class OrderDetailSchema(BaseModel):
 
 
 class OrderListSchema(BaseModel):
-    """Paginated order list for portal."""
 
     orders: list[OrderDetailSchema]
     total: int
@@ -103,7 +81,6 @@ class OrderListSchema(BaseModel):
 
 
 class PortalOrderItemRequest(BaseModel):
-    """Portal order line: price and name are resolved server-side."""
 
     product_id: str = Field(..., min_length=1)
     quantity: int = Field(..., gt=0)
@@ -111,7 +88,6 @@ class PortalOrderItemRequest(BaseModel):
 
 
 class PortalOrderCreateRequest(BaseModel):
-    """Request body for POST /orders (portal creation, C6)."""
 
     items: list[PortalOrderItemRequest] = Field(..., min_length=1)
     date: dt.datetime
@@ -122,7 +98,6 @@ class PortalOrderCreateRequest(BaseModel):
 
 
 class OrderWindowResponse(BaseModel):
-    """Response for order window status."""
 
     open: bool
     reopens_at: dt.datetime | None = None
@@ -135,8 +110,6 @@ OrderStatus = Literal["nuevo", "confirmado", "entregado", "cancelado"]
 
 
 class OrderItemInput(BaseModel):
-    """Linea del pedido. `portions` omitido = porciones del producto
-    (el factor de escalado se vuelve 1)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -156,7 +129,6 @@ class OrderCreate(BaseModel):
 
 
 class OrderUpdate(BaseModel):
-    """PATCH /orders/{id}: parcial. Solo pedidos en estado `nuevo`."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -173,8 +145,6 @@ class OrderStatusPatch(BaseModel):
 
 
 class OrderPreviewRequest(BaseModel):
-    """Cotizacion en vivo del wizard (admin): items + margin, sin
-    persistir. Mismo calculo que el create."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -192,7 +162,6 @@ class SnapshotLineResponse(BaseModel):
 
 
 class OrderItemBreakdown(BaseModel):
-    """Desglose del motor congelado en el snapshot (RNF-P6-03)."""
 
     materials: Money
     waste: Money
@@ -220,8 +189,8 @@ class OrderItemResponse(BaseModel):
 
 class OrderCustomerResponse(BaseModel):
     id: str
-    name: str
-    phone: str
+    name: str = ""
+    phone: str = ""
 
 
 class OrderListItem(BaseModel):
@@ -270,7 +239,7 @@ class OrderPreviewItemResponse(BaseModel):
 
 
 class OrderPreviewResponse(BaseModel):
-    margin_pct: Pct  # aplicado (override o tenant)
+    margin_pct: Pct
     tenant_margin_pct: Pct
     items: List[OrderPreviewItemResponse]
     total: Money
@@ -284,7 +253,6 @@ class InsufficientStockItem(BaseModel):
 
 
 class InsufficientStockResponse(BaseModel):
-    """409 al confirmar: stock insuficiente. Nada se descuenta (RNF-P6-04)."""
 
     insufficient_stock: List[InsufficientStockItem]
 
@@ -294,11 +262,9 @@ class WhatsAppLinkResponse(BaseModel):
     message: str
 
 
-# ─── Fase 5: resumen semanal (RF-P6-11) ─────────────────────────────
 
 
 class WeeklyRange(BaseModel):
-    """Semana natural Lun-Dom del resumen (la clave JSON es `from`)."""
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -307,7 +273,6 @@ class WeeklyRange(BaseModel):
 
 
 class WeeklyItem(BaseModel):
-    """Fila del resumen: un pedido confirmado/entregado de la semana."""
 
     id: str
     customer: str
@@ -319,7 +284,6 @@ class WeeklyItem(BaseModel):
 
 
 class WeeklyTotals(BaseModel):
-    """Totales en centavos (Money): monto total, pagado y pendiente."""
 
     amount: Money
     paid: Money
@@ -327,7 +291,6 @@ class WeeklyTotals(BaseModel):
 
 
 class WeeklySummaryResponse(BaseModel):
-    """GET /orders/weekly: resumen de la semana natural (Lun-Dom)."""
 
     week: WeeklyRange
     items: List[WeeklyItem]

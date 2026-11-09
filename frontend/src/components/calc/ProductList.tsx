@@ -26,7 +26,6 @@ interface ProductListProps {
 
 export type { ProductListProps };
 
-// Union type for items from different services
 export type ProductListDisplayItem = ProductListItem;
 
 export default function ProductList({ mode = "library" }: ProductListProps) {
@@ -36,14 +35,12 @@ export default function ProductList({ mode = "library" }: ProductListProps) {
   const [pageSize] = useState(20);
   const [total, setTotal] = useState(0);
 
-  // Search and filter state
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<ProductStatus | "">("");
   const [sortBy, setSortBy] = useState<ProductListQuery["sort"]>("name");
   const [sortDir, setSortDir] = useState<ProductListQuery["dir"]>("asc");
 
-  // Fetch products/price list when dependencies change
   useEffect(() => {
     const query: ProductListQuery = {
       q: search || undefined,
@@ -176,7 +173,7 @@ export default function ProductList({ mode = "library" }: ProductListProps) {
 
   return (
     <Flex direction="column" gap={4}>
-      {/* Search and Filters */}
+      {}
       <Flex direction={{ base: "column", lg: "row" }} gap={4} p={4} bg="bg.subtle" borderRadius="md" align="end">
         <Flex direction="column" flex={1}>
           <Text fontSize="sm" mb={1}>Búsqueda</Text>
@@ -196,12 +193,12 @@ export default function ProductList({ mode = "library" }: ProductListProps) {
         </Button>
       </Flex>
 
-      {/* Table */}
+      {}
       <Flex direction="column" gap={4}>
         {renderTable()}
       </Flex>
 
-      {/* Pagination */}
+      {}
       {totalPages > 1 && (
         <Flex justify="center" gap={2} mt={4}>
           <Button

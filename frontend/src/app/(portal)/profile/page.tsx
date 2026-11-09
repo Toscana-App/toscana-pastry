@@ -71,8 +71,7 @@ export default function ProfilePage() {
           <Box w="100%">
             <AddressBook />
           </Box>
-          {/* La navbar del portal no muestra Logout (solo "Mi cuenta" +
-              carrito): la salida de sesión vive en la cuenta. */}
+          {}
           <Button variant="outline" colorPalette="red" size="sm" onClick={logout}>
             Cerrar sesión
           </Button>

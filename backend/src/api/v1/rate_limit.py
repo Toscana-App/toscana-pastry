@@ -1,4 +1,3 @@
-"""Rate limit en memoria por IP (ventana deslizante)."""
 import time
 from collections import defaultdict, deque
 
@@ -6,9 +5,6 @@ from fastapi import HTTPException, Request, status
 
 
 class SlidingWindowRateLimiter:
-    # ponytail: ceiling = un solo proceso. El estado vive en memoria, así
-    # que con N workers el límite efectivo es N x max_requests y se pierde
-    # al reiniciar. Si se escala horizontalmente, pasar a Redis (INCR+EXPIRE).
     def __init__(self, max_requests: int, window_seconds: float):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
@@ -20,7 +16,6 @@ class SlidingWindowRateLimiter:
         while hits and now - hits[0] >= self.window_seconds:
             hits.popleft()
         if not hits:
-            # Evita que claves inactivas acumulen memoria.
             self._hits.pop(key, None)
             hits = self._hits[key]
         if len(hits) >= self.max_requests:
@@ -33,7 +28,6 @@ class SlidingWindowRateLimiter:
 
     def dependency(self):
         async def check(request: Request) -> None:
-            # No se confía en X-Forwarded-For (spoofeable sin proxy de confianza).
             ip = request.client.host if request.client else "unknown"
             if not self.allow(ip):
                 raise HTTPException(

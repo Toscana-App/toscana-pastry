@@ -1,12 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { downloadEndpoint } from "./download";
 
-/**
- * Tests del helper compartido de descargas binarias (Fase 5, UC-08):
- * fetch→blob→download con cookies de sesión y filename desde
- * Content-Disposition. Se mockea fetch y el DOM (jsdom no implementa
- * URL.createObjectURL ni navegación de anchors).
- */
 const API_BASE = "http://localhost:8000/api/v1";
 
 function mockBlobFetch(
@@ -28,13 +22,11 @@ let anchor: HTMLAnchorElement | null = null;
 
 beforeEach(() => {
   anchor = null;
-  // jsdom no implementa object URLs ni click de anchors.
   URL.createObjectURL = vi.fn().mockReturnValue("blob:mock");
   URL.revokeObjectURL = vi.fn();
   vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
     this: HTMLAnchorElement,
   ) {
-    // Cast: `anchor = this` dispara no-this-alias; la aserción no cambia el tipo.
     anchor = this as HTMLAnchorElement;
   });
 });

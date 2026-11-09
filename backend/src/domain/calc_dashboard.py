@@ -1,13 +1,3 @@
-"""Dashboard de la calculadora de costos (RF-P3CC-05).
-
-Función pura sobre datos crudos ya aportados por los repositories
-(counts por status + activos con sus costs calculados por el motor
-con el `rounding_mode` de settings, RF-P3CC-05). Estilo
-`domain/calc_product.py`: dataclasses frozen, Decimal en todos los
-montos, sin I/O y sin float (RNF-P4-03). Paridad de métricas con el
-Dashboard legacy: promedios sobre activos, top por precio desc,
-bottom por margen asc.
-"""
 
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
@@ -20,13 +10,10 @@ _LIMIT = 5
 
 
 def _cents(value: Decimal) -> Decimal:
-    """Cuantiza a centavos con ROUND_HALF_UP (RNF-P4-03)."""
     return value.quantize(_CENTS, rounding=ROUND_HALF_UP)
 
 
 def _average(values: list[Decimal]) -> Decimal:
-    """Promedio Decimal cuantizado a centavos; 0 valores -> 0.00
-    (paridad legacy `: 0`)."""
     if not values:
         return Decimal("0.00")
     return _cents(sum(values, _ZERO) / Decimal(len(values)))
@@ -34,8 +21,6 @@ def _average(values: list[Decimal]) -> Decimal:
 
 @dataclass(frozen=True)
 class TopByPriceItem:
-    """Item de `top_by_price`: {id, name, final_sale_price,
-    margin_percent}."""
 
     id: str
     name: str
@@ -45,8 +30,6 @@ class TopByPriceItem:
 
 @dataclass(frozen=True)
 class BottomByMarginItem:
-    """Item de `bottom_by_margin`: {id, name, product_total_cost,
-    margin_percent}."""
 
     id: str
     name: str
@@ -56,11 +39,6 @@ class BottomByMarginItem:
 
 @dataclass(frozen=True)
 class DashboardStats:
-    """Los 8 campos exactos de `GET /calc/dashboard` (RF-P3CC-05).
-
-    `archived` NO va en la respuesta. Los montos de promedio viajan
-    como Decimal (los schemas los serializan a str).
-    """
 
     active_materials: int
     active_products: int
@@ -77,14 +55,6 @@ def build_dashboard_stats(
     product_status_counts: dict[str, int],
     active_products: list[tuple[CalcProduct, CalcProductCosts]],
 ) -> DashboardStats:
-    """Métricas del dashboard (RF-P3CC-05), función pura.
-
-    - counts: tomados del status derivado persistido (B8/B9); claves
-      ausentes -> 0.
-    - promedios: Decimal sobre los activos, cuantizados a centavos.
-    - top_by_price / bottom_by_margin: hasta 5; ties rotos por
-      `name` asc (determinista).
-    """
     active_finals = [costs.final_sale_price for _, costs in active_products]
     active_totals = [costs.product_total_cost for _, costs in active_products]
 

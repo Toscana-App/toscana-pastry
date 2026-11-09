@@ -6,7 +6,6 @@ export const metadata: Metadata = {
   title: "Editar pedido",
 };
 
-/** Las mutaciones de pedidos son de administración (RBAC). */
 export default async function EditOrderRoute({
   params,
 }: {

@@ -1,10 +1,3 @@
-"""Pedidos y clientes (Fase 6, P6): API end-to-end.
-
-Fixture por test: settings (150/h, margen 100%, paso 5, mano de obra
-encendida), harina 2.800/kg y torta de limón (250g de harina, 30 min,
-6 porciones). Precio base de una torta: 700 (harina) + 75 (mano) = 775;
-con margen 100% -> 1.550.
-"""
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -227,9 +220,6 @@ async def _create_order(
     return response.json()
 
 
-# ---------------------------------------------------------------------------
-# Clientes (RF-P6-08)
-# ---------------------------------------------------------------------------
 
 
 class TestCustomers:
@@ -253,7 +243,6 @@ class TestCustomers:
         first = await _make_customer(client, token, "María", "+357 555-1234")
         response = await client.post(
             "/api/v1/customers",
-            # mismo cliente: acentos/case/formato de telefono distintos
             json={"name": "  maria ", "phone": "3575551234"},
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -284,15 +273,14 @@ class TestCustomers:
         )
         assert response.status_code == 403
 
-    async def test_leer_lista_permitido_para_cliente(self, client: AsyncClient):
+    async def test_list_forbidden_for_customer(self, client: AsyncClient):
         token = await _customer_token(client)
         response = await client.get(
             "/api/v1/customers",
             headers={"Authorization": f"Bearer {token}"},
         )
-        assert response.status_code == 200
+        assert response.status_code == 403
 
-    # -- delivery_address (RF-P7-06/07) --------------------------------
 
     async def test_alta_con_direccion_de_entrega(self, client: AsyncClient):
         token = await _admin_token(client)
@@ -308,7 +296,6 @@ class TestCustomers:
         assert response.status_code == 201, response.text
         assert response.json()["delivery_address"] == "Av. Rivadavia 1234, CABA"
 
-        # La direccion viaja en el listado (RF-P7-06).
         listing = await client.get(
             "/api/v1/customers",
             headers={"Authorization": f"Bearer {token}"},
@@ -340,11 +327,9 @@ class TestCustomers:
         assert response.status_code == 200, response.text
         body = response.json()
         assert body["delivery_address"] == "Calle 10 100, San Francisco"
-        # Parcial: name/phone intactos.
         assert body["name"] == "María"
         assert body["phone"] == "3575551234"
 
-        # Cadena vacia limpia la direccion.
         cleared = await client.patch(
             f"/api/v1/customers/{customer_id}",
             json={"delivery_address": ""},
@@ -384,8 +369,6 @@ class TestCustomers:
         assert response.status_code == 403
 
     async def test_duplicado_incluye_cliente_existente(self, client: AsyncClient):
-        """El 409 de dedup devuelve el cliente completo en el body
-        (`existing`), no solo el header X-Customer-Id (RF-P7-03)."""
         token = await _admin_token(client)
         first = await _make_customer(client, token, "María", "+357 555-1234")
         patched = await client.patch(
@@ -408,9 +391,6 @@ class TestCustomers:
         assert existing["delivery_address"] == "Calle 10 100, San Francisco"
 
 
-# ---------------------------------------------------------------------------
-# Crear pedido (RNF-P6-03)
-# ---------------------------------------------------------------------------
 
 
 class TestOrderCreate:
@@ -442,7 +422,7 @@ class TestOrderCreate:
 
         line = item["lines"][0]
         assert line["ingredient_name"] == "Harina"
-        assert line["qty"] == "500"  # 250g * 2 unidades
+        assert line["qty"] == "500"
         assert line["unit"] == "g"
         assert line["cost"] == 140000
         assert line["is_missing"] is False
@@ -476,7 +456,6 @@ class TestOrderCreate:
         self, client: AsyncClient
     ):
         token, flour_id, torta_id, customer_id = await _setup(client)
-        # harina sin precio (0 = sin precio): la torta queda incompleta
         response = await client.patch(
             f"/api/v1/ingredients/{flour_id}",
             json={"price_per_unit": 0},
@@ -491,7 +470,6 @@ class TestOrderCreate:
         assert item["lines"][0]["is_missing"] is True
         assert item["lines"][0]["cost"] == 0
         assert item["price"]["materials"] == 0
-        # solo mano de obra: 75 base, margen 100% -> 150
         assert item["rounded"] == 15000
         assert order["total"] == 15000
 
@@ -574,12 +552,10 @@ class TestOrderCreate:
     async def test_snapshot_sobrevive_a_cambios_de_catalogo(
         self, client: AsyncClient
     ):
-        """RNF-P6-03: el desglose congelado no se recalcula."""
         token, flour_id, torta_id, customer_id = await _setup(client)
         order = await _create_order(client, token, customer_id, torta_id, qty=1)
         order_id = order["id"]
 
-        # el catalogo cambia: sube el precio de la harina y la receta
         await client.patch(
             f"/api/v1/ingredients/{flour_id}",
             json={"price_per_unit": 999900},
@@ -602,9 +578,6 @@ class TestOrderCreate:
         assert body["items"][0]["lines"][0]["cost"] == 70000
 
 
-# ---------------------------------------------------------------------------
-# Maquina de estados + stock (RNF-P6-01/02/04)
-# ---------------------------------------------------------------------------
 
 
 class TestOrderStatus:
@@ -620,7 +593,6 @@ class TestOrderStatus:
         )
         assert response.status_code == 200
         assert response.json()["status"] == "confirmado"
-        # 10000g - 500g (2 tortas x 250g)
         assert await _stock_qty(client, token, flour_id) == "9500"
         reasons = [m["reason"] for m in await _movements(client, token, flour_id)]
         assert "pedido" in reasons
@@ -637,11 +609,10 @@ class TestOrderStatus:
         self, client: AsyncClient
     ):
         token, flour_id, torta_id, customer_id = await _setup(client)
-        # deja solo 400g en stock
         await _set_stock(client, token, flour_id, "-9600")
         order = await _create_order(
             client, token, customer_id, torta_id, qty=1, portions=12
-        )  # pide 500g
+        )
         order_id = order["id"]
 
         response = await client.patch(
@@ -657,7 +628,6 @@ class TestOrderStatus:
         assert body["insufficient_stock"][0]["available"] == "400"
         assert body["insufficient_stock"][0]["required"] == "500"
 
-        # nada cambio: el pedido sigue nuevo y el stock intacto
         detail = await client.get(
             f"/api/v1/orders/{order_id}",
             headers={"Authorization": f"Bearer {token}"},
@@ -690,9 +660,6 @@ class TestOrderStatus:
     async def test_segundo_confirm_con_orden_vieja_es_rechazado(
         self, client: AsyncClient, db_session
     ):
-        """Repo-level: dos confirm sobre el mismo Order leido antes (lo que
-        pasa con dos PATCH concurrentes). SQLite no soporta FOR UPDATE, asi
-        que se prueba la revalidacion de estado secuencialmente."""
         token, flour_id, torta_id, customer_id = await _setup(client)
         order = await _create_order(client, token, customer_id, torta_id, qty=2)
         repo = SQLOrderRepository(db_session)
@@ -752,7 +719,6 @@ class TestOrderStatus:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 200
-        # sin lineas con precio: nada que descontar
         assert await _stock_qty(client, token, flour_id) == "10000"
 
     async def test_transiciones_invalidas_da_400(self, client: AsyncClient):
@@ -760,7 +726,6 @@ class TestOrderStatus:
         order = await _create_order(client, token, customer_id, torta_id)
         order_id = order["id"]
 
-        # nuevo no puede ir directo a entregado
         response = await client.patch(
             f"/api/v1/orders/{order_id}/status",
             json={"status": "entregado"},
@@ -768,7 +733,6 @@ class TestOrderStatus:
         )
         assert response.status_code == 400
 
-        # nuevo tampoco se cancela (no hay stock descuenta que reponer)
         response = await client.patch(
             f"/api/v1/orders/{order_id}/status",
             json={"status": "cancelado"},
@@ -776,7 +740,6 @@ class TestOrderStatus:
         )
         assert response.status_code == 400
 
-        # estados finales no avanzan
         await client.patch(
             f"/api/v1/orders/{order_id}/status",
             json={"status": "confirmado"},
@@ -861,9 +824,6 @@ class TestOrderStatus:
         assert response.json()["customer"]["name"] == "José"
 
 
-# ---------------------------------------------------------------------------
-# Filtros (RF-P6-05)
-# ---------------------------------------------------------------------------
 
 
 class TestOrderFilters:
@@ -897,14 +857,13 @@ class TestOrderFilters:
         assert (await _list(status="nuevo"))["total"] == 1
         assert (await _list(customer_id=jorge))["total"] == 1
         assert (await _list(q="jorge"))["total"] == 1
-        assert (await _list(q="JORG"))["total"] == 1  # case-insensitive
+        assert (await _list(q="JORG"))["total"] == 1
         assert (await _list(q="zorg"))["total"] == 0
         assert (
             await _list(date_from="2026-10-10", date_to="2026-10-31")
         )["total"] == 1
         assert (await _list(date_from="2026-10-01", date_to="2026-10-31"))["total"] == 2
         assert (await _list(date_from="2026-11-01"))["total"] == 0
-        # estado invalido -> 422 (pattern del query)
         response = await client.get(
             "/api/v1/orders",
             params={"status": "vuelto"},
@@ -913,9 +872,6 @@ class TestOrderFilters:
         assert response.status_code == 422
 
 
-# ---------------------------------------------------------------------------
-# WhatsApp (RF-P6-06)
-# ---------------------------------------------------------------------------
 
 
 class TestWhatsApp:

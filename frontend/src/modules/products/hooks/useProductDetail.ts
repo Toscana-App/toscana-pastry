@@ -11,14 +11,6 @@ export interface UseProductDetailResult {
   reload: () => void;
 }
 
-/**
- * Detalle de producto (Fase 5, P4): carga la vista completa (receta con
- * costo por línea + desglose del motor o missing_ingredients).
- *
- * El precio no se cachea ni se recalcula en el cliente: el backend lo deriva
- * con los insumos y settings actuales en cada lectura (RF-P3-04). `reload` se
- * usa después de borrar o de volver de la edición.
- */
 export function useProductDetail(productId: string): UseProductDetailResult {
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(true);

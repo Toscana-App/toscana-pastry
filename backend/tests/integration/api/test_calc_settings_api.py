@@ -1,8 +1,3 @@
-"""Integration tests for the Calc Settings API (GET/PUT /api/v1/calc/settings).
-
-Cubre auth (401/403), defaults, persistencia, validacion de rangos y
-extra="forbid" (S1, S3).
-"""
 import pytest
 import pytest_asyncio
 from decimal import Decimal
@@ -24,7 +19,6 @@ from domain.models import User, UserRole
 SETTINGS_PATH = "/api/v1/calc/settings"
 
 
-# ─── Fixtures ───────────────────────────────────────────────────────────
 
 @pytest_asyncio.fixture
 async def client(db_session):
@@ -41,7 +35,6 @@ async def client(db_session):
     app.dependency_overrides[get_user_repository] = override_get_user_repository
     app.dependency_overrides[get_calc_settings_repository] = override_get_calc_settings_repository
 
-    # El login crea usuarios con rol CUSTOMER: se siembra ADMIN antes de las requests.
     await SQLUserRepository(db_session).save(
         User(email="admin@example.com", role=UserRole.ADMIN)
     )
@@ -58,7 +51,6 @@ async def client(db_session):
         app.dependency_overrides = {}
 
 
-# ─── Helpers ────────────────────────────────────────────────────────────
 
 async def _token_for(client: AsyncClient, email: str) -> str:
     response = await client.post("/api/v1/auth/login", json={"email": email})
@@ -88,25 +80,21 @@ def _valid_payload(**overrides) -> dict:
     return payload
 
 
-# ─── Auth tests ─────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_get_settings_requires_authentication(client):
-    """S3: sin sesion → 401."""
     response = await client.get(SETTINGS_PATH)
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
 async def test_put_settings_requires_authentication(client):
-    """S3: sin sesion → 401."""
     response = await client.put(SETTINGS_PATH, json=_valid_payload())
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
 async def test_put_settings_forbidden_for_customer(client):
-    """S3: no-admin → 403 en PUT."""
     token = await _customer_token(client)
     response = await client.put(
         SETTINGS_PATH,
@@ -116,11 +104,9 @@ async def test_put_settings_forbidden_for_customer(client):
     assert response.status_code == 403
 
 
-# ─── GET tests ──────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_get_settings_returns_system_defaults_when_unset(client):
-    """S1: GET devuelve defaults del sistema cuando no hay fila."""
     token = await _admin_token(client)
     response = await client.get(
         SETTINGS_PATH, headers={"Authorization": f"Bearer {token}"}
@@ -137,20 +123,17 @@ async def test_get_settings_returns_system_defaults_when_unset(client):
 
 
 @pytest.mark.asyncio
-async def test_get_settings_allowed_for_any_authenticated_user(client):
-    """S3: lectura permitida para cualquier usuario autenticado."""
+async def test_get_settings_forbidden_for_customer(client):
     token = await _customer_token(client)
     response = await client.get(
         SETTINGS_PATH, headers={"Authorization": f"Bearer {token}"}
     )
-    assert response.status_code == 200
+    assert response.status_code == 403
 
 
-# ─── PUT tests ──────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_put_settings_updates_and_persists(client):
-    """S1: PUT actualiza y persiste."""
     token = await _admin_token(client)
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -162,14 +145,12 @@ async def test_put_settings_updates_and_persists(client):
     assert body["business_name"] == "Mi Panaderia"
     assert Decimal(body["default_margin_percent"]) == Decimal("30")
 
-    # Releer: persiste
     reread = await client.get(SETTINGS_PATH, headers=headers)
     assert reread.json() == body
 
 
 @pytest.mark.asyncio
 async def test_put_settings_accepts_decimal_numbers(client):
-    """PUT acepta numeros (no solo strings)."""
     token = await _admin_token(client)
     payload = _valid_payload()
     payload["default_margin_percent"] = str(Decimal("45.5"))
@@ -182,7 +163,6 @@ async def test_put_settings_accepts_decimal_numbers(client):
 
 @pytest.mark.asyncio
 async def test_put_settings_accepts_margin_edges(client):
-    """S1: margen 0 y 100 son validos."""
     token = await _admin_token(client)
     headers = {"Authorization": f"Bearer {token}"}
     for margin in ("0", "100"):
@@ -197,7 +177,6 @@ async def test_put_settings_accepts_margin_edges(client):
 
 @pytest.mark.asyncio
 async def test_put_settings_rejects_margin_below_range(client):
-    """S1: margen -1 → 422."""
     token = await _admin_token(client)
     response = await client.put(
         SETTINGS_PATH,
@@ -210,7 +189,6 @@ async def test_put_settings_rejects_margin_below_range(client):
 
 @pytest.mark.asyncio
 async def test_put_settings_rejects_margin_above_range(client):
-    """S1: margen 101 → 422."""
     token = await _admin_token(client)
     response = await client.put(
         SETTINGS_PATH,
@@ -222,7 +200,6 @@ async def test_put_settings_rejects_margin_above_range(client):
 
 @pytest.mark.asyncio
 async def test_put_settings_rejects_discount_below_range(client):
-    """S1: descuento -1 → 422."""
     token = await _admin_token(client)
     response = await client.put(
         SETTINGS_PATH,
@@ -235,7 +212,6 @@ async def test_put_settings_rejects_discount_below_range(client):
 
 @pytest.mark.asyncio
 async def test_put_settings_rejects_tax_above_range(client):
-    """S1: impuesto 101 → 422."""
     token = await _admin_token(client)
     response = await client.put(
         SETTINGS_PATH,
@@ -248,7 +224,6 @@ async def test_put_settings_rejects_tax_above_range(client):
 
 @pytest.mark.asyncio
 async def test_put_settings_rejects_invalid_rounding_mode(client):
-    """S1: rounding_mode invalido → 422."""
     token = await _admin_token(client)
     response = await client.put(
         SETTINGS_PATH,
@@ -261,7 +236,6 @@ async def test_put_settings_rejects_invalid_rounding_mode(client):
 
 @pytest.mark.asyncio
 async def test_put_settings_accepts_all_rounding_modes(client):
-    """S1: todos los modos de redondeo son validos."""
     token = await _admin_token(client)
     headers = {"Authorization": f"Bearer {token}"}
     for mode in ("none", "integer", "multiple_10", "commercial_99"):
@@ -276,7 +250,6 @@ async def test_put_settings_accepts_all_rounding_modes(client):
 
 @pytest.mark.asyncio
 async def test_put_settings_rejects_unknown_field(client):
-    """S1: extra="forbid" rechaza campos desconocidos → 422."""
     token = await _admin_token(client)
     payload = _valid_payload()
     payload["unknown_field"] = "test"
@@ -288,7 +261,6 @@ async def test_put_settings_rejects_unknown_field(client):
 
 @pytest.mark.asyncio
 async def test_put_settings_business_name_min_length(client):
-    """S1: business_name vacio → 422."""
     token = await _admin_token(client)
     response = await client.put(
         SETTINGS_PATH,
@@ -301,7 +273,6 @@ async def test_put_settings_business_name_min_length(client):
 
 @pytest.mark.asyncio
 async def test_put_settings_currency_symbol_min_length(client):
-    """S1: main_currency_symbol vacio → 422."""
     token = await _admin_token(client)
     response = await client.put(
         SETTINGS_PATH,

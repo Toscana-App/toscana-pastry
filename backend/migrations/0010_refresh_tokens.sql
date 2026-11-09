@@ -1,4 +1,4 @@
--- 0009_refresh_tokens
+-- 0010_refresh_tokens
 -- Refresh token rotation + revocation (docs/specs/security.md item 9).
 -- One row per issued refresh token, keyed by jti (the token is never stored).
 -- revoked_at set = consumed by a rotation, or revoked by logout / replay.

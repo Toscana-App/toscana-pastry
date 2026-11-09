@@ -1,7 +1,3 @@
-/**
- * Tests del service de configuración: ventana de pedidos (corte de
- * pedidos, RF-P5-07 / RF-P6-09).
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { orderWindowService } from "./service";
 

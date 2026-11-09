@@ -10,13 +10,6 @@ interface DeleteProductDialogProps {
   onConfirm: () => void;
 }
 
-/**
- * Confirmación de borrado de producto (Fase 5, RF-P4-08).
- *
- * El borrado NO se bloquea aunque haya pedidos históricos: es un soft delete
- * (el producto sale del catálogo, los pedidos quedan intactos). El diálogo
- * advierte justamente eso antes de confirmar.
- */
 export function DeleteProductDialog({
   open,
   onOpenChange,

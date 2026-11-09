@@ -1,12 +1,3 @@
-"""Router de WhatsApp Business (RF-P10-07/08, C7).
-
-Owner-only:
-- GET /whatsapp/sends — listado con estados (?status, ?from, ?to, paginado)
-- GET /whatsapp/sends/stats — métricas 30 dias (read_rate)
-- POST /whatsapp/sends/{id}/resend — reintenta un fallido de business_api
-  (409 si no es reintenable; 429 si supera el budget RNF-P10-06)
-Namespace: /api/v1/whatsapp.
-"""
 
 import datetime
 
@@ -70,7 +61,6 @@ async def list_sends(
     repo: SQLWhatsAppSendRepository = Depends(get_whatsapp_send_repository),
     _admin: User = Depends(require_admin),
 ) -> SendListResponse:
-    """GET /whatsapp/sends: envios con estados (solo el owner)."""
     items, total = await repo.list(
         status=status_filter,
         from_=from_,
@@ -91,7 +81,6 @@ async def sends_stats(
     repo: SQLWhatsAppSendRepository = Depends(get_whatsapp_send_repository),
     _admin: User = Depends(require_admin),
 ) -> SendStatsResponse:
-    """GET /whatsapp/sends/stats: métricas de la ultima ventana (30 dias)."""
     counts = await repo.stats(window_days=STATS_WINDOW_DAYS)
     return SendStatsResponse(
         total=counts["total"],
@@ -110,11 +99,6 @@ async def resend_send(
     provider: WhatsAppProvider = Depends(get_whatsapp_provider),
     _admin: User = Depends(require_admin),
 ) -> ResendResponse:
-    """POST /whatsapp/sends/{id}/resend: reintenta un envio fallido.
-
-    Solo `status=failed` + `provider=business_api` (409 en caso contrario).
-    Cuenta contra el budget diario RNF-P10-06 (429 con dia sugerido).
-    """
     send = await repo.get(send_id)
     if send is None:
         raise HTTPException(

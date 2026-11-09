@@ -1,14 +1,3 @@
-"""Cliente HTTP del servicio de PDF (pdfgenerator, ADR-0001).
-
-El render pesado (ReportLab/PyMuPDF/WeasyPrint) vive en el binario
-independiente ``pdfgenerator``; core-api mapea los datos y pide los bytes por
-HTTP. Este módulo es el único punto de contacto entre los dos servicios: un
-transporte delgado, sin lógica de render ni de negocio.
-
-Es SÍNCRONO (httpx.Client); los routers lo aíslan del event loop con
-``asyncio.to_thread``. Si pdfgenerator no responde o devuelve un error, se
-lanza ``PdfServiceError`` → el app la mapea a 503 (falla controlada).
-"""
 from __future__ import annotations
 
 import httpx
@@ -19,13 +8,10 @@ from domain.pdf import PdfRenderer
 
 
 class PdfServiceError(RuntimeError):
-    """pdfgenerator no respondió o devolvió un error (→ 503 al cliente)."""
+    pass
 
 
 def budget_pdf_payload(budget: Budget, business_name: str, footer_text: str) -> dict:
-    """Snapshot del presupuesto (dominio) → DTO plano que pdfgenerator
-    renderiza. Solo datos del cliente: productos, cantidades, precios de
-    venta, subtotal, IVA y total — NUNCA costo, ganancia ni margen (P9)."""
     totals = budget.totals
     return {
         "seq": str(budget.seq),
@@ -53,10 +39,6 @@ def budget_pdf_payload(budget: Budget, business_name: str, footer_text: str) -> 
 
 
 class PdfClient(PdfRenderer):
-    """Implementa el puerto ``PdfRenderer`` (presupuesto individual) y expone
-    el resto de los endpoints de render. Delgado: mapea datos → POST → bytes.
-    Los payloads de reportes los arma el router (que es dueño de los datos);
-    el de presupuesto lo arma aquí porque parte de un objeto del dominio."""
 
     def __init__(self, base_url: str, timeout: float = 30.0) -> None:
         self._base_url = base_url.rstrip("/")
@@ -73,13 +55,11 @@ class PdfClient(PdfRenderer):
             raise PdfServiceError(f"pdfgenerator devolvió HTTP {resp.status_code}")
         return resp.content
 
-    # Puerto PdfRenderer (presupuesto individual, ReportLab)
     def render(self, budget: Budget, business_name: str, footer_text: str) -> bytes:
         return self._post(
             "/render/budget", budget_pdf_payload(budget, business_name, footer_text)
         )
 
-    # Reportes (PyMuPDF)
     def render_weekly(self, payload: dict) -> bytes:
         return self._post("/render/weekly", payload)
 
@@ -89,7 +69,6 @@ class PdfClient(PdfRenderer):
     def render_budgets_export(self, payload: dict) -> bytes:
         return self._post("/render/budgets-export", payload)
 
-    # Pricelist (WeasyPrint)
     def render_pricelist(self, rows: list[dict], audience_label: str) -> bytes:
         return self._post(
             "/render/pricelist", {"audience_label": audience_label, "rows": rows}

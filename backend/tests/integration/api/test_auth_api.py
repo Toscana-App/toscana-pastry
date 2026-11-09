@@ -62,7 +62,6 @@ def auth_app(db_session):
 
 
 def _client():
-    # https: the session cookies are Secure, the jar only sends them over TLS.
     return AsyncClient(transport=ASGITransport(app=app), base_url="https://test")
 
 

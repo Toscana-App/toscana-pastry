@@ -24,18 +24,6 @@ import type {
 const BASE = "/orders";
 const CUSTOMERS = "/customers";
 
-/**
- * Servicio tipado de pedidos (Fase 6, P6): espejo 1:1 del contrato
- * `backend/src/api/v1/orders/schemas.py` (docs/specs/p06_orders.md).
- *
- * Regla de montos: la API emite Money como string (RNF-P4-02); el service lo
- * convierte a `long` de centavos (últimos 2 dígitos = centavos) al recibir.
- * Los componentes solo ven centavos. En las requests el margen viaja como
- * string numérico (el backend lo parsea a Decimal).
- *
- * RBAC (backend): listado/lectura para todo usuario autenticado; create,
- * preview, update, status y whatsapp solo admin.
- */
 
 function breakdownOf(raw: Record<string, unknown>): OrderItemBreakdown {
   return {
@@ -123,10 +111,6 @@ function detailOf(raw: Record<string, unknown>): OrderDetail {
 }
 
 export const ordersService = {
-  /**
-   * GET /orders — listado con filtros combinables (RF-P6-05): estado,
-   * cliente, nombre (q) y rango de fechas. Paginado (20 por página).
-   */
   list(params: OrderListParams = {}): Promise<OrderListResponse> {
     const query = new URLSearchParams();
     if (params.status) query.set("status", params.status);
@@ -141,16 +125,10 @@ export const ordersService = {
     return apiFetch<OrderListResponse>(`${BASE}${qs ? `?${qs}` : ""}`);
   },
 
-  /** GET /orders/{id} — detalle con snapshot congelado (RNF-P6-03). */
   getDetail(id: string): Promise<OrderDetail> {
     return apiFetch<Record<string, unknown>>(`${BASE}/${id}`).then(detailOf);
   },
 
-  /**
-   * POST /orders — crea el pedido (UC-02). 201 → detalle.
-   * 409 → stock insuficiente al confirmar (nada se descuenta, RNF-P6-04):
-   * llega como ApiError con payload `{insufficient_stock}`.
-   */
   create(payload: OrderCreatePayload): Promise<OrderDetail> {
     return apiFetch<Record<string, unknown>>(BASE, {
       method: "POST",
@@ -168,7 +146,6 @@ export const ordersService = {
     }).then(detailOf);
   },
 
-  /** PATCH /orders/{id} — edición parcial, solo estado nuevo. 409 si no. */
   update(id: string, payload: OrderUpdatePayload): Promise<OrderDetail> {
     const body: Record<string, unknown> = {};
     if (payload.customer_id != null) body.customer_id = payload.customer_id;
@@ -188,10 +165,6 @@ export const ordersService = {
     }).then(detailOf);
   },
 
-  /**
-   * PATCH /orders/{id}/status — transición (RNF-P6-01). Confirmar descuenta
-   * stock atómicamente: 409 con `{insufficient_stock}` y cero cambios.
-   */
   changeStatus(id: string, status: OrderStatus): Promise<OrderDetail> {
     return apiFetch<Record<string, unknown>>(`${BASE}/${id}/status`, {
       method: "PATCH",
@@ -199,10 +172,6 @@ export const ordersService = {
     }).then(detailOf);
   },
 
-  /**
-   * PATCH /orders/{id}/paid — registra el pago en efectivo (RF-P6-10).
-   * Monotónico: si ya está pagado el backend responde 409.
-   */
   markPaid(id: string): Promise<{ id: string; paid: boolean }> {
     return apiFetch<{ id: string; paid: boolean }>(`${BASE}/${id}/paid`, {
       method: "PATCH",
@@ -210,10 +179,6 @@ export const ordersService = {
     });
   },
 
-  /**
-   * POST /orders/preview — cotización en vivo del wizard (admin, sin
-   * persistir). Mismo cálculo que el create.
-   */
   preview(items: OrderCreatePayload["items"], marginPct: string | null): Promise<OrderPreviewResponse> {
     return apiFetch<Record<string, unknown>>(`${BASE}/preview`, {
       method: "POST",
@@ -234,19 +199,12 @@ export const ordersService = {
     }));
   },
 
-  /** POST /orders/{id}/whatsapp-link — enlace wa.me con el mensaje del pedido. */
   whatsapp(id: string): Promise<WhatsAppLink> {
     return apiFetch<WhatsAppLink>(`${BASE}/${id}/whatsapp-link`, {
       method: "POST",
     });
   },
 
-  /**
-   * GET /orders/export — descarga binaria del reporte (UC-08 / RF-P6-11).
-   * `format` = "csv" por defecto (backward-compatible) o "pdf".
-   * Mismo fetch→blob→download que los otros exports: el filename sale del
-   * Content-Disposition del backend.
-   */
   exportReport(params: OrderExportParams = {}, format: ExportFormat = "csv"): Promise<void> {
     const query = new URLSearchParams();
     if (params.status) query.set("status", params.status);
@@ -258,13 +216,7 @@ export const ordersService = {
   },
 };
 
-/**
- * Servicio de clientes (Fase 6, X-05): alta con dedupe por nombre+teléfono.
- * 409 → el cliente ya existe; el backend lo devuelve en `existing` (y en la
- * header X-Customer-Id): la UI lo usa en vez de mostrar un error.
- */
 export const customersService = {
-  /** GET /customers?q= — búsqueda sin acentos (RF-P2-02), paginada. */
   list(q?: string, page = 1, page_size = 20): Promise<CustomerListResponse> {
     const query = new URLSearchParams();
     if (q) query.set("q", q);
@@ -273,12 +225,6 @@ export const customersService = {
     return apiFetch<CustomerListResponse>(`${CUSTOMERS}?${query.toString()}`);
   },
 
-  /**
-   * POST /customers — 201 → { customer, adopted: false }. 409 → el cliente
-   * existente (dedupe) en { customer, adopted: true } (RF-P6-08): la UI puede
-   * ofrecer "usar datos existentes" con los datos del cliente, incluida su
-   * dirección de entrega (Fase 7, RF-P7-03).
-   */
   async createWithAdoption(
     input: CustomerCreateInput,
   ): Promise<{ customer: Customer; adopted: boolean }> {
@@ -297,19 +243,11 @@ export const customersService = {
     }
   },
 
-  /**
-   * POST /customers — 201 → el cliente creado. 409 → devuelve el existente
-   * (dedupe) en vez de lanzar: el wizard lo adopta.
-   */
   async create(input: CustomerCreateInput): Promise<Customer> {
     const { customer } = await this.createWithAdoption(input);
     return customer;
   },
 
-  /**
-   * PATCH /customers/{id} — parcial: persiste la dirección de entrega usada
-   * en el presupuesto (Fase 7, RF-P7-06).
-   */
   updateAddress(id: string, delivery_address: string): Promise<Customer> {
     return apiFetch<Customer>(`${CUSTOMERS}/${id}`, {
       method: "PATCH",
@@ -318,7 +256,6 @@ export const customersService = {
   },
 };
 
-/** Extrae el detalle de stock insuficiente de un ApiError 409. */
 export function insufficientStockOf(error: unknown): InsufficientStockResponse | null {
   if (error instanceof ApiError && error.status === 409) {
     const payload = error.payload as InsufficientStockResponse | null;

@@ -1,4 +1,3 @@
-/** Tipos de leads (RF-P11-13, C5) y coupons (admin ABM, F4). */
 
 export type CustomerType = "consumer" | "business";
 
@@ -39,7 +38,7 @@ export type CouponStatus = "active" | "paused";
 export interface CouponCreatePayload {
   code: string;
   type: CouponType;
-  value: string; // Money como string (RNF-P4-02)
+  value: string;
   valid_from?: string | null;
   valid_until?: string | null;
   max_uses?: number | null;

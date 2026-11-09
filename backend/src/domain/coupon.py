@@ -1,14 +1,3 @@
-"""Dominio de cupones (RF-P11-14, C3).
-
-Entidad frozen con __post_init__ para validacion de invariantes:
-- code no-blank y <= MAX_COUPON_CODE (unicidad case-insensitive la
-  garantiza el repositorio, estilo accent_fold de calc).
-- type=percent → value 0–100; type=fixed → value Money ≥ 0.
-- Si valid_from y valid_until estan presentes, valid_until > valid_from.
-- max_uses positiva si presente; uses inicia 0 (se incrementa en C4
-  al confirmar el pedido, nunca en C3).
-- status ∈ {active, paused}, default active.
-"""
 import datetime
 import uuid
 from dataclasses import dataclass, field
@@ -18,11 +7,10 @@ from typing import Literal
 ALLOWED_COUPON_TYPES = ("percent", "fixed")
 ALLOWED_COUPON_STATUSES = ("active", "paused")
 
-# Longitud maxima del code (cortos y legibles: "VERANO10", "CAFÉ10").
 MAX_COUPON_CODE = 32
 
 class DuplicateCouponCodeError(Exception):
-    """El code (case/accent-insensitive) ya existe: viola code_key UNIQUE."""
+    pass
 
 
 PERCENT_MAX = Decimal("100")
@@ -32,8 +20,6 @@ MONEY_MIN = Decimal("0")
 def _aware_utc(
     dt: datetime.datetime | None,
 ) -> datetime.datetime | None:
-    """Normaliza a aware UTC: naive se asume UTC (SQLite devuelve naive
-    en el round-trip), aware se convierte a UTC."""
     if dt is None:
         return None
     if dt.tzinfo is None:
@@ -43,7 +29,6 @@ def _aware_utc(
 
 @dataclass(frozen=True)
 class Coupon:
-    """Cupon de descuento (RF-P11-14)."""
 
     code: str
     type: Literal["percent", "fixed"]
@@ -83,7 +68,7 @@ class Coupon:
                 raise ValueError(
                     f"type=percent exige value 0-100: {self.value}"
                 )
-        else:  # fixed
+        else:
             if self.value < MONEY_MIN:
                 raise ValueError(
                     f"type=fixed exige value >= 0: {self.value}"

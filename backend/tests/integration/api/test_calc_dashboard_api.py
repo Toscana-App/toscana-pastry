@@ -1,11 +1,3 @@
-"""Integration tests for GET /calc/dashboard (RF-P3CC-05).
-
-Covers: exact counts (materials by persisted derived status, products
-by status excluding deleted; archived not in the response), averages
-over the 3 active products quantized to cents, `top_by_price` /
-`bottom_by_margin` (<=5, ordering, item shape), truncation past 5
-actives, the empty state, and auth (401, D2).
-"""
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -42,7 +34,6 @@ from data.repositories.sql_user_repository import SQLUserRepository
 from domain.models import User, UserRole
 from main import app
 
-# ─── Fixtures ───────────────────────────────────────────────────────────
 
 
 @pytest_asyncio.fixture
@@ -99,7 +90,6 @@ async def client(db_session):
         app.dependency_overrides = {}
 
 
-# ─── Helpers ────────────────────────────────────────────────────────────
 
 
 async def _admin(client: AsyncClient) -> str:
@@ -135,16 +125,6 @@ async def _create_product(client: AsyncClient, token: str, **overrides) -> dict:
 
 
 async def _seed_dashboard(client: AsyncClient, token: str) -> None:
-    """2 materiales activos + 2 incomplete; 3 activos (qty 1/2/3 x
-    100.00, margen 50/30/10) + 1 draft + 1 archived + 1 eliminado.
-
-    Valores esperados (motor: discount 0, tax 19, rounding none),
-    calculados a mano:
-      Alpha: cost 100.00, final 238.00 (m50)
-      Beta:  cost 200.00, final 339.99 (m30)
-      Gamma: cost 300.00, final 396.66 (m10)
-    Promedios: cost 200.00, final (238.00+339.99+396.66)/3 = 324.88.
-    """
     await _create_material(
         client, token, name="Mantequilla",
         purchase_total_price=10000, package_quantity="1",
@@ -153,8 +133,8 @@ async def _seed_dashboard(client: AsyncClient, token: str) -> None:
         client, token, name="Harina",
         purchase_total_price=5000, package_quantity="1",
     )
-    await _create_material(client, token, name="Azucar")  # incomplete
-    await _create_material(client, token, name="Huevo")  # incomplete
+    await _create_material(client, token, name="Azucar")
+    await _create_material(client, token, name="Huevo")
     material = (
         await client.get(
             "/api/v1/calc/materials",
@@ -219,7 +199,6 @@ async def _dashboard(client: AsyncClient, token: str) -> dict:
     return response.json()
 
 
-# ─── Dashboard (RF-P3CC-05) ────────────────────────────────────────────
 
 
 class TestDashboard:
@@ -243,9 +222,8 @@ class TestDashboard:
         }
         assert body["active_materials"] == 2
         assert body["incomplete_materials"] == 2
-        assert body["active_products"] == 3  # el eliminado no cuenta
+        assert body["active_products"] == 3
         assert body["draft_products"] == 1
-        # archived NO va en la respuesta (no hay ese campo).
         assert body["avg_product_cost"] == 20000
         assert body["avg_final_price"] == 32488
 
@@ -301,7 +279,6 @@ class TestDashboard:
         body = await _dashboard(client, token)
         assert len(body["top_by_price"]) == 5
         assert len(body["bottom_by_margin"]) == 5
-        # bottom por margen asc: P0..P4.
         assert [item["name"] for item in body["bottom_by_margin"]] == [
             "P0",
             "P1",

@@ -1,4 +1,3 @@
-"""Parsing tolerante de la importación por lista (RF-P2-07)."""
 from decimal import Decimal
 
 import pytest
@@ -22,7 +21,6 @@ def test_qty_with_attached_unit():
 
 
 def test_comma_decimal_with_unit():
-    # Convención argentina: coma como separador decimal.
     parsed = parse_import_line("azúcar, 1,5 kg, 1200")
     assert parsed.qty == Decimal("1.5")
     assert parsed.unit == "kg"
@@ -36,8 +34,6 @@ def test_thousands_dot_with_decimal_comma():
 
 
 def test_thousands_dot_without_comma():
-    # Convención es-AR: "2.800" son dos mil ochocientos. Antes se leía como
-    # 2,8 (error x1000 silencioso en el precio).
     parsed = parse_import_line("harina 0000, 5, 2.800")
     assert parsed.price_per_unit == Decimal("2800")
 
@@ -53,7 +49,6 @@ def test_thousands_dot_multiple_groups():
 
 
 def test_leading_zero_dot_stays_decimal():
-    # "0.500" no puede ser 500: el punto es decimal.
     parsed = parse_import_line("esencia, 1, 0.500")
     assert parsed.price_per_unit == Decimal("0.500")
 

@@ -1,17 +1,3 @@
-"""Integration tests for the WhatsApp sends API (RF-P10-07/08, C7).
-
-Covers:
-    GET /api/v1/whatsapp/sends:
-        - 401 sin token, 403 para no-admin
-        - 200 listado con filtros ?status, ?from, ?to y paginacion
-    GET /api/v1/whatsapp/sends/stats:
-        - 200 {total, sent, delivered, read, failed, read_rate}
-    POST /api/v1/whatsapp/sends/{id}/resend:
-        - 200 reintento exitoso (failed + business_api) → reset a sent
-        - 409 si no es failed o el provider es wa_me
-        - 404 si no existe
-        - 429 si supera el budget diario (RNF-P10-06)
-"""
 
 import datetime
 import uuid
@@ -44,7 +30,6 @@ from main import app
 NOW = datetime.datetime(2026, 10, 26, 12, 0, 0, tzinfo=datetime.UTC)
 
 
-# ─── Fixtures ─────────────────────────────────────────────────────────
 
 
 async def _admin_user():
@@ -86,7 +71,6 @@ async def client(db_session):
 
 @pytest_asyncio.fixture
 async def no_admin_client(db_session):
-    """Client donde require_admin NO esta sobrepuesto (rol cliente)."""
 
     async def override_get_db():
         yield db_session
@@ -100,7 +84,6 @@ async def no_admin_client(db_session):
     app.dependency_overrides[get_db_orig] = override_get_db
     app.dependency_overrides[get_user_repository] = override_get_user_repository
     app.dependency_overrides[get_whatsapp_send_repository] = override_get_send_repo
-    # NO sobrepone require_admin -> usa get_current_user real
     app.dependency_overrides[get_whatsapp_provider] = lambda: MockBusinessApiProvider()
 
     for user in (
@@ -129,7 +112,7 @@ def _make_send(**kw) -> WhatsAppSend:
         "status": "sent",
     }
     base.update(kw)
-    return WhatsAppSend(**base)  # type: ignore[arg-type]
+    return WhatsAppSend(**base)
 
 
 async def _seed(db_session, send: WhatsAppSend) -> str:
@@ -138,7 +121,6 @@ async def _seed(db_session, send: WhatsAppSend) -> str:
     return send.id
 
 
-# ─── GET /sends: auth ─────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -160,7 +142,6 @@ async def test_list_sends_forbidden_for_customer(no_admin_client):
     assert response.status_code == 403
 
 
-# ─── GET /sends: list + filters ───────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -243,7 +224,6 @@ async def test_list_sends_pagination(client, db_session):
     assert len(body["items"]) == 2
 
 
-# ─── GET /sends/stats ─────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -263,7 +243,7 @@ async def test_stats_empty(client):
 
 @pytest.mark.asyncio
 async def test_stats_counts_and_read_rate(client, db_session):
-    await _seed(db_session, _make_send(reference_id="o1"))  # sent
+    await _seed(db_session, _make_send(reference_id="o1"))
     await _seed(
         db_session,
         _make_send(status="delivered", reference_id="o2"),
@@ -284,7 +264,6 @@ async def test_stats_counts_and_read_rate(client, db_session):
     assert body["read_rate"] == pytest.approx(0.25)
 
 
-# ─── POST /sends/{id}/resend ──────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -310,7 +289,7 @@ async def test_resend_failed_business_api(client, db_session):
 
 @pytest.mark.asyncio
 async def test_resend_not_failed_is_409(client, db_session):
-    send = _make_send(reference_id="o1")  # status=sent
+    send = _make_send(reference_id="o1")
     send_id = await _seed(db_session, send)
 
     response = await client.post(f"/api/v1/whatsapp/sends/{send_id}/resend")
@@ -339,11 +318,9 @@ async def test_resend_unknown_is_404(client):
 
 @pytest.mark.asyncio
 async def test_resend_budget_exceeded_is_429(client, db_session):
-    # Satura el budget diario (500) con envios business_api de hoy.
     from domain.whatsapp_send import BUSINESS_API_DAILY_LIMIT
 
     repo = SQLWhatsAppSendRepository(db_session)
-    # The router budgets against the real clock, so seed relative to today.
     today_start = datetime.datetime.now(datetime.UTC).replace(
         hour=0, minute=0, second=0, microsecond=0
     )
@@ -355,7 +332,6 @@ async def test_resend_budget_exceeded_is_429(client, db_session):
             )
         )
 
-    # Un fallo mas para reintentar.
     failed = _make_send(status="failed", reference_id="retry", failed_reason="x")
     failed_id = await _seed(db_session, failed)
 

@@ -1,13 +1,6 @@
 import { z } from "zod";
 import { DIFFICULTIES } from "./types";
 
-/**
- * Esquema zod de la configuración del negocio (Fase 4, WU7).
- *
- * Rangos y dependencias espejo de `SettingsUpdate` (RF-P5-01, RF-P5-06): el
- * usuario ve el error antes de mandar el PUT, y el backend sigue siendo la
- * última línea (422 / 400).
- */
 export const settingsSchema = z
   .object({
     hourly_rate: z
@@ -55,8 +48,6 @@ export const settingsSchema = z
   })
   .strict()
   .superRefine((value, ctx) => {
-    // RF-P5-06: cada porcentaje exige su toggle encendido. El backend rechaza
-    // el PUT si no se cumple; acá se explica antes de enviarlo.
     if (!value.include_gas && value.gas_pct !== 0) {
       ctx.addIssue({
         code: "custom",

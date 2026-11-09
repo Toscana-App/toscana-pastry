@@ -4,8 +4,6 @@ import { renderWithProviders as render } from "../../test-utils";
 import MaterialForm from "./MaterialForm";
 import type { Category, Material, Supplier } from "@/types/calc";
 
-// Seams: el form emite payloads vía onSubmit (publico); no hay service ni
-// toaster acá — la validación y la construcción del payload son su contrato.
 const categories: Category[] = [
   {
     id: "cat1",
@@ -62,15 +60,11 @@ describe("MaterialForm", () => {
     });
     fireEvent.click(screen.getByRole("combobox", { name: "Categoría" }));
     fireEvent.click(await screen.findByRole("option", { name: "Masa" }));
-    // Un tick para que el dropdown de categoría cierre antes de abrir el
-    // de proveedor (dos listboxes simultáneos confunden el click en jsdom).
     await new Promise((resolve) => setTimeout(resolve, 50));
     fireEvent.click(screen.getByRole("combobox", { name: "Proveedor" }));
     fireEvent.click(
       await screen.findByRole("option", { name: "Distribuidora X" })
     );
-    // La selección del listbox aterriza asincrónicamente (Ark UI): se
-    // espera un tick antes de los cambios siguientes.
     await new Promise((resolve) => setTimeout(resolve, 50));
     fireEvent.change(screen.getByLabelText("Unidad de medida"), {
       target: { value: "kg" },
@@ -98,7 +92,6 @@ describe("MaterialForm", () => {
       notes: "Sin levadura",
     });
     const payload = onSubmit.mock.calls[0][0] as Record<string, unknown>;
-    // RF-P2CC-02/03 + extra="forbid": unit_cost/status nunca en el payload.
     expect("unit_cost" in payload).toBe(false);
     expect("status" in payload).toBe(false);
   });
@@ -134,7 +127,6 @@ describe("MaterialForm", () => {
     expect(screen.getByLabelText("Nombre")).toHaveValue("Manteca");
     expect(screen.getByLabelText("Código interno")).toHaveValue("MAN-001");
     expect(screen.getByLabelText("Unidad de medida")).toHaveValue("kg");
-    // Inputs number: jsdom expone el value ya convertido a number.
     expect(screen.getByLabelText("Precio del paquete")).toHaveValue(1000);
     expect(screen.getByLabelText("Cantidad por paquete")).toHaveValue(10);
     expect(screen.getByLabelText("Notas")).toHaveValue(

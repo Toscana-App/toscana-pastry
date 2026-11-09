@@ -18,7 +18,6 @@ const MAX_LINES = 500;
 interface ImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Se llama cuando la importación creó registros (para re-fetchar la lista). */
   onImported: () => void;
 }
 
@@ -27,14 +26,6 @@ interface ImportResult {
   errors: ImportErrorItem[];
 }
 
-/**
- * Importación de ingredientes (Fase 4, WU4, RF-P2-06).
- *
- * Formato por línea: `name;unit;price` (p. ej. `Harina;kg;1200`). El parsing
- * de formato es responsabilidad del backend (422 con el detalle por línea);
- * acá solo se filtran líneas vacías y se valida el límite de 500.
- * El resultado muestra los creados y los errores línea por línea.
- */
 export function ImportDialog({ open, onOpenChange, onImported }: ImportDialogProps) {
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);

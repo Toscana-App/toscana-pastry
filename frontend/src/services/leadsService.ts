@@ -1,7 +1,3 @@
-/** Leads services (C5, RF-P11-13) and coupons (admin CRUD, F4).
-
-Coupons: `value` travels as a string (Money, RNF-P4-02).
-*/
 
 import { apiFetch } from "@/lib/api";
 import {
@@ -14,9 +10,7 @@ import {
   LeadOut,
 } from "@/types/leads";
 
-// ─── Leads ─────────────────────────────────────────────────────────
 
-/** POST /leads — public contact capture (202, no auth). */
 export async function createLead(
   payload: LeadCreatePayload
 ): Promise<{ id: string }> {
@@ -26,7 +20,6 @@ export async function createLead(
   });
 }
 
-/** GET /leads — admin list (query: q, read, customer_type, page). */
 export async function fetchLeads(params: {
   q?: string;
   read?: boolean;
@@ -48,7 +41,6 @@ export async function fetchLeads(params: {
   return apiFetch(`/leads${qs ? `?${qs}` : ""}`);
 }
 
-/** PATCH /leads/{id}/read — marks the lead read/unread. */
 export async function setLeadRead(
   leadId: string,
   read: boolean
@@ -59,14 +51,11 @@ export async function setLeadRead(
   });
 }
 
-/** POST /leads/read-all — marks every lead as read. */
 export async function markAllLeadsRead(): Promise<{ updated: number }> {
   return apiFetch("/leads/read-all", { method: "POST" });
 }
 
-// ─── Coupons ───────────────────────────────────────────────────────
 
-/** GET /coupons — admin list. */
 export async function fetchCoupons(
   page = 1,
   pageSize = 50
@@ -74,7 +63,6 @@ export async function fetchCoupons(
   return apiFetch(`/coupons?page=${page}&page_size=${pageSize}`);
 }
 
-/** POST /coupons — creates one (409 if the code already exists). */
 export async function createCoupon(
   payload: CouponCreatePayload
 ): Promise<CouponOut> {
@@ -85,7 +73,6 @@ export async function createCoupon(
   return res.coupon;
 }
 
-/** PATCH /coupons/{id} — edits one (includes the active/paused toggle). */
 export async function updateCoupon(
   couponId: string,
   data: Partial<CouponCreatePayload>
@@ -100,7 +87,6 @@ export async function updateCoupon(
   return res.coupon;
 }
 
-/** PATCH /coupons/{id} — changes only the status (active/paused). */
 export async function setCouponStatus(
   couponId: string,
   status: CouponStatus
@@ -108,7 +94,6 @@ export async function setCouponStatus(
   return updateCoupon(couponId, { status });
 }
 
-/** DELETE /coupons/{id} — deletes it (204). */
 export async function deleteCoupon(couponId: string): Promise<void> {
   await apiFetch(`/coupons/${couponId}`, { method: "DELETE" });
 }

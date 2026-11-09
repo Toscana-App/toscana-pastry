@@ -1,12 +1,3 @@
-"""Presupuestos (Fase 7, P7/P8): API end-to-end.
-
-Fixture por test: settings (150/h, margen 100%, mano de obra encendida),
-harina 2.800/kg, torta de limón (250g, 30 min, 6 porciones).
-Costo de una torta: 700 (harina) + 75 (mano) = 775; margen 100% -> 1.550.
-
-Flujo: wizard -> borrador #000NN -> editar/recalcular -> enviar (version)
--> convertir a pedido -> borrar. Money en centavos (RF-P8-03).
-"""
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
@@ -248,9 +239,6 @@ async def _list(client: AsyncClient, token: str, **params) -> dict:
     return response.json()
 
 
-# ---------------------------------------------------------------------------
-# Creacion (P7)
-# ---------------------------------------------------------------------------
 
 
 class TestBudgetCreate:
@@ -270,8 +258,8 @@ class TestBudgetCreate:
         item = body["items"][0]
         assert item["product_name"] == "Torta de Limón"
         assert item["qty"] == 2
-        assert item["unit_cost"] == 77500  # 700 + 75
-        assert item["unit_selling"] == 155000  # margen 100%
+        assert item["unit_cost"] == 77500
+        assert item["unit_selling"] == 155000
         assert item["line_cost"] == 155000
         assert item["line_selling"] == 310000
         assert item["price_overridden"] is False
@@ -280,8 +268,8 @@ class TestBudgetCreate:
         assert summary["subtotal"] == 310000
         assert summary["total_costos"] == 155000
         assert summary["ganancia"] == 155000
-        assert summary["total_venta"] == 310000  # sin IVA
-        assert summary["iva"] == 65100  # 21% del subtotal, aparte
+        assert summary["total_venta"] == 310000
+        assert summary["iva"] == 65100
 
     async def test_segunda_secuencia_no_reutiliza(self, client: AsyncClient):
         token, _, torta_id, customer_id = await _setup(client)
@@ -296,7 +284,7 @@ class TestBudgetCreate:
             client, token, customer_id, torta_id, qty=1, margin_pct="200"
         )
         assert body["margin_pct"] == "200"
-        assert body["items"][0]["unit_selling"] == 232500  # 775 * 3
+        assert body["items"][0]["unit_selling"] == 232500
         assert body["summary"]["subtotal"] == 232500
 
     async def test_modos_manual_con_override(self, client: AsyncClient):
@@ -326,7 +314,7 @@ class TestBudgetCreate:
             qty=1, mode="manual", price_override=50000,
         )
         assert body["summary"]["ganancia"] == -27500
-        assert body["summary"]["total_venta"] == 50000  # sin IVA
+        assert body["summary"]["total_venta"] == 50000
         assert body["summary"]["iva"] == 10500
 
     async def test_cliente_desconocido_da_404(self, client: AsyncClient):
@@ -375,7 +363,7 @@ class TestBudgetCreate:
         )
         assert response.status_code == 403
 
-    async def test_leer_permitido_para_cliente(self, client: AsyncClient):
+    async def test_get_forbidden_for_customer(self, client: AsyncClient):
         token, _, torta_id, customer_id = await _setup(client)
         body = await _create_budget(client, token, customer_id, torta_id)
         customer_token = await _customer_token(client)
@@ -383,9 +371,8 @@ class TestBudgetCreate:
             f"/api/v1/budgets/{body['id']}",
             headers={"Authorization": f"Bearer {customer_token}"},
         )
-        assert response.status_code == 200
+        assert response.status_code == 403
 
-    # -- delivery_address (RF-P7-06/07) --------------------------------
 
     async def test_crear_con_direccion_de_entrega(self, client: AsyncClient):
         token, _, torta_id, customer_id = await _setup(client)
@@ -404,8 +391,6 @@ class TestBudgetCreate:
         )
 
     async def test_crear_hereda_direccion_del_cliente(self, client: AsyncClient):
-        """Sin direccion en el payload, el snapshot del presupuesto
-        hereda la del cliente (RNF-P7-04)."""
         token, _, torta_id, _ = await _setup(client)
         customer_id = await _make_customer(
             client,
@@ -455,9 +440,6 @@ class TestBudgetCreate:
         assert response.json()["delivery_address"] == "Calle Nueva 2"
 
 
-# ---------------------------------------------------------------------------
-# Lectura pura (no vuelve al catalogo)
-# ---------------------------------------------------------------------------
 
 
 class TestBudgetRead:
@@ -467,7 +449,6 @@ class TestBudgetRead:
         budget_id = body["id"]
         assert body["summary"]["subtotal"] == 155000
 
-        # el catalogo cambia: sube el precio de la harina
         await client.patch(
             f"/api/v1/ingredients/{flour_id}",
             json={"price_per_unit": 999900},
@@ -478,7 +459,6 @@ class TestBudgetRead:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 200
-        # la lectura es pura: sigue mostrando lo guardado
         detail = response.json()
         assert detail["items"][0]["unit_cost"] == 77500
         assert detail["summary"]["subtotal"] == 155000
@@ -492,9 +472,6 @@ class TestBudgetRead:
         assert response.status_code == 404
 
 
-# ---------------------------------------------------------------------------
-# Edicion (borrador y enviado)
-# ---------------------------------------------------------------------------
 
 
 class TestBudgetUpdate:
@@ -545,8 +522,8 @@ class TestBudgetUpdate:
         assert response.status_code == 200
         detail = response.json()
         assert detail["status"] == "enviado"
-        assert detail["version"] == 1  # la version la cambia el reenviar
-        assert detail["items"][0]["unit_selling"] == 193750  # 775 * 2.5
+        assert detail["version"] == 1
+        assert detail["items"][0]["unit_selling"] == 193750
 
     async def test_editar_requiere_admin(self, client: AsyncClient):
         token, _, torta_id, customer_id = await _setup(client)
@@ -569,8 +546,6 @@ class TestBudgetUpdate:
         assert response.status_code == 404
 
     async def test_editar_conserva_y_actualiza_direccion(self, client: AsyncClient):
-        """PUT sin direccion conserva el snapshot; PUT con direccion
-        explicito lo actualiza (RNF-P7-04)."""
         token, _, torta_id, customer_id = await _setup(client)
         created = await client.post(
             "/api/v1/budgets",
@@ -601,9 +576,6 @@ class TestBudgetUpdate:
         assert changed.json()["delivery_address"] == "Pasaje 12, San Francisco"
 
 
-# ---------------------------------------------------------------------------
-# Recalcular
-# ---------------------------------------------------------------------------
 
 
 class TestBudgetRecalculate:
@@ -624,7 +596,6 @@ class TestBudgetRecalculate:
         )
         assert response.status_code == 200
         result = response.json()
-        # 9999 * 0.25 = 2499.75 + 75 = 2574.75; margen 100% -> 5149.50
         assert result["summary"]["total_costos"] == 257475
         assert result["summary"]["subtotal"] == 514950
         assert result["margin_applied"] == "100"
@@ -654,7 +625,6 @@ class TestBudgetRecalculate:
         )
         result = response.json()
         assert result["margin_applied"] == "50"
-        # 1400 + 75 = 1475; margen 50% -> 2212.50
         assert result["summary"]["subtotal"] == 221250
 
     async def test_requiere_admin(self, client: AsyncClient):
@@ -668,9 +638,6 @@ class TestBudgetRecalculate:
         assert response.status_code == 403
 
 
-# ---------------------------------------------------------------------------
-# Enviar (RF-P8-05)
-# ---------------------------------------------------------------------------
 
 
 class TestBudgetSend:
@@ -736,9 +703,6 @@ class TestBudgetSend:
         assert response.status_code == 403
 
 
-# ---------------------------------------------------------------------------
-# Convertir a pedido (RF-P8-02)
-# ---------------------------------------------------------------------------
 
 
 class TestConvertToOrder:
@@ -757,7 +721,6 @@ class TestConvertToOrder:
         assert result["seq"] == "#00001"
         order_id = result["order_id"]
 
-        # el pedido existe con el desglose congelado propio
         detail = await client.get(
             f"/api/v1/orders/{order_id}",
             headers={"Authorization": f"Bearer {token}"},
@@ -766,11 +729,10 @@ class TestConvertToOrder:
         order = detail.json()
         assert order["status"] == "nuevo"
         assert order["customer"]["name"] == "María"
-        assert order["total"] == 310000  # 2 * 1550
+        assert order["total"] == 310000
         assert order["items"][0]["qty"] == 2
         assert order["items"][0]["complete"] is True
 
-        # el catalogo cambia despues: el pedido (y el presupuesto) no se mueven
         await client.patch(
             f"/api/v1/ingredients/{flour_id}",
             json={"price_per_unit": 1},
@@ -803,7 +765,6 @@ class TestConvertToOrder:
 
     async def test_no_descuenta_stock(self, client: AsyncClient):
         token, flour_id, torta_id, customer_id = await _setup(client)
-        # 10000g en stock
         await client.post(
             f"/api/v1/ingredients/{flour_id}/stock",
             json={"delta": "10000", "reason": "compra"},
@@ -816,7 +777,6 @@ class TestConvertToOrder:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 201
-        # el pedido sigue nuevo: sin confirmar, sin descuento
         detail = await client.get(
             f"/api/v1/ingredients/{flour_id}",
             headers={"Authorization": f"Bearer {token}"},
@@ -869,7 +829,7 @@ class TestConvertRules:
             f"/api/v1/orders/{response.json()['order_id']}",
             headers={"Authorization": f"Bearer {token}"},
         )
-        assert detail.json()["total"] == 4000  # 2 * 2000, no 2 * 1550
+        assert detail.json()["total"] == 4000
 
     async def test_solo_enviado_es_convertible(self, client: AsyncClient):
         token, _, torta_id, customer_id = await _setup(client)
@@ -912,9 +872,6 @@ class TestConvertRules:
         assert stored.order_id == response.json()["order_id"]
 
 
-# ---------------------------------------------------------------------------
-# Borrado
-# ---------------------------------------------------------------------------
 
 
 class TestBudgetDelete:
@@ -935,7 +892,6 @@ class TestBudgetDelete:
         )
         assert response.status_code == 404
 
-        # la secuencia no retrocede
         again = await _create_budget(client, token, customer_id, torta_id)
         assert again["seq"] == "#00002"
 
@@ -958,9 +914,6 @@ class TestBudgetDelete:
         assert response.status_code == 403
 
 
-# ---------------------------------------------------------------------------
-# Listado (RF-P8-06)
-# ---------------------------------------------------------------------------
 
 
 class TestBudgetList:

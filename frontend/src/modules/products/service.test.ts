@@ -1,11 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { productsService } from "./service";
 
-/**
- * Tests del service de productos: verifican el contrato HTTP (path, método,
- * body) y las respuestas especiales del DELETE (204 sin pedidos · 200 con
- * `impacted_orders`). Se mockea fetch — nada de red.
- */
 const API_BASE = "http://localhost:8000/api/v1";
 
 function mockFetch(status: number, body: unknown) {
@@ -111,6 +106,43 @@ describe("productsService — DELETE (RF-P4-08)", () => {
 
     const result = await productsService.remove("abc");
     expect(result).toEqual({ impacted_orders: 4 });
+  });
+});
+
+describe("productsService — imagen (P12)", () => {
+  it("uploadImage manda multipart FormData sin Content-Type JSON", async () => {
+    const fetchMock = mockFetch(201, { image_url: "/media/products/abc.jpg" });
+    const file = new File([new Uint8Array([1, 2, 3])], "foto.jpg", {
+      type: "image/jpeg",
+    });
+
+    const result = await productsService.uploadImage("abc", file);
+    const { url, init } = lastCall(fetchMock);
+    expect(url).toBe(`${API_BASE}/products/abc/image`);
+    expect(init.method).toBe("POST");
+    expect(init.body).toBeInstanceOf(FormData);
+    expect((init.body as FormData).get("file")).toBe(file);
+    expect(
+      (init.headers as Record<string, string> | undefined)?.["Content-Type"],
+    ).toBeUndefined();
+    expect(result).toEqual({ image_url: "/media/products/abc.jpg" });
+  });
+
+  it("removeImage hace DELETE y acepta el 204", async () => {
+    const fetchMock = mockFetch(204, undefined);
+
+    await productsService.removeImage("abc");
+    const { url, init } = lastCall(fetchMock);
+    expect(url).toBe(`${API_BASE}/products/abc/image`);
+    expect(init.method).toBe("DELETE");
+  });
+
+  it("update envía el switch available", async () => {
+    const fetchMock = mockFetch(200, { id: "abc" });
+
+    await productsService.update("abc", { available: true });
+    const { init } = lastCall(fetchMock);
+    expect(JSON.parse(String(init.body))).toEqual({ available: true });
   });
 });
 

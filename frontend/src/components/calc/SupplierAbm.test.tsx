@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders as render } from "../../test-utils";
 import SupplierAbm from "./SupplierAbm";
 
-// Seams: el service y el toaster. Sin backend real (PREGUNTAS.md → F1).
 vi.mock("@/services/calcSettingsService", () => ({
   calcSettingsService: {
     listSuppliers: vi.fn(),
@@ -85,7 +84,6 @@ describe("SupplierAbm", () => {
     fireEvent.change(screen.getByLabelText("Notas"), {
       target: { value: "Envíos los martes" },
     });
-    // La lista se refetchea tras crear: el server ya devuelve el nuevo item.
     setupList([molino, nuevo]);
     fireEvent.click(screen.getByRole("button", { name: "Crear" }));
 

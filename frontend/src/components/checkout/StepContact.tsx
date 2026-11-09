@@ -1,6 +1,5 @@
 "use client";
 
-/** Step 1 — Contact (RF-P11-04): pre-filled from the user, E.164 phone. */
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Flex, Field, Input, Stack, Text } from "@chakra-ui/react";

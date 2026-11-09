@@ -1,4 +1,3 @@
-"""Upgrade test for migrations/0003: runs the portable section on a prior schema."""
 import re
 import sqlite3
 from pathlib import Path

@@ -35,9 +35,6 @@ import type {
   CategoryListResponse,
 } from "@/types/calc";
 
-// Hidratación (F2): el GET de detalle devuelve las líneas a nivel
-// superior (sin envoltorio product_lines) y los montos en int de
-// centavos; los inputs del editor trabajan en pesos (string).
 function mapDetailLines(detail: ProductDetail) {
   return {
     materialLines: detail.materials.map((line) => ({
@@ -86,8 +83,6 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
   const [extraCostLines, setExtraCostLines] = useState<ProductLineExtraCostIn[]>([]);
 
   const [showPreview, setShowPreview] = useState(false);
-  // F3: tras crear, el editor queda en modo edición con el id recién
-  // creado (no volver al listado). `costs` alimenta el panel de costos.
   const [savedId, setSavedId] = useState<string | null>(initial?.id || null);
   const [costs, setCosts] = useState<ProductCostsResponse | null>(null);
 
@@ -104,22 +99,18 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
   });
 
   useEffect(() => {
-    // Fetch categories
     calcSettingsService.listCategories("product-categories")
       .then((response: CategoryListResponse) => setCategories(response.items))
       .catch(() => {
         toaster.create({ title: "Error cargando categorías", type: "error" });
       });
 
-    // Fetch materials for the lines
     calcMaterialsService.listMaterials({ status: "active" })
       .then(response => setMaterials(response.items))
       .catch(() => {
         toaster.create({ title: "Error cargando materiales", type: "error" });
       });
 
-    // If editing, fetch product data (GET detail: lineas a nivel
-    // superior, montos en int de centavos).
     if (initial?.id) {
       calcProductsService.getProduct(initial.id)
         .then((productData: ProductDetail) => {
@@ -172,8 +163,6 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
       };
 
       if (savedId) {
-        // F3: update — quedarse en el editor, refrescar costos y ofrecer
-        // "Ver" en el toast.
         const result = await calcProductsService.updateProduct(savedId, payload as ProductUpdatePayload);
         setCosts(result.costs);
         onSave?.(result.product);
@@ -186,8 +175,6 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
           },
         });
       } else {
-        // F3: create — no volver al listado; el editor pasa a modo
-        // edición con el id recién creado.
         const result = await calcProductsService.createProduct(payload as ProductCreatePayload);
         setSavedId(result.product.id);
         setCosts(result.costs);

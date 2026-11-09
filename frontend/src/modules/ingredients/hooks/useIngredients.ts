@@ -19,17 +19,6 @@ export interface UseIngredientsResult {
   reload: () => void;
 }
 
-/**
- * Estado del listado de ingredientes (Fase 4, WU4).
- *
- * - Búsqueda con debounce de 250 ms (RF-P2-01): cada cambio de query vuelve a
- *   la página 1.
- * - Paginación server-side (page, page_size = 50).
- * - `reload` vuelve a pedir la página actual (lo usa el importador).
- *
- * `loading` se enciende en los handlers —cuando el usuario pide otros datos— y
- * se apaga cuando responde el fetch; el efecto no dispara renders en cascada.
- */
 export function useIngredients(): UseIngredientsResult {
   const [query, setQueryState] = useState("");
   const [page, setPage] = useState(1);

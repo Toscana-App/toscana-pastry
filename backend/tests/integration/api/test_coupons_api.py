@@ -1,14 +1,3 @@
-"""Integration tests for the Coupons admin API (RF-P11-14, C3).
-
-Covers: auth (401/403 admin-only), create (201 + 409 duplicate code
-case-insensitive + 422 rules: percent 0-100, fixed >= 0, validity window,
-max_uses), list (?q case/accent-insensitive via accent_fold, ?status,
-pagination), patch (edit, pause/reactivate, 409 duplicate code, 422
-invalid merged state, 404), delete (204 unused, 409 + auto-pause when
-used in orders, 404).
-
-Style reference: test_customer_addresses_api.py (C2).
-"""
 
 import pytest
 import pytest_asyncio
@@ -28,7 +17,6 @@ from data.repositories.sql_user_repository import SQLUserRepository
 from domain.models import User, UserRole
 from main import app
 
-# ─── Fixtures ───────────────────────────────────────────────────────────
 
 @pytest_asyncio.fixture
 async def client(db_session):
@@ -64,7 +52,6 @@ async def client(db_session):
         app.dependency_overrides = {}
 
 
-# ─── Helpers ────────────────────────────────────────────────────────────
 
 PATH = "/api/v1/coupons"
 
@@ -92,18 +79,15 @@ async def _create(client: AsyncClient, token: str, **fields) -> dict:
     return response.json()["coupon"]
 
 
-# ─── Auth tests (admin-only) ────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_list_requires_auth(client):
-    """Sin token → 401."""
     response = await client.get(PATH)
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
 async def test_create_requires_auth(client):
-    """Sin token → 401."""
     response = await client.post(
         PATH, json={"code": "X1", "type": "percent", "value": "10"}
     )
@@ -112,7 +96,6 @@ async def test_create_requires_auth(client):
 
 @pytest.mark.asyncio
 async def test_customer_forbidden(client):
-    """CUSTOMER no tiene acceso al ABM → 403 en los cuatro verbos."""
     token = await _token_for(client, "customer@example.com")
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -132,21 +115,17 @@ async def test_customer_forbidden(client):
 
 @pytest.mark.asyncio
 async def test_negocio_forbidden(client):
-    """NEGOCIO tampoco (admin-only)."""
     token = await _token_for(client, "business@example.com")
     headers = {"Authorization": f"Bearer {token}"}
     assert (await client.get(PATH, headers=headers)).status_code == 403
 
 
-# ─── Create ─────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_create_percent_defaults(client):
-    """POST percent → 201, uses=0, status=active por defecto, value Money (str)."""
     headers = await _admin_headers(client)
     coupon = await _create(client, await _admin_token(client), code="VERANO10", type="percent", value="20")
 
-    # _create usa token; reconstruimos con headers admin reales.
     response = await client.post(
         PATH,
         json={"code": "INVIERNO5", "type": "percent", "value": "5"},
@@ -168,7 +147,6 @@ async def test_create_percent_defaults(client):
 
 @pytest.mark.asyncio
 async def test_create_fixed(client):
-    """POST fixed con value Money (Decimal, serializado como str)."""
     headers = await _admin_headers(client)
     response = await client.post(
         PATH,
@@ -183,7 +161,6 @@ async def test_create_fixed(client):
 
 @pytest.mark.asyncio
 async def test_create_decimal_value_roundtrip(client):
-    """value decimal (float en JSON) viaja exacto vía Money."""
     headers = await _admin_headers(client)
     response = await client.post(
         PATH,
@@ -196,7 +173,6 @@ async def test_create_decimal_value_roundtrip(client):
 
 @pytest.mark.asyncio
 async def test_create_full_payload_roundtrip(client):
-    """Todos los campos opcionales se persisten."""
     headers = await _admin_headers(client)
     response = await client.post(
         PATH,
@@ -222,7 +198,6 @@ async def test_create_full_payload_roundtrip(client):
 
 @pytest.mark.asyncio
 async def test_create_duplicate_code_same_case(client):
-    """code duplicado mismo case → 409."""
     headers = await _admin_headers(client)
     await client.post(
         PATH, json={"code": "VERANO10", "type": "percent", "value": "10"}, headers=headers
@@ -235,7 +210,6 @@ async def test_create_duplicate_code_same_case(client):
 
 @pytest.mark.asyncio
 async def test_create_duplicate_code_other_case(client):
-    """Unicidad case-insensitive: 'verano10' vs 'VERANO10' → 409."""
     headers = await _admin_headers(client)
     await client.post(
         PATH, json={"code": "VERANO10", "type": "percent", "value": "10"}, headers=headers
@@ -248,7 +222,6 @@ async def test_create_duplicate_code_other_case(client):
 
 @pytest.mark.asyncio
 async def test_create_percent_over_100_rejected(client):
-    """percent con value > 100 → 422."""
     headers = await _admin_headers(client)
     response = await client.post(
         PATH,
@@ -260,7 +233,6 @@ async def test_create_percent_over_100_rejected(client):
 
 @pytest.mark.asyncio
 async def test_create_percent_negative_rejected(client):
-    """percent con value < 0 → 422."""
     headers = await _admin_headers(client)
     response = await client.post(
         PATH, json={"code": "MAL2", "type": "percent", "value": "-1"}, headers=headers
@@ -270,7 +242,6 @@ async def test_create_percent_negative_rejected(client):
 
 @pytest.mark.asyncio
 async def test_create_fixed_negative_rejected(client):
-    """fixed con value < 0 → 422."""
     headers = await _admin_headers(client)
     response = await client.post(
         PATH, json={"code": "MAL3", "type": "fixed", "value": "-0.01"}, headers=headers
@@ -280,7 +251,6 @@ async def test_create_fixed_negative_rejected(client):
 
 @pytest.mark.asyncio
 async def test_create_invalid_type_rejected(client):
-    """type fuera de {percent, fixed} → 422."""
     headers = await _admin_headers(client)
     response = await client.post(
         PATH,
@@ -292,7 +262,6 @@ async def test_create_invalid_type_rejected(client):
 
 @pytest.mark.asyncio
 async def test_create_invalid_status_rejected(client):
-    """status fuera de {active, paused} → 422."""
     headers = await _admin_headers(client)
     response = await client.post(
         PATH,
@@ -304,7 +273,6 @@ async def test_create_invalid_status_rejected(client):
 
 @pytest.mark.asyncio
 async def test_create_max_uses_zero_rejected(client):
-    """max_uses debe ser positiva → 0 es 422."""
     headers = await _admin_headers(client)
     response = await client.post(
         PATH,
@@ -316,7 +284,6 @@ async def test_create_max_uses_zero_rejected(client):
 
 @pytest.mark.asyncio
 async def test_create_valid_until_before_from_rejected(client):
-    """valid_until < valid_from → 422."""
     headers = await _admin_headers(client)
     response = await client.post(
         PATH,
@@ -334,7 +301,6 @@ async def test_create_valid_until_before_from_rejected(client):
 
 @pytest.mark.asyncio
 async def test_create_valid_until_equal_from_rejected(client):
-    """valid_until == valid_from → 422 (debe ser estrictamente mayor)."""
     headers = await _admin_headers(client)
     response = await client.post(
         PATH,
@@ -352,7 +318,6 @@ async def test_create_valid_until_equal_from_rejected(client):
 
 @pytest.mark.asyncio
 async def test_create_blank_code_rejected(client):
-    """code solo espacios → 422."""
     headers = await _admin_headers(client)
     response = await client.post(
         PATH,
@@ -362,11 +327,9 @@ async def test_create_blank_code_rejected(client):
     assert response.status_code == 422
 
 
-# ─── List ───────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_list_empty(client):
-    """GET sin cupones → items vacios, total 0."""
     headers = await _admin_headers(client)
     body = (await client.get(PATH, headers=headers)).json()
     assert body["items"] == []
@@ -375,7 +338,6 @@ async def test_list_empty(client):
 
 @pytest.mark.asyncio
 async def test_list_q_case_insensitive(client):
-    """?q busca en code sin distinguir mayusculas."""
     headers = await _admin_headers(client)
     await client.post(
         PATH,
@@ -397,7 +359,6 @@ async def test_list_q_case_insensitive(client):
 
 @pytest.mark.asyncio
 async def test_list_q_accent_insensitive(client):
-    """?q usa el mismo accent_fold que calc: 'cafe' encuentra 'CAFÉ10'."""
     headers = await _admin_headers(client)
     await client.post(
         PATH,
@@ -414,7 +375,6 @@ async def test_list_q_accent_insensitive(client):
 
 @pytest.mark.asyncio
 async def test_list_status_filter(client):
-    """?status filtra active/paused."""
     headers = await _admin_headers(client)
     await client.post(
         PATH,
@@ -442,7 +402,6 @@ async def test_list_status_filter(client):
 
 @pytest.mark.asyncio
 async def test_list_pagination(client):
-    """Paginacion: page_size 2 → 2 items (total 3), page 2 → 1 item."""
     headers = await _admin_headers(client)
     for code in ("AAA", "BBB", "CCC"):
         await client.post(
@@ -469,11 +428,9 @@ async def test_list_pagination(client):
     assert len(second["items"]) == 1
 
 
-# ─── Patch ──────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_patch_updates_value(client):
-    """PATCH value → 200 con el cupon actualizado."""
     headers = await _admin_headers(client)
     coupon = await _create(client, await _admin_token(client), code="EDITAR", type="percent", value="10")
 
@@ -488,7 +445,6 @@ async def test_patch_updates_value(client):
 
 @pytest.mark.asyncio
 async def test_patch_pause_and_reactivate(client):
-    """PATCH status pausa y reactiva el cupon."""
     headers = await _admin_headers(client)
     coupon = await _create(client, await _admin_token(client), code="PAUSA", type="percent", value="10")
 
@@ -507,7 +463,6 @@ async def test_patch_pause_and_reactivate(client):
 
 @pytest.mark.asyncio
 async def test_patch_code_change_ok(client):
-    """PATCH cambia el code a uno disponible → 200."""
     headers = await _admin_headers(client)
     coupon = await _create(client, await _admin_token(client), code="ANTIGUO", type="percent", value="10")
 
@@ -520,7 +475,6 @@ async def test_patch_code_change_ok(client):
 
 @pytest.mark.asyncio
 async def test_patch_code_duplicate_rejected(client):
-    """PATCH a un code ya existente (otro case) → 409."""
     headers = await _admin_headers(client)
     await _create(client, await _admin_token(client), code="OCUPADO", type="percent", value="10")
     other = await _create(
@@ -539,7 +493,6 @@ async def test_patch_code_duplicate_rejected(client):
 
 @pytest.mark.asyncio
 async def test_patch_invalid_percent_rejected(client):
-    """PATCH value inválido para percent (estado mergeado) → 422."""
     headers = await _admin_headers(client)
     coupon = await _create(client, await _admin_token(client), code="PCT", type="percent", value="10")
 
@@ -551,7 +504,6 @@ async def test_patch_invalid_percent_rejected(client):
 
 @pytest.mark.asyncio
 async def test_patch_invalid_validity_window_rejected(client):
-    """PATCH que deja valid_until < valid_from → 422."""
     headers = await _admin_headers(client)
     coupon = await _create(
         client,
@@ -573,7 +525,6 @@ async def test_patch_invalid_validity_window_rejected(client):
 
 @pytest.mark.asyncio
 async def test_patch_explicit_null_clears_optional_fields(client):
-    """PATCH con null explicito limpia valid_until y max_uses."""
     headers = await _admin_headers(client)
     coupon = await _create(
         client,
@@ -599,7 +550,6 @@ async def test_patch_explicit_null_clears_optional_fields(client):
 
 @pytest.mark.asyncio
 async def test_patch_empty_body_rejected(client):
-    """PATCH sin campos → 422."""
     headers = await _admin_headers(client)
     coupon = await _create(client, await _admin_token(client), code="VACIO", type="percent", value="10")
 
@@ -609,7 +559,6 @@ async def test_patch_empty_body_rejected(client):
 
 @pytest.mark.asyncio
 async def test_patch_not_found(client):
-    """id inexistente → 404."""
     headers = await _admin_headers(client)
     response = await client.patch(
         f"{PATH}/no-such-id", json={"status": "paused"}, headers=headers
@@ -617,11 +566,9 @@ async def test_patch_not_found(client):
     assert response.status_code == 404
 
 
-# ─── Delete ─────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_delete_unused_ok(client):
-    """DELETE sin usos → 204 y el cupon desaparece."""
     headers = await _admin_headers(client)
     coupon = await _create(client, await _admin_token(client), code="BORRAME", type="percent", value="10")
 
@@ -634,11 +581,6 @@ async def test_delete_unused_ok(client):
 
 @pytest.mark.asyncio
 async def test_delete_used_returns_409_and_pauses(client, db_session):
-    """DELETE usado en pedidos → 409; el cupon se pausa (no se borra).
-
-    En C3 no hay tabla de pedidos: se simula el uso con increment_uses
-    (el mismo metodo que consumira C4 al confirmar un pedido).
-    """
     headers = await _admin_headers(client)
     coupon = await _create(client, await _admin_token(client), code="USADO", type="percent", value="10")
 
@@ -657,18 +599,15 @@ async def test_delete_used_returns_409_and_pauses(client, db_session):
 
 @pytest.mark.asyncio
 async def test_delete_not_found(client):
-    """id inexistente → 404."""
     headers = await _admin_headers(client)
     response = await client.delete(f"{PATH}/no-such-id", headers=headers)
     assert response.status_code == 404
 
 
-# ─── code_key UNIQUE (race-safe duplicate detection) ────────────────────
 
 
 @pytest.mark.asyncio
 async def test_create_duplicate_code_accent_and_case(client):
-    """'CAFE10' vs 'café10' differ only by case/accent -> 409."""
     headers = await _admin_headers(client)
     await _create(client, await _admin_token(client), code="CAFE10")
     response = await client.post(
@@ -679,8 +618,6 @@ async def test_create_duplicate_code_accent_and_case(client):
 
 @pytest.mark.asyncio
 async def test_create_race_hits_db_constraint_returns_409(client, monkeypatch):
-    """Concurrent-style: the app pre-check misses (both requests read before
-    either commits), so the DB UNIQUE on code_key must produce the 409."""
     headers = await _admin_headers(client)
     await _create(client, await _admin_token(client), code="CAFE10")
 
@@ -714,7 +651,6 @@ async def test_patch_race_hits_db_constraint_returns_409(client, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_db_rejects_duplicate_code_key(db_session):
-    """DB level: two rows with the same code_key raise IntegrityError."""
     from sqlalchemy.exc import IntegrityError
 
     from data.models import CouponORM

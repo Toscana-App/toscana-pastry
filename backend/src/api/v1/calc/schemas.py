@@ -1,8 +1,3 @@
-"""Schemas para la API de la calculadora de costos (P5-CC).
-
-Pydantic v2 con extra="forbid" en todos los esquemas de escritura
-(RNF-P5CC-02). Money viaja como Decimal (api.v1.money.Money).
-"""
 from datetime import datetime
 from decimal import Decimal
 from typing import List, Literal, Optional
@@ -11,12 +6,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from api.v1.money import Money, Qty
 
-# Allow-lists
 ROUNDING_MODES = Literal["none", "integer", "multiple_10", "commercial_99"]
 DEFAULT_COST_TYPES = Literal["labor", "extra_cost"]
 DEFAULT_COST_STATUSES = Literal["active", "inactive"]
 
-# String length limits
 MAX_BUSINESS_NAME = 120
 MAX_CURRENCY_NAME = 40
 MAX_CURRENCY_SYMBOL = 8
@@ -30,10 +23,8 @@ MAX_SUPPLIER_NOTES = 500
 MAX_DEFAULT_COST_NAME = 120
 
 
-# ─── Settings ───────────────────────────────────────────────────────────
 
 class CalcSettingsRequest(BaseModel):
-    """PUT /calc/settings (RF-P5CC-02)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -47,7 +38,6 @@ class CalcSettingsRequest(BaseModel):
 
 
 class CalcSettingsResponse(BaseModel):
-    """GET /calc/settings response (RF-P5CC-01)."""
 
     business_name: str
     main_currency_name: str
@@ -58,10 +48,8 @@ class CalcSettingsResponse(BaseModel):
     rounding_mode: str
 
 
-# ─── Categories (material + product share same schema shape) ────────────
 
 class CategoryCreate(BaseModel):
-    """POST /calc/{material,product}-categories (RF-P5CC-03/04)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -77,7 +65,6 @@ class CategoryCreate(BaseModel):
 
 
 class CategoryUpdate(BaseModel):
-    """PATCH /calc/{material,product}-categories/{id} (RF-P5CC-03/04)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -92,7 +79,6 @@ class CategoryUpdate(BaseModel):
         return value.strip() if value is not None else None
 
     def _require_at_least_one(self):
-        """Validate at least one field is set (enforced in API layer)."""
         pass
 
 
@@ -111,10 +97,8 @@ class CategoryListResponse(BaseModel):
     page_size: int
 
 
-# ─── Suppliers ──────────────────────────────────────────────────────────
 
 class SupplierCreate(BaseModel):
-    """POST /calc/suppliers (RF-P5CC-05)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -142,7 +126,6 @@ class SupplierCreate(BaseModel):
 
 
 class SupplierUpdate(BaseModel):
-    """PATCH /calc/suppliers/{id} (RF-P5CC-05)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -187,10 +170,8 @@ class SupplierListResponse(BaseModel):
     page_size: int
 
 
-# ─── Default Costs ─────────────────────────────────────────────────────
 
 class DefaultCostCreate(BaseModel):
-    """POST /calc/default-costs (RF-P5CC-06)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -209,7 +190,6 @@ class DefaultCostCreate(BaseModel):
 
 
 class DefaultCostUpdate(BaseModel):
-    """PATCH /calc/default-costs/{id} (RF-P5CC-06)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -245,7 +225,6 @@ class DefaultCostListResponse(BaseModel):
     page_size: int
 
 
-# ─── Materials (RF-P2CC-01..05) ────────────────────────────────────────
 
 MAX_MATERIAL_NAME = 120
 MAX_MATERIAL_INTERNAL_CODE = 40
@@ -254,11 +233,6 @@ MAX_MATERIAL_NOTES = 500
 
 
 class MaterialCreate(BaseModel):
-    """POST /calc/materials (RF-P2CC-01).
-
-    extra="forbid": unit_cost y status NUNCA aceptan entrada del cliente
-    (RF-P2CC-02/03, security #8).
-    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -280,12 +254,6 @@ class MaterialCreate(BaseModel):
 
 
 class MaterialUpdate(BaseModel):
-    """PATCH /calc/materials/{id} (RF-P2CC-01).
-
-    Envio explicito de null en purchase_total_price/package_quantity
-    elimina el dato (unit_cost -> None, status -> incomplete, y se
-    registra en el historial si cambio, RF-P2CC-04).
-    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -337,7 +305,6 @@ class MaterialListResponse(BaseModel):
 
 
 class CostHistoryResponse(BaseModel):
-    """Fila del historial de costos unitarios (RF-P2CC-04). Montos como str."""
 
     previous_unit_cost: Money | None = None
     new_unit_cost: Money | None = None
@@ -351,7 +318,6 @@ class CostHistoryListResponse(BaseModel):
     page_size: int
 
 
-# ─── Products (RF-P4CC-01..08) ─────────────────────────────────────────
 
 MAX_PRODUCT_NAME = 120
 MAX_PRODUCT_SKU = 40
@@ -363,13 +329,6 @@ PRODUCT_STATUSES = Literal["draft", "active", "archived"]
 
 
 class ProductLineMaterialIn(BaseModel):
-    """Linea de material del payload (RF-P4CC-02).
-
-    extra="forbid": los snapshots (`material_name`,
-    `unit_of_measure_snapshot`, `unit_cost_snapshot`) y
-    `line_total_cost` NUNCA vienen del cliente (security #8): el
-    servidor los resuelve desde calc_materials al guardar.
-    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -378,11 +337,6 @@ class ProductLineMaterialIn(BaseModel):
 
 
 class ProductLineLaborIn(BaseModel):
-    """Linea de mano de obra del payload (RF-P4CC-02).
-
-    extra="forbid": `line_total_cost` nunca viene del cliente
-    (security #8): lo deriva el motor.
-    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -392,11 +346,6 @@ class ProductLineLaborIn(BaseModel):
 
 
 class ProductLineExtraCostIn(BaseModel):
-    """Linea de costo extra del payload (RF-P4CC-02).
-
-    extra="forbid": `line_total_cost` nunca viene del cliente
-    (security #8).
-    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -406,12 +355,6 @@ class ProductLineExtraCostIn(BaseModel):
 
 
 class ProductCreate(BaseModel):
-    """POST /calc/products (RF-P4CC-01..05).
-
-    Percents omitidos -> defaults del singleton CalcSettings
-    (RF-P5CC-01). `costs`, `line_total_cost` y campos `*_snapshot`
-    no existen en el payload (extra="forbid", security #8).
-    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -442,12 +385,6 @@ class ProductCreate(BaseModel):
 
 
 class ProductUpdate(BaseModel):
-    """PATCH /calc/products/{id} (RF-P4CC-01/02).
-
-    Semantica de lineas (regla 4): clave ausente -> no cambia;
-    clave [] -> vacia el set de ese tipo; lista -> reemplazo
-    completo. Sin campos -> 422 (idomatico a B4-B7).
-    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -478,8 +415,6 @@ class ProductUpdate(BaseModel):
 
 
 class ProductResponse(BaseModel):
-    """Producto sin lineas ni costs. Percents como numero (estilo
-    CalcSettingsResponse); montos de lineas/costs siempre str."""
 
     id: str
     name: str
@@ -497,9 +432,6 @@ class ProductResponse(BaseModel):
 
 
 class ProductListItem(BaseModel):
-    """Item del listado `GET /calc/products` enriquecido (RF-P3CC-01,
-    D5): `category_name` + montos SIEMPRE calculados por el motor
-    (cost nunca se redondea; final con el rounding_mode de settings)."""
 
     id: str
     name: str
@@ -520,8 +452,6 @@ class ProductListResponse(BaseModel):
 
 
 class ProductCostsResponse(BaseModel):
-    """Desglose de 6 montos (RF-P4CC-05), nombres exactos del motor
-    legacy. Montos siempre str (Money)."""
 
     product_total_cost: Money
     profit_amount: Money
@@ -564,7 +494,6 @@ class ProductLinesOut(BaseModel):
 
 
 class ProductWithLinesResponse(BaseModel):
-    """Respuesta de POST/PATCH/recalculate: producto + lineas + costs."""
 
     product: ProductResponse
     product_lines: ProductLinesOut
@@ -572,7 +501,6 @@ class ProductWithLinesResponse(BaseModel):
 
 
 class ProductVersionResponse(BaseModel):
-    """Version append-only del precio (RF-P4CC-07). Montos str."""
 
     version_number: int
     product_total_cost: Money
@@ -585,8 +513,6 @@ class ProductVersionResponse(BaseModel):
 
 
 class PriceListItem(BaseModel):
-    """Item del price list (RF-P3CC-04): solo activos; `category_name`
-    null si el producto no tiene categoria; montos del motor."""
 
     id: str
     name: str
@@ -599,7 +525,6 @@ class PriceListItem(BaseModel):
 
 
 class PriceListResponse(BaseModel):
-    """GET /calc/products/price-list: paginada, orden fijo por nombre."""
 
     items: list[PriceListItem]
     total: int
@@ -608,14 +533,11 @@ class PriceListResponse(BaseModel):
 
 
 class RecalculateAllResponse(BaseModel):
-    """POST /calc/products/recalculate-all: cantidad de productos
-    activos recalculados (RF-P3CC-03)."""
 
     recalculated: int
 
 
 class DashboardTopItem(BaseModel):
-    """Item de `top_by_price` (RF-P3CC-05): hasta 5 por precio desc."""
 
     id: str
     name: str
@@ -624,7 +546,6 @@ class DashboardTopItem(BaseModel):
 
 
 class DashboardBottomItem(BaseModel):
-    """Item de `bottom_by_margin` (RF-P3CC-05): hasta 5 por margen asc."""
 
     id: str
     name: str
@@ -633,8 +554,6 @@ class DashboardBottomItem(BaseModel):
 
 
 class DashboardResponse(BaseModel):
-    """GET /calc/dashboard: los 8 campos exactos de la spec
-    (RF-P3CC-05); `archived` no va en la respuesta."""
 
     active_materials: int
     active_products: int

@@ -6,7 +6,6 @@ export const metadata: Metadata = {
   title: "Nuevo producto",
 };
 
-/** Las mutaciones de productos son de administración (RBAC). */
 export default function NewProductRoute() {
   return (
     <ProtectedRoute requiredRole="admin">

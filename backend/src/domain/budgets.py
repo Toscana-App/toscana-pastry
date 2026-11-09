@@ -1,31 +1,3 @@
-"""Presupuestos (Fase 7, P7/P8).
-
-Reglas de negocio:
-
-* El costo por unidad de cada producto se calcula contra el catalogo
-  corriente (receta + insumos + settings) al crear/editar/recalcular:
-  el presupuesto NO congela el desglose completo (a diferencia del
-  pedido, RNF-P6-03). Guarda por item el costo y el precio de venta
-  derivados en ese momento; las lecturas nunca vuelven al catalogo.
-* Modo `cost_plus`: precio de venta = costo * (1 + margen/100),
-  redondeado a centavos. El margen puede ser el del tenant (override
-  nulo) o un override propio del presupuesto.
-* Modo `manual`: cada item puede traer precio de venta personalizado
-  (price_override); los items sin override usan cost_plus con el margen
-  aplicado. El override de margen no se aplica a los items con precio
-  manual.
-* Totales (derivados, nunca persistidos): subtotal = suma de precios de
-  venta; total_costos = suma de costos; ganancia = subtotal - total_costos
-  (puede ser negativo); total_venta = subtotal (sin IVA); iva = 21% del
-  subtotal, enviado como atributo aparte, nunca incluido en el total.
-* Secuencia por tenant `#000NN` asignada en la creacion (RNF-P8-04),
-  sin reuso tras borrado.
-* Maquina de estados (RF-P8-05): borrador -> enviado (congelar version);
-  reenviar desde enviado solo si hubo cambios, creando una version nueva.
-* Convertir a pedido (RF-P8-02) crea un pedido `nuevo` con los mismos
-  items; el pedido tiene su propio snapshot de precios (RNF-P6-03) y el
-  descuento de stock ocurre al confirmarlo, no aqui.
-"""
 import datetime
 import uuid
 from dataclasses import dataclass, field
@@ -50,11 +22,11 @@ class InvalidBudgetTransitionError(ValueError):
 
 
 class BudgetNotConvertibleError(ValueError):
-    """Solo los presupuestos `enviado` se convierten en pedido (RF-P8-08)."""
+    pass
 
 
 class BudgetAlreadyConvertedError(ValueError):
-    """El presupuesto ya tiene un pedido asociado (RF-P8-08)."""
+    pass
 
 
 class NoBudgetChangesError(ValueError):
@@ -63,9 +35,6 @@ class NoBudgetChangesError(ValueError):
 
 @dataclass(frozen=True)
 class BudgetItem:
-    """Linea de presupuesto. `unit_cost` y `unit_selling` se calculan en
-    el borde (router) contra el catalogo y se guardan: la lectura es pura.
-    Money como Decimal; la API lo serializa a centavos (RF-P8-03)."""
 
     product_id: str
     product_name: str
@@ -102,9 +71,6 @@ class BudgetTotals:
 
 
 def compute_totals(items: Tuple[BudgetItem, ...]) -> BudgetTotals:
-    """Totales derivados de los items. Puro: sin I/O, sin settings.
-    total_venta = subtotal (sin IVA). El IVA 21% (RF-P7) se envia como
-    atributo aparte (`iva`), nunca incluido en el total."""
     subtotal = sum((item.line_selling for item in items), Decimal("0"))
     total_costos = sum((item.line_cost for item in items), Decimal("0"))
     ganancia = subtotal - total_costos
@@ -125,11 +91,6 @@ def unit_selling_price(
     margin_pct: Decimal,
     price_override: Optional[Decimal] = None,
 ) -> Tuple[Decimal, bool]:
-    """Precio de venta por unidad de un item.
-
-    `price_override` no nulo = modo manual con precio personalizado.
-    Si no, cost_plus: costo * (1 + margen/100), redondeo a centavos.
-    """
     if price_override is not None:
         if price_override < 0:
             raise ValueError("price_override no puede ser negativo")
@@ -144,12 +105,6 @@ def derive_budget_items(
     inputs: Tuple[Tuple[str, str, int, Decimal, Optional[Decimal]], ...],
     margin_pct: Decimal,
 ) -> Tuple[Tuple[BudgetItem, ...], BudgetTotals]:
-    """Deriva los items y los totales de un presupuesto.
-
-    `inputs`: (product_id, product_name, qty, unit_cost, price_override).
-    `margin_pct` es el margen YA RESUELTO (override o tenant); el router
-    lo resuelve antes de llamar. Puro.
-    """
     if not Decimal("0") <= margin_pct <= Decimal("200"):
         raise ValueError("El margen del presupuesto debe estar entre 0% y 200%")
     items: list = []
@@ -173,9 +128,9 @@ class Budget:
     customer_id: str
     customer_name: str
     customer_phone: str
-    delivery_address: Optional[str] = None  # snapshot (RF-P7-06/07)
+    delivery_address: Optional[str] = None
     items: Tuple[BudgetItem, ...] = ()
-    margin_pct: Optional[Decimal] = None  # None = margen del tenant
+    margin_pct: Optional[Decimal] = None
     calculation_mode: CalculationMode = CalculationMode.COST_PLUS
     status: str = "borrador"
     version: int = 0
@@ -188,7 +143,7 @@ class Budget:
         default_factory=lambda: datetime.datetime.now(datetime.timezone.utc)
     )
     sent_at: Optional[datetime.datetime] = None
-    order_id: Optional[str] = None  # pedido creado al convertir (RF-P8-08)
+    order_id: Optional[str] = None
 
     def __post_init__(self):
         if self.status not in BUDGET_STATUSES:
@@ -207,8 +162,6 @@ class Budget:
         return compute_totals(self.items)
 
     def has_changes_since_last_send(self) -> bool:
-        """Hay cambios pendientes de reenviar si se edito despues del
-        ultimo envio (RF-P8-05). Borrador: siempre 'cambiado'."""
         if self.status == "borrador":
             return True
         if self.sent_at is None:
@@ -217,8 +170,6 @@ class Budget:
 
 
 def transition_to_sent(budget: Budget) -> Budget:
-    """enviar (RF-P8-05): borrador -> enviado (version 1) o reenviar
-    desde enviado con cambios (version +1). Sin cambios: 409 en la API."""
     import dataclasses
 
     if not budget.has_changes_since_last_send():
@@ -238,7 +189,6 @@ def transition_to_sent(budget: Budget) -> Budget:
 
 
 def format_sequence(n: int) -> str:
-    """Secuencia por tenant: #00001, #00002, ... (RNF-P8-04)."""
     if n < 1:
         raise ValueError(f"la secuencia debe ser >= 1: {n}")
     return f"#{n:05d}"

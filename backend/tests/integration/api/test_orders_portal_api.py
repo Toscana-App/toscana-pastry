@@ -1,14 +1,7 @@
-"""Integration tests for POST /orders (portal creation, C6) review fixes.
-
-Covers:
-    - Prices and names are resolved server-side (client values are ignored)
-    - Unknown product / non-positive quantity are rejected
-    - Domain validation (delivery address, past date) maps to 422
-    - Closed window: 409 with a valid Retry-After
-    - Cash payment marks only paid_at (payment_status stays null)
-"""
+import uuid
 
 import datetime
+import uuid
 from decimal import Decimal
 
 import pytest_asyncio
@@ -22,12 +15,13 @@ from sqlalchemy.ext.asyncio import (
 
 from api.v1.auth.dependencies import get_user_repository
 from api.v1.dependencies import get_current_user, require_admin
+from api.v1.products.dependencies import get_product_repository
 from data.db import get_db
-from data.models import Base
-from data.repositories.sql_ingredient_repository import SQLIngredientRepository
+from data.models import Base, IngredientORM, ProductORM, RecipeItemORM
 from data.repositories.sql_order_repository import SQLOrderRepository
+from data.repositories.sql_product_repository import SQLProductRepository
 from data.repositories.sql_user_repository import SQLUserRepository
-from domain.models import Ingredient, User, UserRole
+from domain.models import User, UserRole
 from domain.order_window import OrderWindow
 from main import app
 
@@ -57,9 +51,35 @@ async def db_session():
 
 @pytest_asyncio.fixture
 async def product_id(db_session):
-    ingredient = Ingredient(name="Torta", unit="kg", price_per_unit=Decimal("1000.00"))
-    await SQLIngredientRepository(db_session).create(ingredient)
-    return ingredient.id
+    ingredient = IngredientORM(id=str(uuid.uuid4()), 
+        name="Insumo Torta", unit="kg", price_per_unit="1000.00", stock_qty="10"
+    )
+    db_session.add(ingredient)
+    await db_session.commit()
+    product_id = str(uuid.uuid4())
+    product = ProductORM(
+        id=product_id,
+        name="Torta",
+        category="General",
+        description="",
+        prep_time_min=0,
+        servings=1,
+        difficulty="simple",
+        available=True,
+    )
+    product.recipe_items = [
+        RecipeItemORM(
+            id=str(uuid.uuid4()),
+            product_id=product_id,
+            ingredient_id=ingredient.id,
+            qty="1",
+            unit="kg",
+            position=0,
+        )
+    ]
+    db_session.add(product)
+    await db_session.commit()
+    return product_id
 
 
 @pytest_asyncio.fixture
@@ -76,8 +96,12 @@ async def client(db_session):
     async def _admin():
         return ADMIN
 
+    async def override_get_product_repository():
+        yield SQLProductRepository(db_session)
+
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_user_repository] = override_get_user_repository
+    app.dependency_overrides[get_product_repository] = override_get_product_repository
     app.dependency_overrides[get_current_user] = _customer
     app.dependency_overrides[require_admin] = _admin
     try:
@@ -109,7 +133,6 @@ class TestPortalOrderPricing:
         data = response.json()
         [item] = data["items"]
         assert item["product_name"] == "Torta"
-        # customer role => consumer audience (base price + markup), never 0
         assert Decimal(item["unit_price"]) >= Decimal("1000.00")
         assert Decimal(data["total"]) == Decimal(item["unit_price"]) * 2
 

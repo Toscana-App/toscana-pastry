@@ -1,10 +1,5 @@
 "use client";
 
-/** Paso 4 — Pago (RF-P11-07): Mercado Pago o efectivo en la entrega.
-
-La ejecución del pago online (redirect + polling) es F3; aquí el usuario
-elige el método y lo queda snapshoteado en el pedido (C1).
-*/
 
 import {
   Box,

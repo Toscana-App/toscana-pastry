@@ -91,10 +91,7 @@ describe("ProductLines preview (F2)", () => {
         showPreview
       />
     );
-    // 2 kg x 1.500 = 3.000 (preview en pesos; formatMoneyDecimals
-    // usa maximumFractionDigits, así que sin ,00 de relleno)
     expect(screen.getAllByText("3.000").length).toBeGreaterThanOrEqual(1);
-    // 3.000 + 3.000 x 2h = 9.000
     expect(screen.getByText("Total estimado: 9.000")).toBeInTheDocument();
   });
 });

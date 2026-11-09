@@ -1,9 +1,3 @@
-"""Tests de los adapters de productos y clientes (T-CSV-6/7, RF-CSV-09/10)
-y del round-trip de plantilla para las 3 entidades (RNF-CSV-09).
-
-Solo capa pura: validacion + round-trip. La aplicacion (find_duplicate/insert)
-se cubre en integracion.
-"""
 from domain.imports import check_columns
 
 from api.v1.imports.adapters import ADAPTERS, ENTITIES
@@ -23,8 +17,6 @@ def _roundtrip_passes(adapter) -> bool:
 
 
 class TestRoundTripTodas:
-    """RNF-CSV-09: para CADA entidad, la plantilla parseada con el parser pasa
-    la validacion del adapter (el mismo modelo que valida genera la plantilla)."""
 
     def test_entidades_registradas(self):
         assert set(ENTITIES) == {"ingredients", "products", "customers"}
@@ -96,7 +88,6 @@ class TestProducts:
         ]
 
     def test_v1_no_inserta_en_confirm(self):
-        # Decisión v1 (documentada): el modelo de producto requiere receta.
         assert self._adapter().inserts_on_confirm is False
         assert self._adapter().confirm_message
 
@@ -111,8 +102,8 @@ class TestCustomers:
         )
         assert errors == []
         assert data["name"] == "María González"
-        assert data["phone"] == "1155550101"  # normalize_phone: solo dígitos
-        assert data["name_norm"]  # normalizado no vacío
+        assert data["phone"] == "1155550101"
+        assert data["name_norm"]
 
     def test_falta_telefono(self):
         _, errors = self._adapter().validate_row({"nombre": "María", "telefono": ""})
@@ -137,9 +128,8 @@ class TestCustomers:
         assert any("nombre" in e.lower() for e in errors)
 
     def test_columnas(self):
-        # v1: solo las 2 columnas que el dominio soporta (ver docstring del adapter).
         assert self._adapter().columns == ["nombre", "telefono"]
 
     def test_check_columns_cliente(self):
         adapter = self._adapter()
-        check_columns(adapter.columns, ["telefono", "nombre"])  # orden irrelevante
+        check_columns(adapter.columns, ["telefono", "nombre"])

@@ -1,11 +1,3 @@
-"""Unit tests for the portal order fields (RF-P11-06/08, C6).
-
-Nuevos campos de Order para la creación desde portal:
-- code: código legible (TP + 6 chars) para "mis pedidos"
-- delivery_mode: delivery | pickup (default delivery)
-- delivery_address: requerida si delivery; normalizada a None si pickup
-- coupon_code / discount_amount: snapshot del cupon al confirmar
-"""
 
 import datetime
 from decimal import Decimal
@@ -31,8 +23,8 @@ def _order(**overrides: object) -> Order:
             )
         ],
     }
-    base.update(overrides)  # type: ignore[arg-type]
-    return Order(**base)  # type: ignore[call-arg]
+    base.update(overrides)
+    return Order(**base)
 
 
 class TestOrderCode:
@@ -53,7 +45,6 @@ class TestDeliveryMode:
         assert _order().delivery_mode == DeliveryMode.DELIVERY
 
     def test_domain_allows_empty_address_backward_compat(self):
-        """Domain default is '' for backward compat; validation is at portal endpoint (C6)."""
         order = _order(delivery_mode=DeliveryMode.DELIVERY, delivery_address="")
         assert order.delivery_address == ""
 

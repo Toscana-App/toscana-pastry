@@ -17,17 +17,6 @@ import { formatCents } from "@/lib/format";
 import { weeklyService } from "../weekly.service";
 import type { WeeklySummary } from "../types";
 
-/**
- * Vista de resumen semanal (Fase 5, UC-08 / RF-P6-11) — /pedidos → pestaña
- * "Resumen semanal".
- *
- * Semana natural (Lun-Dom) con pedidos confirmado/entregado: tabla
- * (fecha, cliente, ítems, total, pago) + totales (monto, pagado, pendiente)
- * + CTA "Exportar CSV" y "Exportar PDF" (GA4: weekly_export).
- *
- * Selector de semana: ISO `AAAA-Wnn` (p. ej. "2026-W45") o fecha
- * `AAAA-MM-DD`; vacío = semana actual (la resuelve el backend).
- */
 export function WeeklySummaryView() {
   const [summary, setSummary] = useState<WeeklySummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,8 +24,6 @@ export function WeeklySummaryView() {
   const [exporting, setExporting] = useState<null | "csv" | "pdf">(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  // Semana aplicada (vacía = actual) y el texto del input (independiente
-  // hasta que se pulsa "Ver").
   const [appliedWeek, setAppliedWeek] = useState<string | null>(null);
   const [weekInput, setWeekInput] = useState("");
 
@@ -65,8 +52,6 @@ export function WeeklySummaryView() {
         if (!cancelled) setLoading(false);
       }
     };
-    // Carga inicial dentro del efecto (setState solo tras await) para no
-    // disparar react-hooks/set-state-in-effect; `load` queda para los handlers.
     loadInitial();
     return () => {
       cancelled = true;

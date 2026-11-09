@@ -3,12 +3,6 @@
 import { Flex, Text } from "@chakra-ui/react";
 import NextLink from "next/link";
 
-/**
- * One portal tab: a real route link styled as a tab.
- *
- * The active state is conveyed by color + underline, never by color
- * alone (RNF-P11-04 WCAG AA).
- */
 export function TabLink({
   href,
   label,

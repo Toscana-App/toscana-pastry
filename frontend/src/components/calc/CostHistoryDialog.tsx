@@ -14,10 +14,6 @@ import { calcMaterialsService } from "@/services/calcMaterialsService";
 import { toaster } from "@/lib/toaster";
 import type { CostHistoryListResponse, Material } from "@/types/calc";
 
-// Diálogo de historial de costos unitarios de un material (RF-P2CC-04):
-// GET /calc/materials/{id}/cost-history, más recientes primero (desc,
-// como el endpoint). Montos tal cual el str del servidor (sin aritmética).
-// Paginación prev/next si hay más de 50 registros.
 const PAGE_SIZE = 50;
 
 interface CostHistoryDialogProps {
@@ -25,7 +21,6 @@ interface CostHistoryDialogProps {
   onClose: () => void;
 }
 
-// changed_at → fecha legible en es-AR (p.ej. "10/03/2026, 15:30").
 function formatChangedAt(iso: string): string {
   return new Date(iso).toLocaleString("es-AR", {
     day: "2-digit",
@@ -44,7 +39,6 @@ export default function CostHistoryDialog({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [page, setPage] = useState(1);
-  // Contador para forzar reintento sin cambios de parámetros.
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {

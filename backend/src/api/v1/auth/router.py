@@ -63,8 +63,6 @@ async def refresh_token(
             raise InvalidRefreshToken()
         tokens = await rotate_session(token_repo, refresh_cookie)
     except InvalidRefreshToken:
-        # Generic 401 (security.md item 6): no hint whether it was missing,
-        # expired or replayed.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token"
@@ -77,7 +75,6 @@ async def logout(
     refresh_cookie: str | None = Cookie(None, alias=REFRESH_COOKIE),
     token_repo: RefreshTokenRepository = Depends(get_refresh_token_repository),
 ):
-    # Public on purpose: an expired access token must still be able to log out.
     if refresh_cookie:
         await end_session(token_repo, refresh_cookie)
     clear_session_cookies(response)

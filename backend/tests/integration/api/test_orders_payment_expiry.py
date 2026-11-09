@@ -1,4 +1,3 @@
-"""Lazy 24 h expiry of pending payments: repo method + endpoints (fake clock)."""
 
 import datetime
 import uuid

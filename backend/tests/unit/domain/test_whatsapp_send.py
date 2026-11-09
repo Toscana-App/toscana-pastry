@@ -1,12 +1,3 @@
-"""Unit tests for the WhatsAppSend domain entity + state machine (RF-P10-07/08, C7).
-
-Covers:
-- Invariants (provider, status, phone/message non-blank).
-- State machine: sent -> delivered -> read by priority; out-of-order events
-  ignored; idempotent same-status updates; failed is terminal.
-- Resend rules: only failed + business_api; reset clears all trace fields.
-- read_rate helper (0/0 -> 0.0).
-"""
 
 import datetime
 
@@ -34,10 +25,9 @@ def make_send(**overrides) -> WhatsAppSend:
         "sent_at": NOW,
     }
     base.update(overrides)
-    return WhatsAppSend(**base)  # type: ignore[arg-type]
+    return WhatsAppSend(**base)
 
 
-# ─── Invariants ─────────────────────────────────────────────────────────
 
 
 def test_defaults_to_sent():
@@ -73,7 +63,6 @@ def test_blank_reference_id_rejected():
         make_send(reference_id="  ")
 
 
-# ─── State machine: transitions ─────────────────────────────────────────
 
 
 def test_sent_to_delivered_sets_delivered_at():
@@ -93,7 +82,6 @@ def test_delivered_to_read_sets_read_at_and_backfills_delivered_at():
 
 
 def test_sent_to_read_backfills_delivered_at():
-    """read llega sin delivered previo: backfill para no perder trazabilidad."""
     send = make_send()
     updated = apply_status(send, "read", now=NOW)
     assert updated.status == "read"
@@ -102,7 +90,6 @@ def test_sent_to_read_backfills_delivered_at():
 
 
 def test_read_to_delivered_ignored_out_of_order():
-    """delivered llega despues de read: prioridad, no regresa."""
     send = make_send(status="read", delivered_at=NOW, read_at=NOW)
     updated = apply_status(send, "delivered", now=NOW)
     assert updated is send
@@ -128,7 +115,6 @@ def test_failed_sets_status_and_reason():
 
 
 def test_failed_is_terminal():
-    """Una vez failed, eventos de entrega/lectura no lo reviven."""
     send = make_send(status="failed", failed_reason="expired")
     assert apply_status(send, "delivered", now=NOW) is send
     assert apply_status(send, "read", now=NOW) is send
@@ -141,7 +127,6 @@ def test_failed_to_failed_keeps_original_reason():
     assert updated is send
 
 
-# ─── Resend rules ───────────────────────────────────────────────────────
 
 
 @pytest.mark.parametrize(
@@ -185,7 +170,6 @@ def test_reset_for_resend_requires_retriable():
         reset_for_resend(send, new_message_id="x", now=NOW)
 
 
-# ─── read_rate ──────────────────────────────────────────────────────────
 
 
 def test_read_rate_normal():

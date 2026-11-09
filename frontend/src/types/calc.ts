@@ -1,13 +1,3 @@
-// Tipos de las respuestas de la API de la calculadora de costos
-// (backend/src/api/v1/calc/schemas.py).
-//
-// Contrato de dinero (odd/tasks/calc-money-and-editor-fixes.md, M1):
-// - Respuestas: `Money` viaja como **int de centavos** (number en TS);
-//   los últimos 2 dígitos son centavos. La UI los muestra con
-//   `formatCents`/`centsToPesos` de `lib/format` (nunca dividir "a mano").
-// - Entradas: los inputs de la UI trabajan en pesos (string) y el
-//   service los convierte a ctvs con `pesosToCents` en el borde.
-// - Qty/Pct siguen siendo string decimal ("500", "100").
 
 export type RoundingMode =
   | "none"
@@ -25,8 +15,6 @@ export interface CalcSettingsResponse {
   rounding_mode: RoundingMode;
 }
 
-// PUT /calc/settings es reemplazo completo atómico (extra="forbid"):
-// el payload SIEMPRE lleva los 7 campos, nunca parcial.
 export type CalcSettingsPayload = CalcSettingsResponse;
 
 export type CategoryKind = "material-categories" | "product-categories";
@@ -51,8 +39,6 @@ export interface CategoryCreatePayload {
   description?: string;
 }
 
-// PATCH acepta campos opcionales (≥1): mandar solo los tocados.
-// description: null limpia la descripción existente.
 export interface CategoryUpdatePayload {
   name?: string;
   description?: string | null;
@@ -84,7 +70,6 @@ export interface SupplierCreatePayload {
   notes?: string;
 }
 
-// null limpia el valor existente.
 export interface SupplierUpdatePayload {
   name?: string;
   contact_name?: string | null;
@@ -130,9 +115,6 @@ export interface DefaultCostUpdatePayload {
   status?: DefaultCostStatus;
 }
 
-// ─── Materials (RF-P2CC-01..05) ──────────────────────────────────────────
-// Status 100% derivado por el servidor (decisión D1 de B8): la UI solo lo
-// muestra, nunca lo envía. unit_cost es solo-escritura del servidor (RF-P2CC-02).
 export type MaterialStatus = "active" | "incomplete";
 export type ProductStatus = "draft" | "active" | "archived";
 
@@ -141,18 +123,15 @@ export type ProductLineMaterialIn = {
   quantity_used: string;
 };
 
-// In (nivel UI): los montos se editan en PESOS (string). El service
-// los convierte a int de centavos en el borde (pesosToCents). Nunca
-// mandar pesos al API: el backend espera ctvs y rechaza str/float (S3).
 export type ProductLineLaborIn = {
   activity_name: string;
-  hourly_rate: string; // pesos
+  hourly_rate: string;
   minutes_required: string;
 };
 
 export type ProductLineExtraCostIn = {
   concept_name: string;
-  unit_cost: string; // pesos
+  unit_cost: string;
   quantity: string;
 };
 
@@ -218,7 +197,6 @@ export interface ProductListResponse {
 }
 
 export interface ProductCostsResponse {
-  // Money como int de centavos (S1): formatear con formatCents.
   product_total_cost: number;
   profit_amount: number;
   discount_amount: number;
@@ -227,8 +205,6 @@ export interface ProductCostsResponse {
   final_sale_price: number;
 }
 
-// Respuesta de POST /calc/products, PATCH /{id} y /{id}/recalculate:
-// las lineas van envueltas en `product_lines`.
 export interface ProductWithLines {
   product: Product;
   product_lines: {
@@ -239,9 +215,6 @@ export interface ProductWithLines {
   costs: ProductCostsResponse;
 }
 
-// Respuesta de GET /calc/products/{id} (RF-P4CC-05): las lineas van a
-// nivel superior (materials/labor/extra_costs), SIN el envoltorio
-// product_lines. Montos en int de centavos.
 export interface ProductDetail {
   product: Product;
   materials: ProductLineMaterialOut[];
@@ -378,7 +351,6 @@ export interface MaterialListResponse {
   page_size: number;
 }
 
-// POST /calc/materials (extra="forbid"): 8 campos; unit_cost/status NUNCA.
 export interface MaterialCreatePayload {
   name: string;
   internal_code?: string;
@@ -390,9 +362,6 @@ export interface MaterialCreatePayload {
   notes?: string;
 }
 
-// PATCH /calc/materials/{id} (exclude_unset): solo campos tocados.
-// null en purchase_total_price/package_quantity ELIMINA el dato
-// (unit_cost → null, status → incomplete; RF-P2CC-04).
 export interface MaterialUpdatePayload {
   name?: string;
   internal_code?: string | null;

@@ -1,9 +1,3 @@
-"""Integration tests for the Calc Materials API (RF-P2CC-01..05).
-
-Covers auth (401/403), CRUD, derived unit_cost/status (never from
-client), append-only cost history, FK validation (404), delete-in-use
-(409) and search + pagination on /calc/materials (S4, S3).
-"""
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -48,14 +42,12 @@ from data.repositories.sql_user_repository import SQLUserRepository
 from domain.models import User, UserRole
 from main import app
 
-# ─── Fixtures ───────────────────────────────────────────────────────────
 
 
 @pytest_asyncio.fixture
 async def db_session():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
 
-    # Registrar accent_fold para busquedas con acentos (RF-P2CC-05).
     @event.listens_for(engine.sync_engine, "connect")
     def _register_sqlite_functions(dbapi_connection, connection_record):
         dbapi_connection.create_function(
@@ -130,7 +122,6 @@ async def client(db_session):
         app.dependency_overrides = {}
 
 
-# ─── Helpers ────────────────────────────────────────────────────────────
 
 
 async def _token_for(client: AsyncClient, email: str) -> str:
@@ -157,7 +148,6 @@ async def _create_material(client: AsyncClient, token: str, **overrides) -> dict
     return response.json()
 
 
-# ─── Auth (S3: admin-only writes) ──────────────────────────────────────
 
 
 class TestMaterialsAuth:
@@ -179,7 +169,6 @@ class TestMaterialsAuth:
         assert response.status_code == 403
 
 
-# ─── POST (RF-P2CC-01/02/03) ───────────────────────────────────────────
 
 
 class TestCreateMaterial:
@@ -196,7 +185,6 @@ class TestCreateMaterial:
             package_quantity="2",
             notes="lote 1",
         )
-        # Derived by the server (RF-P2CC-02/03), money as str (RNF-P5CC-01).
         assert body["unit_cost"] == 5000
         assert body["status"] == "active"
         assert body["name"] == "Mantequilla"
@@ -242,7 +230,6 @@ class TestCreateMaterial:
         assert response.status_code == 422
 
     async def test_unit_cost_in_payload_rejected_422(self, client):
-        # security #8: unit_cost nunca viene del cliente.
         token = await _admin(client)
         response = await client.post(
             "/api/v1/calc/materials",
@@ -252,7 +239,6 @@ class TestCreateMaterial:
         assert response.status_code == 422
 
     async def test_status_in_payload_rejected_422(self, client):
-        # security #8: status nunca viene del cliente.
         token = await _admin(client)
         response = await client.post(
             "/api/v1/calc/materials",
@@ -302,7 +288,6 @@ class TestCreateMaterial:
         assert body["supplier_id"] == sup["id"]
 
 
-# ─── GET (RF-P2CC-05) ──────────────────────────────────────────────────
 
 
 class TestGetMaterial:
@@ -420,7 +405,6 @@ class TestGetMaterial:
         assert len(page2["items"]) == 1
 
 
-# ─── PATCH (RF-P2CC-01/02/04) ──────────────────────────────────────
 
 
 class TestPatchMaterial:
@@ -484,7 +468,6 @@ class TestPatchMaterial:
         assert response.status_code == 404
 
     async def test_patch_null_price_removes_it(self, client):
-        # valor -> None: unit_cost -> None, status -> incomplete (RF-P2CC-04).
         token = await _admin(client)
         created = await _create_material(
             client,
@@ -504,7 +487,6 @@ class TestPatchMaterial:
         assert body["status"] == "incomplete"
 
 
-# ─── Cost history (RF-P2CC-04, append-only) ────────────────────────────
 
 
 async def _history(client: AsyncClient, token: str, material_id: str) -> dict:
@@ -552,7 +534,6 @@ class TestCostHistory:
         )
         body = await _history(client, token, created["id"])
         assert body["total"] == 2
-        # Mas recientes primero: el ultimo cambio arriba.
         assert body["items"][0]["previous_unit_cost"] == 5000
         assert body["items"][0]["new_unit_cost"] == 7500
         assert body["items"][1]["previous_unit_cost"] is None
@@ -575,7 +556,6 @@ class TestCostHistory:
         assert body["total"] == 1
 
     async def test_patch_same_computed_cost_records_no_row(self, client):
-        # Comparacion sobre el valor computado (re-roundeado), no strings crudos.
         token = await _admin(client)
         created = await _create_material(
             client,
@@ -617,7 +597,6 @@ class TestCostHistory:
         assert response.status_code == 404
 
 
-# ─── DELETE (S4: 409 en uso) ───────────────────────────────────────
 
 
 class TestDeleteMaterial:
@@ -640,7 +619,6 @@ class TestDeleteMaterial:
 
         from data.models import CalcMaterialCostHistoryORM
 
-        # FK enforcement on this test's connection: proves no orphan history.
         await db_session.execute(text("PRAGMA foreign_keys=ON"))
         token = await _admin(client)
         created = await _create_material(
@@ -702,14 +680,12 @@ class TestDeleteMaterial:
         )
         assert response.status_code == 409
         assert response.json() == {"impacted_products": 3}
-        # El material sigue ahi.
         still = await client.get(
             f"/api/v1/calc/materials/{created['id']}", headers=_auth(token)
         )
         assert still.status_code == 200
 
 
-# ─── count_in_use real contra calc_materials (TODO(B8) completados) ─────
 
 
 class TestForeignKeyInUse:

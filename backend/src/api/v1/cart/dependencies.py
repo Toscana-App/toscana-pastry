@@ -1,4 +1,3 @@
-"""Dependencies del carrito (RF-P11-03, C4)."""
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 

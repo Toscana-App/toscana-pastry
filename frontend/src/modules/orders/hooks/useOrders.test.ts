@@ -48,9 +48,6 @@ describe("useOrders — loading no queda colgado", () => {
     act(() => result.current.setStatus("nuevo" as never));
     expect(result.current.loading).toBe(true);
     await waitFor(() => expect(result.current.loading).toBe(false));
-    // El listado (page_size 20) se pide al montar y de nuevo con el filtro.
-    // El hook hace además una llamada paralela para el contador "sin pagar"
-    // (page_size 1), que se descarta acá.
     const listCalls = listMock.mock.calls
       .map((call) => call[0] as unknown as { page_size: number; status?: string })
       .filter((params) => params.page_size === 20);

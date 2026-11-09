@@ -125,7 +125,6 @@ async def _create_product(
     return response.json()
 
 
-# --- Auth / RBAC -----------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -135,13 +134,22 @@ async def test_list_requires_authentication(client):
 
 
 @pytest.mark.asyncio
-async def test_list_allows_customer(client):
+async def test_list_forbidden_for_customer(client):
     token = await _customer_token(client)
     response = await client.get(
         "/api/v1/products", headers={"Authorization": f"Bearer {token}"}
     )
+    assert response.status_code == 403
+
+
+async def test_list_with_audience_allows_customer(client):
+    token = await _customer_token(client)
+    response = await client.get(
+        "/api/v1/products?audience=consumidor_final",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert response.status_code == 200
-    assert response.json()["items"] == []
+    assert response.json()["products"] == []
 
 
 @pytest.mark.asyncio
@@ -178,7 +186,6 @@ async def test_customer_cannot_update_or_delete(client):
     assert delete.status_code == 403
 
 
-# --- Create ----------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -192,13 +199,11 @@ async def test_create_product_201_with_derived_price(client):
         headers,
         recipe=[{"ingredient_id": flour["id"], "qty": 250, "unit": "g"}],
     )
-    # Default de settings: prep 30, servings 6, dificultad simple (RF-P4-01)
     assert product["prep_time_min"] == 30
     assert product["servings"] == 6
     assert product["difficulty"] == "simple"
     assert product["complete"] is True
     assert product["missing_ingredients"] == []
-    # 250 g @ 2800/kg = 700 + mano 75 = 775; margen 100% → 1550; paso 5 → 1550
     assert product["price"]["final"] == 155000
     assert product["price"]["rounded"] == 155000
     assert product["price_per_serving"] == 25833
@@ -207,7 +212,6 @@ async def test_create_product_201_with_derived_price(client):
     assert line["purchase_unit"] == "kg"
     assert line["missing"] is False
     assert line["line_cost"] == 70000
-    # Money como int de centavos / Qty como str en la response
     assert isinstance(product["price"]["materials"], int)
 
 
@@ -283,8 +287,6 @@ async def test_create_400_unknown_ingredient(client):
 @pytest.mark.asyncio
 async def test_create_400_incompatible_units(client):
     headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
-    # El insumo se compra en unidades; la receta pide gramos → 400,
-    # como /pricing/preview.
     huevos = await _create_ingredient(
         client, headers, "Huevos", unit="unidad", price=9000
     )
@@ -324,7 +326,6 @@ async def test_create_400_duplicate_ingredient(client):
 async def test_create_incomplete_product_when_price_zero(client):
     headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
     await _set_settings(client, headers)
-    # Precio 0 = "sin precio" (decision de negocio Fase 5).
     harina = await _create_ingredient(
         client, headers, "Harina Sin Precio", price=0
     )
@@ -341,7 +342,6 @@ async def test_create_incomplete_product_when_price_zero(client):
     assert product["recipe"][0]["line_cost"] is None
 
 
-# --- List ------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -355,7 +355,6 @@ async def test_list_search_insensitive_to_accents_and_case(client):
         name="Torta de Limón",
         recipe=[{"ingredient_id": flour["id"], "qty": 250, "unit": "g"}],
     )
-    # RF-P3-01: "limon" encuentra "Limón".
     response = await client.get(
         "/api/v1/products",
         params={"q": "limon"},
@@ -365,7 +364,6 @@ async def test_list_search_insensitive_to_accents_and_case(client):
     body = response.json()
     assert body["total"] == 1
     assert body["items"][0]["name"] == "Torta de Limón"
-    # Mayúsculas tambien.
     response = await client.get(
         "/api/v1/products",
         params={"q": "TORTA"},
@@ -405,7 +403,6 @@ async def test_list_category_filter_and_distinct_categories(client):
     ).json()
     assert body["total"] == 1
     assert body["items"][0]["name"] == "Limonada"
-    # Chips del P3: derivadas de los productos activos.
     all_body = (
         await client.get(
             "/api/v1/products",
@@ -471,7 +468,6 @@ async def test_list_price_null_for_incomplete_product(client):
     assert item["price_per_serving"] is None
 
 
-# --- Detail ----------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -496,7 +492,6 @@ async def test_detail_200_full_breakdown(client):
     )
     assert response.status_code == 200
     detail = response.json()
-    # 700 + 360 = 1060 + mano 75 = 1135; margen 100% → 2270 (paso 5 exacto)
     assert detail["price"]["materials"] == 106000
     assert detail["price"]["waste"] == 0
     assert detail["price"]["materials_con_merma"] == 106000
@@ -549,7 +544,6 @@ async def test_detail_recipe_shows_missing_ingredients(client):
     assert by_id[sin_precio["id"]]["line_cost"] is None
 
 
-# --- Update ----------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -571,7 +565,6 @@ async def test_update_200_rename_and_replace_recipe(client):
     detail = response.json()
     assert detail["name"] == "Torta Grande"
     assert detail["servings"] == 12
-    # 1550 / 12 = 129.1666 → 12917
     assert detail["price_per_serving"] == 12917
 
 
@@ -632,7 +625,6 @@ async def test_update_400_incompatible_units(client):
     assert response.status_code == 400
 
 
-# --- Delete ----------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -676,9 +668,6 @@ async def test_delete_404_unknown(client):
 async def test_delete_with_historical_orders_soft_deletes_and_reports(
     client, db_session
 ):
-    """RF-P4-08: con pedidos históricos NO se bloquea. Soft delete siempre;
-    la response informa el impacto (200 + impacted_orders) y el producto
-    desaparece del catálogo."""
     from api.v1.products.dependencies import get_product_repository
     from data.repositories.sql_product_repository import SQLProductRepository
 
@@ -716,7 +705,6 @@ async def test_delete_with_historical_orders_soft_deletes_and_reports(
     assert detail.status_code == 404
 
 
-# --- Derivacion en lectura (RF-P3-04) ---------------------------------------
 
 
 @pytest.mark.asyncio
@@ -729,9 +717,7 @@ async def test_price_follows_ingredient_price_changes(client):
         headers,
         recipe=[{"ingredient_id": flour["id"], "qty": 250, "unit": "g"}],
     )
-    # 700 + 75 = 775 → 1550
     assert product["price"]["rounded"] == 155000
-    # El precio del insumo sube a 4000/kg → 1000 + 75 = 1075 → 2150.
     patch = await client.patch(
         f"/api/v1/ingredients/{flour['id']}",
         json={"price_per_unit": 400000},
@@ -748,7 +734,6 @@ async def test_price_follows_ingredient_price_changes(client):
     assert detail["price"]["rounded"] == 215000
 
 
-# --- Efecto colateral: count_active_recipes ahora es real -------------------
 
 
 @pytest.mark.asyncio

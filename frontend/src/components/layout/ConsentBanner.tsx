@@ -1,19 +1,11 @@
 "use client";
 
-/** GA4 consent banner (F4 — RF-P11-15).
-
-Shown only until the user decides (accept/decline). The decision is
-persisted in localStorage; without a decision nothing is loaded.
-*/
 
 import { Alert, Button, Flex, Text } from "@chakra-ui/react";
 import { useSyncExternalStore, useState } from "react";
 import { setConsent } from "@/lib/analytics";
 
-// useSyncExternalStore: snapshot = "has a decision been made?" with no effect.
 function subscribe(onChange: () => void): () => void {
-  // localStorage emits no events; the decision happens through the banner's
-  // own buttons (which re-render via local state). Intentional no-op.
   void onChange;
   return () => {};
 }
@@ -23,7 +15,7 @@ function getClientSnapshot(): boolean {
 }
 
 function getServerSnapshot(): boolean {
-  return true; // SSR does not show the banner (avoids hydration mismatch)
+  return true;
 }
 
 export function ConsentBanner() {

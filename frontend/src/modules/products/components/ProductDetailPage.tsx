@@ -8,8 +8,11 @@ import {
   Button,
   Flex,
   Heading,
+  Image,
+  Input,
   Table,
   Tabs,
+  Switch,
   Text,
 } from "@chakra-ui/react";
 import { DetailPageSkeleton } from "@/components/ui/skeleton";
@@ -33,26 +36,69 @@ interface ProductDetailPageProps {
   productId: string;
 }
 
-/**
- * Detalle de producto (Fase 5, P4) — /productos/{id}.
- *
- * Las 4 pestañas de la spec: Información · Ingredientes · Preparación ·
- * Costos. El desglose viene derivado del backend en cada lectura (RF-P3-04):
- * el cliente no recalcula nada ni cachea precios.
- *
- * Producto incompleto (RF-P4-07): las líneas sin precio se marcan y la
- * pestaña Costos explica qué insumos lo bloquean, en lugar de mostrar un
- * total engañoso.
- *
- * Editar y Eliminar son solo para admin (RBAC de mutaciones).
- */
 export function ProductDetailPage({ productId }: ProductDetailPageProps) {
   const router = useRouter();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
-  const { product, loading, error } = useProductDetail(productId);
+  const { product, loading, error, reload } = useProductDetail(productId);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  async function handleToggleAvailable(checked: boolean) {
+    setPublishing(true);
+    try {
+      await productsService.update(productId, { available: checked });
+      reload();
+      toaster.create({
+        title: checked ? "Publicado en la tienda" : "Retirado de la tienda",
+        type: "success",
+      });
+    } catch (e) {
+      toaster.create({
+        title: "No se pudo cambiar la publicación",
+        description: e instanceof Error ? e.message : undefined,
+        type: "error",
+      });
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  async function handleUploadImage(file: File) {
+    setUploading(true);
+    try {
+      await productsService.uploadImage(productId, file);
+      reload();
+      toaster.create({ title: "Imagen actualizada", type: "success" });
+    } catch (e) {
+      toaster.create({
+        title: "No se pudo subir la imagen",
+        description: e instanceof Error ? e.message : undefined,
+        type: "error",
+      });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleRemoveImage() {
+    setUploading(true);
+    try {
+      await productsService.removeImage(productId);
+      reload();
+      toaster.create({ title: "Imagen eliminada", type: "success" });
+    } catch (e) {
+      toaster.create({
+        title: "No se pudo eliminar la imagen",
+        description: e instanceof Error ? e.message : undefined,
+        type: "error",
+      });
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function handleDelete() {
     setDeleting(true);
@@ -112,13 +158,34 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
           <Heading fontSize="2xl">{product.name}</Heading>
           <Flex gap={2} align="center" flexWrap="wrap">
             <Badge variant="subtle">{product.category}</Badge>
+            <Badge
+              variant="subtle"
+              colorPalette={product.available ? "green" : "gray"}
+            >
+              {product.available ? "En tienda" : "Oculto"}
+            </Badge>
             {!product.complete ? (
               <Badge colorPalette="orange">sin precio</Badge>
             ) : null}
           </Flex>
         </Flex>
         {isAdmin ? (
-          <Flex gap={2}>
+          <Flex gap={2} align="center" flexWrap="wrap">
+            <Flex align="center" gap={2}>
+              <Switch.Root
+                checked={product.available}
+                disabled={publishing}
+                onCheckedChange={(details) =>
+                  handleToggleAvailable(details.checked)
+                }
+              >
+                <Switch.HiddenInput />
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+              </Switch.Root>
+              <Text fontSize="sm">Disponible en tienda</Text>
+            </Flex>
             <Button variant="outline" asChild>
               <NextLink href={`/productos/${product.id}/edit`}>Editar</NextLink>
             </Button>
@@ -142,7 +209,13 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
         </Tabs.List>
 
         <Tabs.Content value="info" pt={4}>
-          <InfoTab product={product} />
+          <InfoTab
+            product={product}
+            isAdmin={isAdmin}
+            uploading={uploading}
+            onUploadImage={handleUploadImage}
+            onRemoveImage={handleRemoveImage}
+          />
         </Tabs.Content>
         <Tabs.Content value="recipe" pt={4}>
           <RecipeTab product={product} />
@@ -177,7 +250,19 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-function InfoTab({ product }: { product: ProductDetail }) {
+function InfoTab({
+  product,
+  isAdmin,
+  uploading,
+  onUploadImage,
+  onRemoveImage,
+}: {
+  product: ProductDetail;
+  isAdmin: boolean;
+  uploading: boolean;
+  onUploadImage: (file: File) => void;
+  onRemoveImage: () => void;
+}) {
   return (
     <Flex direction="column" gap={4}>
       <Field
@@ -186,6 +271,59 @@ function InfoTab({ product }: { product: ProductDetail }) {
       />
       <Field label="Categoría" value={product.category} />
       <Field label="Porciones" value={String(product.servings)} />
+
+      <Flex direction="column" gap={2}>
+        <Text fontSize="xs" color="fg.muted">
+          Imagen de la tienda
+        </Text>
+        {product.image_url ? (
+          <Image
+            src={product.image_url}
+            alt={`Imagen de ${product.name}`}
+            boxSize="160px"
+            objectFit="cover"
+            rounded="md"
+            borderWidth="1px"
+            borderColor="border"
+          />
+        ) : (
+          <Text fontSize="sm" color="fg.muted">
+            Sin imagen cargada.
+          </Text>
+        )}
+        {isAdmin ? (
+          <Flex gap={2} align="center" flexWrap="wrap">
+            <Input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              aria-label="Subir imagen del producto"
+              maxW="18rem"
+              disabled={uploading}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) onUploadImage(file);
+                event.target.value = "";
+              }}
+            />
+            {product.image_url ? (
+              <Button
+                variant="ghost"
+                colorPalette="red"
+                size="sm"
+                disabled={uploading}
+                onClick={onRemoveImage}
+              >
+                Quitar imagen
+              </Button>
+            ) : null}
+          </Flex>
+        ) : null}
+        {isAdmin ? (
+          <Text fontSize="xs" color="fg.muted">
+            JPEG, PNG o WebP · hasta 5 MB · mínimo 200×200 px.
+          </Text>
+        ) : null}
+      </Flex>
     </Flex>
   );
 }

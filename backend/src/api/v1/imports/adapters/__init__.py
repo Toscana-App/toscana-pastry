@@ -1,4 +1,3 @@
-"""Adapters de importacion por entidad (insumos, productos, clientes)."""
 from api.v1.imports.adapters.base import ImportAdapter
 from api.v1.imports.adapters.customers_adapter import CustomersAdapter
 from api.v1.imports.adapters.ingredients_adapter import IngredientsAdapter

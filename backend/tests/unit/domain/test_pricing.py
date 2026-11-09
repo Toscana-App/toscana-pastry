@@ -40,15 +40,12 @@ class TestToBaseUnits:
 
 class TestCostOfQuantity:
     def test_gramos_con_precio_por_kilo(self):
-        # 250g de harina a $2.800/kg = $700 (caso de la spec)
         assert cost_of_quantity(Decimal("250"), "g", Decimal("2800"), "kg") == Decimal("700.00")
 
     def test_unidades_iguales(self):
-        # 4 huevos a $90/unidad = $360
         assert cost_of_quantity(Decimal("4"), "unidad", Decimal("90"), "unidad") == Decimal("360.00")
 
     def test_litros_directo(self):
-        # 1.5L de crema a $1.200/L = $1.800
         assert cost_of_quantity(Decimal("1.5"), "l", Decimal("1200"), "l") == Decimal("1800.00")
 
     def test_mililitros_con_precio_por_litro(self):
@@ -75,7 +72,6 @@ class TestRoundToStep:
         assert round_to_step(Decimal("3287.50"), Decimal("5")) == Decimal("3290")
 
     def test_baja_cuando_no_alcanza_la_mitad(self):
-        # HALF_UP, no "redondear siempre hacia arriba": 3287.20/5=657.44 -> 657
         assert round_to_step(Decimal("3287.20"), Decimal("5")) == Decimal("3285")
 
     def test_paso_diez(self):
@@ -118,8 +114,6 @@ class TestCalculatePrice:
     ]
 
     def test_caso_completo_del_plan(self):
-        # 700 (harina) + 360 (huevos) + 1800 (crema) = 2860; + mano de obra 75 = 2935
-        # margen 150% -> 2935 x 2.5 = 7337.50; paso 5 -> 7340
         b = calculate_price(
             self.ITEMS_TORTA,
             30,
@@ -164,14 +158,12 @@ class TestCalculatePrice:
         assert b.labor == Decimal("300.00")
 
     def test_redondeo_half_up_baja_por_debajo_de_la_mitad(self):
-        # 1000 x 1.2874 = 1287.40; paso 1 -> 1287 (no 1288)
         items = [(Decimal("1"), "kg", Decimal("1000"), "kg")]
         b = calculate_price(items, 0, make_settings(margin_pct=Decimal("28.74"), round_step=Decimal("1")))
         assert b.final == Decimal("1287.40")
         assert b.rounded == Decimal("1287")
 
     def test_redondeo_half_up_sube_en_la_mitad(self):
-        # 1000 x 1.3005 = 1300.50; paso 1 -> 1301
         items = [(Decimal("1"), "kg", Decimal("1000"), "kg")]
         b = calculate_price(items, 0, make_settings(margin_pct=Decimal("30.05"), round_step=Decimal("1")))
         assert b.final == Decimal("1300.50")

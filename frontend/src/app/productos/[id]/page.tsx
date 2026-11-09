@@ -5,10 +5,6 @@ export const metadata: Metadata = {
   title: "Detalle de producto",
 };
 
-/**
- * Next 16: `params` es una Promise en server components; se resuelve acá y
- * el id (string) entra al componente cliente.
- */
 export default async function ProductDetailRoute({
   params,
 }: {
