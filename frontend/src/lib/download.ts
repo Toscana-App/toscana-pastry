@@ -1,17 +1,7 @@
-import { getCookie } from "./cookies";
-import { ACCESS_TOKEN_COOKIE } from "./api";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-
+import { authorizedFetch } from "./api";
 
 export async function fetchBlob(endpoint: string): Promise<Response> {
-  const token = getCookie(ACCESS_TOKEN_COOKIE);
-
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
+  const response = await authorizedFetch(endpoint);
 
   if (!response.ok) {
     const error: unknown = await response.json().catch(() => null);

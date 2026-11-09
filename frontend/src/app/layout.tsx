@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { SN_Pro } from "next/font/google";
 import "./globals.css";
 import { Provider } from "@/providers/ChakraProvider"
@@ -30,7 +31,9 @@ export default function RootLayout({
         <Provider>
           <AuthProvider>
             <IconSprite />
-            <Navbar />
+            <Suspense fallback={null}>
+              <Navbar />
+            </Suspense>
             <main>{children}</main>
             <Toaster />
             <AppGooeyToaster />

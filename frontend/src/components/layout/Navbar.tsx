@@ -2,6 +2,7 @@
 
 import { Box, Button, Container, Flex } from "@chakra-ui/react";
 import NextLink from "next/link";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { isPortalRole } from "@/lib/portalRoutes";
 import { useCartCount } from "@/hooks/useCartCount";
@@ -48,10 +49,15 @@ function CartButton() {
 
 export function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
+  const pathname = usePathname();
 
   const role = user?.role;
   const isAdmin = role === "admin";
   const isPortal = isPortalRole(role);
+
+  if (pathname === "/login") {
+    return null;
+  }
 
   return (
     <Box

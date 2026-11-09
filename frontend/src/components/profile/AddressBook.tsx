@@ -13,7 +13,7 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
-import { AddressBookSkeleton } from "@/components/ui/skeleton";
+import { AddressBookLoadingSkeleton } from "@/components/ui/skeleton";
 
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -176,16 +176,7 @@ function AddressBook() {
   );
 
   if (loading) {
-    return (
-      <Card.Root>
-        <Card.Body>
-          <Stack gap={2} py={4}>
-            <Text fontWeight="semibold">Libro de direcciones</Text>
-            <AddressBookSkeleton />
-          </Stack>
-        </Card.Body>
-      </Card.Root>
-    );
+    return <AddressBookLoadingSkeleton />;
   }
 
   return (

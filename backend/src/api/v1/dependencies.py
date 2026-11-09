@@ -1,21 +1,25 @@
-from fastapi import Depends, HTTPException, Query, status, Header
+from fastapi import Cookie, Depends, HTTPException, Query, status, Header
 from domain.models import User, UserRole
 from data.repositories.sql_user_repository import SQLUserRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 from data.db import get_db
 from domain.auth.logic import decode_access_token
+from api.v1.auth.cookies import ACCESS_COOKIE
 
 async def get_current_user(
     authorization: str = Header(None),
+    access_cookie: str | None = Cookie(None, alias=ACCESS_COOKIE),
     db: AsyncSession = Depends(get_db)
 ) -> User:
-    if not authorization or not authorization.startswith("Bearer "):
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+    elif access_cookie:
+        token = access_cookie
+    else:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing token",
         )
-    
-    token = authorization.split(" ")[1]
     
     try:
         payload = decode_access_token(token)

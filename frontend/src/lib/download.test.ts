@@ -21,7 +21,6 @@ function mockBlobFetch(
 let anchor: HTMLAnchorElement | null = null;
 
 beforeEach(() => {
-  document.cookie = "auth_token=tok123; path=/";
   anchor = null;
   URL.createObjectURL = vi.fn().mockReturnValue("blob:mock");
   URL.revokeObjectURL = vi.fn();
@@ -35,20 +34,17 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
-  document.cookie = "auth_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
 });
 
 describe("downloadEndpoint", () => {
-  it("llama al endpoint con el token de acceso en el header", async () => {
+  it("llama al endpoint enviando las cookies de sesión", async () => {
     const fetchMock = mockBlobFetch(200);
 
     await downloadEndpoint("/orders/export?format=pdf", "pedidos.pdf");
 
     expect(fetchMock).toHaveBeenCalledWith(
       `${API_BASE}/orders/export?format=pdf`,
-      expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: "Bearer tok123" }),
-      }),
+      expect.objectContaining({ credentials: "include" }),
     );
   });
 

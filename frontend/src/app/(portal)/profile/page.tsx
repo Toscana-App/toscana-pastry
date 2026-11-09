@@ -52,7 +52,11 @@ export default function ProfilePage() {
   }, [router]);
 
   if (loading || !user) {
-    return <ProfileSkeleton />;
+    return (
+      <Container py={10} maxW="container.sm">
+        <ProfileSkeleton />
+      </Container>
+    );
   }
 
   return (

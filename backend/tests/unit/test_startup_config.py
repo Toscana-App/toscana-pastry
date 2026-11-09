@@ -8,6 +8,7 @@ def _settings(**kw) -> Settings:
     s = Settings()
     s.ENVIRONMENT = "dev"
     s.SECRET_KEY = "a-real-secret"
+    s.REFRESH_SECRET_KEY = "a-real-refresh-secret"
     s.MP_WEBHOOK_SECRET = "whsec"
     for k, v in kw.items():
         setattr(s, k, v)

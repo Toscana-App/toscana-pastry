@@ -10,8 +10,6 @@ export interface User {
 export interface AuthResponse {
   user_id: string;
   email: string;
-  access_token: string;
-  refresh_token: string;
   role: UserRole;
   google_id?: string;
 }

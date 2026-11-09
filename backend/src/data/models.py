@@ -51,6 +51,17 @@ class UserORM(Base):
     )
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.UTC))
 
+
+class RefreshTokenORM(Base):
+
+    __tablename__ = "refresh_tokens"
+    jti = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    family_id = Column(String, nullable=False, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.UTC))
+
 class BusinessSettingsORM(Base):
     __tablename__ = "business_settings"
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -136,7 +147,6 @@ class RecipeItemORM(Base):
     position = Column(Integer, nullable=False, default=0)
 
 
-
 class CustomerORM(Base):
 
     __tablename__ = "customers"
@@ -160,8 +170,6 @@ class OrderEventORM(Base):
     type = Column(String, nullable=False)
     payload = Column(Text, nullable=False, default="")
     created_at = Column(DateTime(timezone=True), nullable=False)
-
-
 
 
 class TenantSequenceORM(Base):
@@ -222,8 +230,6 @@ class BudgetVersionORM(Base):
     version = Column(Integer, nullable=False)
     snapshot = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False)
-
-
 
 
 class BudgetDocumentORM(Base):
@@ -557,8 +563,6 @@ class CalcDefaultCostORM(Base):
     )
 
 
-
-
 class CartORM(Base):
 
     __tablename__ = "cart"
@@ -587,8 +591,6 @@ class CartItemORM(Base):
         default=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
-
-
 
 
 class _OrderStatusColumn(TypeDecorator):

@@ -1,18 +1,19 @@
 "use client";
 
-
 import type { ReactNode } from "react";
 import {
   Box,
   Card,
   Flex,
+  Heading,
   SimpleGrid,
   Skeleton,
   SkeletonCircle,
   Stack,
   Table,
+  Text,
+  VStack,
 } from "@chakra-ui/react";
-
 
 export function SkeletonLine({ w = "100%", h = "4" }: { w?: string; h?: string }) {
   return <Skeleton height={h} width={w} />;
@@ -105,7 +106,6 @@ export function ShimmerDot({ size = "16px" }: { size?: string }) {
   return <Skeleton width={size} height={size} borderRadius="full" />;
 }
 
-
 export function FullPageSkeleton() {
   return (
     <Flex
@@ -135,58 +135,60 @@ export function FullPageSkeleton() {
   );
 }
 
-export function LoginFormSkeleton() {
+export function ProfileSkeleton() {
   return (
-    <Card.Root
+    <Flex
+      direction="column"
+      align="center"
+      gap={6}
       width="full"
-      maxW="25rem"
-      borderRadius="2xl"
-      boxShadow="md"
       role="status"
       aria-label="Cargando"
     >
-      <Card.Body p="8">
-        <Stack gap="4" align="center">
-          <Skeleton h="8" w="55%" />
-          <Skeleton h="3" w="80%" />
-          <Skeleton h="1px" w="100%" mt="2" />
-          <FieldSkeleton labelWidth="100%" />
-          <Skeleton h="9" borderRadius="lg" w="100%" />
-          <Skeleton h="3" w="12%" />
-          <Skeleton h="9" borderRadius="lg" w="100%" />
-        </Stack>
-      </Card.Body>
-    </Card.Root>
+      <Heading fontSize="3xl">Mi cuenta</Heading>
+      <Box
+        width="full"
+        maxW="450px"
+        p={8}
+        borderRadius="xl"
+        borderWidth="1px"
+        borderColor="border"
+        bg="bg.panel"
+        boxShadow="lg"
+      >
+        <VStack gap={6} align="center" width="full">
+          {}
+          <SkeletonCircle size="64px" />
+          <VStack gap={1} align="center">
+            <SkeletonLine w="170px" h="5" />
+            <Skeleton h="6" w="64px" borderRadius="full" />
+          </VStack>
+          <Skeleton h="1px" w="100%" />
+          <VStack width="full" align="start" gap={3} pt="2">
+            <SkeletonLine h="5" w="92%" />
+            <SkeletonLine h="5" w="78%" />
+            <SkeletonLine h="5" w="85%" />
+          </VStack>
+        </VStack>
+      </Box>
+      {}
+      <Box w="full">
+        <AddressBookLoadingSkeleton />
+      </Box>
+    </Flex>
   );
 }
 
-export function ProfileSkeleton() {
+export function AddressBookLoadingSkeleton() {
   return (
-    <Stack
-      width="full"
-      maxW="container.sm"
-      mx="auto"
-      pt="10"
-      gap="6"
-      role="status"
-      aria-label="Cargando"
-    >
-      <Skeleton h="10" w="28%" alignSelf="center" />
-      <SkeletonCard height="14rem">
-        <Stack p="6" gap="4" width="full">
-          <FieldSkeleton />
-          <FieldSkeleton />
-          <FieldSkeleton labelWidth="35%" />
+    <Card.Root role="status" aria-label="Cargando">
+      <Card.Body>
+        <Stack gap={2} py={4}>
+          <Text fontWeight="semibold">Libro de direcciones</Text>
+          <AddressBookSkeleton />
         </Stack>
-      </SkeletonCard>
-      <SkeletonCard height="11rem">
-        <Stack p="6" gap="3" width="full">
-          <SkeletonLine w="45%" h="4" />
-          <Skeleton h="16" w="100%" borderRadius="md" />
-          <Skeleton h="16" w="100%" borderRadius="md" />
-        </Stack>
-      </SkeletonCard>
-    </Stack>
+      </Card.Body>
+    </Card.Root>
   );
 }
 
@@ -662,13 +664,9 @@ export function BudgetRowsSkeleton({ rows = 3 }: { rows?: number }) {
 
 export function AddressBookSkeleton() {
   return (
-    <Stack gap="2" width="full" role="status" aria-label="Cargando">
-      <Skeleton h="18" w="100%" borderRadius="md" />
-      <Skeleton h="18" w="100%" borderRadius="md" />
-      <Skeleton h="18" w="100%" borderRadius="md" />
-      <Flex justify="flex-end" mt="2">
-        <Skeleton h="2.5rem" w="140px" borderRadius="lg" />
-      </Flex>
+    <Stack gap="3" width="full" role="status" aria-label="Cargando">
+      <Skeleton h="16" w="100%" borderRadius="md" />
+      <Skeleton h="16" w="100%" borderRadius="md" />
     </Stack>
   );
 }

@@ -61,7 +61,7 @@ def _override_deps(session_factory):
 async def _token_for(ac: AsyncClient, email: str) -> str:
     resp = await ac.post("/api/v1/auth/login", json={"email": email})
     assert resp.status_code == 200
-    return resp.json()["access_token"]
+    return resp.cookies["auth_token"]
 
 
 async def _put_settings(ac: AsyncClient, token: str, markup: str = "40") -> None:
