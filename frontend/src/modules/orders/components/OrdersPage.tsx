@@ -40,8 +40,8 @@ export function OrdersPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [view, setView] = useState<"list" | "weekly">("list");
-  const [exportError, setExportError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const {
     items,
     total,
@@ -171,6 +171,16 @@ export function OrdersPage() {
         </Alert.Root>
       ) : null}
 
+      {exportError ? (
+        <Alert.Root status="error" borderRadius="md">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>No se pudo exportar el reporte</Alert.Title>
+            <Alert.Description>{exportError}</Alert.Description>
+          </Alert.Content>
+        </Alert.Root>
+      ) : null}
+
       {}
       <Flex gap={1} borderBottomWidth="1px" borderColor="border">
         {(
@@ -182,7 +192,6 @@ export function OrdersPage() {
           <Box
             key={tab.id}
             as="button"
-            type="button"
             aria-pressed={view === tab.id}
             onClick={() => setView(tab.id)}
             _hover={{ color: "brand.fg" }}
@@ -224,7 +233,7 @@ export function OrdersPage() {
             size="sm"
             rounded="full"
             variant={status === null ? "solid" : "outline"}
-            colorPalette={status === null ? "brand" : "gray"}
+            colorPalette={status === null ? "brand" : undefined}
             aria-pressed={status === null}
             onClick={() => setStatus(null)}
           >
@@ -237,7 +246,7 @@ export function OrdersPage() {
               rounded="full"
               whiteSpace="nowrap"
               variant={status === s ? "solid" : "outline"}
-              colorPalette={status === s ? "brand" : "gray"}
+              colorPalette={status === s ? "brand" : undefined}
               aria-pressed={status === s}
               onClick={() => setStatus(status === s ? null : s)}
             >
@@ -249,7 +258,7 @@ export function OrdersPage() {
             rounded="full"
             whiteSpace="nowrap"
             variant={paid === false ? "solid" : "outline"}
-            colorPalette={paid === false ? "orange" : "gray"}
+            colorPalette={paid === false ? "orange" : undefined}
             aria-pressed={paid === false}
             onClick={() => setPaid(paid === false ? null : false)}
           >
@@ -366,7 +375,7 @@ export function OrdersPage() {
                     {order.customer_phone}
                   </td>
                   <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>{order.item_count}</td>
-                  <td style={{ padding: "10px 14px", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                  <td style={{ padding: "10px 14px", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                     <FormatNumber value={centsToPesos(order.total)} style="currency" currency="ARS" />
                   </td>
                   <td style={{ padding: "10px 14px" }}>

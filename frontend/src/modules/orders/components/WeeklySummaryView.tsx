@@ -185,7 +185,7 @@ export function WeeklySummaryView() {
                 direction="column"
                 gap={1}
                 borderWidth="1px"
-                borderColor="gray.200"
+                borderColor="border"
                 rounded="md"
                 p={4}
                 minW="160px"
@@ -205,7 +205,7 @@ export function WeeklySummaryView() {
               Sin pedidos confirmados o entregados en la semana.
             </Text>
           ) : (
-            <Box overflowX="auto" borderWidth="1px" borderColor="gray.200" rounded="md">
+            <Box overflowX="auto" borderWidth="1px" borderColor="border" rounded="md">
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
                 <thead>
                   <tr>
@@ -213,7 +213,7 @@ export function WeeklySummaryView() {
                       <th
                         key={h}
                         style={{
-                          textAlign: "left",
+                          textAlign: h === "Total" ? "right" : "left",
                           padding: "10px 14px",
                           borderBottom: "1px solid var(--chakra-colors-border)",
                           fontWeight: 600,
@@ -240,6 +240,7 @@ export function WeeklySummaryView() {
                         style={{
                           padding: "10px 14px",
                           whiteSpace: "nowrap",
+                          textAlign: "right",
                           fontVariantNumeric: "tabular-nums",
                         }}
                       >

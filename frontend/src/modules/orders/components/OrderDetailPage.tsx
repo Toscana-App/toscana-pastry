@@ -150,7 +150,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
     <Flex direction="column" gap={5}>
       <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
         <HStack gap={3} align="center">
-          <Heading fontSize="2xl" textWrap="balance">Pedido {order.id.slice(0, 8)}</Heading>
+          <Heading as="h1" fontSize="2xl" textWrap="balance">Pedido {order.id.slice(0, 8)}</Heading>
           <Badge colorPalette={STATUS_COLORS[order.status]} variant="subtle">
             {ORDER_STATUS_LABELS[order.status]}
           </Badge>
@@ -192,7 +192,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
                 <th
                   key={h}
                   style={{
-                    textAlign: "left",
+                    textAlign: ["Cant.", "Porc.", "Base", "Margen", "Final", "Ajuste"].includes(h) ? "right" : "left",
                     padding: "10px 14px",
                     borderBottom: "1px solid var(--chakra-colors-border)",
                     fontWeight: 600,
@@ -209,22 +209,21 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
             {order.items.map((item, idx) => (
               <tr key={`${item.product_id}-${idx}`} style={{ borderBottom: "1px solid var(--chakra-colors-border-muted)" }}>
                 <td style={{ padding: "10px 14px", fontWeight: 500, overflowWrap: "anywhere" }}>{item.product_name}</td>
-                <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>{item.qty}</td>
-                <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>{item.portions}</td>
+                <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{item.qty}</td>
+                <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{item.portions}</td>
                 <td style={{ padding: "10px 14px", maxWidth: "220px", overflowWrap: "anywhere" }}>{item.note}</td>
-                <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
+                <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                   <FormatNumber value={centsToPesos(item.price.base)} style="currency" currency="ARS" />
                 </td>
-                <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
+                <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                   {formatPct(item.price.margin_pct)}
                 </td>
-                <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
+                <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                   <FormatNumber value={centsToPesos(item.price.final)} style="currency" currency="ARS" />
                 </td>
-                <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
+                <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                   <FormatNumber value={centsToPesos(item.rounded)} style="currency" currency="ARS" />
                 </td>
-                <td style={{ display: "none" }} aria-hidden="true" />
               </tr>
             ))}
           </tbody>

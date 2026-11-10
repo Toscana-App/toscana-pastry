@@ -38,7 +38,7 @@ const StyledOptionSelect = chakra("select", {
     "& option": { bg: "bg", color: "fg" },
     _focusVisible: {
       borderColor: "brand.solid",
-      boxShadow: "0 0 0 1px var(--chakra-colors-brand-600)",
+      boxShadow: "0 0 0 1px var(--chakra-colors-brand-focus-ring)",
     },
   },
 });
@@ -113,7 +113,7 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
   return (
     <Flex direction="column" gap={5}>
       <Flex align="center" justify="space-between" gap={3}>
-        <Heading fontSize="2xl" textWrap="balance">{orderId ? "Editar pedido" : "Nuevo pedido"}</Heading>
+        <Heading as="h1" fontSize="2xl" textWrap="balance">{orderId ? "Editar pedido" : "Nuevo pedido"}</Heading>
         <Button variant="ghost" asChild>
           <NextLink href="/pedidos">Volver al listado</NextLink>
         </Button>
@@ -129,7 +129,7 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
             <Button
               size="sm"
               variant={customerMode === "existing" ? "solid" : "outline"}
-              colorPalette={customerMode === "existing" ? "brand" : "gray"}
+              colorPalette={customerMode === "existing" ? "brand" : undefined}
               aria-pressed={customerMode === "existing"}
               onClick={() => setCustomerMode("existing")}
             >
@@ -138,7 +138,7 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
             <Button
               size="sm"
               variant={customerMode === "new" ? "solid" : "outline"}
-              colorPalette={customerMode === "new" ? "brand" : "gray"}
+              colorPalette={customerMode === "new" ? "brand" : undefined}
               aria-pressed={customerMode === "new"}
               onClick={() => setCustomerMode("new")}
             >
