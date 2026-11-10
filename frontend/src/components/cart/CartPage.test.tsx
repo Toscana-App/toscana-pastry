@@ -90,6 +90,23 @@ describe("CartPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Tu carrito está vacío")).toBeInTheDocument();
     });
+    expect(
+      screen.getByText("Agregá productos desde el catálogo para empezar.")
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ver catálogo" })).toBeInTheDocument();
+  });
+
+  it("should format money amounts as ARS currency", async () => {
+    render(<CartPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Torta")).toBeInTheDocument();
+    });
+
+    const text = (document.body.textContent ?? "").replace(/\s/g, " ");
+    expect(text).toMatch(/\$ 1\.000,00 c\/u/);
+    expect(text).toMatch(/\$ 2\.000,00/);
+    expect(text).toMatch(/\$ 2\.200,00/);
   });
 
   it("should increase item quantity when plus button clicked", async () => {
@@ -113,10 +130,10 @@ describe("CartPage", () => {
     render(<CartPage />);
     
     await waitFor(() => {
-      expect(screen.getByPlaceholderText("Código de cupón")).toBeInTheDocument();
+      expect(screen.getByPlaceholderText("Código de cupón…")).toBeInTheDocument();
     });
     
-    const couponInput = screen.getByPlaceholderText("Código de cupón");
+    const couponInput = screen.getByPlaceholderText("Código de cupón…");
     const applyButton = screen.getByRole("button", { name: /Aplicar/ });
     
     fireEvent.change(couponInput, { target: { value: "DESCUENTO10" } });
@@ -125,5 +142,23 @@ describe("CartPage", () => {
     await waitFor(() => {
       expect(applyCoupon).toHaveBeenCalledWith("DESCUENTO10");
     });
+  });
+
+  it("should apply coupon only once when Enter is pressed in the input", async () => {
+    render(<CartPage />);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Código de cupón…")).toBeInTheDocument();
+    });
+
+    const couponInput = screen.getByPlaceholderText("Código de cupón…");
+    fireEvent.change(couponInput, { target: { value: "ENTERSOLO" } });
+    fireEvent.keyDown(couponInput, { key: "Enter" });
+    fireEvent.submit(couponInput);
+
+    await waitFor(() => {
+      expect(applyCoupon).toHaveBeenCalledWith("ENTERSOLO");
+    });
+    expect(applyCoupon).toHaveBeenCalledTimes(1);
   });
 });
