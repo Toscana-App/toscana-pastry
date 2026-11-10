@@ -39,7 +39,7 @@ export default function CalculatorConfigPage() {
 
   return (
     <ProtectedRoute requiredRole="admin">
-      <Container py={10} maxW="container.md">
+      <Container py={10} maxW="2xl">
         <Flex direction="column" gap={6}>
           <Heading fontSize="3xl" textWrap="balance">Configuración de la calculadora</Heading>
           <Tabs.Root value={activeTab} onValueChange={handleTabChange}>

@@ -16,7 +16,7 @@ export default function BudgetsLayout({
 }) {
   return (
     <ProtectedRoute>
-      <Container py={10} maxW="container.lg">
+      <Container py={10} maxW="4xl">
         {children}
       </Container>
     </ProtectedRoute>

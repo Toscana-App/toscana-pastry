@@ -121,12 +121,14 @@ function LeadForm() {
               }
             >
               <RadioGroup.Item value="consumer">
+                <RadioGroup.ItemHiddenInput />
                 <RadioGroup.ItemControl />
                 <RadioGroup.ItemText>
                   Consumidora (quiero hacer un pedido)
                 </RadioGroup.ItemText>
               </RadioGroup.Item>
               <RadioGroup.Item value="business">
+                <RadioGroup.ItemHiddenInput />
                 <RadioGroup.ItemControl />
                 <RadioGroup.ItemText>
                   Negocio (quiero revender)

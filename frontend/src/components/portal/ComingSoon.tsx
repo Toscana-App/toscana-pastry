@@ -5,7 +5,7 @@ import { Container } from "@chakra-ui/react";
 
 export function ComingSoon({ title, message }: { title: string; message: string }) {
   return (
-    <Container maxW="container.md" py={10}>
+    <Container maxW="2xl" py={10}>
       <Box
         as="section"
         border="1px"

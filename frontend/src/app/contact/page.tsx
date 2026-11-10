@@ -5,8 +5,8 @@ import LeadForm from "@/components/contact/LeadForm";
 
 export default function ContactoPage() {
   return (
-    <Container maxW="container.sm" py={10}>
-      <Heading size="2xl" mb={6}>
+    <Container maxW="2xl" py={10}>
+      <Heading as="h1" fontSize="2xl" mb={6}>
         Contacto
       </Heading>
       <LeadForm />

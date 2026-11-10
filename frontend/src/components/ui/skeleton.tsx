@@ -124,7 +124,7 @@ export function FullPageSkeleton() {
         px="4"
         pb="8"
       >
-        <Stack width="full" maxW="container.sm" gap="4">
+        <Stack width="full" maxW="5xl" gap="4">
           <Skeleton h="10" w="45%" alignSelf="center" />
           <Skeleton h="12" w="100%" borderRadius="xl" />
           <Skeleton h="12" w="100%" borderRadius="xl" />
@@ -142,6 +142,8 @@ export function ProfileSkeleton() {
       align="center"
       gap={6}
       width="full"
+      maxW="672px"
+      mx="auto"
       role="status"
       aria-label="Cargando"
     >
@@ -154,10 +156,8 @@ export function ProfileSkeleton() {
         borderWidth="1px"
         borderColor="border"
         bg="bg.panel"
-        boxShadow="lg"
       >
         <VStack gap={6} align="center" width="full">
-          {}
           <SkeletonCircle size="64px" />
           <VStack gap={1} align="center">
             <SkeletonLine w="170px" h="5" />
@@ -171,7 +171,6 @@ export function ProfileSkeleton() {
           </VStack>
         </VStack>
       </Box>
-      {}
       <Box w="full">
         <AddressBookLoadingSkeleton />
       </Box>

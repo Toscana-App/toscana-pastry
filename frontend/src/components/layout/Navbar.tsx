@@ -55,7 +55,7 @@ function AdminMenu() {
   return (
     <Menu.Root>
       <Menu.Trigger asChild>
-        <Button variant="ghost" size="sm" aria-label="Menú">
+        <Button variant="ghost" size="sm" h="44px" aria-label="Menú">
           Menú
         </Button>
       </Menu.Trigger>
@@ -85,7 +85,15 @@ function ProfileMenu({
 }) {
   return (
     <Menu.Root positioning={{ placement: "bottom-end" }}>
-      <Menu.Trigger rounded="full" focusRing="outside" aria-label={label}>
+      <Menu.Trigger
+        rounded="full"
+        focusRing="outside"
+        aria-label={label}
+        minH="44px"
+        minW="44px"
+        display="grid"
+        placeItems="center"
+      >
         <Avatar.Root size="sm">
           <Avatar.Fallback name={name} />
           <Avatar.Image alt="" />
@@ -139,7 +147,7 @@ export function Navbar() {
       zIndex={50}
       w="full"
     >
-      <Container maxW="container.xl">
+      <Container maxW="6xl">
         <Flex h="auto" align="center" justify="space-between" gap={4} wrap="wrap">
           <Box flexShrink={0} display="inline-flex">
             <NextLink href="/">

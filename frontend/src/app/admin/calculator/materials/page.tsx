@@ -7,7 +7,7 @@ import MaterialsAbm from "@/components/calc/MaterialsAbm";
 export default function MaterialesPage() {
   return (
     <ProtectedRoute requiredRole="admin">
-      <Container py={10} maxW="container.xl">
+      <Container py={10} maxW="6xl">
         <Flex direction="column" gap={6}>
           <Heading fontSize="3xl" textWrap="balance">Materiales</Heading>
           <MaterialsAbm />

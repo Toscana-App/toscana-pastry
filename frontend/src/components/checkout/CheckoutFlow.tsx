@@ -116,7 +116,7 @@ export function CheckoutFlow() {
 
   if (placed) {
     return (
-      <Container maxW="container.md" py={10}>
+      <Container maxW="2xl" py={10}>
         <CheckoutSuccess order={placed} />
       </Container>
     );
@@ -145,7 +145,7 @@ export function CheckoutFlow() {
   }
 
   return (
-    <Container maxW="container.lg" py={8}>
+    <Container maxW="4xl" py={8}>
       <Heading as="h1" size="lg" textWrap="balance" mb={6}>
         Finalizar pedido
       </Heading>

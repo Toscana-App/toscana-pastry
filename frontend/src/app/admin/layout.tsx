@@ -16,7 +16,7 @@ export default function AdminLayout({
 }) {
   return (
     <ProtectedRoute requiredRole="admin">
-      <Container py={10} maxW="container.md">
+      <Container py={10} maxW="4xl">
         {children}
       </Container>
     </ProtectedRoute>

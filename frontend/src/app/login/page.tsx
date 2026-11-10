@@ -46,7 +46,7 @@ function LoginFormPlaceholder() {
 export default function LoginPage() {
   return (
     <Container
-      maxW="container.md"
+      maxW="2xl"
       py={20}
       display="flex"
       alignItems="center"

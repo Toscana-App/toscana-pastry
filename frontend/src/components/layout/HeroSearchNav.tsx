@@ -20,7 +20,7 @@ export function HeroSearchNav() {
 
   return (
     <Box pt={{ base: 4, md: 6 }} pb={2}>
-      <Container maxW="container.xl">
+      <Container maxW="6xl">
         <Box display="flex" justifyContent="center" w="full">
           <PortalSearch />
         </Box>

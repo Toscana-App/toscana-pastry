@@ -7,16 +7,18 @@ export default function UnauthorizedPage() {
   const router = useRouter();
 
   return (
-    <Container maxW="container.sm" minH="100dvh">
+    <Container maxW="2xl" minH="100dvh">
       <Flex direction="column" align="center" justify="center" gap={4} minH="100dvh">
-        <Heading fontSize="3xl" textWrap="balance">Access denied</Heading>
+        <Heading as="h1" fontSize="3xl" textWrap="balance">Acceso denegado</Heading>
         <Text color="fg.muted" textAlign="center">
-          Your account does not have permission to view this page.
+          Tu cuenta no tiene permisos para ver esta página.
         </Text>
         <Flex gap={3}>
-          <Button colorPalette="brand" onClick={() => router.push("/")}>Go home</Button>
+          <Button colorPalette="brand" onClick={() => router.push("/")}>
+            Ir a inicio
+          </Button>
           <Button variant="outline" onClick={() => router.push("/login")}>
-            Sign in with another account
+            Ingresar con otra cuenta
           </Button>
         </Flex>
       </Flex>
