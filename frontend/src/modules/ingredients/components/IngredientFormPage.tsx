@@ -44,7 +44,6 @@ export function IngredientFormPage({ mode, ingredientId }: IngredientFormPagePro
       ? `/admin/ingredients/${ingredientId}`
       : "/admin/ingredients";
 
-  const [initialName, setInitialName] = useState<string | null>(null);
   const [loadingInitial, setLoadingInitial] = useState(isEdit);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -72,7 +71,6 @@ export function IngredientFormPage({ mode, ingredientId }: IngredientFormPagePro
         const data = await ingredientsService.getDetail(id, false);
         const ingredient = data.ingredient;
         if (cancelled) return;
-        setInitialName(ingredient.name);
         reset({
           name: ingredient.name,
           unit: ingredient.unit,
@@ -115,7 +113,7 @@ export function IngredientFormPage({ mode, ingredientId }: IngredientFormPagePro
           price_per_unit: pesosToCents(values.price_per_unit),
           low_stock_threshold: values.low_stock_threshold,
         });
-        toaster.create({ title: "Changes saved", type: "success" });
+        toaster.create({ title: "Cambios guardados", type: "success" });
         router.push(`/admin/ingredients/${ingredientId}`);
       } else {
         await ingredientsService.create({
@@ -125,7 +123,7 @@ export function IngredientFormPage({ mode, ingredientId }: IngredientFormPagePro
           stock_qty: values.stock_qty,
           low_stock_threshold: values.low_stock_threshold,
         });
-        toaster.create({ title: "Ingredient created", type: "success" });
+        toaster.create({ title: "Ingrediente creado", type: "success" });
         router.push("/admin/ingredients");
       }
     } catch (e) {
@@ -161,8 +159,8 @@ export function IngredientFormPage({ mode, ingredientId }: IngredientFormPagePro
   return (
     <Flex direction="column" gap={6}>
       <Flex direction="column" gap={1}>
-        <Heading fontSize="2xl" textWrap="balance" overflowWrap="anywhere">
-          {isEdit ? `Editar: ${initialName ?? ""}` : "Nuevo ingrediente"}
+        <Heading as="h1" fontSize="2xl" textWrap="balance" overflowWrap="anywhere">
+          {isEdit ? "Editar ingrediente" : "Nuevo ingrediente"}
         </Heading>
         <Text color="fg.muted">
           {isEdit
@@ -266,7 +264,11 @@ export function IngredientFormPage({ mode, ingredientId }: IngredientFormPagePro
         </Flex>
       </form>
 
-      <Dialog.Root open={confirmDiscard} onOpenChange={(e) => setConfirmDiscard(e.open)}>
+      <Dialog.Root
+        open={confirmDiscard}
+        onOpenChange={(e) => setConfirmDiscard(e.open)}
+        role="alertdialog"
+      >
         <Dialog.Backdrop />
         <Dialog.Positioner>
           <Dialog.Content overscrollBehavior="contain">

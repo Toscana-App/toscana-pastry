@@ -40,7 +40,9 @@ export function IngredientsPage() {
     <Flex direction="column" gap={5}>
       <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
         <Flex direction="column" gap={1}>
-          <Heading fontSize="2xl" textWrap="balance">Ingredientes</Heading>
+          <Heading as="h1" fontSize="2xl" textWrap="balance">
+            Ingredientes
+          </Heading>
           <Text color="fg.muted" fontVariantNumeric="tabular-nums" aria-live="polite">
             {total} en total
           </Text>
@@ -115,16 +117,15 @@ export function IngredientsPage() {
         />
       ) : (
         <>
-          {}
           <Box display={{ base: "none", md: "block" }}>
             <Table.ScrollArea borderWidth="1px" rounded="md">
               <Table.Root size="sm">
                 <Table.Header>
                   <Table.Row>
-                    <Table.ColumnHeader>Name</Table.ColumnHeader>
-                    <Table.ColumnHeader>Unit price</Table.ColumnHeader>
+                    <Table.ColumnHeader>Nombre</Table.ColumnHeader>
+                    <Table.ColumnHeader>Precio unitario</Table.ColumnHeader>
                     <Table.ColumnHeader>Stock</Table.ColumnHeader>
-                    <Table.ColumnHeader>Status</Table.ColumnHeader>
+                    <Table.ColumnHeader>Estado</Table.ColumnHeader>
                   </Table.Row>
                 </Table.Header>
                 <Table.Body>
@@ -153,7 +154,6 @@ export function IngredientsPage() {
             </Table.ScrollArea>
           </Box>
 
-          {}
           <Flex direction="column" gap={3} display={{ base: "flex", md: "none" }}>
             {items.map((ing) => (
               <NextLink key={ing.id} href={`/admin/ingredients/${ing.id}`}>
@@ -175,7 +175,7 @@ export function IngredientsPage() {
                     />
                   </Flex>
                   <Flex justify="space-between" color="fg.muted" fontSize="sm">
-                    <Text fontVariantNumeric="tabular-nums">Unit price: {<FormatNumber value={centsToPesos(ing.price_per_unit)} style="currency" currency="ARS" />}</Text>
+                    <Text fontVariantNumeric="tabular-nums">Precio unitario: {<FormatNumber value={centsToPesos(ing.price_per_unit)} style="currency" currency="ARS" />}</Text>
                     <Text fontVariantNumeric="tabular-nums">Stock: {formatQty(ing.stock_qty, ing.unit)}</Text>
                   </Flex>
                 </Flex>
@@ -185,7 +185,7 @@ export function IngredientsPage() {
 
           {pageCount > 1 ? (
             <Pagination.Root
-              colorScheme="brand"
+              colorPalette="brand"
               count={total}
               pageSize={PAGE_SIZE}
               page={page}

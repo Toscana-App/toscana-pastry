@@ -51,7 +51,7 @@ export function IngredientDetailPage({ id }: IngredientDetailPageProps) {
     try {
       const result = await remove();
       if (result === "deleted") {
-        toaster.create({ title: "Ingredient deleted", type: "success" });
+        toaster.create({ title: "Ingrediente eliminado", type: "success" });
         router.push("/admin/ingredients");
       } else {
         setImpact(result);
@@ -77,7 +77,9 @@ export function IngredientDetailPage({ id }: IngredientDetailPageProps) {
         <Alert.Root status="error">
           <Alert.Content>
             <Alert.Title>No se pudo cargar el ingrediente</Alert.Title>
-            <Alert.Description>{error ?? "No existe"}</Alert.Description>
+            <Alert.Description>
+            {error ?? "El ingrediente no existe o fue eliminado."}
+          </Alert.Description>
           </Alert.Content>
         </Alert.Root>
         <Button asChild variant="outline" alignSelf="flex-start">
@@ -95,7 +97,9 @@ export function IngredientDetailPage({ id }: IngredientDetailPageProps) {
 
       <Flex justify="space-between" align="flex-start" gap={4} flexWrap="wrap">
         <Flex direction="column" gap={2}>
-          <Heading fontSize="2xl" textWrap="balance" overflowWrap="anywhere">{ingredient.name}</Heading>
+          <Heading as="h1" fontSize="2xl" textWrap="balance" overflowWrap="anywhere">
+            {ingredient.name}
+          </Heading>
           <StockBadge
             status={ingredient.status}
             stockQty={ingredient.stock_qty}
