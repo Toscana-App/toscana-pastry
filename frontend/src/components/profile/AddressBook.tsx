@@ -84,6 +84,7 @@ function AddressBook() {
         if (cancelled) return;
         setAddresses(res.items ?? []);
       } catch {
+        // The empty state below covers load failures; retry via refresh.
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -148,7 +149,9 @@ function AddressBook() {
         await reload();
       } catch (err) {
         setFormError(
-          err instanceof Error ? err.message : "No se pudo cambiar el default"
+          err instanceof Error
+            ? err.message
+            : "No se pudo cambiar la dirección predeterminada"
         );
       } finally {
         setBusy(false);

@@ -35,7 +35,7 @@ export default function ProfilePage() {
       } catch {
         if (cancelled) return;
         toaster.create({
-          title: "Error",
+          title: "¡Ups!",
           description: "No se pudo cargar la información de tu cuenta.",
           type: "error",
         });
@@ -53,22 +53,30 @@ export default function ProfilePage() {
 
   if (loading || !user) {
     return (
-      <Container py={10} maxW="container.sm">
-        <ProfileSkeleton />
+      <Container py={10}>
+        <Box w="100%" maxW="672px" mx="auto">
+          <ProfileSkeleton />
+        </Box>
       </Container>
     );
   }
 
   return (
     <ProtectedRoute>
-      <Container py={10} maxW="container.sm">
-        <Flex direction="column" align="center" gap={6} width="100%">
-          <Heading fontSize="3xl" textWrap="balance">Mi cuenta</Heading>
+      <Container py={10}>
+        <Flex
+          direction="column"
+          align="center"
+          gap={6}
+          width="100%"
+          maxW="672px"
+          mx="auto"
+        >
+          <Heading as="h1" fontSize="3xl" textWrap="balance">Mi cuenta</Heading>
           <ProfileCard user={user} />
           <Box w="100%">
             <AddressBook />
           </Box>
-          {}
           <Button variant="outline" colorPalette="red" size="sm" onClick={logout}>
             Cerrar sesión
           </Button>

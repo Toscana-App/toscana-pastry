@@ -17,7 +17,7 @@ interface ProfileCardProps {
 }
 
 function roleColor(role: string) {
-  return role === "admin" ? "red" : "blue";
+  return role === "admin" ? "red" : "brand";
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -36,7 +36,6 @@ export function ProfileCard({ user }: ProfileCardProps) {
       borderWidth="1px"
       borderColor="border"
       bg="bg.panel"
-      boxShadow="lg"
     >
       <VStack gap={6} align="center">
         <Avatar.Root size="2xl" colorPalette="brand">
@@ -44,7 +43,7 @@ export function ProfileCard({ user }: ProfileCardProps) {
         </Avatar.Root>
         <VStack gap={1}>
           <Heading fontSize="xl" textWrap="balance">Perfil de usuario</Heading>
-          <Badge colorPalette={roleColor(user.role)}>
+          <Badge colorPalette={roleColor(user.role)} variant="subtle">
             {ROLE_LABELS[user.role] ?? user.role}
           </Badge>
         </VStack>
