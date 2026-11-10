@@ -107,4 +107,58 @@ describe("ProductsCatalog (contrato de tienda T3)", () => {
     await user.click(screen.getByRole("button", { name: "Exportar PDF" }))
     expect(pricing.pdf).toHaveBeenCalledWith("revendedores")
   })
+
+  it("sin sesión no carga precios y muestra la invitación a iniciar sesión", async () => {
+    auth.role = ""
+    renderWithProviders(<ProductsCatalog />)
+
+    const link = await screen.findByRole("link", { name: /iniciar sesión/i })
+    expect(link).toHaveAttribute("href", "/login")
+    expect(screen.queryByRole("status", { name: "Cargando" })).not.toBeInTheDocument()
+    expect(store.list).not.toHaveBeenCalled()
+  })
+
+  it("si falla la carga muestra un error con reintento y reintenta", async () => {
+    auth.role = "customer"
+    store.list.mockRejectedValueOnce(new Error("Sin conexión"))
+    const user = userEvent.setup()
+    renderWithProviders(<ProductsCatalog />)
+
+    expect(
+      await screen.findByText("No se pudieron cargar los productos"),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Reintentar" }))
+    expect(store.list).toHaveBeenCalledTimes(2)
+
+    await screen.findByText("Torta de chocolate")
+  })
+
+  it("el botón Agregar declara min-height 44px para el pulgar (portal)", async () => {
+    auth.role = "customer"
+    renderWithProviders(<ProductsCatalog />)
+
+    const button = await screen.findByRole("button", { name: /agregar torta de chocolate/i })
+    const cssName = (button.getAttribute("class") ?? "").split(/\s+/).pop() ?? ""
+    let hasMinHeight44 = false
+    for (const sheet of Array.from(document.styleSheets)) {
+      let rules: CSSRuleList | null = null
+      try {
+        rules = sheet.cssRules
+      } catch {
+        continue
+      }
+      // Las reglas pueden estar anidadas en @layer, se busca en el texto
+      // completo de cada regla.
+      for (const rule of Array.from(rules ?? [])) {
+        if (
+          rule.cssText?.includes(cssName) &&
+          /min-height:\s*44px/.test(rule.cssText ?? "")
+        ) {
+          hasMinHeight44 = true
+        }
+      }
+    }
+    expect(hasMinHeight44).toBe(true)
+  })
 })

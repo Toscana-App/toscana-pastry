@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Badge,
   Box,
@@ -39,13 +39,18 @@ export function ProductsCatalog() {
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [loadErrorDetail, setLoadErrorDetail] = useState("");
+  const [retryTick, setRetryTick] = useState(0);
   const [audience, setAudience] = useState<Audience>("revendedores");
   const [addingId, setAddingId] = useState<string | null>(null);
 
   const q = (searchParams.get("q") ?? "").trim().slice(0, 120);
 
   const role = user?.role ?? "";
-  const allowedAudiences = roleAllowedAudiences(role);
+  // Memo: con una lista nueva por render, el efecto de carga volvería a
+  // correr en cada render y re-pediría la lista en bucle.
+  const allowedAudiences = useMemo(() => roleAllowedAudiences(role), [role]);
   const canSwitch = canSwitchAudience(role);
   const showCart = isPortalRole(user?.role);
 
@@ -84,12 +89,22 @@ export function ProductsCatalog() {
 
     if (!allowedAudiences.includes(audience)) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoadError(false);
+    setLoadErrorDetail("");
+
     async function load() {
       try {
         const response = await fetchStoreList(audience, q || undefined);
         if (!cancelled) setProducts(response.products ?? []);
       } catch (error) {
         if (cancelled) return;
+        setLoadError(true);
+        setLoadErrorDetail(
+          error instanceof Error && error.message
+            ? error.message
+            : "Revisá tu conexión e intentá de nuevo.",
+        );
         gooeyToast.error("¡Ups! No se pudieron cargar los productos", {
           description:
             error instanceof Error ? error.message : "Intenta de nuevo.",
@@ -103,10 +118,61 @@ export function ProductsCatalog() {
     return () => {
       cancelled = true;
     };
-  }, [audience, allowedAudiences, q]);
+  }, [audience, allowedAudiences, q, retryTick]);
+
+  if (allowedAudiences.length === 0) {
+    return (
+      <Box
+        border="1px"
+        borderColor="border.muted"
+        rounded="md"
+        py={10}
+        px={4}
+        textAlign="center"
+      >
+        <Text color="fg" fontWeight="medium" mb={1}>
+          Iniciá sesión para ver la lista de precios
+        </Text>
+        <Text color="fg.muted" mb={5}>
+          Cada cuenta ve la lista de precios de su rol.
+        </Text>
+        <Button asChild colorPalette="brand" size="md" minH="44px">
+          <NextLink href="/login">Iniciar sesión</NextLink>
+        </Button>
+      </Box>
+    );
+  }
 
   if (loading) {
     return <CatalogSkeleton />;
+  }
+
+  if (loadError) {
+    return (
+      <Box
+        border="1px"
+        borderColor="border.muted"
+        rounded="md"
+        py={10}
+        px={4}
+        textAlign="center"
+      >
+        <Text color="fg.error" fontWeight="medium" mb={1}>
+          No se pudieron cargar los productos
+        </Text>
+        <Text color="fg.muted" mb={5}>
+          {loadErrorDetail || "Revisá tu conexión e intentá de nuevo."}
+        </Text>
+        <Button
+          colorPalette="brand"
+          size="md"
+          minH="44px"
+          onClick={() => setRetryTick((tick) => tick + 1)}
+        >
+          Reintentar
+        </Button>
+      </Box>
+    );
   }
 
   return (
@@ -268,6 +334,7 @@ export function ProductsCatalog() {
                         size="sm"
                         variant="outline"
                         colorPalette="brand"
+                        minH="44px"
                         disabled={addingId !== null}
                         onClick={() => void addToCart(product.id, product.name)}
                         aria-label={`Agregar ${product.name} al carrito`}
