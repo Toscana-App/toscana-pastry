@@ -680,7 +680,6 @@ class OrderItemORM(Base):
     quantity = Column(Integer, nullable=False)
     unit_price = Column(String, nullable=True)
     portion_note = Column(String, default="", nullable=False)
-    qty = Column(Integer, nullable=True)
     portions = Column(Integer, nullable=True)
     note = Column(Text, nullable=False, default="")
     position = Column(Integer, nullable=False, default=0)
