@@ -44,20 +44,21 @@ export function MovementsList({ movements }: { movements: StockMovement[] }) {
                 fontWeight="600"
                 color={isIncoming ? "green.fg" : "red.fg"}
                 minW="4rem"
+                fontVariantNumeric="tabular-nums"
               >
                 {formatSignedQty(movement.qty_delta)}
               </Text>
-              <Flex direction="column" flex="1 1 8rem">
+              <Flex direction="column" flex="1 1 8rem" minW={0}>
                 <Text fontWeight="500">
                   {REASON_LABEL[movement.reason] ?? movement.reason}
                 </Text>
                 {movement.ref ? (
-                  <Text fontSize="sm" color="fg.muted">
+                  <Text fontSize="sm" color="fg.muted" overflowWrap="anywhere">
                     Ref: {movement.ref}
                   </Text>
                 ) : null}
               </Flex>
-              <Text fontSize="sm" color="fg.muted">
+              <Text fontSize="sm" color="fg.muted" fontVariantNumeric="tabular-nums">
                 {formatDateTime(movement.created_at)}
               </Text>
             </Flex>

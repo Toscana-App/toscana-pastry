@@ -57,7 +57,9 @@ function AdminUsers() {
 
   return (
     <Flex direction="column" gap={4}>
-      <Text color="fg.muted">{data?.total ?? 0} registered users</Text>
+      <Text color="fg.muted" fontVariantNumeric="tabular-nums" aria-live="polite">
+        {data?.total ?? 0} registered users
+      </Text>
       <Table.ScrollArea borderWidth="1px" rounded="md">
         <Table.Root size="sm" stickyHeader>
           <Table.Header>
@@ -70,7 +72,7 @@ function AdminUsers() {
           <Table.Body>
             {(data?.users ?? []).map((user) => (
               <Table.Row key={user.user_id}>
-                <Table.Cell>{user.email}</Table.Cell>
+                <Table.Cell overflowWrap="anywhere">{user.email}</Table.Cell>
                 <Table.Cell>
                   <Badge colorPalette={user.role === "admin" ? "red" : "gray"}>
                     {user.role}
@@ -89,7 +91,7 @@ function AdminUsers() {
 export default function AdminPage() {
   return (
     <Flex direction="column" gap={6}>
-      <Heading fontSize="2xl">Usuarios</Heading>
+      <Heading fontSize="2xl" textWrap="balance">Usuarios</Heading>
       <AdminUsers />
       <CouponsAdmin />
       <LeadAdmin />

@@ -27,17 +27,20 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const router = useRouter();
   const pathname = usePathname();
 
+  const isProfilePage = pathname === "/profile";
+  const canAccess = isPortalRole(user?.role) || (isProfilePage && user?.role === "admin");
+
   useEffect(() => {
     if (loading) return;
 
     if (!isAuthenticated) {
       router.replace(`/login?from=${encodeURIComponent(pathname)}`);
-    } else if (!isPortalRole(user?.role)) {
+    } else if (!canAccess) {
       router.replace("/admin");
     }
-  }, [loading, isAuthenticated, user?.role, router, pathname]);
+  }, [loading, isAuthenticated, canAccess, router, pathname]);
 
-  if (loading || !isAuthenticated || !isPortalRole(user?.role)) {
+  if (loading || !isAuthenticated || !canAccess) {
     return <FullPageSkeleton />;
   }
 

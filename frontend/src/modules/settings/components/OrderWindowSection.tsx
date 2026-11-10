@@ -95,7 +95,7 @@ export function OrderWindowSection() {
             el corte de pedidos.
           </Text>
         ) : loadError ? (
-          <Text fontSize="sm" color="red.500">
+          <Text fontSize="sm" color="red.500" role="alert">
             {loadError}
           </Text>
         ) : (
@@ -108,7 +108,7 @@ export function OrderWindowSection() {
                   setLocalError("");
                 }}
               >
-                <Switch.HiddenInput />
+                <Switch.HiddenInput aria-label="Ventana de pedidos abierta" />
                 <Switch.Control>
                   <Switch.Thumb />
                 </Switch.Control>
@@ -124,6 +124,8 @@ export function OrderWindowSection() {
               <Field.Label>Reabre el (obligatorio al cerrar)</Field.Label>
               <Input
                 type="datetime-local"
+                name="reopens_at"
+                autoComplete="off"
                 value={reopensAt}
                 onChange={(e) => {
                   setReopensAt(e.target.value);
@@ -141,9 +143,11 @@ export function OrderWindowSection() {
                 </Text>
               </Field.Label>
               <Input
+                name="message"
+                autoComplete="off"
                 value={message}
                 maxLength={200}
-                placeholder="Ej.: Cerrado por mantenimiento, reabrimos mañana 20 h"
+                placeholder="Ej.: Cerrado por mantenimiento, reabrimos mañana 20 h…"
                 onChange={(e) => setMessage(e.target.value)}
               />
             </Field.Root>

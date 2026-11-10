@@ -63,7 +63,7 @@ export default function ProfilePage() {
     <ProtectedRoute>
       <Container py={10} maxW="container.sm">
         <Flex direction="column" align="center" gap={6} width="100%">
-          <Heading fontSize="3xl">Mi cuenta</Heading>
+          <Heading fontSize="3xl" textWrap="balance">Mi cuenta</Heading>
           <ProfileCard user={user} />
           <Box w="100%">
             <AddressBook />

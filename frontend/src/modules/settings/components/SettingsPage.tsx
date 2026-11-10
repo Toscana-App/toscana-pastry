@@ -56,7 +56,14 @@ function NumberField({
           </Text>
         ) : null}
       </Field.Label>
-      <Input type="number" step="0.01" disabled={disabled} {...registerProps} />
+      <Input
+        type="number"
+        step="0.01"
+        inputMode="decimal"
+        autoComplete="off"
+        disabled={disabled}
+        {...registerProps}
+      />
       {helper ? <Field.HelperText>{helper}</Field.HelperText> : null}
       <Field.ErrorText>{error}</Field.ErrorText>
     </Field.Root>
@@ -107,7 +114,7 @@ export function SettingsPage() {
   return (
     <Flex direction="column" gap={6}>
       <Flex direction="column" gap={1}>
-        <Heading fontSize="2xl">Configuración</Heading>
+        <Heading fontSize="2xl" textWrap="balance">Configuración</Heading>
         <Text color="fg.muted">
           Estos valores alimentan el cálculo de precios de todas las recetas.
         </Text>
@@ -169,7 +176,7 @@ export function SettingsPage() {
                   })
                 }
               >
-                <Switch.HiddenInput />
+                <Switch.HiddenInput aria-label="Incluir mano de obra en el costo" />
                 <Switch.Control>
                   <Switch.Thumb />
                 </Switch.Control>
@@ -207,7 +214,7 @@ export function SettingsPage() {
                       }
                     }}
                   >
-                    <Switch.HiddenInput />
+                    <Switch.HiddenInput aria-label="Cargar costo de gas" />
                     <Switch.Control>
                       <Switch.Thumb />
                     </Switch.Control>
@@ -243,7 +250,7 @@ export function SettingsPage() {
                       }
                     }}
                   >
-                    <Switch.HiddenInput />
+                    <Switch.HiddenInput aria-label="Incluir merma" />
                     <Switch.Control>
                       <Switch.Thumb />
                     </Switch.Control>
@@ -356,7 +363,7 @@ export function SettingsPage() {
               Restaurar valores por defecto
             </Button>
             {isDirty ? (
-              <Text alignSelf="center" color="fg.muted" fontSize="sm">
+              <Text alignSelf="center" color="fg.muted" fontSize="sm" aria-live="polite">
                 Hay cambios sin guardar.
               </Text>
             ) : null}

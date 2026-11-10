@@ -7,18 +7,19 @@ import {
   Badge,
   Button,
   Flex,
+  FormatNumber,
   Heading,
   Image,
   Input,
+  Switch,
   Table,
   Tabs,
-  Switch,
   Text,
 } from "@chakra-ui/react";
 import { DetailPageSkeleton } from "@/components/ui/skeleton";
 
 import NextLink from "next/link";
-import { formatCents, formatQty } from "@/lib/format";
+import { formatCents, formatQty, centsToPesos } from "@/lib/format";
 import { toaster } from "@/lib/toaster";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProductDetail } from "../hooks/useProductDetail";
@@ -155,7 +156,7 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
 
       <Flex align="flex-start" justify="space-between" gap={4} flexWrap="wrap">
         <Flex direction="column" gap={1}>
-          <Heading fontSize="2xl">{product.name}</Heading>
+          <Heading fontSize="2xl" textWrap="balance" overflowWrap="anywhere">{product.name}</Heading>
           <Flex gap={2} align="center" flexWrap="wrap">
             <Badge variant="subtle">{product.category}</Badge>
             <Badge
@@ -179,7 +180,7 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
                   handleToggleAvailable(details.checked)
                 }
               >
-                <Switch.HiddenInput />
+                <Switch.HiddenInput aria-label="Disponible en tienda" />
                 <Switch.Control>
                   <Switch.Thumb />
                 </Switch.Control>
@@ -245,7 +246,7 @@ function Field({ label, value }: { label: string; value: string }) {
       <Text fontSize="xs" color="fg.muted">
         {label}
       </Text>
-      <Text>{value}</Text>
+      <Text overflowWrap="anywhere">{value}</Text>
     </Flex>
   );
 }
@@ -281,6 +282,8 @@ function InfoTab({
             src={product.image_url}
             alt={`Imagen de ${product.name}`}
             boxSize="160px"
+            htmlWidth={160}
+            htmlHeight={160}
             objectFit="cover"
             rounded="md"
             borderWidth="1px"
@@ -349,7 +352,7 @@ function RecipeTab({ product }: { product: ProductDetail }) {
               <Table.Row key={item.ingredient_id}>
                 <Table.Cell>
                   <Flex gap={2} align="center">
-                    <Text>{item.ingredient_name}</Text>
+                    <Text overflowWrap="anywhere">{item.ingredient_name}</Text>
                     {item.missing ? (
                       <Badge colorPalette="orange" size="xs">
                         sin precio
@@ -357,13 +360,13 @@ function RecipeTab({ product }: { product: ProductDetail }) {
                     ) : null}
                   </Flex>
                 </Table.Cell>
-                <Table.Cell>{formatQty(item.qty, item.unit)}</Table.Cell>
+                <Table.Cell fontVariantNumeric="tabular-nums">{formatQty(item.qty, item.unit)}</Table.Cell>
                 <Table.Cell
                   textAlign="end"
                   fontVariantNumeric="tabular-nums"
                   color={item.missing ? "fg.muted" : undefined}
                 >
-                  {item.line_cost !== null ? formatCents(item.line_cost) : "—"}
+                  {item.line_cost !== null ? <FormatNumber value={centsToPesos(item.line_cost)} style="currency" currency="ARS" /> : "—"}
                 </Table.Cell>
               </Table.Row>
             ))}
@@ -412,7 +415,7 @@ function CostsTab({ product }: { product: ProductDetail }) {
   }
 
   const price = product.price;
-  const rows: Array<{ label: string; value: string }> = [
+  const rows: Array<{ label: string; value: React.ReactNode }> = [
     { label: "Materiales", value: formatCents(price.materials) },
     { label: "Merma", value: formatCents(price.waste) },
     {
@@ -449,7 +452,7 @@ function CostsTab({ product }: { product: ProductDetail }) {
               fontWeight="600"
               fontVariantNumeric="tabular-nums"
             >
-              {formatCents(price.rounded)}
+              <FormatNumber value={centsToPesos(price.rounded)} style="currency" currency="ARS" />
             </Table.Cell>
           </Table.Row>
         </Table.Body>
@@ -459,15 +462,15 @@ function CostsTab({ product }: { product: ProductDetail }) {
         <Flex justify="space-between" color="fg.muted">
           <Text>Precio por porción</Text>
           <Text fontVariantNumeric="tabular-nums">
-            {formatCents(product.price_per_serving)}
+            <FormatNumber value={centsToPesos(product.price_per_serving)} style="currency" currency="ARS" />
           </Text>
         </Flex>
       ) : null}
 
       {Number(price.final) !== Number(price.rounded) ? (
         <Text fontSize="sm" color="fg.muted">
-          Redondeo aplicado: de {formatCents(price.final)} a{" "}
-          {formatCents(price.rounded)}.
+          Redondeo aplicado: de <FormatNumber value={centsToPesos(price.final)} style="currency" currency="ARS" /> a{" "}
+          <FormatNumber value={centsToPesos(price.rounded)} style="currency" currency="ARS" />.
         </Text>
       ) : null}
     </Flex>

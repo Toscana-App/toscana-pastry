@@ -10,10 +10,11 @@ import {
   Heading,
   Tabs,
   Text,
+  FormatNumber,
 } from "@chakra-ui/react";
 import { DetailPageSkeleton } from "@/components/ui/skeleton";
 
-import { formatCents, formatQty } from "@/lib/format";
+import { centsToPesos, formatQty } from "@/lib/format";
 import { toaster } from "@/lib/toaster";
 import { useIngredientDetail } from "../hooks/useIngredientDetail";
 import type { DeleteImpact } from "../types";
@@ -30,7 +31,7 @@ function DataRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <Flex justify="space-between" gap={4} px={4} py={3} flexWrap="wrap">
       <Text color="fg.muted">{label}</Text>
-      <Text fontWeight="500">{value}</Text>
+      <Text fontWeight="500" fontVariantNumeric="tabular-nums">{value}</Text>
     </Flex>
   );
 }
@@ -94,7 +95,7 @@ export function IngredientDetailPage({ id }: IngredientDetailPageProps) {
 
       <Flex justify="space-between" align="flex-start" gap={4} flexWrap="wrap">
         <Flex direction="column" gap={2}>
-          <Heading fontSize="2xl">{ingredient.name}</Heading>
+          <Heading fontSize="2xl" textWrap="balance" overflowWrap="anywhere">{ingredient.name}</Heading>
           <StockBadge
             status={ingredient.status}
             stockQty={ingredient.stock_qty}
@@ -142,7 +143,7 @@ export function IngredientDetailPage({ id }: IngredientDetailPageProps) {
               <DataRow label="Unidad" value={ingredient.unit} />
               <DataRow
                 label="Precio por unidad"
-                value={formatCents(ingredient.price_per_unit)}
+                value={<FormatNumber value={centsToPesos(ingredient.price_per_unit)} style="currency" currency="ARS" />}
               />
               <DataRow
                 label="Stock actual"

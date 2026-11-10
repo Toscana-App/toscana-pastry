@@ -76,7 +76,7 @@ export function StockDrawer({
     >
       <Drawer.Backdrop />
       <Drawer.Positioner>
-        <Drawer.Content maxW="26rem">
+        <Drawer.Content maxW="26rem" overscrollBehavior="contain">
           <Drawer.Header>
             <Drawer.Title>Ajustar stock</Drawer.Title>
             <Drawer.Description>{ingredientName}</Drawer.Description>
@@ -97,7 +97,9 @@ export function StockDrawer({
                   <Input
                     type="number"
                     step="0.01"
-                    placeholder="2 o −1,5"
+                    inputMode="decimal"
+                    autoComplete="off"
+                    placeholder="2 o −1,5…"
                     autoFocus
                     {...register("delta", {
                       valueAsNumber: true,
@@ -121,6 +123,7 @@ export function StockDrawer({
                 <Field.Root invalid={!!errors.ref}>
                   <Field.Label>Referencia (opcional)</Field.Label>
                   <Input
+                    autoComplete="off"
                     placeholder="Proveedor, factura, motivo del descarte…"
                     {...register("ref")}
                   />

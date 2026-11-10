@@ -9,7 +9,7 @@ export default function MaterialesPage() {
     <ProtectedRoute requiredRole="admin">
       <Container py={10} maxW="container.xl">
         <Flex direction="column" gap={6}>
-          <Heading fontSize="3xl">Materiales</Heading>
+          <Heading fontSize="3xl" textWrap="balance">Materiales</Heading>
           <MaterialsAbm />
         </Flex>
       </Container>

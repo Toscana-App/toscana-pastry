@@ -40,7 +40,6 @@ export function StepPayment({
                 rounded="md"
                 p={3}
                 cursor="pointer"
-                onClick={() => onChange("mercadopago")}
               >
                 <Text fontWeight="semibold">Mercado Pago</Text>
                 <Text fontSize="sm" color="fg.muted">
@@ -60,7 +59,6 @@ export function StepPayment({
                 rounded="md"
                 p={3}
                 cursor="pointer"
-                onClick={() => onChange("cash")}
               >
                 <Text fontWeight="semibold">Efectivo</Text>
                 <Text fontSize="sm" color="fg.muted">

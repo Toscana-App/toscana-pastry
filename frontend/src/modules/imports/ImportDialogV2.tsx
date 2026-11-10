@@ -218,7 +218,7 @@ function ImportDialogContent({
     >
       <Dialog.Backdrop />
       <Dialog.Positioner>
-        <Dialog.Content>
+        <Dialog.Content overscrollBehavior="contain">
           <Dialog.Header>
             <Dialog.Title>Importar {label}</Dialog.Title>
             <Dialog.Description>
@@ -289,7 +289,7 @@ function ImportDialogContent({
               )}
 
               {uploading && (
-                <Flex align="center" gap={3}>
+                <Flex align="center" gap={3} aria-live="polite">
                   <ShimmerDot />
                   <Text color="fg.muted">Procesando…</Text>
                 </Flex>
@@ -298,7 +298,7 @@ function ImportDialogContent({
               {}
               {preview && (
                 <Box>
-                  <Text fontWeight="600" mb={2}>
+                  <Text fontWeight="600" mb={2} fontVariantNumeric="tabular-nums">
                     {preview.totalRows} filas ·{" "}
                     <Text as="span" color="green.600">
                       {preview.validRows} válidas
@@ -325,9 +325,9 @@ function ImportDialogContent({
                             key={row.row_number}
                             bg={row.status === "invalid" ? "red.50" : undefined}
                           >
-                            <Table.Cell>{row.row_number}</Table.Cell>
+                            <Table.Cell fontVariantNumeric="tabular-nums">{row.row_number}</Table.Cell>
                             {columnKeys.map((key) => (
-                              <Table.Cell key={key}>{row.values[key] ?? ""}</Table.Cell>
+                              <Table.Cell key={key} overflowWrap="anywhere">{row.values[key] ?? ""}</Table.Cell>
                             ))}
                             <Table.Cell>
                               {row.status === "valid" ? (
@@ -348,7 +348,7 @@ function ImportDialogContent({
 
               {}
               {confirmResult && (
-                <Alert.Root status={confirmResult.errors.length > 0 ? "warning" : "success"}>
+                <Alert.Root status={confirmResult.errors.length > 0 ? "warning" : "success"} aria-live="polite">
                   <Alert.Content>
                     <Alert.Description>
                       {confirmResult.message ??

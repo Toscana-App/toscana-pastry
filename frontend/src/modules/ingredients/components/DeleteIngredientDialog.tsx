@@ -30,7 +30,7 @@ export function DeleteIngredientDialog({
     >
       <Dialog.Backdrop />
       <Dialog.Positioner>
-        <Dialog.Content>
+        <Dialog.Content overscrollBehavior="contain">
           <Dialog.Header>
             <Dialog.Title>
               {blocked ? "No se puede eliminar" : `¿Eliminar «${ingredientName}»?`}

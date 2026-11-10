@@ -9,7 +9,7 @@ export default function UnauthorizedPage() {
   return (
     <Container maxW="container.sm" minH="100dvh">
       <Flex direction="column" align="center" justify="center" gap={4} minH="100dvh">
-        <Heading fontSize="3xl">Access denied</Heading>
+        <Heading fontSize="3xl" textWrap="balance">Access denied</Heading>
         <Text color="fg.muted" textAlign="center">
           Your account does not have permission to view this page.
         </Text>

@@ -48,6 +48,8 @@ export function StepDelivery({
         <Field.Label>Fecha de entrega</Field.Label>
         <Input
           type="date"
+          name="delivery_date"
+          autoComplete="off"
           value={data.date}
           min={minDate}
           max={todayPlus(90)}

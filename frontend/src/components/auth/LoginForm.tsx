@@ -63,7 +63,7 @@ export default function LoginForm() {
       bg="bg.panel"
     >
       <Stack gap={6} align="center">
-        <Heading fontSize="2xl">
+        <Heading as="h1" fontSize="2xl">
           Iniciar sesión
         </Heading>
         <Text color="fg.muted" textAlign="center">
@@ -75,6 +75,7 @@ export default function LoginForm() {
           onClick={handleGoogleLogin}
           loading={loading}
           variant="outline"
+          size="lg"
           width="full"
         >
           <GoogleIcon />

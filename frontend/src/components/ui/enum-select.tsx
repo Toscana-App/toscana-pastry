@@ -11,6 +11,8 @@ const StyledSelect = chakra("select", {
     background: "transparent",
     fontSize: "sm",
     outline: "none",
+    color: "fg",
+    "& option": { bg: "bg", color: "fg" },
     _focusVisible: {
       borderColor: "brand.solid",
       boxShadow: "0 0 0 1px var(--chakra-colors-brand-600)",

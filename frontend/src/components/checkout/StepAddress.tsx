@@ -133,7 +133,7 @@ export function StepAddress({
                       onClick={() => chooseSaved(address)}
                       cursor="pointer"
                     >
-                      <Text fontSize="sm">{addressToLine(address)}</Text>
+                      <Text fontSize="sm" minW={0} overflowWrap="anywhere">{addressToLine(address)}</Text>
                       {address.is_default && (
                         <Text fontSize="xs" color="brand.fg">
                           Principal
@@ -178,7 +178,8 @@ export function StepAddress({
             <Field.Root invalid={!!errors.street_line_1}>
               <Field.Label>Calle y número *</Field.Label>
               <Input
-                placeholder="Av. Siempreviva 742"
+                autoComplete="address-line1"
+                placeholder="Av. Siempreviva 742…"
                 aria-describedby={
                   errors.street_line_1 ? "addr-street1-error" : undefined
                 }
@@ -191,27 +192,27 @@ export function StepAddress({
 
             <Field.Root>
               <Field.Label>Piso / departamento</Field.Label>
-              <Input placeholder="Opcional" {...register("street_line_2")} />
+              <Input autoComplete="address-line2" placeholder="Opcional…" {...register("street_line_2")} />
             </Field.Root>
 
             <Flex gap={3} wrap="wrap">
               <Field.Root>
                 <Field.Label>Ciudad</Field.Label>
-                <Input placeholder="Opcional" {...register("city")} />
+                <Input autoComplete="address-level2" placeholder="Opcional…" {...register("city")} />
               </Field.Root>
               <Field.Root>
                 <Field.Label>Código postal</Field.Label>
-                <Input placeholder="Opcional" {...register("postal_code")} />
+                <Input autoComplete="postal-code" placeholder="Opcional…" {...register("postal_code")} />
               </Field.Root>
               <Field.Root>
                 <Field.Label>Provincia</Field.Label>
-                <Input placeholder="Opcional" {...register("province")} />
+                <Input autoComplete="address-level1" placeholder="Opcional…" {...register("province")} />
               </Field.Root>
             </Flex>
 
             <Field.Root>
               <Field.Label>Teléfono de contacto</Field.Label>
-              <Input placeholder="Opcional" {...register("phone")} />
+              <Input type="tel" inputMode="tel" autoComplete="tel" placeholder="Opcional…" {...register("phone")} />
             </Field.Root>
 
             <Flex gap={3} justify="flex-end" wrap="wrap">

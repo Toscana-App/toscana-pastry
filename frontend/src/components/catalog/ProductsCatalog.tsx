@@ -10,6 +10,7 @@ import {
   SegmentGroup,
   Table,
   Text,
+  FormatNumber,
 } from "@chakra-ui/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import NextLink from "next/link";
@@ -29,16 +30,6 @@ import type { Audience, Product } from "@/types/pricing";
 
 function audienceLabel(audience: Audience): string {
   return audience === "revendedores" ? "Revendedores" : "Consumidor final";
-}
-
-function formatPrice(value: string | null): string {
-  if (value === null) return "—";
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return value;
-  return parsed.toLocaleString("es-AR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 }
 
 export function ProductsCatalog() {
@@ -157,10 +148,38 @@ export function ProductsCatalog() {
           )}
           {role === "admin" && (
             <>
-              <Button variant="outline" size="sm" onClick={() => downloadPricelistCSV(audience)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  downloadPricelistCSV(audience).catch(
+                    (error: unknown) =>
+                      gooeyToast.error("No se pudo exportar el CSV", {
+                        description:
+                          error instanceof Error
+                            ? error.message
+                            : "Intenta de nuevo.",
+                      }),
+                  )
+                }
+              >
                 Exportar CSV
               </Button>
-              <Button variant="outline" size="sm" onClick={() => downloadPricelistPDF(audience)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  downloadPricelistPDF(audience).catch(
+                    (error: unknown) =>
+                      gooeyToast.error("No se pudo exportar el PDF", {
+                        description:
+                          error instanceof Error
+                            ? error.message
+                            : "Intenta de nuevo.",
+                      }),
+                  )
+                }
+              >
                 Exportar PDF
               </Button>
             </>
@@ -196,7 +215,7 @@ export function ProductsCatalog() {
               {products.map((product) => (
                 <Table.Row key={product.id}>
                   <Table.Cell>
-                    <Flex align="center" gap={3}>
+                    <Flex align="center" gap={3} minW={0}>
                       <Box
                         boxSize="2.5rem"
                         rounded="md"
@@ -208,12 +227,15 @@ export function ProductsCatalog() {
                           <Image
                             src={product.image_url}
                             alt={`Imagen de ${product.name}`}
+                            htmlWidth={40}
+                            htmlHeight={40}
+                            loading="lazy"
                             boxSize="100%"
                             objectFit="cover"
                           />
                         ) : null}
                       </Box>
-                      <Flex direction="column" gap={1}>
+                      <Flex direction="column" gap={1} minW={0}>
                         <NextLink
                           href={`/tienda/${product.id}`}
                           style={{
@@ -232,10 +254,10 @@ export function ProductsCatalog() {
                   </Table.Cell>
                   <Table.Cell textAlign="end" fontVariantNumeric="tabular-nums">
                     <Flex direction="column" gap={0.5} align="flex-end">
-                      <Text fontWeight="medium">${formatPrice(product.price)}</Text>
+                      <Text fontWeight="medium">{product.price === null ? "—" : <FormatNumber value={Number(product.price)} style="currency" currency="ARS" />}</Text>
                       {product.price_per_serving && (
                         <Text fontSize="xs" color="fg.muted">
-                          ${formatPrice(product.price_per_serving)} por porción
+                          <FormatNumber value={Number(product.price_per_serving)} style="currency" currency="ARS" /> por porción
                         </Text>
                       )}
                     </Flex>

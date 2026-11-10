@@ -90,7 +90,7 @@ export default function CostHistoryDialog({
     >
       <Dialog.Backdrop />
       <Dialog.Positioner>
-        <Dialog.Content>
+        <Dialog.Content overscrollBehavior="contain">
           <Dialog.Header>
             <Dialog.Title>
               Historial de costos · {material.name}
@@ -128,13 +128,13 @@ export default function CostHistoryDialog({
                     <Table.Body>
                       {items.map((entry, index) => (
                         <Table.Row key={`${entry.changed_at}-${index}`}>
-                          <Table.Cell>
+                          <Table.Cell fontVariantNumeric="tabular-nums">
                             {entry.previous_unit_cost ?? "—"}
                           </Table.Cell>
-                          <Table.Cell>
+                          <Table.Cell fontVariantNumeric="tabular-nums">
                             {entry.new_unit_cost ?? "—"}
                           </Table.Cell>
-                          <Table.Cell>
+                          <Table.Cell fontVariantNumeric="tabular-nums">
                             {formatChangedAt(entry.changed_at)}
                           </Table.Cell>
                         </Table.Row>

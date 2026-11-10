@@ -1,13 +1,12 @@
 "use client";
 
-import { Box, Button, Container, Flex } from "@chakra-ui/react";
+import { Avatar, Box, Button, Circle, Container, Flex, Float, Menu, Portal } from "@chakra-ui/react";
 import NextLink from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { isPortalRole } from "@/lib/portalRoutes";
 import { useCartCount } from "@/hooks/useCartCount";
 import { ColorModeButton } from "@/components/ui/color-mode";
-import { PortalSearch } from "@/components/layout/PortalSearch";
 import { BrandLogo } from "./BrandLogo";
 
 function CartButton() {
@@ -20,30 +19,98 @@ function CartButton() {
             <use xlinkHref="#cart" />
           </svg>
           {count > 0 && (
-            <Box
-              as="span"
-              position="absolute"
-              top={-2}
-              right={-6}
-              minW="16px"
-              h="16px"
-              px="4px"
-              borderRadius="full"
-              bg="brand.400"
-              color="white"
-              fontSize="10px"
-              fontWeight="bold"
-              display="inline-flex"
-              alignItems="center"
-              justifyContent="center"
-              aria-hidden="true"
-            >
-              {count > 99 ? "99+" : count}
-            </Box>
+            <Float placement="top-end">
+              <Circle
+                minW="16px"
+                h="16px"
+                px="4px"
+                bg="brand.400"
+                color="white"
+                fontSize="10px"
+                fontWeight="bold"
+                aria-hidden="true"
+              >
+                {count > 99 ? "99+" : count}
+              </Circle>
+            </Float>
           )}
         </Box>
       </NextLink>
     </Button>
+  );
+}
+
+const ADMIN_LINKS = [
+  { value: "orders", href: "/pedidos", label: "Pedidos" },
+  { value: "quotes", href: "/presupuestos", label: "Presupuestos" },
+  { value: "catalog", href: "/products", label: "Catálogo" },
+  { value: "products", href: "/productos", label: "Productos" },
+  { value: "ingredients", href: "/admin/ingredients", label: "Ingredientes" },
+  { value: "calculator", href: "/admin/calculator/products", label: "Calculator" },
+  { value: "dashboard", href: "/admin", label: "Panel de control" },
+  { value: "settings", href: "/admin/settings", label: "Settings" },
+] as const;
+
+function AdminMenu() {
+  return (
+    <Menu.Root>
+      <Menu.Trigger asChild>
+        <Button variant="ghost" size="sm" aria-label="Menú">
+          Menú
+        </Button>
+      </Menu.Trigger>
+      <Portal>
+        <Menu.Positioner>
+          <Menu.Content>
+            {ADMIN_LINKS.map((link) => (
+              <Menu.Item key={link.value} value={link.value} asChild>
+                <NextLink href={link.href}>{link.label}</NextLink>
+              </Menu.Item>
+            ))}
+          </Menu.Content>
+        </Menu.Positioner>
+      </Portal>
+    </Menu.Root>
+  );
+}
+
+function ProfileMenu({
+  label,
+  name,
+  onLogout,
+}: {
+  label: string;
+  name: string;
+  onLogout?: () => void;
+}) {
+  return (
+    <Menu.Root positioning={{ placement: "bottom-end" }}>
+      <Menu.Trigger rounded="full" focusRing="outside" aria-label={label}>
+        <Avatar.Root size="sm">
+          <Avatar.Fallback name={name} />
+          <Avatar.Image alt="" />
+        </Avatar.Root>
+      </Menu.Trigger>
+      <Portal>
+        <Menu.Positioner>
+          <Menu.Content>
+            <Menu.Item value="profile" asChild>
+              <NextLink href="/profile">{label}</NextLink>
+            </Menu.Item>
+            {onLogout && (
+              <Menu.Item
+                value="logout"
+                color="fg.error"
+                _hover={{ bg: "bg.error", color: "fg.error" }}
+                onClick={onLogout}
+              >
+                Logout
+              </Menu.Item>
+            )}
+          </Menu.Content>
+        </Menu.Positioner>
+      </Portal>
+    </Menu.Root>
   );
 }
 
@@ -80,54 +147,17 @@ export function Navbar() {
             </NextLink>
           </Box>
 
-          {isPortal && (
-            <Box as="div" flex="1" minW="240px" display="flex" justifyContent="center">
-              <PortalSearch />
-            </Box>
-          )}
-
           <Flex align="center" gap={2} wrap="wrap" flexShrink={0}>
             {isAuthenticated ? (
               <>
-                {isAdmin && (
-                  <>
-                    <Button variant="ghost" asChild>
-                      <NextLink href="/pedidos">Pedidos</NextLink>
-                    </Button>
-                    <Button variant="ghost" asChild>
-                      <NextLink href="/presupuestos">Presupuestos</NextLink>
-                    </Button>
-                    <Button variant="ghost" asChild>
-                      <NextLink href="/products">Catálogo</NextLink>
-                    </Button>
-                    <Button variant="ghost" asChild>
-                      <NextLink href="/admin">Admin</NextLink>
-                    </Button>
-                    <Button variant="ghost" asChild>
-                      <NextLink href="/admin/settings">Settings</NextLink>
-                    </Button>
-                    <Button variant="ghost" asChild>
-                      <NextLink href="/profile">Profile</NextLink>
-                    </Button>
-                  </>
-                )}
-                {isPortal && (
-                  <>
-                    <Button variant="ghost" size="sm" asChild>
-                      <NextLink href="/profile">
-                        <svg className="icon-inline" width={18} height={18} aria-hidden="true">
-                          <use xlinkHref="#user" />
-                        </svg>
-                        Mi cuenta
-                      </NextLink>
-                    </Button>
-                    <CartButton />
-                  </>
-                )}
-                {isAdmin && (
-                  <Button onClick={logout} colorPalette="red" size="sm" variant="outline">
-                    Logout
-                  </Button>
+                {isAdmin && <AdminMenu />}
+                {isPortal && <CartButton />}
+                {(isAdmin || isPortal) && (
+                  <ProfileMenu
+                    label={isAdmin ? "Perfil" : "Mi cuenta"}
+                    name={user?.email ?? ""}
+                    onLogout={isAdmin ? logout : undefined}
+                  />
                 )}
               </>
             ) : (

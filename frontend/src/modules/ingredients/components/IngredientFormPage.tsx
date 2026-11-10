@@ -161,7 +161,7 @@ export function IngredientFormPage({ mode, ingredientId }: IngredientFormPagePro
   return (
     <Flex direction="column" gap={6}>
       <Flex direction="column" gap={1}>
-        <Heading fontSize="2xl">
+        <Heading fontSize="2xl" textWrap="balance" overflowWrap="anywhere">
           {isEdit ? `Editar: ${initialName ?? ""}` : "Nuevo ingrediente"}
         </Heading>
         <Text color="fg.muted">
@@ -184,7 +184,11 @@ export function IngredientFormPage({ mode, ingredientId }: IngredientFormPagePro
         <Flex direction="column" gap={5} maxW="36rem">
           <Field.Root invalid={!!errors.name}>
             <Field.Label>Nombre</Field.Label>
-            <Input placeholder="Harina 0000" {...register("name")} />
+            <Input
+              autoComplete="off"
+              placeholder="Harina 0000…"
+              {...register("name")}
+            />
             <Field.ErrorText>{errors.name?.message}</Field.ErrorText>
           </Field.Root>
 
@@ -201,7 +205,9 @@ export function IngredientFormPage({ mode, ingredientId }: IngredientFormPagePro
                 type="number"
                 min={0}
                 step="0.01"
-                placeholder="1200"
+                inputMode="decimal"
+                autoComplete="off"
+                placeholder="1200…"
                 {...register("price_per_unit", { valueAsNumber: true })}
               />
               <Field.ErrorText>{errors.price_per_unit?.message}</Field.ErrorText>
@@ -216,6 +222,8 @@ export function IngredientFormPage({ mode, ingredientId }: IngredientFormPagePro
                   type="number"
                   min={0}
                   step="0.01"
+                  inputMode="decimal"
+                  autoComplete="off"
                   {...register("stock_qty", {
                     valueAsNumber: true,
                     onChange: (e) => zeroOnNaN(e, "stock_qty"),
@@ -231,6 +239,8 @@ export function IngredientFormPage({ mode, ingredientId }: IngredientFormPagePro
                 type="number"
                 min={0}
                 step="0.01"
+                inputMode="decimal"
+                autoComplete="off"
                 {...register("low_stock_threshold", {
                   valueAsNumber: true,
                   onChange: (e) => zeroOnNaN(e, "low_stock_threshold"),
@@ -259,7 +269,7 @@ export function IngredientFormPage({ mode, ingredientId }: IngredientFormPagePro
       <Dialog.Root open={confirmDiscard} onOpenChange={(e) => setConfirmDiscard(e.open)}>
         <Dialog.Backdrop />
         <Dialog.Positioner>
-          <Dialog.Content>
+          <Dialog.Content overscrollBehavior="contain">
             <Dialog.Header>
               <Dialog.Title>¿Descartar los cambios?</Dialog.Title>
             </Dialog.Header>

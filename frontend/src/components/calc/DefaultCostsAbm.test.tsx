@@ -48,7 +48,7 @@ describe("DefaultCostsAbm", () => {
   it("renders the default costs fetched from the API", async () => {
     render(<DefaultCostsAbm />);
 
-    expect(await screen.findByText("250.00")).toBeInTheDocument();
+    expect(await screen.findByText(/\$\s250,00/)).toBeInTheDocument();
   });
 
   it("creates a default cost with allow-list type/status and non-negative amounts", async () => {
@@ -65,7 +65,7 @@ describe("DefaultCostsAbm", () => {
     vi.mocked(calcSettingsService.createDefaultCost).mockResolvedValue(nuevo);
 
     render(<DefaultCostsAbm />);
-    await screen.findByText("250.00");
+    await screen.findByText(/\$\s250,00/);
 
     fireEvent.change(screen.getByLabelText("Nombre"), {
       target: { value: "Embalaje" },
@@ -108,7 +108,7 @@ describe("DefaultCostsAbm", () => {
 
   it("does not send the request when an amount is negative", async () => {
     render(<DefaultCostsAbm />);
-    await screen.findByText("250.00");
+    await screen.findByText(/\$\s250,00/);
 
     fireEvent.change(screen.getByLabelText("Nombre"), {
       target: { value: "Costo inválido" },
@@ -126,7 +126,7 @@ describe("DefaultCostsAbm", () => {
 
   it("keeps the search input mounted and focused after the debounce refetch", async () => {
     render(<DefaultCostsAbm />);
-    await screen.findByText("250.00");
+    await screen.findByText(/\$\s250,00/);
 
     const input = screen.getByLabelText("Buscar");
     input.focus();
@@ -135,7 +135,7 @@ describe("DefaultCostsAbm", () => {
     await waitFor(() =>
       expect(calcSettingsService.listDefaultCosts).toHaveBeenCalledTimes(2)
     );
-    await screen.findByText("250.00");
+    await screen.findByText(/\$\s250,00/);
     expect(screen.getByLabelText("Buscar")).toBe(input);
     expect(input).toHaveFocus();
   });

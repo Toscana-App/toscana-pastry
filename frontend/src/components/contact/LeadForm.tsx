@@ -87,7 +87,9 @@ function LeadForm() {
               <Field.Root>
                 <Field.Label>Nombre</Field.Label>
                 <Input
-                  placeholder="Tu nombre"
+                  name="name"
+                  autoComplete="name"
+                  placeholder="Tu nombre…"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
@@ -98,7 +100,11 @@ function LeadForm() {
                 <Field.Label>Email</Field.Label>
                 <Input
                   type="email"
-                  placeholder="tu@email.com"
+                  name="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  spellCheck={false}
+                  placeholder="tu@email.com…"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
@@ -135,7 +141,9 @@ function LeadForm() {
                 <Field.Root>
                   <Field.Label>Razón social</Field.Label>
                   <Input
-                    placeholder="Nombre del negocio"
+                    name="business_name"
+                    autoComplete="organization"
+                    placeholder="Nombre del negocio…"
                     value={businessName}
                     onChange={(e) => setBusinessName(e.target.value)}
                   />
@@ -145,7 +153,9 @@ function LeadForm() {
                 <Field.Root>
                   <Field.Label>Ubicación</Field.Label>
                   <Input
-                    placeholder="Ciudad, provincia"
+                    name="location"
+                    autoComplete="off"
+                    placeholder="Ciudad, provincia…"
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
                   />
@@ -159,7 +169,9 @@ function LeadForm() {
               <Field.Label>Mensaje</Field.Label>
               <Textarea
                 rows={4}
-                placeholder="Contanos qué necesitás"
+                name="message"
+                autoComplete="off"
+                placeholder="Contanos qué necesitás…"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
               />
@@ -170,7 +182,11 @@ function LeadForm() {
             <Field.Root>
               <Field.Label>Teléfono (opcional)</Field.Label>
               <Input
-                placeholder="11 2345 6789"
+                type="tel"
+                name="phone"
+                autoComplete="tel"
+                inputMode="tel"
+                placeholder="11 2345 6789…"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
               />
@@ -178,7 +194,7 @@ function LeadForm() {
           </Box>
 
           {error && (
-            <Alert.Root status="error">
+            <Alert.Root status="error" aria-live="polite">
               <Alert.Indicator />
               <Alert.Content>
                 <Alert.Description>{error}</Alert.Description>

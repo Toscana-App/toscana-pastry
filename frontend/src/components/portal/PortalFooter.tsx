@@ -3,7 +3,7 @@ import NextLink from "next/link";
 import { BrandLogo } from "@/components/layout/BrandLogo";
 
 export const PORTAL_CONTACT = {
-  whatsappDisplay: "+54 9 3571 555328",
+  whatsappDisplay: "+54 9 3571 555328",
   whatsappUrl: "https://wa.me/5493571555328",
   email: "toscana2407@gmail.com",
 } as const;
@@ -25,7 +25,7 @@ export function PortalFooter() {
         >
           <Box maxW="xs">
             <BrandLogo variant="horizontal" height={30} />
-            <Text mt={4} fontSize="sm" color="fg.muted" lineHeight="tall">
+            <Text mt={4} fontSize="sm" color="fg.muted" lineHeight="tall" textWrap="pretty">
               Pastelería artesanal. Sin gluten, sanos y ricos.
             </Text>
           </Box>

@@ -29,12 +29,12 @@ function LoginFormPlaceholder() {
       bg="bg.panel"
     >
       <Stack gap={6} align="center">
-        <Heading fontSize="2xl">Iniciar sesión</Heading>
+        <Heading as="h1" fontSize="2xl">Iniciar sesión</Heading>
         <Text color="fg.muted" textAlign="center">
           Continúa con tu cuenta de Google
         </Text>
         <Separator />
-        <Button variant="outline" width="full" disabled aria-hidden="true">
+        <Button variant="outline" size="lg" width="full" disabled>
           <GoogleIcon />
           Continuar con Google
         </Button>
@@ -55,7 +55,6 @@ export default function LoginPage() {
     >
       <VStack gap={8} width="full" align="center">
         <BrandLogo variant="vertical" height={150} priority />
-        {}
         <Suspense fallback={<LoginFormPlaceholder />}>
           <LoginForm />
         </Suspense>

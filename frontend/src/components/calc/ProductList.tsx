@@ -2,18 +2,19 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  Flex,
-  Input,
   Button,
+  Flex,
+  FormatNumber,
+  IconButton,
+  Input,
   Table,
   Text,
-  IconButton,
 } from "@chakra-ui/react";
 import { CalcProductListSkeleton } from "@/components/ui/skeleton";
 
 import { calcProductsService } from "@/services/calcProductsService";
 import { toaster } from "@/lib/toaster";
-import { formatCents } from "@/lib/format";
+import { centsToPesos } from "@/lib/format";
 import type {
   ProductListItem,
   ProductListQuery,
@@ -134,7 +135,7 @@ export default function ProductList({ mode = "library" }: ProductListProps) {
             
             return (
               <Table.Row key={item.id}>
-                <Table.Cell>{item.name}</Table.Cell>
+                <Table.Cell overflowWrap="anywhere">{item.name}</Table.Cell>
                 <Table.Cell>{item.sku || "-"}</Table.Cell>
                 <Table.Cell>{item.category_name || "-"}</Table.Cell>
                 {mode === "library" && isProductListItem(item) && (
@@ -144,9 +145,9 @@ export default function ProductList({ mode = "library" }: ProductListProps) {
                     </Text>
                   </Table.Cell>
                 )}
-                <Table.Cell textAlign="right">{formatCents(item.product_total_cost)}</Table.Cell>
-                <Table.Cell textAlign="right">{formatCents(item.final_sale_price)}</Table.Cell>
-                <Table.Cell textAlign="right">{item.margin_percent}</Table.Cell>
+                <Table.Cell textAlign="right" fontVariantNumeric="tabular-nums"><FormatNumber value={centsToPesos(item.product_total_cost)} style="currency" currency="ARS" /></Table.Cell>
+                <Table.Cell textAlign="right" fontVariantNumeric="tabular-nums"><FormatNumber value={centsToPesos(item.final_sale_price)} style="currency" currency="ARS" /></Table.Cell>
+                <Table.Cell textAlign="right" fontVariantNumeric="tabular-nums">{item.margin_percent}</Table.Cell>
                 <Table.Cell textAlign="center">
                   <IconButton
                     size="sm"
@@ -154,7 +155,7 @@ export default function ProductList({ mode = "library" }: ProductListProps) {
                     aria-label="Ver detalles"
                     onClick={() => window.open(`/admin/calculator/products/${item.id}`, "_blank")}
                   >
-                    👁️
+                    <span aria-hidden="true">👁️</span>
                   </IconButton>
                 </Table.Cell>
               </Table.Row>
@@ -179,7 +180,12 @@ export default function ProductList({ mode = "library" }: ProductListProps) {
           <Text fontSize="sm" mb={1}>Búsqueda</Text>
           <Flex gap={2}>
             <Input
-              placeholder="Buscar por nombre o SKU"
+              name="q"
+              type="search"
+              aria-label="Buscar por nombre o SKU"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="Buscar por nombre o SKU…"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -208,7 +214,7 @@ export default function ProductList({ mode = "library" }: ProductListProps) {
           >
             Anterior
           </Button>
-          <Text py={2} px={4} bg="bg.muted" borderRadius="md">
+          <Text py={2} px={4} bg="bg.muted" borderRadius="md" fontVariantNumeric="tabular-nums" aria-live="polite">
             Página {page} de {totalPages}
           </Text>
           <Button

@@ -8,6 +8,7 @@ import {
   Button,
   Dialog,
   Flex,
+  FormatNumber,
   Heading,
   HStack,
   Skeleton,
@@ -18,7 +19,7 @@ import {
 import NextLink from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatCents, formatPct } from "@/lib/format";
+import { formatPct, centsToPesos } from "@/lib/format";
 import { budgetsService } from "../service";
 import {
   BUDGET_STATUS_LABELS,
@@ -224,7 +225,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
     <Flex direction="column" gap={5}>
       <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
         <HStack gap={3} align="center">
-          <Heading fontSize="2xl">Presupuesto #{budget.seq}</Heading>
+          <Heading fontSize="2xl" textWrap="balance">Presupuesto #{budget.seq}</Heading>
           <Badge colorPalette={STATUS_COLORS[budget.status]} variant="subtle">
             {BUDGET_STATUS_LABELS[budget.status]}
           </Badge>
@@ -240,7 +241,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
       {}
       <Box borderWidth="1px" borderColor="border" rounded="md" p={4}>
         <VStack align="start" gap={2}>
-          <Text fontWeight="600">{budget.customer.name}</Text>
+          <Text fontWeight="600" overflowWrap="anywhere">{budget.customer.name}</Text>
           <Text color="fg.muted" fontSize="sm">
             {budget.customer.phone}
           </Text>
@@ -280,16 +281,16 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
           <tbody>
             {budget.items.map((item) => (
               <tr key={item.product_id} style={{ borderBottom: "1px solid var(--chakra-colors-border-muted)" }}>
-                <td style={{ padding: "10px 14px", fontWeight: 500 }}>{item.product_name}</td>
+                <td style={{ padding: "10px 14px", fontWeight: 500, overflowWrap: "anywhere" }}>{item.product_name}</td>
                 <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
                   {item.qty}
                 </td>
                 <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
-                  {formatCents(item.unit_cost)}
+                  <FormatNumber value={centsToPesos(item.unit_cost)} style="currency" currency="ARS" />
                 </td>
                 <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
                   <HStack gap={2}>
-                    <span>{formatCents(item.unit_selling)}</span>
+                    <span><FormatNumber value={centsToPesos(item.unit_selling)} style="currency" currency="ARS" /></span>
                     {item.price_overridden ? (
                       <Badge colorPalette="purple" variant="subtle">
                         manual
@@ -298,7 +299,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
                   </HStack>
                 </td>
                 <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
-                  {formatCents(item.line_selling)}
+                  <FormatNumber value={centsToPesos(item.line_selling)} style="currency" currency="ARS" />
                 </td>
               </tr>
             ))}
@@ -319,11 +320,11 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
         <VStack align="stretch" gap={2}>
           <HStack justify="space-between" fontSize="sm">
             <Text color="fg.muted">Total costos</Text>
-            <Text fontVariantNumeric="tabular-nums">{formatCents(budget.summary.total_costos)}</Text>
+            <Text fontVariantNumeric="tabular-nums"><FormatNumber value={centsToPesos(budget.summary.total_costos)} style="currency" currency="ARS" /></Text>
           </HStack>
           <HStack justify="space-between" fontSize="sm">
             <Text color="fg.muted">Subtotal de venta</Text>
-            <Text fontVariantNumeric="tabular-nums">{formatCents(budget.summary.subtotal)}</Text>
+            <Text fontVariantNumeric="tabular-nums"><FormatNumber value={centsToPesos(budget.summary.subtotal)} style="currency" currency="ARS" /></Text>
           </HStack>
           <HStack justify="space-between" fontSize="sm">
             <Text color="fg.muted">
@@ -334,7 +335,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
               fontVariantNumeric="tabular-nums"
               color={budget.summary.ganancia < 0 ? "red.fg" : undefined}
             >
-              {formatCents(budget.summary.ganancia)}
+              <FormatNumber value={centsToPesos(budget.summary.ganancia)} style="currency" currency="ARS" />
             </Text>
           </HStack>
           <Box as="hr" border="none" h="1px" bg="bg.emphasized" />
@@ -346,17 +347,17 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
               fontVariantNumeric="tabular-nums"
               aria-live="polite"
             >
-              {formatCents(budget.summary.total_venta)}
+              <FormatNumber value={centsToPesos(budget.summary.total_venta)} style="currency" currency="ARS" />
             </Text>
           </HStack>
           <HStack justify="space-between" fontSize="sm">
             <Text color="fg.muted">IVA (21%) — costo aparte</Text>
-            <Text fontVariantNumeric="tabular-nums">{formatCents(budget.summary.iva)}</Text>
+            <Text fontVariantNumeric="tabular-nums"><FormatNumber value={centsToPesos(budget.summary.iva)} style="currency" currency="ARS" /></Text>
           </HStack>
           <HStack justify="space-between" fontSize="sm">
             <Text color="fg.muted">Total con IVA</Text>
             <Text fontVariantNumeric="tabular-nums" fontWeight="600">
-              {formatCents(budget.summary.total_venta + budget.summary.iva)}
+              <FormatNumber value={centsToPesos(budget.summary.total_venta + budget.summary.iva)} style="currency" currency="ARS" />
             </Text>
           </HStack>
         </VStack>
@@ -364,16 +365,16 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
 
       {}
       {recalculated ? (
-        <Alert.Root status="success" fontSize="sm">
+        <Alert.Root status="success" fontSize="sm" aria-live="polite">
           <Alert.Content>
             <Alert.Title>Precios recalculados contra el catálogo</Alert.Title>
             <Alert.Description>
               Margen aplicado: {formatPct(recalcMargin)}. Subtotal{" "}
-              {formatCents(recalculated.subtotal)} · Costos{" "}
-              {formatCents(recalculated.total_costos)} · Total venta (sin IVA){" "}
-              {formatCents(recalculated.total_venta)} + IVA{" "}
-              {formatCents(recalculated.iva)} (costo aparte) ={" "}
-              {formatCents(recalculated.total_venta + recalculated.iva)}.
+              <FormatNumber value={centsToPesos(recalculated.subtotal)} style="currency" currency="ARS" /> · Costos{" "}
+              <FormatNumber value={centsToPesos(recalculated.total_costos)} style="currency" currency="ARS" /> · Total venta (sin IVA){" "}
+              <FormatNumber value={centsToPesos(recalculated.total_venta)} style="currency" currency="ARS" /> + IVA{" "}
+              <FormatNumber value={centsToPesos(recalculated.iva)} style="currency" currency="ARS" /> (costo aparte) ={" "}
+              <FormatNumber value={centsToPesos(recalculated.total_venta + recalculated.iva)} style="currency" currency="ARS" />.
             </Alert.Description>
           </Alert.Content>
         </Alert.Root>
@@ -486,7 +487,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
                   </Button>
                 </HStack>
                 <Text fontSize="sm" color="fg.muted">
-                  Vence: {new Date(share.expires_at).toLocaleString()}
+                  Vence: {new Date(share.expires_at).toLocaleString("es-AR")}
                 </Text>
               </>
             )}
@@ -504,7 +505,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
       >
         <Dialog.Backdrop />
         <Dialog.Positioner>
-          <Dialog.Content>
+          <Dialog.Content overscrollBehavior="contain">
             <Dialog.Header>
               <Dialog.Title>{pendingAction ? DIALOG_COPY[pendingAction].title : ""}</Dialog.Title>
             </Dialog.Header>

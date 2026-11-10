@@ -43,7 +43,7 @@ export function ProfileCard({ user }: ProfileCardProps) {
           <Avatar.Fallback>{user.email.charAt(0).toUpperCase()}</Avatar.Fallback>
         </Avatar.Root>
         <VStack gap={1}>
-          <Heading fontSize="xl">Perfil de usuario</Heading>
+          <Heading fontSize="xl" textWrap="balance">Perfil de usuario</Heading>
           <Badge colorPalette={roleColor(user.role)}>
             {ROLE_LABELS[user.role] ?? user.role}
           </Badge>
@@ -52,17 +52,17 @@ export function ProfileCard({ user }: ProfileCardProps) {
         <VStack width="full" align="start" gap={3}>
           <HStack justifyContent="space-between" width="full">
             <Text fontWeight="medium">Correo electrónico</Text>
-            <Text color="fg.muted" fontWeight="bold">{user.email}</Text>
+            <Text color="fg.muted" fontWeight="bold" minW={0} overflowWrap="anywhere" textAlign="end">{user.email}</Text>
           </HStack>
           {user.googleId && (
             <HStack justifyContent="space-between" width="full">
               <Text fontWeight="medium">Google ID</Text>
-              <Text color="fg.muted" fontWeight="bold">{user.googleId}</Text>
+              <Text color="fg.muted" fontWeight="bold" minW={0} overflowWrap="anywhere" textAlign="end">{user.googleId}</Text>
             </HStack>
           )}
           <HStack justifyContent="space-between" width="full">
             <Text fontWeight="medium">ID de cuenta</Text>
-            <Text color="fg.muted" fontWeight="bold">{user.id}</Text>
+            <Text color="fg.muted" fontWeight="bold" minW={0} overflowWrap="anywhere" textAlign="end">{user.id}</Text>
           </HStack>
         </VStack>
       </VStack>

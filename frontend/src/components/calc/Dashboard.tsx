@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   Flex,
@@ -11,17 +11,28 @@ import {
   Table,
   Badge,
   IconButton,
+  FormatNumber,
 } from "@chakra-ui/react";
 import { CalcDashboardSkeleton } from "@/components/ui/skeleton";
 
 import { calcProductsService } from "@/services/calcProductsService";
 import { toaster } from "@/lib/toaster";
-import { formatCents } from "@/lib/format";
+import DashboardCharts from "./DashboardCharts";
 import type { DashboardResponse, DashboardTopItem, DashboardBottomItem } from "@/types/calc";
+
+const CENTS_PER_PESO = 100;
+
+const Money = ({ cents }: { cents: number }) => (
+  <FormatNumber
+    value={(Number.isFinite(cents) ? cents : 0) / CENTS_PER_PESO}
+    style="currency"
+    currency="ARS"
+  />
+);
 
 const KPICard = ({ title, value, subtitle, color = "gray" }: {
   title: string;
-  value: string | number;
+  value: ReactNode;
   subtitle?: string;
   color?: string;
 }) => (
@@ -29,7 +40,7 @@ const KPICard = ({ title, value, subtitle, color = "gray" }: {
     <Text fontSize="sm" color="fg.muted" fontWeight="medium" mb={2}>
       {title}
     </Text>
-    <Heading size="lg" color={`${color}.fg`}>
+    <Heading size="lg" color={`${color}.fg`} fontVariantNumeric="tabular-nums">
       {typeof value === "number" ? value.toLocaleString() : value}
     </Heading>
     {subtitle && (
@@ -106,17 +117,19 @@ export default function Dashboard() {
         />
         <KPICard
           title="Costo Promedio"
-          value={formatCents(dashboard.avg_product_cost)}
+          value=<Money cents={dashboard.avg_product_cost} />
           subtitle="Por producto"
           color="purple"
         />
         <KPICard
           title="Precio Promedio"
-          value={formatCents(dashboard.avg_final_price)}
+          value=<Money cents={dashboard.avg_final_price} />
           subtitle="Por producto"
           color="cyan"
         />
       </SimpleGrid>
+
+      <DashboardCharts dashboard={dashboard} />
 
       {}
       <SimpleGrid columns={{ base: 1, lg: 2 }} gap={6}>
@@ -138,12 +151,12 @@ export default function Dashboard() {
                 return (
                   <Table.Row key={item.id}>
                     <Table.Cell fontWeight="medium">{item.name}</Table.Cell>
-                    <Table.Cell textAlign="right">{formatCents(item.final_sale_price)}</Table.Cell>
+                    <Table.Cell textAlign="right" fontVariantNumeric="tabular-nums"><Money cents={item.final_sale_price} /></Table.Cell>
                     <Table.Cell textAlign="right">
                       <Badge colorPalette={badgeColor} variant="subtle">
                         {badgeText}
                       </Badge>
-                      <Text fontSize="sm" mt={1}>{item.margin_percent}</Text>
+                      <Text fontSize="sm" mt={1} fontVariantNumeric="tabular-nums">{item.margin_percent}</Text>
                     </Table.Cell>
                     <Table.Cell textAlign="center">
                       <IconButton
@@ -152,7 +165,7 @@ export default function Dashboard() {
                         aria-label="Ver producto"
                         onClick={() => handleViewProduct(item.id)}
                       >
-                        👁️
+                        <span aria-hidden="true">👁️</span>
                       </IconButton>
                     </Table.Cell>
                   </Table.Row>
@@ -180,12 +193,12 @@ export default function Dashboard() {
                 return (
                   <Table.Row key={item.id}>
                     <Table.Cell fontWeight="medium">{item.name}</Table.Cell>
-                    <Table.Cell textAlign="right">{formatCents(item.product_total_cost)}</Table.Cell>
+                    <Table.Cell textAlign="right" fontVariantNumeric="tabular-nums"><Money cents={item.product_total_cost} /></Table.Cell>
                     <Table.Cell textAlign="right">
                       <Badge colorPalette={badgeColor} variant="subtle">
                         {badgeText}
                       </Badge>
-                      <Text fontSize="sm" mt={1}>{item.margin_percent}</Text>
+                      <Text fontSize="sm" mt={1} fontVariantNumeric="tabular-nums">{item.margin_percent}</Text>
                     </Table.Cell>
                     <Table.Cell textAlign="center">
                       <IconButton
@@ -194,7 +207,7 @@ export default function Dashboard() {
                         aria-label="Ver producto"
                         onClick={() => handleViewProduct(item.id)}
                       >
-                        👁️
+                        <span aria-hidden="true">👁️</span>
                       </IconButton>
                     </Table.Cell>
                   </Table.Row>

@@ -41,7 +41,7 @@ export default function CalculatorConfigPage() {
     <ProtectedRoute requiredRole="admin">
       <Container py={10} maxW="container.md">
         <Flex direction="column" gap={6}>
-          <Heading fontSize="3xl">Configuración de la calculadora</Heading>
+          <Heading fontSize="3xl" textWrap="balance">Configuración de la calculadora</Heading>
           <Tabs.Root value={activeTab} onValueChange={handleTabChange}>
             <Tabs.List>
               {CALC_TABS.map((tab) => (

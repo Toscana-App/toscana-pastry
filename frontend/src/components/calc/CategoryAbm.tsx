@@ -246,14 +246,18 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
         <Flex align="center" direction={{ base: "column", md: "row" }} gap={3}>
           <Input
             aria-label="Nombre"
-            placeholder="Nombre"
+            name="name"
+            autoComplete="off"
+            placeholder="Nombre…"
             maxLength={80}
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
           />
           <Input
             aria-label="Descripción"
-            placeholder="Descripción (opcional)"
+            name="description"
+            autoComplete="off"
+            placeholder="Descripción (opcional)…"
             maxLength={200}
             value={newDescription}
             onChange={(e) => setNewDescription(e.target.value)}
@@ -273,11 +277,17 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
       <Flex align="center" gap={3}>
         <Input
           aria-label="Buscar"
-          placeholder="Buscar"
+          name="q"
+          type="search"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="Buscar…"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
         />
-        <Text color="fg.muted">Total: {total}</Text>
+        <Text color="fg.muted" fontVariantNumeric="tabular-nums" aria-live="polite">
+          Total: {total}
+        </Text>
       </Flex>
 
       {loading ? (
@@ -308,6 +318,8 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
                     <Table.Cell>
                       <Input
                         aria-label="Editar nombre"
+                        name="name"
+                        autoComplete="off"
                         maxLength={80}
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
@@ -316,6 +328,8 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
                     <Table.Cell>
                       <Input
                         aria-label="Editar descripción"
+                        name="description"
+                        autoComplete="off"
                         maxLength={200}
                         value={editDescription}
                         onChange={(e) => setEditDescription(e.target.value)}

@@ -154,7 +154,7 @@ describe("ProductsPage", () => {
     renderPage();
 
     expect(screen.getByText("Torta de chocolate")).toBeInTheDocument();
-    expect(screen.getByText("ARS 1.550")).toBeInTheDocument();
+    expect(screen.getByText(/\$\s1\.550,00/)).toBeInTheDocument();
     expect(screen.getByText("sin precio")).toBeInTheDocument();
   });
 

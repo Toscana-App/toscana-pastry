@@ -154,8 +154,8 @@ export function PaymentCard({ order }: { order: OrderDetail }) {
 
   return (
     <Box borderWidth="1px" borderColor="border.muted" rounded="md" p={4}>
-      <Stack gap={3}>
-        <Text fontWeight="semibold">Mercado Pago</Text>
+      <Stack gap={3} aria-live="polite">
+        <Text fontWeight="semibold" translate="no">Mercado Pago</Text>
 
         {state.kind === "idle" && (
           <Text fontSize="sm" color="fg.muted">
@@ -209,7 +209,7 @@ export function PaymentCard({ order }: { order: OrderDetail }) {
 
         {reference !== null && state.kind === "pending" && (
           <Stack gap={2} width="100%">
-            <Text fontSize="xs" color="fg.muted">
+            <Text fontSize="xs" color="fg.muted" overflowWrap="anywhere">
               Reference: {reference}
             </Text>
             {checkoutHref !== null && (

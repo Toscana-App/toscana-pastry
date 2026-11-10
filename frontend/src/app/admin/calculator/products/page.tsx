@@ -11,9 +11,9 @@ export default function ProductsPage() {
   return (
     <Tabs.Root value={activeTab} onValueChange={(details) => setActiveTab(details.value)}>
       <Tabs.List>
-        <Tabs.Trigger value="library">📚 Biblioteca de Productos</Tabs.Trigger>
-        <Tabs.Trigger value="price-list">💰 Lista de Precios</Tabs.Trigger>
-        <Tabs.Trigger value="dashboard">📊 Dashboard</Tabs.Trigger>
+        <Tabs.Trigger value="library"><span aria-hidden="true">📚</span> Biblioteca de Productos</Tabs.Trigger>
+        <Tabs.Trigger value="price-list"><span aria-hidden="true">💰</span> Lista de Precios</Tabs.Trigger>
+        <Tabs.Trigger value="dashboard"><span aria-hidden="true">📊</span> Dashboard</Tabs.Trigger>
       </Tabs.List>
 
       <Tabs.Content value="library">

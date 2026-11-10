@@ -8,6 +8,7 @@ import {
   Button,
   Dialog,
   Flex,
+  FormatNumber,
   Heading,
   HStack,
   Skeleton,
@@ -17,7 +18,7 @@ import {
 } from "@chakra-ui/react";
 import NextLink from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatCents, formatPct } from "@/lib/format";
+import { formatPct, centsToPesos } from "@/lib/format";
 import { ordersService } from "../service";
 import {
   ALLOWED_TRANSITIONS,
@@ -149,7 +150,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
     <Flex direction="column" gap={5}>
       <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
         <HStack gap={3} align="center">
-          <Heading fontSize="2xl">Pedido {order.id.slice(0, 8)}</Heading>
+          <Heading fontSize="2xl" textWrap="balance">Pedido {order.id.slice(0, 8)}</Heading>
           <Badge colorPalette={STATUS_COLORS[order.status]} variant="subtle">
             {ORDER_STATUS_LABELS[order.status]}
           </Badge>
@@ -168,7 +169,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
       {}
       <Box borderWidth="1px" borderColor="border" rounded="md" p={4}>
         <VStack align="start" gap={2}>
-          <Text fontWeight="600">{order.customer.name}</Text>
+          <Text fontWeight="600" overflowWrap="anywhere">{order.customer.name}</Text>
           <Text color="fg.muted" fontSize="sm">{order.customer.phone}</Text>
           <HStack gap={4} fontSize="sm" color="fg.muted" wrap="wrap">
             <Text>Fecha del pedido: {order.date}</Text>
@@ -207,21 +208,21 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
           <tbody>
             {order.items.map((item, idx) => (
               <tr key={`${item.product_id}-${idx}`} style={{ borderBottom: "1px solid var(--chakra-colors-border-muted)" }}>
-                <td style={{ padding: "10px 14px", fontWeight: 500 }}>{item.product_name}</td>
-                <td style={{ padding: "10px 14px" }}>{item.qty}</td>
-                <td style={{ padding: "10px 14px" }}>{item.portions}</td>
-                <td style={{ padding: "10px 14px", maxWidth: "220px" }}>{item.note}</td>
+                <td style={{ padding: "10px 14px", fontWeight: 500, overflowWrap: "anywhere" }}>{item.product_name}</td>
+                <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>{item.qty}</td>
+                <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>{item.portions}</td>
+                <td style={{ padding: "10px 14px", maxWidth: "220px", overflowWrap: "anywhere" }}>{item.note}</td>
                 <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
-                  {formatCents(item.price.base)}
+                  <FormatNumber value={centsToPesos(item.price.base)} style="currency" currency="ARS" />
                 </td>
                 <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
                   {formatPct(item.price.margin_pct)}
                 </td>
                 <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
-                  {formatCents(item.price.final)}
+                  <FormatNumber value={centsToPesos(item.price.final)} style="currency" currency="ARS" />
                 </td>
                 <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
-                  {formatCents(item.rounded)}
+                  <FormatNumber value={centsToPesos(item.rounded)} style="currency" currency="ARS" />
                 </td>
                 <td style={{ display: "none" }} aria-hidden="true" />
               </tr>
@@ -251,7 +252,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
                       {line.ingredient_name} · {line.qty} {line.unit}
                       {line.is_missing ? " (sin precio)" : ""}
                     </Text>
-                    <Text fontVariantNumeric="tabular-nums">{formatCents(line.cost)}</Text>
+                    <Text fontVariantNumeric="tabular-nums"><FormatNumber value={centsToPesos(line.cost)} style="currency" currency="ARS" /></Text>
                   </HStack>
                 ))}
               </Stack>
@@ -278,7 +279,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
       <HStack justify="flex-end" gap={2}>
         <Text fontWeight="600">Total</Text>
         <Text fontWeight="700" fontSize="xl" fontVariantNumeric="tabular-nums">
-          {formatCents(order.total)}
+          <FormatNumber value={centsToPesos(order.total)} style="currency" currency="ARS" />
         </Text>
       </HStack>
 
@@ -365,7 +366,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
       >
         <Dialog.Backdrop />
         <Dialog.Positioner>
-          <Dialog.Content>
+          <Dialog.Content overscrollBehavior="contain">
             <Dialog.Header>
               <Dialog.Title>
                 ¿Pasar el pedido a {pendingTransition ? ORDER_STATUS_LABELS[pendingTransition] : ""}?

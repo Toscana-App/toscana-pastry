@@ -114,7 +114,7 @@ export function CheckoutFlow() {
     return (
       <Center minH="50dvh" py={12}>
         <Stack gap={4} align="center" textAlign="center">
-          <Heading size="lg">Tu carrito está vacío</Heading>
+          <Heading size="lg" textWrap="balance">Tu carrito está vacío</Heading>
           <Text color="fg.muted">
             Agregá productos desde el catálogo para iniciar un pedido.
           </Text>

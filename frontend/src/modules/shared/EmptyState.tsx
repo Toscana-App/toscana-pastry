@@ -16,7 +16,7 @@ export function EmptyState({
 }: EmptyStateProps) {
   return (
     <Flex direction="column" align="center" gap={3} py={16}>
-      <Heading size="md">{title}</Heading>
+      <Heading size="md" textWrap="balance">{title}</Heading>
       {description ? (
         <Text color="fg.muted" textAlign="center">
           {description}

@@ -33,6 +33,8 @@ const StyledSelect = chakra("select", {
     background: "transparent",
     fontSize: "sm",
     outline: "none",
+    color: "fg",
+    "& option": { bg: "bg", color: "fg" },
     _focusVisible: {
       borderColor: "brand.solid",
       boxShadow: "0 0 0 1px var(--chakra-colors-brand-600)",
@@ -109,6 +111,7 @@ export function RecipeEditor({
                     inputMode="decimal"
                     step="any"
                     min={0}
+                    autoComplete="off"
                     {...register(`recipe.${index}.qty`, { valueAsNumber: true })}
                     aria-label={`Cantidad de la línea ${index + 1}`}
                   />
@@ -129,7 +132,7 @@ export function RecipeEditor({
                   colorPalette="red"
                   onClick={() => remove(index)}
                 >
-                  ✕
+                  <span aria-hidden="true">✕</span>
                 </IconButton>
               </Flex>
               {rowErrors?.ingredient_id || rowErrors?.qty || rowErrors?.unit ? (
