@@ -66,6 +66,13 @@ function PaymentBadge({ order }: { order: OrderDetail }) {
       </Badge>
     );
   }
+  if (order.payment_method === "transfer") {
+    return (
+      <Badge colorPalette="blue" variant="subtle">
+        Pagar por transferencia
+      </Badge>
+    );
+  }
   switch (order.payment_status) {
     case "pending":
       return (

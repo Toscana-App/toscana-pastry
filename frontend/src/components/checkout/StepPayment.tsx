@@ -69,6 +69,26 @@ export function StepPayment({
               </Box>
             </RadioGroup.ItemText>
           </RadioGroup.Item>
+
+          <RadioGroup.Item value="transfer">
+            <RadioGroup.ItemControl />
+            <RadioGroup.ItemText as="div" width="100%">
+              <Box
+                borderWidth="1px"
+                borderColor="border.muted"
+                rounded="md"
+                p={3}
+                cursor="pointer"
+                onClick={() => onChange("transfer")}
+              >
+                <Text fontWeight="semibold">Transferencia</Text>
+                <Text fontSize="sm" color="fg.muted">
+                  Transferencia bancaria. Te compartimos los datos y
+                  confirmamos al recibir el comprobante.
+                </Text>
+              </Box>
+            </RadioGroup.ItemText>
+          </RadioGroup.Item>
         </Stack>
       </RadioGroup.Root>
 
