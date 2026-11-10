@@ -225,7 +225,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
     <Flex direction="column" gap={5}>
       <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
         <HStack gap={3} align="center">
-          <Heading fontSize="2xl" textWrap="balance">Presupuesto #{budget.seq}</Heading>
+          <Heading as="h1" fontSize="2xl" textWrap="balance">Presupuesto #{budget.seq}</Heading>
           <Badge colorPalette={STATUS_COLORS[budget.status]} variant="subtle">
             {BUDGET_STATUS_LABELS[budget.status]}
           </Badge>
@@ -265,7 +265,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
                   key={h}
                   scope="col"
                   style={{
-                    textAlign: "left",
+                    textAlign: ["Cant.", "Costo unit.", "Precio unit.", "Subtotal"].includes(h) ? "right" : "left",
                     padding: "10px 14px",
                     borderBottom: "1px solid var(--chakra-colors-border)",
                     fontWeight: 600,
@@ -282,14 +282,14 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
             {budget.items.map((item) => (
               <tr key={item.product_id} style={{ borderBottom: "1px solid var(--chakra-colors-border-muted)" }}>
                 <td style={{ padding: "10px 14px", fontWeight: 500, overflowWrap: "anywhere" }}>{item.product_name}</td>
-                <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
+                <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                   {item.qty}
                 </td>
-                <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
+                <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                   <FormatNumber value={centsToPesos(item.unit_cost)} style="currency" currency="ARS" />
                 </td>
-                <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
-                  <HStack gap={2}>
+                <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                  <HStack gap={2} justify="flex-end">
                     <span><FormatNumber value={centsToPesos(item.unit_selling)} style="currency" currency="ARS" /></span>
                     {item.price_overridden ? (
                       <Badge colorPalette="purple" variant="subtle">
@@ -298,7 +298,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
                     ) : null}
                   </HStack>
                 </td>
-                <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
+                <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                   <FormatNumber value={centsToPesos(item.line_selling)} style="currency" currency="ARS" />
                 </td>
               </tr>
@@ -436,7 +436,7 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
 
       {}
       {pdfUrl ? (
-        <Box borderWidth="1px" borderColor="gray.200" rounded="md" w="full">
+        <Box borderWidth="1px" borderColor="border" rounded="md" w="full">
           <iframe
             src={pdfUrl}
             title={`PDF presupuesto ${budget.seq}`}
@@ -459,12 +459,12 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
 
       {}
       {share ? (
-        <Box borderWidth="1px" borderColor="gray.200" rounded="md" p={4} maxW="640px">
+        <Box borderWidth="1px" borderColor="border" rounded="md" p={4} maxW="640px">
           <VStack align="start" gap={2}>
             <Text fontWeight="600">Link temporal (72 h)</Text>
             {isShareExpired(share) ? (
               <>
-                <Text fontSize="sm" color="red.600">
+                <Text fontSize="sm" color="red.fg">
                   El link venció.
                 </Text>
                 <Button

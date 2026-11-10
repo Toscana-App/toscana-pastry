@@ -46,7 +46,7 @@ const StyledOptionSelect = chakra("select", {
     "& option": { bg: "bg", color: "fg" },
     _focusVisible: {
       borderColor: "brand.solid",
-      boxShadow: "0 0 0 1px var(--chakra-colors-brand-600)",
+      boxShadow: "0 0 0 1px var(--chakra-colors-brand-focus-ring)",
     },
   },
 });
@@ -263,7 +263,7 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
   return (
     <VStack align="stretch" gap={5} maxW="860px" w="full">
       <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
-        <Heading fontSize="2xl" textWrap="balance">Editar presupuesto #{budget.seq}</Heading>
+        <Heading as="h1" fontSize="2xl" textWrap="balance">Editar presupuesto #{budget.seq}</Heading>
         <Button variant="ghost" asChild>
           <NextLink href={`/presupuestos/${budget.id}`}>Cancelar</NextLink>
         </Button>
@@ -307,7 +307,7 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
                   rounded="full"
                   whiteSpace="nowrap"
                   variant={mode === m ? "solid" : "outline"}
-                  colorPalette={mode === m ? "brand" : "gray"}
+                  colorPalette={mode === m ? "brand" : undefined}
                   aria-pressed={mode === m}
                   onClick={() => setMode(m)}
                 >

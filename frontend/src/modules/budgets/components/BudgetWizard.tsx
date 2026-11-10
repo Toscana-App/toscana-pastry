@@ -46,7 +46,7 @@ const StyledOptionSelect = chakra("select", {
     "& option": { bg: "bg", color: "fg" },
     _focusVisible: {
       borderColor: "brand.solid",
-      boxShadow: "0 0 0 1px var(--chakra-colors-brand-600)",
+      boxShadow: "0 0 0 1px var(--chakra-colors-brand-focus-ring)",
     },
   },
 });
@@ -189,6 +189,7 @@ export function BudgetWizard() {
     try {
       window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     } catch {
+      // sessionStorage no disponible (modo privado): se omite el borrador.
     }
   }, [draft]);
 
@@ -347,6 +348,7 @@ export function BudgetWizard() {
       try {
         window.sessionStorage.removeItem(DRAFT_KEY);
       } catch {
+        // sessionStorage no disponible: el borrador se mantiene hasta cerrar la pestaña.
       }
       router.push(`/presupuestos/${budget.id}`);
     } catch (e) {
@@ -359,6 +361,7 @@ export function BudgetWizard() {
     try {
       window.sessionStorage.removeItem(DRAFT_KEY);
     } catch {
+      // sessionStorage no disponible (modo privado): se limpia solo el estado en memoria.
     }
     setDraft(freshDraft());
     setClientErrors({});
@@ -370,7 +373,7 @@ export function BudgetWizard() {
   return (
     <VStack align="stretch" gap={5} maxW="860px" w="full">
       <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
-        <Heading fontSize="2xl" textWrap="balance">Nuevo presupuesto</Heading>
+        <Heading as="h1" fontSize="2xl" textWrap="balance">Nuevo presupuesto</Heading>
         <Button variant="ghost" size="sm" onClick={clearDraft}>
           Empezar de cero
         </Button>
@@ -488,7 +491,7 @@ export function BudgetWizard() {
                     rounded="full"
                     whiteSpace="nowrap"
                     variant={draft.mode === m ? "solid" : "outline"}
-                    colorPalette={draft.mode === m ? "brand" : "gray"}
+                    colorPalette={draft.mode === m ? "brand" : undefined}
                     aria-pressed={draft.mode === m}
                     onClick={() => patch({ mode: m })}
                   >
@@ -641,7 +644,7 @@ export function BudgetWizard() {
                       <th
                         key={`${h}-${i}`}
                         style={{
-                          textAlign: "left",
+                          textAlign: h === "Precio unitario" || h === "Cantidad" ? "right" : "left",
                           padding: "10px 14px",
                           borderBottom: "1px solid var(--chakra-colors-border)",
                           fontWeight: 600,
@@ -649,7 +652,13 @@ export function BudgetWizard() {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {h}
+                        {h === "" ? (
+                          <span style={{ position: "absolute", width: "1px", height: "1px", overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" }}>
+                            Quitar
+                          </span>
+                        ) : (
+                          h
+                        )}
                       </th>
                     ))}
                   </tr>
@@ -665,12 +674,12 @@ export function BudgetWizard() {
                         <td style={{ padding: "10px 14px", fontWeight: 500, overflowWrap: "anywhere" }}>
                           {product?.name ?? "—"}
                         </td>
-                        <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
+                        <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                           {row.qty}
                         </td>
-                        <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
+                        <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                           {price != null ? (
-                            <HStack gap={2}>
+                            <HStack gap={2} justify="flex-end">
                               <Badge colorPalette={draft.mode === "manual" ? "purple" : "gray"} variant="subtle">
                                 {draft.mode === "manual" ? "manual" : "motor"}
                               </Badge>

@@ -92,7 +92,7 @@ export function BudgetsPage() {
     <Flex direction="column" gap={5}>
       <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
         <Flex direction="column" gap={1}>
-          <Heading fontSize="2xl" textWrap="balance">Presupuestos</Heading>
+          <Heading as="h1" fontSize="2xl" textWrap="balance">Presupuestos</Heading>
           <Text color="fg.muted" fontVariantNumeric="tabular-nums" aria-live="polite">
             {total} en total
           </Text>
@@ -152,7 +152,7 @@ export function BudgetsPage() {
             size="sm"
             rounded="full"
             variant={status === null ? "solid" : "outline"}
-            colorPalette={status === null ? "brand" : "gray"}
+            colorPalette={status === null ? "brand" : undefined}
             aria-pressed={status === null}
             onClick={() => setStatus(null)}
           >
@@ -165,7 +165,7 @@ export function BudgetsPage() {
               rounded="full"
               whiteSpace="nowrap"
               variant={status === s ? "solid" : "outline"}
-              colorPalette={status === s ? "brand" : "gray"}
+              colorPalette={status === s ? "brand" : undefined}
               aria-pressed={status === s}
               onClick={() => setStatus(status === s ? null : s)}
             >
@@ -245,7 +245,7 @@ export function BudgetsPage() {
                   <th
                     key={`${h}-${i}`}
                     style={{
-                      textAlign: "left",
+                      textAlign: h === "Total" ? "right" : "left",
                       padding: "10px 14px",
                       borderBottom: "1px solid var(--chakra-colors-border)",
                       fontWeight: 600,
@@ -253,7 +253,13 @@ export function BudgetsPage() {
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {h}
+                    {h === "" ? (
+                      <span style={{ position: "absolute", width: "1px", height: "1px", overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" }}>
+                        Ver
+                      </span>
+                    ) : (
+                      h
+                    )}
                   </th>
                 ))}
               </tr>
@@ -274,7 +280,7 @@ export function BudgetsPage() {
                     {budget.customer_phone}
                   </td>
                   <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>{budget.item_count}</td>
-                  <td style={{ padding: "10px 14px", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                  <td style={{ padding: "10px 14px", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                     <FormatNumber value={centsToPesos(budget.total)} style="currency" currency="ARS" />
                   </td>
                   <td style={{ padding: "10px 14px" }}>
