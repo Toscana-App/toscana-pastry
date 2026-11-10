@@ -946,6 +946,7 @@ async def weekly_summary(
 async def weekly_summary_pdf(
     week: Optional[str] = Query(default=None, max_length=10),
     repo: OrderRepository = Depends(get_order_repository),
+    settings_repo: SettingsRepository = Depends(get_settings_repository),
     pdf: PdfClient = Depends(get_pdf_client),
     _admin: User = Depends(require_admin),
 ):
@@ -957,6 +958,7 @@ async def weekly_summary_pdf(
 
     total_cents = sum((decimal_to_cents(o.total) for o in orders), 0)
     paid_cents = sum((decimal_to_cents(o.total) for o in orders if o.paid), 0)
+    settings = await GetSettings(settings_repo).execute()
     payload = {
         "monday": monday.isoformat(),
         "sunday": sunday.isoformat(),
@@ -973,6 +975,8 @@ async def weekly_summary_pdf(
         ],
         "total_cents": total_cents,
         "paid_cents": paid_cents,
+        "business_name": settings.business_name or "",
+        "footer_text": settings.footer_text or "",
     }
     pdf_bytes = await asyncio.to_thread(pdf.render_weekly, payload)
     iso_week = monday.isocalendar()
@@ -994,6 +998,7 @@ async def export_orders(
     paid: Optional[bool] = Query(default=None),
     fmt: Literal["csv", "pdf"] = Query(default="csv", alias="format"),
     repo: OrderRepository = Depends(get_order_repository),
+    settings_repo: SettingsRepository = Depends(get_settings_repository),
     pdf: PdfClient = Depends(get_pdf_client),
     _admin: User = Depends(require_admin),
 ):
@@ -1005,8 +1010,11 @@ async def export_orders(
         period = "todos"
     if fmt == "csv":
         return _csv_response(_orders_csv_rows(orders), f"pedidos_{period}.csv")
+    settings = await GetSettings(settings_repo).execute()
     payload = {
         "period_label": period,
+        "business_name": settings.business_name or "",
+        "footer_text": settings.footer_text or "",
         "orders": [
             {
                 "id": o.id or "",

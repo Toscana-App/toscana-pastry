@@ -114,7 +114,7 @@ def test_render_budget_rejects_bad_schema():
 def test_render_pricelist():
     body = {
         "audience_label": "Revendedores",
-        "rows": [{"name": "Torta de Limón", "unit": "un", "price": "$1.000,00"}],
+        "rows": [{"name": "Torta de Limón", "category": "Tortas", "price": "$1.000,00"}],
     }
     r = client.post("/render/pricelist", json=body)
     assert r.status_code == 200

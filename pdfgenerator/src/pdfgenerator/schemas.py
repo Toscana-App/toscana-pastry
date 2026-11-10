@@ -20,13 +20,15 @@ from pydantic import BaseModel, Field
 
 class PricelistRow(BaseModel):
     name: str
-    unit: str
+    category: str
     price: str  # ya formateado ("$1.234,56"); el caller lo arma
 
 
 class PricelistRequest(BaseModel):
     audience_label: str = "Todos"
     rows: list[PricelistRow] = Field(default_factory=list)
+    business_name: str = ""
+    footer_text: str = ""
 
 
 # ─── Weekly / orders / budgets export (PyMuPDF) ───────────────────────
@@ -47,6 +49,8 @@ class WeeklyRequest(BaseModel):
     orders: list[WeeklyOrderRow] = Field(default_factory=list)
     total_cents: int
     paid_cents: int
+    business_name: str = ""
+    footer_text: str = ""
 
 
 class OrdersExportRow(BaseModel):
@@ -63,6 +67,8 @@ class OrdersExportRow(BaseModel):
 class OrdersExportRequest(BaseModel):
     period_label: str
     orders: list[OrdersExportRow] = Field(default_factory=list)
+    business_name: str = ""
+    footer_text: str = ""
 
 
 class BudgetsExportRow(BaseModel):
@@ -79,6 +85,8 @@ class BudgetsExportRow(BaseModel):
 class BudgetsExportRequest(BaseModel):
     period_label: str
     budgets: list[BudgetsExportRow] = Field(default_factory=list)
+    business_name: str = ""
+    footer_text: str = ""
 
 
 # ─── Presupuesto individual (ReportLab) ───────────────────────────────
