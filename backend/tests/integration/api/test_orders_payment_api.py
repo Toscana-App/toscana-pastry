@@ -376,13 +376,13 @@ class TestPaymentIdempotency:
         assert second.json() == first.json()
         assert len(_MP_REQUESTS) == 1
 
-    async def test_initiating_payment_sets_pending_and_reference(
+    async def test_initiating_payment_sets_pending_without_reference(
         self, client, mercadopago_order
     ):
         await _pay(client, mercadopago_order.id, "key-1")
         status = await client.get(f"/api/v1/orders/{mercadopago_order.id}/payment")
         assert status.json()["status"] == "pending"
-        assert status.json()["payment_reference"] == f"pref-{mercadopago_order.id}"
+        assert status.json()["payment_reference"] is None
 
     async def test_other_key_after_initiation_returns_409_without_new_preference(
         self, client, mercadopago_order

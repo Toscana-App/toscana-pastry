@@ -353,10 +353,11 @@ class SQLOrderRepository:
         orm = result.scalars().first()
         if orm is None:
             return None
-        orm.payment_reference = reference
+        if status == PaymentStatus.APPROVED:
+            orm.payment_reference = reference
+            if paid_at is not None:
+                orm.paid_at = paid_at
         orm.payment_status = status.value
-        if paid_at is not None:
-            orm.paid_at = paid_at
         await self.session.commit()
         return _to_domain(orm)
 
@@ -460,12 +461,10 @@ class SQLOrderRepository:
                 OrderORM.payment_status.in_(replaceable),
             ),
         ]
-        values: dict[str, object] = {
-            "payment_reference": provider_payment_id,
-            "payment_status": status.value,
-        }
+        values: dict[str, object] = {"payment_status": status.value}
         if status == PaymentStatus.APPROVED:
             conditions.append(OrderORM.paid_at.is_(None))
+            values["payment_reference"] = provider_payment_id
             values["paid_at"] = paid_at
         await self.session.execute(update(OrderORM).where(*conditions).values(**values))
         await self.session.commit()
@@ -507,15 +506,6 @@ class SQLOrderRepository:
                 reference=result.reference,
                 checkout_url=result.checkout_url,
             )
-        )
-        await self.session.execute(
-            update(OrderORM)
-            .where(
-                OrderORM.id == order_id,
-                OrderORM.paid_at.is_(None),
-                OrderORM.payment_status == PaymentStatus.PENDING.value,
-            )
-            .values(payment_reference=result.reference)
         )
         try:
             await self.session.commit()
