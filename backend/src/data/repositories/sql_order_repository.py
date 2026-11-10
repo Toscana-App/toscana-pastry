@@ -166,7 +166,7 @@ def _order_to_domain(orm: OrderORM) -> P6Order:
     items = tuple(
         P6OrderItem(
             product_id=item.product_id,
-            qty=item.qty,
+            qty=item.quantity,
             portions=item.portions,
             note=item.note,
             product_name=item.product_name,
@@ -258,7 +258,6 @@ class SQLOrderRepository:
                     quantity=item.quantity,
                     unit_price=str(item.unit_price),
                     portion_note=item.portion_note,
-                    qty=item.quantity,
                     portions=item.portions or None,
                     note=item.portion_note,
                     position=index,
@@ -612,7 +611,6 @@ class SQLOrderRepository:
                     product_id=item.product_id,
                     product_name=item.product_name,
                     quantity=item.qty,
-                    qty=item.qty,
                     portions=item.portions,
                     note=item.note,
                     position=index,
@@ -648,7 +646,6 @@ class SQLOrderRepository:
                     product_id=item.product_id,
                     product_name=item.product_name,
                     quantity=item.qty,
-                    qty=item.qty,
                     portions=item.portions,
                     note=item.note,
                     position=index,
