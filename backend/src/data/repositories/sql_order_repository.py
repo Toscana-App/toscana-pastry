@@ -455,7 +455,7 @@ class SQLOrderRepository:
         replaceable = [s.value for s in overridable_payment_statuses(status)]
         conditions = [
             OrderORM.id == order_id,
-            OrderORM.payment_method != PaymentMethod.CASH.value,
+            OrderORM.payment_method == PaymentMethod.MERCADOPAGO.value,
             or_(
                 OrderORM.payment_status.is_(None),
                 OrderORM.payment_status.in_(replaceable),
