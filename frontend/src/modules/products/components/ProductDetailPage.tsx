@@ -156,7 +156,14 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
 
       <Flex align="flex-start" justify="space-between" gap={4} flexWrap="wrap">
         <Flex direction="column" gap={1}>
-          <Heading fontSize="2xl" textWrap="balance" overflowWrap="anywhere">{product.name}</Heading>
+          <Heading
+            as="h1"
+            fontSize="2xl"
+            textWrap="balance"
+            overflowWrap="anywhere"
+          >
+            {product.name}
+          </Heading>
           <Flex gap={2} align="center" flexWrap="wrap">
             <Badge variant="subtle">{product.category}</Badge>
             <Badge

@@ -36,8 +36,8 @@ const StyledSelect = chakra("select", {
     color: "fg",
     "& option": { bg: "bg", color: "fg" },
     _focusVisible: {
-      borderColor: "brand.solid",
-      boxShadow: "0 0 0 1px var(--chakra-colors-brand-600)",
+      borderColor: "brand.focusRing",
+      boxShadow: "0 0 0 1px var(--chakra-tokens-color-brand-focus-ring)",
     },
   },
 });

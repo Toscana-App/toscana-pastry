@@ -26,7 +26,8 @@ export function ProductCard({ product }: ProductCardProps) {
         transition="border-color 120ms ease-out"
         _hover={{ borderColor: "brand.solid" }}
         _focusWithin={{
-          outline: "2px solid var(--chakra-colors-brand-600)",
+          outline: "2px solid",
+          outlineColor: "brand.focusRing",
           outlineOffset: "2px",
         }}
       >

@@ -232,7 +232,7 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
     <Flex direction="column" gap={5} pb={{ base: "7rem", md: 4 }}>
       <Flex align="flex-start" justify="space-between" gap={3} flexWrap="wrap">
         <Flex direction="column" gap={1}>
-          <Heading fontSize="2xl" textWrap="balance">
+          <Heading as="h1" fontSize="2xl" textWrap="balance">
             {isEdit ? "Editar producto" : "Nuevo producto"}
           </Heading>
           <Text fontSize="sm" color="fg.muted">

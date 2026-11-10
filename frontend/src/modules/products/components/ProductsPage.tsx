@@ -51,7 +51,9 @@ export function ProductsPage() {
     <Flex direction="column" gap={5}>
       <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
         <Flex direction="column" gap={1}>
-          <Heading fontSize="2xl" textWrap="balance">Productos</Heading>
+          <Heading as="h1" fontSize="2xl" textWrap="balance">
+            Productos
+          </Heading>
           <Text color="fg.muted" fontVariantNumeric="tabular-nums" aria-live="polite">
             {total} en total
           </Text>
@@ -176,7 +178,6 @@ export function ProductsPage() {
         />
       ) : (
         <>
-          {}
           <Grid
             gap={4}
             gridTemplateColumns={{
