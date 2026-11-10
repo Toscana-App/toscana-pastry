@@ -7,8 +7,10 @@ import {
   Box,
   Button,
   Card,
+  Container,
   Flex,
   FormatNumber,
+  Heading,
   SimpleGrid,
   Skeleton,
   Stack,
@@ -18,6 +20,7 @@ import {
 import { OrderListSkeleton } from "@/components/ui/skeleton";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { gooeyToast } from "goey-toast";
 import {
   fetchMyOrderByCode,
@@ -172,6 +175,11 @@ function OrderCard({
     try {
       setDetail(await fetchMyOrderByCode(order.code));
       setExpanded(true);
+    } catch (error) {
+      gooeyToast.error("¡Ups! No se pudo cargar el detalle", {
+        description:
+          error instanceof Error ? error.message : "Intentá de nuevo.",
+      });
     } finally {
       setLoadingDetail(false);
     }
@@ -272,6 +280,7 @@ function OrderCard({
 }
 
 function MyOrdersPage() {
+  const router = useRouter();
   const [orders, setOrders] = useState<OrderDetail[] | null>(null);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -312,6 +321,8 @@ function MyOrdersPage() {
 
   if (error) {
     return (
+      <main>
+      <Container maxW="4xl">
       <Alert.Root status="error" aria-live="polite">
         <Alert.Indicator />
         <Alert.Content>
@@ -332,19 +343,31 @@ function MyOrdersPage() {
           </Flex>
         </Alert.Content>
       </Alert.Root>
+      </Container>
+      </main>
     );
   }
 
   if (!orders || orders.length === 0) {
     return (
-      <Card.Root>
+      <Card.Root as="main">
         <Card.Body>
-          <Stack align="center" gap={3} py={8} textAlign="center">
-            <Text fontWeight="semibold">Todavía no tienes pedidos</Text>
-            <Text fontSize="sm" color="fg.muted">
-              Cuando hagas tu primer pedido podrás seguirlo acá.
-            </Text>
-          </Stack>
+          <Container maxW="4xl">
+            <Stack align="center" gap={3} py={8} textAlign="center">
+              <Heading as="h1" size="md">
+                Todavía no tenés pedidos
+              </Heading>
+              <Text fontSize="sm" color="fg.muted">
+                Cuando hagas tu primer pedido podrás seguirlo acá.
+              </Text>
+              <Button
+                colorPalette="brand"
+                onClick={() => router.push("/")}
+              >
+                Ver catálogo
+              </Button>
+            </Stack>
+          </Container>
         </Card.Body>
       </Card.Root>
     );
@@ -353,7 +376,11 @@ function MyOrdersPage() {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <Stack gap={3}>
+    <main>
+    <Stack gap={4} maxW="4xl" mx="auto">
+      <Heading as="h1" size="lg" textWrap="balance">
+        Mis pedidos
+      </Heading>
       <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} gap={3} alignItems="start">
         {orders.map((order) => (
           <OrderCard key={order.id} order={order} onPaidChange={refresh} />
@@ -383,6 +410,7 @@ function MyOrdersPage() {
         </Flex>
       )}
     </Stack>
+    </main>
   );
 }
 

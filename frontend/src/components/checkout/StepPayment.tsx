@@ -32,6 +32,7 @@ export function StepPayment({
       >
         <Stack gap={2} width="100%">
           <RadioGroup.Item value="mercadopago">
+            <RadioGroup.ItemHiddenInput />
             <RadioGroup.ItemControl />
             <RadioGroup.ItemText as="div" width="100%">
               <Box
@@ -51,6 +52,7 @@ export function StepPayment({
           </RadioGroup.Item>
 
           <RadioGroup.Item value="cash">
+            <RadioGroup.ItemHiddenInput />
             <RadioGroup.ItemControl />
             <RadioGroup.ItemText as="div" width="100%">
               <Box

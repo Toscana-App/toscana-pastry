@@ -89,7 +89,7 @@ export function StepDelivery({
           rounded="md"
           p={3}
         >
-          <Text fontSize="sm" color="orange.fg">
+          <Text fontSize="sm" color="fg.warning">
             Para entrega a domicilio necesitás una dirección: volvé al paso 2
             para elegirla o crearla.
           </Text>

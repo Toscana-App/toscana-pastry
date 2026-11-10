@@ -107,6 +107,11 @@ export function StepAddress({
           onValueChange={(details) => {
             if (details.value === null) return;
             const id = String(details.value);
+            if (id === "new") {
+              setSelectedId("new");
+              setShowNewForm(true);
+              return;
+            }
             const address = addresses.find((a) => a.id === id);
             if (address) {
               chooseSaved(address);
@@ -124,14 +129,13 @@ export function StepAddress({
                 p={3}
               >
                 <RadioGroup.Item value={address.id}>
+                  <RadioGroup.ItemHiddenInput />
                   <RadioGroup.ItemControl />
                   <RadioGroup.ItemText as="div" width="100%">
                     <Flex
                       align="center"
                       justify="space-between"
                       gap={2}
-                      onClick={() => chooseSaved(address)}
-                      cursor="pointer"
                     >
                       <Text fontSize="sm" minW={0} overflowWrap="anywhere">{addressToLine(address)}</Text>
                       {address.is_default && (
@@ -146,15 +150,11 @@ export function StepAddress({
             ))}
 
             <RadioGroup.Item value="new">
+              <RadioGroup.ItemHiddenInput />
               <RadioGroup.ItemControl />
               <RadioGroup.ItemText as="div" width="100%">
-                <Text
-                  fontSize="sm"
-                  fontWeight="semibold"
-                  cursor="pointer"
-                  onClick={() => setShowNewForm(true)}
-                >
-                  ➕ Usar una nueva dirección
+                <Text fontSize="sm" fontWeight="semibold">
+                  Usar una nueva dirección
                 </Text>
               </RadioGroup.ItemText>
             </RadioGroup.Item>
@@ -166,7 +166,6 @@ export function StepAddress({
         </Text>
       )}
 
-      {}
       {showNewForm && (
         <Box
           borderWidth="1px"

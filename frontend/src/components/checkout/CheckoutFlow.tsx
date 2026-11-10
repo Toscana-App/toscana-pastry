@@ -8,7 +8,6 @@ import {
   Container,
   Flex,
   Heading,
-  Link,
   Stack,
   Steps,
   Text,
@@ -16,6 +15,7 @@ import {
 import { CheckoutSkeleton } from "@/components/ui/skeleton";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { toaster } from "@/lib/toaster";
 import { fetchCart } from "@/services/cartService";
@@ -36,11 +36,13 @@ import { StepPayment } from "./StepPayment";
 import { CheckoutSuccess, StepReview } from "./StepReview";
 
 export function CheckoutFlow() {
+  const router = useRouter();
   const { user } = useAuth();
 
   const [cart, setCart] = useState<CartResponse | null>(null);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadKey, setLoadKey] = useState(0);
 
   const [step, setStep] = useState(0);
   const [contact, setContact] = useState<ContactData | null>(null);
@@ -83,6 +85,11 @@ export function CheckoutFlow() {
     return () => {
       cancelled = true;
     };
+  }, [loadKey]);
+
+  const retryLoad = useCallback(() => {
+    setLoading(true);
+    setLoadKey((k) => k + 1);
   }, []);
 
   const goTo = useCallback((target: number) => {
@@ -97,7 +104,12 @@ export function CheckoutFlow() {
   if (cart === null) {
     return (
       <Center minH="50dvh" py={12}>
-        <Text>No se pudo cargar tu carrito.</Text>
+        <Stack gap={4} align="center" textAlign="center" role="alert">
+          <Heading as="h1" size="md">No se pudo cargar tu carrito</Heading>
+          <Button variant="outline" onClick={retryLoad}>
+            Reintentar
+          </Button>
+        </Stack>
       </Center>
     );
   }
@@ -114,15 +126,19 @@ export function CheckoutFlow() {
     return (
       <Center minH="50dvh" py={12}>
         <Stack gap={4} align="center" textAlign="center">
-          <Heading size="lg" textWrap="balance">Tu carrito está vacío</Heading>
+          <Heading as="h1" size="lg" textWrap="balance">
+            Tu carrito está vacío
+          </Heading>
           <Text color="fg.muted">
             Agregá productos desde el catálogo para iniciar un pedido.
           </Text>
-          <Link href="/" textDecoration="none">
-            <Button colorPalette="brand" size="sm">
-              Ir al catálogo
-            </Button>
-          </Link>
+          <Button
+            colorPalette="brand"
+            size="sm"
+            onClick={() => router.push("/")}
+          >
+            Ir al catálogo
+          </Button>
         </Stack>
       </Center>
     );
@@ -130,6 +146,9 @@ export function CheckoutFlow() {
 
   return (
     <Container maxW="container.lg" py={8}>
+      <Heading as="h1" size="lg" textWrap="balance" mb={6}>
+        Finalizar pedido
+      </Heading>
       <Flex gap={6} wrap="wrap" align="flex-start">
         <Box flex="1 1 420px" minW="300px">
           <Steps.Root
@@ -203,7 +222,6 @@ export function CheckoutFlow() {
           </Steps.Root>
         </Box>
 
-        {}
         <Box flex="1 1 280px" maxW="360px" minW="260px">
           <OrderSummaryPanel cart={cart} />
         </Box>

@@ -8,6 +8,7 @@ import {
   Code,
   DataList,
   Flex,
+  Heading,
   Stack,
   Text,
   FormatNumber,
@@ -229,6 +230,9 @@ export function CheckoutSuccess({
 }) {
   return (
     <Stack gap={4} maxW="md" align="center" textAlign="center" py={8}>
+      <Heading as="h1" srOnly textWrap="balance">
+        Pedido recibido
+      </Heading>
       <Text fontSize="2xl" fontWeight="bold" color="green.fg" textWrap="balance">
         ¡Pedido recibido!
       </Text>
