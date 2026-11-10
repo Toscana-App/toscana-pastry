@@ -377,7 +377,7 @@ function MyOrdersPage() {
 
   return (
     <main>
-    <Stack gap={4} maxW="4xl" mx="auto">
+    <Stack gap={4} maxW="4xl" mx="auto" px={3} pt={2} pb={6}>
       <Heading as="h1" size="lg" textWrap="balance">
         Mis pedidos
       </Heading>
