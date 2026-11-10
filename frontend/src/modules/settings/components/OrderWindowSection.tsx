@@ -81,7 +81,7 @@ export function OrderWindowSection() {
   return (
     <Fieldset.Root
       borderWidth="1px"
-      borderColor="gray.200"
+      borderColor="border"
       rounded="md"
       p={5}
       disabled={disabled}
@@ -95,7 +95,7 @@ export function OrderWindowSection() {
             el corte de pedidos.
           </Text>
         ) : loadError ? (
-          <Text fontSize="sm" color="red.500" role="alert">
+          <Text fontSize="sm" color="fg.error" role="alert">
             {loadError}
           </Text>
         ) : (
@@ -108,20 +108,25 @@ export function OrderWindowSection() {
                   setLocalError("");
                 }}
               >
-                <Switch.HiddenInput aria-label="Ventana de pedidos abierta" />
+                <Switch.HiddenInput
+                  id="order_window_open"
+                  aria-label="Ventana de pedidos abierta"
+                />
                 <Switch.Control>
                   <Switch.Thumb />
                 </Switch.Control>
               </Switch.Root>
-              <Text>
+              <label htmlFor="order_window_open">
                 {open
                   ? "Ventana de pedidos abierta"
                   : "Ventana de pedidos cerrada"}
-              </Text>
+              </label>
             </Flex>
 
             <Field.Root invalid={!!localError} disabled={open}>
-              <Field.Label>Reabre el (obligatorio al cerrar)</Field.Label>
+              <Field.Label>
+                Fecha y hora de reapertura (obligatorio al cerrar)
+              </Field.Label>
               <Input
                 type="datetime-local"
                 name="reopens_at"

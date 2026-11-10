@@ -114,7 +114,7 @@ export function SettingsPage() {
   return (
     <Flex direction="column" gap={6}>
       <Flex direction="column" gap={1}>
-        <Heading fontSize="2xl" textWrap="balance">Configuración</Heading>
+        <Heading as="h1" fontSize="2xl" textWrap="balance">Configuración</Heading>
         <Text color="fg.muted">
           Estos valores alimentan el cálculo de precios de todas las recetas.
         </Text>
@@ -176,12 +176,17 @@ export function SettingsPage() {
                   })
                 }
               >
-                <Switch.HiddenInput aria-label="Incluir mano de obra en el costo" />
+                <Switch.HiddenInput
+                  id="include_labor"
+                  aria-label="Incluir mano de obra en el costo"
+                />
                 <Switch.Control>
                   <Switch.Thumb />
                 </Switch.Control>
               </Switch.Root>
-              <Text>Incluir mano de obra en el costo</Text>
+              <label htmlFor="include_labor">
+                Incluir mano de obra en el costo
+              </label>
             </Flex>
           </Fieldset.Root>
 
@@ -214,12 +219,15 @@ export function SettingsPage() {
                       }
                     }}
                   >
-                    <Switch.HiddenInput aria-label="Cargar costo de gas" />
+                    <Switch.HiddenInput
+                      id="include_gas"
+                      aria-label="Cargar costo de gas"
+                    />
                     <Switch.Control>
                       <Switch.Thumb />
                     </Switch.Control>
                   </Switch.Root>
-                  <Text>Cargar costo de gas</Text>
+                  <label htmlFor="include_gas">Cargar costo de gas</label>
                 </Flex>
                 <NumberField
                   label="Gas"
@@ -250,12 +258,15 @@ export function SettingsPage() {
                       }
                     }}
                   >
-                    <Switch.HiddenInput aria-label="Incluir merma" />
+                    <Switch.HiddenInput
+                      id="include_waste"
+                      aria-label="Incluir merma"
+                    />
                     <Switch.Control>
                       <Switch.Thumb />
                     </Switch.Control>
                   </Switch.Root>
-                  <Text>Incluir merma</Text>
+                  <label htmlFor="include_waste">Incluir merma</label>
                 </Flex>
                 <NumberField
                   label="Merma"
@@ -347,7 +358,6 @@ export function SettingsPage() {
             </Grid>
           </Fieldset.Root>
 
-          {}
           <OrderWindowSection />
 
           <Flex gap={3} flexWrap="wrap">
