@@ -230,7 +230,7 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
   return (
     <Flex direction="column" gap={6} maxW="1200px" mx="auto" p={6}>
       <Flex justify="space-between" align="center">
-        <Heading as="h1" size="xl">
+        <Heading as="h1" fontSize="2xl" textWrap="balance">
           {initial?.id ? "Editar Producto" : "Nuevo Producto"}
         </Heading>
         <Button variant="ghost" onClick={() => router.back()}>
@@ -240,7 +240,7 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
 
       <Flex direction={{ base: "column", lg: "row" }} gap={6}>
         <Flex direction="column" gap={4} flex={1}>
-          <Heading as="h2" size="md">Información Básica</Heading>
+          <Heading as="h2" fontSize="lg">Información Básica</Heading>
 
           <Flex direction="column" gap={3}>
             <Flex direction={{ base: "column", sm: "row" }} gap={3}>
@@ -284,7 +284,7 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
                   }}
                 >
                   <Select.Trigger aria-label="Categoría">
-                    <Select.ValueText placeholder="_placeholder" />
+                    <Select.ValueText placeholder="Elegí una categoría…" />
                   </Select.Trigger>
                   <Select.Positioner>
                     <Select.Content>
@@ -308,7 +308,7 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
                   }}
                 >
                   <Select.Trigger aria-label="Estado">
-                    <Select.ValueText placeholder="_placeholder" />
+                    <Select.ValueText placeholder="Elegí un estado…" />
                   </Select.Trigger>
                   <Select.Positioner>
                     <Select.Content>
@@ -406,7 +406,7 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
       </Flex>
 
       <Flex direction="column" gap={4}>
-        <Heading as="h2" size="md">Líneas de Producto</Heading>
+        <Heading as="h2" fontSize="lg">Líneas de Producto</Heading>
         <ProductLines
           materials={materials}
           materialLines={materialLines}
@@ -419,7 +419,7 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
 
       {costs && (
         <Flex direction="column" gap={2} p={4} bg="bg.subtle" borderRadius="md" maxW="420px">
-          <Heading as="h3" size="sm">Costos (motor)</Heading>
+          <Heading as="h3" fontSize="md">Costos (motor)</Heading>
           <Flex gap={4}><UIText flex={1}>Costo total:</UIText><UIText fontWeight="bold" fontVariantNumeric="tabular-nums"><FormatNumber value={centsToPesos(costs.product_total_cost)} style="currency" currency="ARS" /></UIText></Flex>
           <Flex gap={4}><UIText flex={1}>Ganancia:</UIText><UIText fontWeight="bold" fontVariantNumeric="tabular-nums"><FormatNumber value={centsToPesos(costs.profit_amount)} style="currency" currency="ARS" /></UIText></Flex>
           <Flex gap={4}><UIText flex={1}>Descuento:</UIText><UIText fontWeight="bold" fontVariantNumeric="tabular-nums"><FormatNumber value={centsToPesos(costs.discount_amount)} style="currency" currency="ARS" /></UIText></Flex>

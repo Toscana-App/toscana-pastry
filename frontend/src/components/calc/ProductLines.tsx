@@ -103,8 +103,8 @@ function MaterialLineForm({
             if (next) setSelectedMaterial(next);
           }}
         >
-          <Select.Trigger>
-            <Select.ValueText placeholder="_placeholder" />
+          <Select.Trigger aria-label="Material">
+            <Select.ValueText placeholder="Elegí un material…" />
           </Select.Trigger>
           <Select.Positioner>
             <Select.Content>

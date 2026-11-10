@@ -10,7 +10,7 @@ import {
   Heading,
   Table,
   Badge,
-  IconButton,
+  Link,
   FormatNumber,
 } from "@chakra-ui/react";
 import { CalcDashboardSkeleton } from "@/components/ui/skeleton";
@@ -30,17 +30,17 @@ const Money = ({ cents }: { cents: number }) => (
   />
 );
 
-const KPICard = ({ title, value, subtitle, color = "gray" }: {
+const KPICard = ({ title, value, subtitle, color }: {
   title: string;
   value: ReactNode;
   subtitle?: string;
   color?: string;
 }) => (
-  <Box p={4} bg="bg.panel" borderRadius="md" shadow="sm" border="1px solid" borderColor="border">
+  <Box p={4} bg="bg.panel" borderRadius="md" border="1px solid" borderColor="border">
     <Text fontSize="sm" color="fg.muted" fontWeight="medium" mb={2}>
       {title}
     </Text>
-    <Heading size="lg" color={`${color}.fg`} fontVariantNumeric="tabular-nums">
+    <Heading fontSize="xl" color={color} fontVariantNumeric="tabular-nums">
       {typeof value === "number" ? value.toLocaleString() : value}
     </Heading>
     {subtitle && (
@@ -52,12 +52,20 @@ const KPICard = ({ title, value, subtitle, color = "gray" }: {
 );
 
 const SectionCard = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <Box p={4} bg="bg.panel" borderRadius="md" shadow="sm" border="1px solid" borderColor="border">
-    <Heading size="md" mb={4}>
+  <Box p={4} bg="bg.panel" borderRadius="md" border="1px solid" borderColor="border">
+    <Heading fontSize="lg" mb={4}>
       {title}
     </Heading>
     {children}
   </Box>
+);
+
+const EmptyRow = ({ colSpan }: { colSpan: number }) => (
+  <Table.Row>
+    <Table.Cell colSpan={colSpan} py={6} textAlign="center">
+      <Text color="fg.muted">Sin datos para mostrar</Text>
+    </Table.Cell>
+  </Table.Row>
 );
 
 export default function Dashboard() {
@@ -89,60 +97,52 @@ export default function Dashboard() {
 
   return (
     <Flex direction="column" gap={6}>
-      {}
       <SimpleGrid columns={{ base: 1, sm: 2, md: 4 }} gap={4}>
         <KPICard
           title="Productos Activos"
           value={dashboard.active_products}
           subtitle="Artículos disponibles para venta"
-          color="green"
         />
         <KPICard
           title="Productos Borrador"
           value={dashboard.draft_products}
           subtitle="No están disponibles aún"
-          color="yellow"
         />
         <KPICard
           title="Materiales Activos"
           value={dashboard.active_materials}
           subtitle="Componentes disponibles"
-          color="blue"
         />
         <KPICard
           title="Materiales Incompletos"
           value={dashboard.incomplete_materials}
           subtitle="Necesitan atención"
-          color="red"
+          color="orange.fg"
         />
         <KPICard
           title="Costo Promedio"
           value=<Money cents={dashboard.avg_product_cost} />
           subtitle="Por producto"
-          color="purple"
         />
         <KPICard
           title="Precio Promedio"
           value=<Money cents={dashboard.avg_final_price} />
           subtitle="Por producto"
-          color="cyan"
         />
       </SimpleGrid>
 
       <DashboardCharts dashboard={dashboard} />
 
-      {}
       <SimpleGrid columns={{ base: 1, lg: 2 }} gap={6}>
-        {}
-        <SectionCard title="🏆 Productos con Mayor Precio Final">
+        <SectionCard title="Productos con Mayor Precio Final">
           <Table.Root size="sm">
             <Table.Header>
               <Table.ColumnHeader>Producto</Table.ColumnHeader>
               <Table.ColumnHeader textAlign="right">Precio Final</Table.ColumnHeader>
               <Table.ColumnHeader textAlign="right">Margen</Table.ColumnHeader>
-              <Table.ColumnHeader textAlign="center">Acciones</Table.ColumnHeader>
             </Table.Header>
             <Table.Body>
+              {dashboard.top_by_price.length === 0 && <EmptyRow colSpan={3} />}
               {dashboard.top_by_price.map((item: DashboardTopItem) => {
                 const marginNum = parseFloat(item.margin_percent) || 0;
                 const badgeColor = marginNum > 30 ? "green" : marginNum > 15 ? "blue" : marginNum > 0 ? "yellow" : "red";
@@ -150,23 +150,21 @@ export default function Dashboard() {
 
                 return (
                   <Table.Row key={item.id}>
-                    <Table.Cell fontWeight="medium">{item.name}</Table.Cell>
+                    <Table.Cell>
+                      <Link
+                        color="brand.fg"
+                        fontWeight="medium"
+                        onClick={() => handleViewProduct(item.id)}
+                      >
+                        {item.name}
+                      </Link>
+                    </Table.Cell>
                     <Table.Cell textAlign="right" fontVariantNumeric="tabular-nums"><Money cents={item.final_sale_price} /></Table.Cell>
                     <Table.Cell textAlign="right">
                       <Badge colorPalette={badgeColor} variant="subtle">
                         {badgeText}
                       </Badge>
                       <Text fontSize="sm" mt={1} fontVariantNumeric="tabular-nums">{item.margin_percent}</Text>
-                    </Table.Cell>
-                    <Table.Cell textAlign="center">
-                      <IconButton
-                        size="sm"
-                        variant="ghost"
-                        aria-label="Ver producto"
-                        onClick={() => handleViewProduct(item.id)}
-                      >
-                        <span aria-hidden="true">👁️</span>
-                      </IconButton>
                     </Table.Cell>
                   </Table.Row>
                 );
@@ -175,16 +173,15 @@ export default function Dashboard() {
           </Table.Root>
         </SectionCard>
 
-        {}
-        <SectionCard title="📉 Productos con Menor Margen">
+        <SectionCard title="Productos con Menor Margen">
           <Table.Root size="sm">
             <Table.Header>
               <Table.ColumnHeader>Producto</Table.ColumnHeader>
               <Table.ColumnHeader textAlign="right">Costo Total</Table.ColumnHeader>
               <Table.ColumnHeader textAlign="right">Margen</Table.ColumnHeader>
-              <Table.ColumnHeader textAlign="center">Acciones</Table.ColumnHeader>
             </Table.Header>
             <Table.Body>
+              {dashboard.bottom_by_margin.length === 0 && <EmptyRow colSpan={3} />}
               {dashboard.bottom_by_margin.map((item: DashboardBottomItem) => {
                 const marginNum = parseFloat(item.margin_percent) || 0;
                 const badgeColor = marginNum > 30 ? "green" : marginNum > 15 ? "blue" : marginNum > 0 ? "yellow" : "red";
@@ -192,23 +189,21 @@ export default function Dashboard() {
 
                 return (
                   <Table.Row key={item.id}>
-                    <Table.Cell fontWeight="medium">{item.name}</Table.Cell>
+                    <Table.Cell>
+                      <Link
+                        color="brand.fg"
+                        fontWeight="medium"
+                        onClick={() => handleViewProduct(item.id)}
+                      >
+                        {item.name}
+                      </Link>
+                    </Table.Cell>
                     <Table.Cell textAlign="right" fontVariantNumeric="tabular-nums"><Money cents={item.product_total_cost} /></Table.Cell>
                     <Table.Cell textAlign="right">
                       <Badge colorPalette={badgeColor} variant="subtle">
                         {badgeText}
                       </Badge>
                       <Text fontSize="sm" mt={1} fontVariantNumeric="tabular-nums">{item.margin_percent}</Text>
-                    </Table.Cell>
-                    <Table.Cell textAlign="center">
-                      <IconButton
-                        size="sm"
-                        variant="ghost"
-                        aria-label="Ver producto"
-                        onClick={() => handleViewProduct(item.id)}
-                      >
-                        <span aria-hidden="true">👁️</span>
-                      </IconButton>
                     </Table.Cell>
                   </Table.Row>
                 );
