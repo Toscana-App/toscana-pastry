@@ -11,6 +11,7 @@ from enum import StrEnum
 class PaymentMethod(StrEnum):
     MERCADOPAGO = "mercadopago"
     CASH = "cash"
+    TRANSFER = "transfer"
 
 
 class DeliveryMode(StrEnum):

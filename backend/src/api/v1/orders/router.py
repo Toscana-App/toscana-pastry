@@ -209,7 +209,7 @@ async def initiate_payment(
             reference=saved.reference, checkout_url=saved.checkout_url
         )
 
-    if order.payment_method == PaymentMethod.CASH:
+    if order.payment_method != PaymentMethod.MERCADOPAGO:
         raise HTTPException(
             status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="payment_method_not_mercadopago",

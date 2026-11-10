@@ -17,7 +17,7 @@ from data.db import get_db as get_db_orig
 from data.repositories.sql_order_repository import SQLOrderRepository
 from data.repositories.sql_user_repository import SQLUserRepository
 from domain.models import User, UserRole
-from domain.order import Order, OrderItem, PaymentMethod
+from domain.order import Order, OrderItem, PaymentMethod, PaymentStatus
 from main import app
 
 
@@ -94,6 +94,26 @@ async def mercadopago_order(db_session):
     return order
 
 
+@pytest_asyncio.fixture
+async def transfer_order(db_session):
+    order = Order(
+        customer_id=str(uuid.uuid4()),
+        date=datetime.datetime.now(datetime.UTC),
+        items=[
+            OrderItem(
+                product_id="p1",
+                product_name="Torta",
+                quantity=1,
+                unit_price=Decimal(1000),
+            )
+        ],
+        payment_method=PaymentMethod.TRANSFER,
+    )
+    repo = SQLOrderRepository(db_session)
+    await repo.create(order)
+    return order
+
+
 
 
 class TestPatchOrderPaid:
@@ -120,6 +140,18 @@ class TestPatchOrderPaid:
         assert response.status_code == 200
         data = response.json()
         assert data["paid"] is True
+
+    async def test_transfer_order_marks_paid_with_manual_confirmation(
+        self, client, db_session, transfer_order
+    ):
+        response = await client.patch(f"/api/v1/orders/{transfer_order.id}/paid")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["paid"] is True
+        stored = await SQLOrderRepository(db_session).get(transfer_order.id)
+        assert stored.paid is True
+        assert stored.payment_reference == "manual"
+        assert stored.payment_status == PaymentStatus.APPROVED
 
     async def test_already_paid_returns_409(self, client, cash_order):
         await client.patch(f"/api/v1/orders/{cash_order.id}/paid")
