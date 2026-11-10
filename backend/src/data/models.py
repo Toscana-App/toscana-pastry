@@ -655,6 +655,8 @@ class OrderORM(Base):
     updated_at = Column(DateTime(timezone=True), nullable=True)
     order_items = relationship("OrderItemORM", back_populates="order", cascade="all, delete-orphan")
 
+    __table_args__ = (Index("ix_orders_date_status", "date", "status"),)
+
 
 class OrderWindowORM(Base):
 
