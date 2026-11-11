@@ -20,6 +20,7 @@ from .renderers import (
     render_pricelist,
     render_weekly_pdf,
 )
+from .renderers.invoice_arca import InvoiceArcaRequest, render_invoice_arca_pdf
 from .schemas import (
     BudgetPdfRequest,
     BudgetsExportRequest,
@@ -85,6 +86,19 @@ def create_app() -> FastAPI:
     async def render_budget_endpoint(req: BudgetPdfRequest) -> Response:
         pdf = await asyncio.to_thread(build_budget_pdf, req)
         return Response(content=pdf, media_type=PDF_RESPONSE)
+
+    @app.post("/render/invoice-arca")
+    async def render_invoice_arca_endpoint(req: InvoiceArcaRequest) -> Response:
+        pdf = await asyncio.to_thread(render_invoice_arca_pdf, req)
+        filename = (
+            f"FACTURA_{req.comprobante.punto_venta}-"
+            f"{req.comprobante.numero:08d}.pdf"
+        )
+        return Response(
+            content=pdf,
+            media_type=PDF_RESPONSE,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
 
     return app
 
