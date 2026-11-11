@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from api.v1.auth.dependencies import get_user_repository
 from api.v1.invoicing.dependencies import (
     get_afip_client,
+    get_invoice_pdf_renderer,
     get_invoice_repository,
     get_invoicing_order_repository,
 )
@@ -58,6 +59,11 @@ class FakeAfipClient:
         )
 
 
+class FakeInvoicePdfRenderer:
+    def render_invoice_arca(self, payload: dict) -> bytes:
+        return b"%PDF-1.4\n%fake invoice\n%%EOF\n"
+
+
 @pytest_asyncio.fixture
 async def db_session():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
@@ -97,6 +103,7 @@ async def client(db_session):
     app.dependency_overrides[get_order_repository] = override_get_order_repository
     afip_client = FakeAfipClient()
     app.dependency_overrides[get_afip_client] = lambda: afip_client
+    app.dependency_overrides[get_invoice_pdf_renderer] = FakeInvoicePdfRenderer
 
     user_repo = SQLUserRepository(db_session)
     await user_repo.save(User(email="admin@example.com", role=UserRole.ADMIN))
@@ -190,6 +197,7 @@ ENDPOINTS = [
     ("POST", "/api/v1/invoices", "invoice"),
     ("GET", "/api/v1/invoices", None),
     ("GET", "/api/v1/invoices/{invoice_id}", None),
+    ("GET", "/api/v1/invoices/{invoice_id}/pdf", None),
     ("GET", "/api/v1/invoicing/settings", None),
     ("PUT", "/api/v1/invoicing/settings", "settings"),
 ]

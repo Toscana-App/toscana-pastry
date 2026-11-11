@@ -1,12 +1,14 @@
+import asyncio
 import logging
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse
 
 from api.v1.dependencies import require_admin
 from api.v1.invoicing.dependencies import (
     get_afip_client,
+    get_invoice_pdf_renderer,
     get_invoice_repository,
     get_invoicing_order_repository,
 )
@@ -26,6 +28,7 @@ from api.v1.money import cents_to_decimal, decimal_to_cents
 from data.repositories.sql_invoice_repository import SQLInvoiceRepository
 from data.repositories.sql_order_repository import SQLOrderRepository
 from domain.invoicing import (
+    ESTADO_APROBADO,
     AfipClient,
     AfipCredentialMissingError,
     AfipUnavailableError,
@@ -37,6 +40,7 @@ from domain.invoicing import (
     InvoicingSettings,
 )
 from domain.models import User
+from domain.pdf import InvoicePdfRenderer, invoice_arca_pdf_payload
 from domain.use_cases.issue_invoice import (
     IssueInvoice,
     IssueInvoiceRequest,
@@ -275,6 +279,43 @@ async def get_invoice(
         invoice=_detail(invoice),
         items=[_item_response(item) for item in invoice.items],
         observaciones=list(invoice.obs),
+    )
+
+
+@router.get(
+    "/invoices/{invoice_id}/pdf",
+    response_class=Response,
+    responses={200: {"content": {"application/pdf": {}}}},
+)
+async def download_invoice_pdf(
+    invoice_id: str,
+    invoice_repo: SQLInvoiceRepository = Depends(get_invoice_repository),
+    renderer: InvoicePdfRenderer = Depends(get_invoice_pdf_renderer),
+    _admin: User = Depends(require_admin),
+) -> Response:
+    invoice = await invoice_repo.get(invoice_id)
+    if invoice is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="comprobante_no_encontrado"
+        )
+    if invoice.estado != ESTADO_APROBADO:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="comprobante_no_aprobado"
+        )
+    settings = await invoice_repo.get_settings()
+    if settings is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="invoicing_not_configured",
+        )
+    pdf = await asyncio.to_thread(
+        renderer.render_invoice_arca, invoice_arca_pdf_payload(invoice, settings)
+    )
+    filename = f"FACTURA_{invoice.punto_venta:04d}-{invoice.numero:08d}.pdf"
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

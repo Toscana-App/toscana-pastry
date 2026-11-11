@@ -5,6 +5,7 @@ from pg_support import make_test_engine
 from data.models import Base
 from main import app
 from api.v1.pdf.dependencies import get_pdf_client
+from api.v1.invoicing.dependencies import get_invoice_pdf_renderer
 from data.pdf.client import budget_pdf_payload
 
 
@@ -44,10 +45,16 @@ class _FakePdfClient:
         self.calls.append(("render_pricelist", (rows, audience_label)))
         return b"%PDF-1.4\n%fake\n%%EOF\n"
 
+    def render_invoice_arca(self, payload: dict) -> bytes:
+        self.calls.append(("render_invoice_arca", payload))
+        return b"%PDF-1.4\n%fake invoice\n%%EOF\n"
+
 
 @pytest_asyncio.fixture(autouse=True)
 async def pdf_fake():
     fake = _FakePdfClient()
     app.dependency_overrides[get_pdf_client] = lambda: fake
+    app.dependency_overrides[get_invoice_pdf_renderer] = lambda: fake
     yield fake
     app.dependency_overrides.pop(get_pdf_client, None)
+    app.dependency_overrides.pop(get_invoice_pdf_renderer, None)
