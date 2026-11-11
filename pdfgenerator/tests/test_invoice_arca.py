@@ -32,29 +32,11 @@ client = TestClient(app)
 
 QR_JSON = (
     '{"ver":1,"fecha":"2026-11-05","cuit":"30123456789","ptoVta":1,'
-    '"tipoCmp":11,"nroCmp":42,"importe":3100.5,"moneda":0,"ctz":3,'
+    '"tipoCmp":11,"nroCmp":42,"importe":3100.5,"moneda":"PES","ctz":1,'
     '"tipoDocRec":86,"nroDocRec":12345678,"tipoCodAut":"E",'
     '"codAut":"12345678901234"}'
 )
-QR_B64 = (
-    "eyJ2ZXIiOjEsImZl"
-    "Y2hhIjoiMjAyNi0x"
-    "MS0wNSIsImN1aXQi"
-    "OiIzMDEyMzQ1Njc4"
-    "OSIsInB0b1Z0YSI6"
-    "MSwidGlwb0NtcCI6"
-    "MTEsIm5yb0NtcCI6"
-    "NDIsImltcG9ydGUi"
-    "OjMxMDAuNSwibW9u"
-    "ZWRhIjowLCJjdHoi"
-    "OjMsInRpcG9Eb2NS"
-    "ZWMiOjg2LCJucm9E"
-    "b2NSZWMiOjEyMzQ1"
-    "Njc4LCJ0aXBvQ29k"
-    "QXV0IjoiRSIsImNv"
-    "ZEF1dCI6IjEyMzQ1"
-    "Njc4OTAxMjM0In0="
-)
+QR_B64 = "eyJ2ZXIiOjEsImZlY2hhIjoiMjAyNi0xMS0wNSIsImN1aXQiOiIzMDEyMzQ1Njc4OSIsInB0b1Z0YSI6MSwidGlwb0NtcCI6MTEsIm5yb0NtcCI6NDIsImltcG9ydGUiOjMxMDAuNSwibW9uZWRhIjoiUEVTIiwiY3R6IjoxLCJ0aXBvRG9jUmVjIjo4NiwibnJvRG9jUmVjIjoxMjM0NTY3OCwidGlwb0NvZEF1dCI6IkUiLCJjb2RBdXQiOiIxMjM0NTY3ODkwMTIzNCJ9"
 QR_URL = "https://www.afip.gob.ar/fe/qr/?p=" + QR_B64
 
 
@@ -86,8 +68,8 @@ class TestBuildQrPayload:
             "tipoCmp": 11,
             "nroCmp": 42,
             "importe": 3100.5,
-            "moneda": 0,
-            "ctz": 3,
+            "moneda": "PES",
+            "ctz": 1,
             "tipoDocRec": 86,
             "nroDocRec": 12345678,
             "tipoCodAut": "E",
