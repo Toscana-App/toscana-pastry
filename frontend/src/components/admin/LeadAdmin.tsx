@@ -117,7 +117,12 @@ function LeadAdmin() {
 
           <Flex gap={2}>
             <Input
-              placeholder="Buscar por nombre o email"
+              name="q"
+              type="search"
+              autoComplete="off"
+              spellCheck={false}
+              aria-label="Buscar leads"
+              placeholder="Buscar por nombre o email…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
@@ -167,7 +172,9 @@ function LeadAdmin() {
                         </Button>
                       </Table.Cell>
                       <Table.Cell>
-                        <Text fontWeight="medium">{lead.name}</Text>
+                        <Text fontWeight="medium" overflowWrap="anywhere">
+                          {lead.name}
+                        </Text>
                         {lead.business_name && (
                           <Text fontSize="xs" color="fg.muted">
                             {lead.business_name}
@@ -175,7 +182,9 @@ function LeadAdmin() {
                         )}
                       </Table.Cell>
                       <Table.Cell>
-                        <Text fontSize="sm">{lead.email}</Text>
+                        <Text fontSize="sm" overflowWrap="anywhere">
+                          {lead.email}
+                        </Text>
                         {lead.phone && (
                           <Text fontSize="xs" color="fg.muted">
                             {lead.phone}
@@ -200,6 +209,7 @@ function LeadAdmin() {
                         <Box maxW="280px">
                           <Text
                             fontSize="sm"
+                            overflowWrap="anywhere"
                             style={{
                               display: "-webkit-box",
                               WebkitLineClamp: 2,
@@ -228,7 +238,7 @@ function LeadAdmin() {
               >
                 Anterior
               </Button>
-              <Text fontSize="sm">
+              <Text fontSize="sm" fontVariantNumeric="tabular-nums" aria-live="polite">
                 {page} / {pageCount}
               </Text>
               <Button

@@ -9,10 +9,10 @@ import {
   Table,
   Text,
   IconButton,
+  FormatNumber,
 } from "@chakra-ui/react";
 import { createListCollection } from "@ark-ui/react";
 import { toaster } from "@/lib/toaster";
-import { formatMoneyDecimals } from "@/lib/format";
 import type {
   Material,
   ProductLineMaterialIn,
@@ -103,8 +103,8 @@ function MaterialLineForm({
             if (next) setSelectedMaterial(next);
           }}
         >
-          <Select.Trigger>
-            <Select.ValueText placeholder="_placeholder" />
+          <Select.Trigger aria-label="Material">
+            <Select.ValueText placeholder="Elegí un material…" />
           </Select.Trigger>
           <Select.Positioner>
             <Select.Content>
@@ -117,7 +117,11 @@ function MaterialLineForm({
           </Select.Positioner>
         </Select.Root>
         <Input
-          placeholder="Cantidad"
+          name="quantity_used"
+          aria-label="Cantidad"
+          autoComplete="off"
+          inputMode="decimal"
+          placeholder="Cantidad…"
           type="number"
           min="0.01"
           step="0.01"
@@ -165,13 +169,20 @@ function LaborLineForm({
       <Text fontWeight="bold">Trabajo</Text>
       <Flex gap={2} direction={{ base: "column", sm: "row" }} wrap="wrap">
         <Input
-          placeholder="Nombre de actividad"
+          name="activity_name"
+          aria-label="Nombre de actividad"
+          autoComplete="off"
+          placeholder="Nombre de actividad…"
           maxLength={120}
           value={activityName}
           onChange={(e) => setActivityName(e.target.value)}
         />
         <Input
-          placeholder="Tarifa por hora"
+          name="hourly_rate"
+          aria-label="Tarifa por hora"
+          autoComplete="off"
+          inputMode="decimal"
+          placeholder="Tarifa por hora…"
           type="number"
           min="0"
           step="0.01"
@@ -179,7 +190,11 @@ function LaborLineForm({
           onChange={(e) => setHourlyRate(e.target.value)}
         />
         <Input
-          placeholder="Minutos requeridos"
+          name="minutes_required"
+          aria-label="Minutos requeridos"
+          autoComplete="off"
+          inputMode="numeric"
+          placeholder="Minutos requeridos…"
           type="number"
           min="0"
           step="1"
@@ -227,13 +242,20 @@ function ExtraCostLineForm({
       <Text fontWeight="bold">Costo Extra</Text>
       <Flex gap={2} direction={{ base: "column", sm: "row" }} wrap="wrap">
         <Input
-          placeholder="Nombre del concepto"
+          name="concept_name"
+          aria-label="Nombre del concepto"
+          autoComplete="off"
+          placeholder="Nombre del concepto…"
           maxLength={120}
           value={conceptName}
           onChange={(e) => setConceptName(e.target.value)}
         />
         <Input
-          placeholder="Costo unitario"
+          name="unit_cost"
+          aria-label="Costo unitario"
+          autoComplete="off"
+          inputMode="decimal"
+          placeholder="Costo unitario…"
           type="number"
           min="0"
           step="0.01"
@@ -241,7 +263,11 @@ function ExtraCostLineForm({
           onChange={(e) => setUnitCost(e.target.value)}
         />
         <Input
-          placeholder="Cantidad"
+          name="quantity"
+          aria-label="Cantidad"
+          autoComplete="off"
+          inputMode="decimal"
+          placeholder="Cantidad…"
           type="number"
           min="0.01"
           step="0.01"
@@ -275,7 +301,7 @@ function LinesDisplay({
   onRemoveLabor: (index: number) => void;
   onRemoveExtraCost: (index: number) => void;
 }) {
-  const fmt = (pesos: number) => formatMoneyDecimals(pesos.toFixed(2));
+  const fmt = (pesos: number) => <FormatNumber value={pesos} style="currency" currency="ARS" />;
   return (
     <Flex direction="column" gap={4}>
       {materialLines.length > 0 && (
@@ -295,14 +321,14 @@ function LinesDisplay({
                 return (
                   <Table.Row key={index}>
                     <Table.Cell>{mat?.name || line.material_id}</Table.Cell>
-                    <Table.Cell>{line.quantity_used}</Table.Cell>
+                    <Table.Cell fontVariantNumeric="tabular-nums">{line.quantity_used}</Table.Cell>
                     {showPreview && (
-                      <Table.Cell>
+                      <Table.Cell fontVariantNumeric="tabular-nums">
                         {mat?.unit_cost != null ? fmt(Number(mat.unit_cost)) : "-"}
                       </Table.Cell>
                     )}
                     {showPreview && (
-                      <Table.Cell>{fmt(previews.materialTotals[index] ?? 0)}</Table.Cell>
+                      <Table.Cell fontVariantNumeric="tabular-nums">{fmt(previews.materialTotals[index] ?? 0)}</Table.Cell>
                     )}
                     <Table.Cell>
                       <IconButton
@@ -337,10 +363,10 @@ function LinesDisplay({
               {labor.map((line, index) => (
                 <Table.Row key={index}>
                   <Table.Cell>{line.activity_name}</Table.Cell>
-                  {showPreview && <Table.Cell>{fmt(Number(line.hourly_rate))}</Table.Cell>}
-                  <Table.Cell>{line.minutes_required}</Table.Cell>
+                  {showPreview && <Table.Cell fontVariantNumeric="tabular-nums">{fmt(Number(line.hourly_rate))}</Table.Cell>}
+                  <Table.Cell fontVariantNumeric="tabular-nums">{line.minutes_required}</Table.Cell>
                   {showPreview && (
-                    <Table.Cell>{fmt(previews.laborTotals[index] ?? 0)}</Table.Cell>
+                    <Table.Cell fontVariantNumeric="tabular-nums">{fmt(previews.laborTotals[index] ?? 0)}</Table.Cell>
                   )}
                   <Table.Cell>
                     <IconButton
@@ -374,10 +400,10 @@ function LinesDisplay({
               {extraCosts.map((line, index) => (
                 <Table.Row key={index}>
                   <Table.Cell>{line.concept_name}</Table.Cell>
-                  {showPreview && <Table.Cell>{fmt(Number(line.unit_cost))}</Table.Cell>}
-                  <Table.Cell>{line.quantity}</Table.Cell>
+                  {showPreview && <Table.Cell fontVariantNumeric="tabular-nums">{fmt(Number(line.unit_cost))}</Table.Cell>}
+                  <Table.Cell fontVariantNumeric="tabular-nums">{line.quantity}</Table.Cell>
                   {showPreview && (
-                    <Table.Cell>{fmt(previews.extraTotals[index] ?? 0)}</Table.Cell>
+                    <Table.Cell fontVariantNumeric="tabular-nums">{fmt(previews.extraTotals[index] ?? 0)}</Table.Cell>
                   )}
                   <Table.Cell>
                     <IconButton
@@ -405,7 +431,7 @@ function LinesDisplay({
       {showPreview &&
         (materialLines.length > 0 || labor.length > 0 || extraCosts.length > 0) && (
           <Flex justify="flex-end" p={3} bg="bg.subtle" borderRadius="md">
-            <Text fontWeight="bold">Total estimado: {fmt(previews.grandTotal)}</Text>
+            <Text fontWeight="bold" fontVariantNumeric="tabular-nums" aria-live="polite">Total estimado: {fmt(previews.grandTotal)}</Text>
           </Flex>
         )}
     </Flex>

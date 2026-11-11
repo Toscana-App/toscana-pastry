@@ -4,18 +4,19 @@ import {
   Alert,
   Box,
   Button,
-  Flex,
+  chakra,
   Field,
+  Flex,
+  FormatNumber,
   Heading,
   HStack,
   Input,
   Skeleton,
   Stack,
   Text,
-  chakra,
 } from "@chakra-ui/react";
 import NextLink from "next/link";
-import { formatCents, formatPct } from "@/lib/format";
+import { formatPct, centsToPesos } from "@/lib/format";
 import { useOrderWizard } from "../hooks/useOrderWizard";
 
 interface OrderWizardProps {
@@ -33,9 +34,11 @@ const StyledOptionSelect = chakra("select", {
     background: "transparent",
     fontSize: "sm",
     outline: "none",
+    color: "fg",
+    "& option": { bg: "bg", color: "fg" },
     _focusVisible: {
       borderColor: "brand.solid",
-      boxShadow: "0 0 0 1px var(--chakra-colors-brand-600)",
+      boxShadow: "0 0 0 1px var(--chakra-colors-brand-focus-ring)",
     },
   },
 });
@@ -110,7 +113,7 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
   return (
     <Flex direction="column" gap={5}>
       <Flex align="center" justify="space-between" gap={3}>
-        <Heading fontSize="2xl">{orderId ? "Editar pedido" : "Nuevo pedido"}</Heading>
+        <Heading as="h1" fontSize="2xl" textWrap="balance">{orderId ? "Editar pedido" : "Nuevo pedido"}</Heading>
         <Button variant="ghost" asChild>
           <NextLink href="/pedidos">Volver al listado</NextLink>
         </Button>
@@ -126,7 +129,7 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
             <Button
               size="sm"
               variant={customerMode === "existing" ? "solid" : "outline"}
-              colorPalette={customerMode === "existing" ? "brand" : "gray"}
+              colorPalette={customerMode === "existing" ? "brand" : undefined}
               aria-pressed={customerMode === "existing"}
               onClick={() => setCustomerMode("existing")}
             >
@@ -135,7 +138,7 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
             <Button
               size="sm"
               variant={customerMode === "new" ? "solid" : "outline"}
-              colorPalette={customerMode === "new" ? "brand" : "gray"}
+              colorPalette={customerMode === "new" ? "brand" : undefined}
               aria-pressed={customerMode === "new"}
               onClick={() => setCustomerMode("new")}
             >
@@ -167,18 +170,24 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
               <Field.Root w="100%" maxW="280px">
                 <Field.Label>Nombre</Field.Label>
                 <Input
+                  name="customer_name"
+                  autoComplete="off"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  placeholder="Cliente"
+                  placeholder="Cliente…"
                   aria-label="Nombre del nuevo cliente"
                 />
               </Field.Root>
               <Field.Root w="100%" maxW="200px">
                 <Field.Label>Teléfono</Field.Label>
                 <Input
+                  name="customer_phone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="off"
                   value={newPhone}
                   onChange={(e) => setNewPhone(e.target.value)}
-                  placeholder="11-2233-4455"
+                  placeholder="11-2233-4455…"
                   aria-label="Teléfono del nuevo cliente"
                 />
               </Field.Root>
@@ -196,6 +205,8 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
             <Field.Label>Fecha del pedido</Field.Label>
             <Input
               type="date"
+              name="date"
+              autoComplete="off"
               value={date}
               onChange={(e) => setDate(e.target.value)}
               aria-label="Fecha del pedido"
@@ -205,11 +216,14 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
             <Field.Label>Margen % (opcional)</Field.Label>
             <Input
               type="number"
+              name="margin_pct"
+              inputMode="decimal"
+              autoComplete="off"
               min={0}
               max={200}
               value={margin}
               onChange={(e) => setMargin(e.target.value)}
-              placeholder="vacío = margen del negocio"
+              placeholder="vacío = margen del negocio…"
               aria-label="Margen por pedido en porcentaje"
             />
             {preview.status === "done" && preview.data ? (
@@ -248,6 +262,9 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
                   <Field.Label>Cant.</Field.Label>
                   <Input
                     type="number"
+                    name="qty"
+                    inputMode="numeric"
+                    autoComplete="off"
                     min={1}
                     max={99}
                     value={item.qty}
@@ -259,20 +276,25 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
                   <Field.Label>Porciones</Field.Label>
                   <Input
                     type="number"
+                    name="portions"
+                    inputMode="numeric"
+                    autoComplete="off"
                     min={1}
                     max={999}
                     value={item.portions}
                     onChange={(e) => updateItem(item.key, { portions: e.target.value })}
-                    placeholder="del producto"
+                    placeholder="del producto…"
                     aria-label={`Porciones de la línea ${idx + 1}`}
                   />
                 </Field.Root>
                 <Field.Root w="100%" maxW="260px" flex={1}>
                   <Field.Label>Nota</Field.Label>
                   <Input
+                    name="note"
+                    autoComplete="off"
                     value={item.note}
                     onChange={(e) => updateItem(item.key, { note: e.target.value })}
-                    placeholder="opcional"
+                    placeholder="opcional…"
                     aria-label={`Nota de la línea ${idx + 1}`}
                   />
                 </Field.Root>
@@ -317,7 +339,7 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
               </Alert.Root>
             ) : null}
             {preview.status === "done" && preview.data ? (
-              <Stack gap={3}>
+              <Stack gap={3} aria-live="polite">
                 {preview.data.items.map((item, idx) => (
                   <Box key={`${item.product_id}-${idx}`} px={3} py={2} bg="bg.subtle" rounded="sm">
                     <HStack justify="space-between" wrap="wrap">
@@ -325,13 +347,13 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
                         {item.product_name} × {item.qty}
                       </Text>
                       <Text fontVariantNumeric="tabular-nums">
-                        {formatCents(item.rounded)}
+                        <FormatNumber value={centsToPesos(item.rounded)} style="currency" currency="ARS" />
                       </Text>
                     </HStack>
                     <Text fontSize="sm" color="fg.muted" mt={1}>
-                      Base {formatCents(item.price.base)} · Margen{" "}
+                      Base <FormatNumber value={centsToPesos(item.price.base)} style="currency" currency="ARS" /> · Margen{" "}
                       {formatPct(item.price.margin_pct)} · Final{" "}
-                      {formatCents(item.price.final)}
+                      <FormatNumber value={centsToPesos(item.price.final)} style="currency" currency="ARS" />
                     </Text>
                     {!item.complete ? (
                       <Alert.Root status="warning" mt={2}>
@@ -348,7 +370,7 @@ export function OrderWizard({ orderId }: OrderWizardProps) {
                 <HStack justify="space-between" pt={1}>
                   <Text fontWeight="600">Total</Text>
                   <Text fontWeight="700" fontVariantNumeric="tabular-nums">
-                    {formatCents(preview.data.total)}
+                    <FormatNumber value={centsToPesos(preview.data.total)} style="currency" currency="ARS" />
                   </Text>
                 </HStack>
               </Stack>

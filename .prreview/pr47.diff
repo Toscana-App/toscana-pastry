@@ -1,0 +1,1696 @@
+diff --git a/frontend/src/app/(portal)/layout.tsx b/frontend/src/app/(portal)/layout.tsx
+index c465ef6..c8ceda1 100644
+--- a/frontend/src/app/(portal)/layout.tsx
++++ b/frontend/src/app/(portal)/layout.tsx
+@@ -2,7 +2,8 @@
+ 
+ import { useEffect } from "react";
+ import { usePathname, useRouter } from "next/navigation";
+-import { Center, Spinner } from "@chakra-ui/react";
++import { FullPageSkeleton } from "@/components/ui/skeleton";
++
+ import { useAuth } from "@/contexts/AuthContext";
+ import { isPortalRole } from "@/lib/portalRoutes";
+ import { ConsentBanner } from "@/components/layout/ConsentBanner";
+@@ -33,11 +34,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
+   }, [loading, isAuthenticated, user?.role, router, pathname]);
+ 
+   if (loading || !isAuthenticated || !isPortalRole(user?.role)) {
+-    return (
+-      <Center minH="60dvh">
+-        <Spinner size="xl" />
+-      </Center>
+-    );
++    return <FullPageSkeleton />;
+   }
+ 
+   return (
+diff --git a/frontend/src/app/(portal)/profile/page.tsx b/frontend/src/app/(portal)/profile/page.tsx
+index 62dd1bc..f79df35 100644
+--- a/frontend/src/app/(portal)/profile/page.tsx
++++ b/frontend/src/app/(portal)/profile/page.tsx
+@@ -2,7 +2,9 @@
+ 
+ import { useEffect, useState } from "react";
+ import { useRouter } from "next/navigation";
+-import { Box, Container, Heading, Spinner, Flex } from "@chakra-ui/react";
++import { Box, Container, Heading, Flex } from "@chakra-ui/react";
++import { ProfileSkeleton } from "@/components/ui/skeleton";
++
+ import { authService } from "@/services/authService";
+ import AddressBook from "@/components/profile/AddressBook";
+ import { ProfileCard } from "@/components/profile/ProfileCard";
+@@ -48,11 +50,7 @@ export default function ProfilePage() {
+   }, [router]);
+ 
+   if (loading || !user) {
+-    return (
+-      <Flex align="center" justify="center" minH="100dvh">
+-        <Spinner size="xl" />
+-      </Flex>
+-    );
++    return <ProfileSkeleton />;
+   }
+ 
+   return (
+diff --git a/frontend/src/app/admin/calculadora/productos/[id]/page.tsx b/frontend/src/app/admin/calculadora/productos/[id]/page.tsx
+index d0816a7..6f9ee4e 100644
+--- a/frontend/src/app/admin/calculadora/productos/[id]/page.tsx
++++ b/frontend/src/app/admin/calculadora/productos/[id]/page.tsx
+@@ -3,8 +3,8 @@
+ import { use, useEffect, useState } from "react";
+ import ProductEditor from "@/components/calc/ProductEditor";
+ import { calcProductsService } from "@/services/calcProductsService";
+-import { Spinner } from "@chakra-ui/react";
+-import { Flex } from "@chakra-ui/react";
++import { CalcFormSkeleton } from "@/components/ui/skeleton";
++
+ import type { Product } from "@/types/calc";
+ 
+ export default function ProductEditPage({ params }: { params: Promise<{ id: string }> }) {
+@@ -28,11 +28,7 @@ export default function ProductEditPage({ params }: { params: Promise<{ id: stri
+   }, [id]);
+ 
+   if (loading) {
+-    return (
+-      <Flex justify="center" align="center" minH="400px">
+-        <Spinner size="xl" />
+-      </Flex>
+-    );
++    return <CalcFormSkeleton />;
+   }
+ 
+   return <ProductEditor initial={product || undefined} />;
+diff --git a/frontend/src/app/admin/page.tsx b/frontend/src/app/admin/page.tsx
+index eb4fc86..7f43bba 100644
+--- a/frontend/src/app/admin/page.tsx
++++ b/frontend/src/app/admin/page.tsx
+@@ -1,7 +1,9 @@
+ "use client";
+ 
+ import { useEffect, useState } from "react";
+-import { Badge, Flex, Heading, Spinner, Table, Text } from "@chakra-ui/react";
++import { Badge, Flex, Heading, Table, Text } from "@chakra-ui/react";
++import { AdminUsersSkeleton } from "@/components/ui/skeleton";
++
+ import CouponsAdmin from "@/components/admin/CouponsAdmin";
+ import LeadAdmin from "@/components/admin/LeadAdmin";
+ import { apiFetch } from "@/lib/api";
+@@ -50,11 +52,7 @@ function AdminUsers() {
+   }, []);
+ 
+   if (loading) {
+-    return (
+-      <Flex align="center" justify="center" py={16}>
+-        <Spinner size="xl" />
+-      </Flex>
+-    );
++    return <AdminUsersSkeleton />;
+   }
+ 
+   return (
+diff --git a/frontend/src/app/login/page.tsx b/frontend/src/app/login/page.tsx
+index c44575b..5d2a57d 100644
+--- a/frontend/src/app/login/page.tsx
++++ b/frontend/src/app/login/page.tsx
+@@ -1,7 +1,9 @@
+ "use client"
+ 
+ import { Suspense } from "react"
+-import { Container, Spinner, VStack } from "@chakra-ui/react"
++import { Container, VStack } from "@chakra-ui/react";
++import { LoginFormSkeleton } from "@/components/ui/skeleton";
++
+ import LoginForm from "@/components/auth/LoginForm"
+ 
+ export default function LoginPage() {
+@@ -16,7 +18,7 @@ export default function LoginPage() {
+     >
+       <VStack gap={8} width="full" align="center">
+         {/* Suspense obligatorio: LoginForm usa useSearchParams (requisito de prerender de Next). */}
+-        <Suspense fallback={<Spinner size="xl" />}>
++        <Suspense fallback={<LoginFormSkeleton />}>
+           <LoginForm />
+         </Suspense>
+       </VStack>
+diff --git a/frontend/src/components/admin/CouponsAdmin.tsx b/frontend/src/components/admin/CouponsAdmin.tsx
+index a4e658c..95beeb7 100644
+--- a/frontend/src/components/admin/CouponsAdmin.tsx
++++ b/frontend/src/components/admin/CouponsAdmin.tsx
+@@ -23,6 +23,8 @@ import {
+   Text,
+   Switch,
+ } from "@chakra-ui/react";
++import { ListCardSkeleton } from "@/components/ui/skeleton";
++
+ import { useCallback, useEffect, useState } from "react";
+ import {
+   createCoupon,
+@@ -158,9 +160,16 @@ function CouponsAdmin() {
+ 
+   if (loading) {
+     return (
+-      <Text fontSize="sm" color="fg.muted">
+-        Cargando cupones…
+-      </Text>
++      <Card.Root>
++        <Card.Body>
++          <ListCardSkeleton
++            titleWidth="26%"
++            buttonWidth="110px"
++            cols={["30%", "22%", "22%", "18%", "8%"]}
++            rows={5}
++          />
++        </Card.Body>
++      </Card.Root>
+     );
+   }
+ 
+diff --git a/frontend/src/components/admin/LeadAdmin.tsx b/frontend/src/components/admin/LeadAdmin.tsx
+index 33815a4..6992252 100644
+--- a/frontend/src/components/admin/LeadAdmin.tsx
++++ b/frontend/src/components/admin/LeadAdmin.tsx
+@@ -17,6 +17,8 @@ import {
+   Table,
+   Text,
+ } from "@chakra-ui/react";
++import { SkeletonTable } from "@/components/ui/skeleton";
++
+ import { useCallback, useEffect, useState } from "react";
+ import {
+   fetchLeads,
+@@ -133,9 +135,11 @@ function LeadAdmin() {
+             </Button>
+           </Flex>
+ 
+-          {leads.length === 0 ? (
++          {loading ? (
++            <SkeletonTable rows={5} cols={["10%", "24%", "30%", "14%", "22%"]} />
++          ) : leads.length === 0 ? (
+             <Text fontSize="sm" color="fg.muted">
+-              {loading ? "Cargando…" : "No hay leads con esos filtros."}
++              No hay leads con esos filtros.
+             </Text>
+           ) : (
+             <Table.ScrollArea rounded="md">
+diff --git a/frontend/src/components/auth/ProtectedRoute.tsx b/frontend/src/components/auth/ProtectedRoute.tsx
+index 8d9de84..f5010b3 100644
+--- a/frontend/src/components/auth/ProtectedRoute.tsx
++++ b/frontend/src/components/auth/ProtectedRoute.tsx
+@@ -2,7 +2,8 @@
+ 
+ import { useEffect } from "react";
+ import { useRouter } from "next/navigation";
+-import { Center, Spinner } from "@chakra-ui/react";
++import { FullPageSkeleton } from "@/components/ui/skeleton";
++
+ import { useAuth } from "@/contexts/AuthContext";
+ import type { UserRole } from "@/types/auth";
+ 
+@@ -28,11 +29,7 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps)
+   }, [isAuthenticated, loading, lacksRole, router]);
+ 
+   if (loading || !isAuthenticated || lacksRole) {
+-    return (
+-      <Center minH="100dvh">
+-        <Spinner size="xl" />
+-      </Center>
+-    );
++    return <FullPageSkeleton />;
+   }
+ 
+   return <>{children}</>;
+diff --git a/frontend/src/components/calc/CategoryAbm.tsx b/frontend/src/components/calc/CategoryAbm.tsx
+index fb5f44f..d463d14 100644
+--- a/frontend/src/components/calc/CategoryAbm.tsx
++++ b/frontend/src/components/calc/CategoryAbm.tsx
+@@ -8,10 +8,11 @@ import {
+   Flex,
+   Heading,
+   Input,
+-  Spinner,
+   Table,
+   Text,
+ } from "@chakra-ui/react";
++import { SkeletonTable } from "@/components/ui/skeleton";
++
+ import { calcSettingsService } from "@/services/calcSettingsService";
+ import { toaster } from "@/lib/toaster";
+ import { ApiError } from "@/lib/api";
+@@ -294,9 +295,7 @@ export default function CategoryAbm({ endpoint, title }: CategoryAbmProps) {
+       </Flex>
+ 
+       {loading ? (
+-        <Flex align="center" justify="center" py={16}>
+-          <Spinner size="xl" />
+-        </Flex>
++        <SkeletonTable rows={6} cols={["40%", "45%", "15%"]} />
+       ) : items.length === 0 ? (
+         <EmptyState.Root>
+           <EmptyState.Content>
+diff --git a/frontend/src/components/calc/CostHistoryDialog.tsx b/frontend/src/components/calc/CostHistoryDialog.tsx
+index 8945783..af6782e 100644
+--- a/frontend/src/components/calc/CostHistoryDialog.tsx
++++ b/frontend/src/components/calc/CostHistoryDialog.tsx
+@@ -5,10 +5,11 @@ import {
+   Button,
+   Dialog,
+   Flex,
+-  Spinner,
+   Table,
+   Text,
+ } from "@chakra-ui/react";
++import { SkeletonTable } from "@/components/ui/skeleton";
++
+ import { calcMaterialsService } from "@/services/calcMaterialsService";
+ import { toaster } from "@/lib/toaster";
+ import type { CostHistoryListResponse, Material } from "@/types/calc";
+@@ -103,9 +104,7 @@ export default function CostHistoryDialog({
+           </Dialog.Header>
+           <Dialog.Body>
+             {loading ? (
+-              <Flex align="center" justify="center" py={10}>
+-                <Spinner size="lg" />
+-              </Flex>
++              <SkeletonTable rows={5} cols={["33%", "33%", "34%"]} />
+             ) : loadError ? (
+               <Flex align="center" direction="column" gap={3} py={6}>
+                 <Text>No se pudo cargar el historial.</Text>
+diff --git a/frontend/src/components/calc/Dashboard.tsx b/frontend/src/components/calc/Dashboard.tsx
+index 74ba0fb..778812b 100644
+--- a/frontend/src/components/calc/Dashboard.tsx
++++ b/frontend/src/components/calc/Dashboard.tsx
+@@ -7,11 +7,12 @@ import {
+   Box,
+   Text,
+   Heading,
+-  Spinner,
+   Table,
+   Badge,
+   IconButton,
+ } from "@chakra-ui/react";
++import { CalcDashboardSkeleton } from "@/components/ui/skeleton";
++
+ import { calcProductsService } from "@/services/calcProductsService";
+ import { toaster } from "@/lib/toaster";
+ import type { DashboardResponse, DashboardTopItem, DashboardBottomItem } from "@/types/calc";
+@@ -67,11 +68,7 @@ export default function Dashboard() {
+   }, []);
+ 
+   if (loading) {
+-    return (
+-      <Flex justify="center" align="center" minH="400px">
+-        <Spinner size="xl" />
+-      </Flex>
+-    );
++    return <CalcDashboardSkeleton />;
+   }
+ 
+   if (!dashboard) {
+diff --git a/frontend/src/components/calc/DefaultCostsAbm.tsx b/frontend/src/components/calc/DefaultCostsAbm.tsx
+index 7a1049c..eba2032 100644
+--- a/frontend/src/components/calc/DefaultCostsAbm.tsx
++++ b/frontend/src/components/calc/DefaultCostsAbm.tsx
+@@ -10,10 +10,11 @@ import {
+   Heading,
+   Input,
+   Select,
+-  Spinner,
+   Table,
+   Text,
+ } from "@chakra-ui/react";
++import { SkeletonTable } from "@/components/ui/skeleton";
++
+ import { calcSettingsService } from "@/services/calcSettingsService";
+ import { toaster } from "@/lib/toaster";
+ import type {
+@@ -409,9 +410,7 @@ export default function DefaultCostsAbm() {
+       </Flex>
+ 
+       {loading ? (
+-        <Flex align="center" justify="center" py={16}>
+-          <Spinner size="xl" />
+-        </Flex>
++        <SkeletonTable rows={6} cols={["22%", "18%", "18%", "16%", "12%", "14%"]} />
+       ) : items.length === 0 ? (
+         <EmptyState.Root>
+           <EmptyState.Content>
+diff --git a/frontend/src/components/calc/GeneralSettingsForm.tsx b/frontend/src/components/calc/GeneralSettingsForm.tsx
+index 9f1a7b3..3c42cd8 100644
+--- a/frontend/src/components/calc/GeneralSettingsForm.tsx
++++ b/frontend/src/components/calc/GeneralSettingsForm.tsx
+@@ -8,8 +8,9 @@ import {
+   Flex,
+   Input,
+   Select,
+-  Spinner,
+ } from "@chakra-ui/react";
++import { FormSkeleton } from "@/components/ui/skeleton";
++
+ import { calcSettingsService } from "@/services/calcSettingsService";
+ import { toaster } from "@/lib/toaster";
+ import type { CalcSettingsResponse, RoundingMode } from "@/types/calc";
+@@ -70,11 +71,7 @@ export default function GeneralSettingsForm() {
+   }, []);
+ 
+   if (loading || !form) {
+-    return (
+-      <Flex align="center" justify="center" py={16}>
+-        <Spinner size="xl" />
+-      </Flex>
+-    );
++    return <FormSkeleton fields={7} />;
+   }
+ 
+   const setField =
+diff --git a/frontend/src/components/calc/MaterialsAbm.tsx b/frontend/src/components/calc/MaterialsAbm.tsx
+index 293bce5..eb547b4 100644
+--- a/frontend/src/components/calc/MaterialsAbm.tsx
++++ b/frontend/src/components/calc/MaterialsAbm.tsx
+@@ -8,11 +8,12 @@ import {
+   Flex,
+   Input,
+   Select,
+-  Spinner,
+   Table,
+   Tag,
+   Text,
+ } from "@chakra-ui/react";
++import { AbmListSkeleton } from "@/components/ui/skeleton";
++
+ import { createListCollection } from "@ark-ui/react";
+ import { calcMaterialsService } from "@/services/calcMaterialsService";
+ import { calcSettingsService } from "@/services/calcSettingsService";
+@@ -297,9 +298,11 @@ export default function MaterialsAbm() {
+ 
+   if (loading) {
+     return (
+-      <Flex align="center" justify="center" py={16}>
+-        <Spinner size="xl" />
+-      </Flex>
++      <AbmListSkeleton
++        cols={["14%", "20%", "14%", "10%", "14%", "12%", "8%", "8%"]}
++        withCreate
++        selects={2}
++      />
+     );
+   }
+ 
+diff --git a/frontend/src/components/calc/ProductEditor.tsx b/frontend/src/components/calc/ProductEditor.tsx
+index 420e69e..c325d35 100644
+--- a/frontend/src/components/calc/ProductEditor.tsx
++++ b/frontend/src/components/calc/ProductEditor.tsx
+@@ -8,10 +8,11 @@ import {
+   Input,
+   Textarea,
+   Select,
+-  Spinner,
+   Heading,
+   Text as UIText,
+ } from "@chakra-ui/react";
++import { CalcFormSkeleton } from "@/components/ui/skeleton";
++
+ import { createListCollection } from "@ark-ui/react";
+ import { calcProductsService } from "@/services/calcProductsService";
+ import { calcMaterialsService } from "@/services/calcMaterialsService";
+@@ -189,11 +190,7 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
+   };
+ 
+   if (fetching) {
+-    return (
+-      <Flex justify="center" align="center" minH="400px">
+-        <Spinner size="xl" />
+-      </Flex>
+-    );
++    return <CalcFormSkeleton />;
+   }
+ 
+   return (
+diff --git a/frontend/src/components/calc/ProductList.tsx b/frontend/src/components/calc/ProductList.tsx
+index f5fff84..a835333 100644
+--- a/frontend/src/components/calc/ProductList.tsx
++++ b/frontend/src/components/calc/ProductList.tsx
+@@ -7,9 +7,10 @@ import {
+   Button,
+   Table,
+   Text,
+-  Spinner,
+   IconButton,
+ } from "@chakra-ui/react";
++import { CalcProductListSkeleton } from "@/components/ui/skeleton";
++
+ import { calcProductsService } from "@/services/calcProductsService";
+ import { toaster } from "@/lib/toaster";
+ import type {
+@@ -169,11 +170,7 @@ export default function ProductList({ mode = "library" }: ProductListProps) {
+   const totalPages = Math.ceil(total / pageSize);
+ 
+   if (loading && page === 1) {
+-    return (
+-      <Flex justify="center" align="center" minH="400px">
+-        <Spinner size="xl" />
+-      </Flex>
+-    );
++    return <CalcProductListSkeleton />;
+   }
+ 
+   return (
+diff --git a/frontend/src/components/calc/SupplierAbm.tsx b/frontend/src/components/calc/SupplierAbm.tsx
+index bddcb17..554b3c1 100644
+--- a/frontend/src/components/calc/SupplierAbm.tsx
++++ b/frontend/src/components/calc/SupplierAbm.tsx
+@@ -8,10 +8,11 @@ import {
+   Flex,
+   Heading,
+   Input,
+-  Spinner,
+   Table,
+   Text,
+ } from "@chakra-ui/react";
++import { SkeletonTable } from "@/components/ui/skeleton";
++
+ import { calcSettingsService } from "@/services/calcSettingsService";
+ import { toaster } from "@/lib/toaster";
+ import { ApiError } from "@/lib/api";
+@@ -368,9 +369,7 @@ export default function SupplierAbm() {
+       </Flex>
+ 
+       {loading ? (
+-        <Flex align="center" justify="center" py={16}>
+-          <Spinner size="xl" />
+-        </Flex>
++        <SkeletonTable rows={6} cols={["22%", "15%", "15%", "25%", "16%", "7%"]} />
+       ) : items.length === 0 ? (
+         <EmptyState.Root>
+           <EmptyState.Content>
+diff --git a/frontend/src/components/cart/CartPage.tsx b/frontend/src/components/cart/CartPage.tsx
+index 062aa33..946b437 100644
+--- a/frontend/src/components/cart/CartPage.tsx
++++ b/frontend/src/components/cart/CartPage.tsx
+@@ -18,10 +18,11 @@ import {
+   Input,
+   Separator,
+   Skeleton,
+-  Spinner,
+   Stack,
+   Text,
+ } from "@chakra-ui/react";
++import { ShimmerDot } from "@/components/ui/skeleton";
++
+ import { useCallback, useEffect, useState } from "react";
+ import { useRouter } from "next/navigation";
+ import {
+@@ -325,7 +326,7 @@ function CartPage() {
+             </Flex>
+             <Flex justify="space-between" align="center">
+               {busy ? (
+-                <Spinner size="sm" />
++                <ShimmerDot size="14px" />
+               ) : (
+                 <Text fontSize="sm" color="fg.muted">
+                   Los precios pueden variar según tu audiencia.
+diff --git a/frontend/src/components/catalog/ProductsCatalog.tsx b/frontend/src/components/catalog/ProductsCatalog.tsx
+index 87c0ce6..60becba 100644
+--- a/frontend/src/components/catalog/ProductsCatalog.tsx
++++ b/frontend/src/components/catalog/ProductsCatalog.tsx
+@@ -7,10 +7,11 @@ import {
+   Button,
+   Flex,
+   SegmentGroup,
+-  Spinner,
+   Table,
+   Text,
+ } from "@chakra-ui/react";
++import { CatalogSkeleton } from "@/components/ui/skeleton";
++
+ import { useAuth } from "@/contexts/AuthContext";
+ import { apiFetch } from "@/lib/api";
+ import { gooeyToast } from "goey-toast";
+@@ -136,11 +137,7 @@ export function ProductsCatalog() {
+   }, [audience, allowedAudiences]);
+ 
+   if (loading) {
+-    return (
+-      <Flex align="center" justify="center" py={16}>
+-        <Spinner size="xl" />
+-      </Flex>
+-    );
++    return <CatalogSkeleton />;
+   }
+ 
+   return (
+diff --git a/frontend/src/components/checkout/CheckoutFlow.tsx b/frontend/src/components/checkout/CheckoutFlow.tsx
+index c71d2fd..0fd315e 100644
+--- a/frontend/src/components/checkout/CheckoutFlow.tsx
++++ b/frontend/src/components/checkout/CheckoutFlow.tsx
+@@ -14,11 +14,12 @@ import {
+   Flex,
+   Heading,
+   Link,
+-  Spinner,
+   Stack,
+   Steps,
+   Text,
+ } from "@chakra-ui/react";
++import { CheckoutSkeleton } from "@/components/ui/skeleton";
++
+ import { useCallback, useEffect, useState } from "react";
+ import { useAuth } from "@/contexts/AuthContext";
+ import { toaster } from "@/lib/toaster";
+@@ -95,11 +96,7 @@ export function CheckoutFlow() {
+   }, []);
+ 
+   if (loading) {
+-    return (
+-      <Center minH="50dvh">
+-        <Spinner size="xl" />
+-      </Center>
+-    );
++    return <CheckoutSkeleton />;
+   }
+ 
+   if (cart === null) {
+diff --git a/frontend/src/components/checkout/PaymentCard.tsx b/frontend/src/components/checkout/PaymentCard.tsx
+index 2233ad6..2012096 100644
+--- a/frontend/src/components/checkout/PaymentCard.tsx
++++ b/frontend/src/components/checkout/PaymentCard.tsx
+@@ -10,7 +10,9 @@ Efectivo: badge "Pagar en efectivo en la entrega".
+ Solo se redirige a checkout_url de origen confiable (allowlist).
+ */
+ 
+-import { Alert, Box, Button, Flex, Spinner, Stack, Text } from "@chakra-ui/react";
++import { Alert, Box, Button, Flex, Stack, Text } from "@chakra-ui/react";
++import { ShimmerDot } from "@/components/ui/skeleton";
++
+ import { useCallback, useEffect, useState } from "react";
+ import {
+   fetchOrderPaymentStatus,
+@@ -181,7 +183,7 @@ export function PaymentCard({ order }: { order: OrderDetail }) {
+ 
+         {state.kind === "pending" && (
+           <Flex align="center" gap={3}>
+-            <Spinner size="sm" color="brand.500" />
++            <ShimmerDot size="14px" />
+             <Text fontSize="sm">
+               Procesando pago, esto puede tardar unos segundos…
+             </Text>
+diff --git a/frontend/src/components/orders/MyOrdersPage.tsx b/frontend/src/components/orders/MyOrdersPage.tsx
+index 9bb62d7..ced6e4c 100644
+--- a/frontend/src/components/orders/MyOrdersPage.tsx
++++ b/frontend/src/components/orders/MyOrdersPage.tsx
+@@ -15,10 +15,11 @@ import {
+   Card,
+   Flex,
+   Skeleton,
+-  Spinner,
+   Stack,
+   Text,
+ } from "@chakra-ui/react";
++import { OrderListSkeleton } from "@/components/ui/skeleton";
++
+ import { useCallback, useEffect, useState } from "react";
+ import { gooeyToast } from "goey-toast";
+ import {
+@@ -321,13 +322,7 @@ function MyOrdersPage() {
+   }, [page, refreshKey]);
+ 
+   if (loading) {
+-    return (
+-      <Stack gap={3}>
+-        <Spinner color="brand.500" />
+-        <Skeleton h="80px" />
+-        <Skeleton h="80px" />
+-      </Stack>
+-    );
++    return <OrderListSkeleton />;
+   }
+ 
+   if (error) {
+diff --git a/frontend/src/components/profile/AddressBook.tsx b/frontend/src/components/profile/AddressBook.tsx
+index 880044c..98bd6bf 100644
+--- a/frontend/src/components/profile/AddressBook.tsx
++++ b/frontend/src/components/profile/AddressBook.tsx
+@@ -19,6 +19,8 @@ import {
+   Stack,
+   Text,
+ } from "@chakra-ui/react";
++import { AddressBookSkeleton } from "@/components/ui/skeleton";
++
+ import { useCallback, useEffect, useState } from "react";
+ import {
+   deleteMyAddress,
+@@ -186,9 +188,7 @@ function AddressBook() {
+         <Card.Body>
+           <Stack gap={2} py={4}>
+             <Text fontWeight="semibold">Libro de direcciones</Text>
+-            <Text fontSize="sm" color="fg.muted">
+-              Cargando…
+-            </Text>
++            <AddressBookSkeleton />
+           </Stack>
+         </Card.Body>
+       </Card.Root>
+diff --git a/frontend/src/components/ui/skeleton.tsx b/frontend/src/components/ui/skeleton.tsx
+new file mode 100644
+index 0000000..17a80e9
+--- /dev/null
++++ b/frontend/src/components/ui/skeleton.tsx
+@@ -0,0 +1,735 @@
++"use client";
++
++/**
++ * Skeletons de carga para toda la app, construidos solo con las primitivas
++ * de Chakra UI 3.37 (Skeleton, SkeletonText, SkeletonCircle).
++ *
++ * Los compuestos replican la forma del contenido real (encabezados, tablas,
++ * formularios, cards, pasos) para evitar layout shift al cargar.
++ * `ShimmerDot` reemplaza al Spinner en acciones en curso (pago, subida,
++ * carrito). La prop `loading` de los botones se mantiene: es interacción de
++ * formulario, no carga de pantalla.
++ */
++
++import type { ReactNode } from "react";
++import {
++  Box,
++  Card,
++  Flex,
++  SimpleGrid,
++  Skeleton,
++  SkeletonCircle,
++  Stack,
++  Table,
++} from "@chakra-ui/react";
++
++/* ------------------------------ primitivas ------------------------------ */
++
++/** Barra de texto simulada. */
++export function SkeletonLine({ w = "100%", h = "4" }: { w?: string; h?: string }) {
++  return <Skeleton height={h} width={w} />;
++}
++
++/** Campo de formulario: etiqueta + control. */
++export function FieldSkeleton({
++  labelWidth = "45%",
++  inputHeight = "2.5rem",
++}: {
++  labelWidth?: string;
++  inputHeight?: string;
++}) {
++  return (
++    <Flex direction="column" gap="1" width="full">
++      <SkeletonLine w={labelWidth} h="3" />
++      <Skeleton height={inputHeight} borderRadius="lg" />
++    </Flex>
++  );
++}
++
++/** Tabla genérica: encabezado opcional + filas, con anchos por columna. */
++export function SkeletonTable({
++  rows = 6,
++  cols,
++  withHeader = true,
++}: {
++  rows?: number;
++  cols: string[];
++  withHeader?: boolean;
++}) {
++  return (
++    <Box
++      borderWidth="1px"
++      borderColor="border.muted"
++      borderRadius="md"
++      overflow="hidden"
++      width="full"
++    >
++      <Table.Root variant="line" size="sm">
++        {withHeader ? (
++          <Table.Header>
++            <Table.Row
++              bg="bg.subtle"
++              borderBottomWidth="1px"
++              borderColor="border.muted"
++            >
++              {cols.map((w, i) => (
++                <Table.ColumnHeader key={i} width={w} color="transparent">
++                  <SkeletonLine h="3" />
++                </Table.ColumnHeader>
++              ))}
++            </Table.Row>
++          </Table.Header>
++        ) : null}
++        <Table.Body>
++          {Array.from({ length: rows }).map((_, r) => (
++            <Table.Row key={r}>
++              {cols.map((_, c) => (
++                <Table.Cell key={c}>
++                  <SkeletonLine
++                    h="3"
++                    w={c === cols.length - 1 ? "45%" : "70%"}
++                  />
++                </Table.Cell>
++              ))}
++            </Table.Row>
++          ))}
++        </Table.Body>
++      </Table.Root>
++    </Box>
++  );
++}
++
++/** Card genérica con alto fijo y contenido arbitrario. */
++export function SkeletonCard({
++  height,
++  children,
++}: {
++  height?: string;
++  children?: ReactNode;
++}) {
++  return (
++    <Card.Root>
++      <Card.Body h={height} py={4}>
++        {children}
++      </Card.Body>
++    </Card.Root>
++  );
++}
++
++/** Punteado pulsante: reemplazo del Spinner en acciones en curso. */
++export function ShimmerDot({ size = "16px" }: { size?: string }) {
++  return <Skeleton width={size} height={size} borderRadius="full" />;
++}
++
++/* ------------------------------ pantallas ------------------------------- */
++
++/** Pantalla completa: gates de auth (ProtectedRoute, layout del portal). */
++export function FullPageSkeleton() {
++  return (
++    <Flex
++      direction="column"
++      minH="100dvh"
++      width="full"
++      role="status"
++      aria-label="Cargando"
++    >
++      <Skeleton h="4rem" w="full" />
++      <Box
++        w="full"
++        display="flex"
++        justifyContent="center"
++        pt="10"
++        px="4"
++        pb="8"
++      >
++        <Stack width="full" maxW="container.sm" gap="4">
++          <Skeleton h="10" w="45%" alignSelf="center" />
++          <Skeleton h="12" w="100%" borderRadius="xl" />
++          <Skeleton h="12" w="100%" borderRadius="xl" />
++          <Skeleton h="12" w="100%" borderRadius="xl" />
++        </Stack>
++      </Box>
++    </Flex>
++  );
++}
++
++/** Login: card con título, email y dos botones (acceso + Google). */
++export function LoginFormSkeleton() {
++  return (
++    <Card.Root
++      width="full"
++      maxW="25rem"
++      borderRadius="2xl"
++      boxShadow="md"
++      role="status"
++      aria-label="Cargando"
++    >
++      <Card.Body p="8">
++        <Stack gap="4" align="center">
++          <Skeleton h="8" w="55%" />
++          <Skeleton h="3" w="80%" />
++          <Skeleton h="1px" w="100%" mt="2" />
++          <FieldSkeleton labelWidth="100%" />
++          <Skeleton h="9" borderRadius="lg" w="100%" />
++          <Skeleton h="3" w="12%" />
++          <Skeleton h="9" borderRadius="lg" w="100%" />
++        </Stack>
++      </Card.Body>
++    </Card.Root>
++  );
++}
++
++/** Perfil del portal: título, card de cuenta y libro de direcciones. */
++export function ProfileSkeleton() {
++  return (
++    <Stack
++      width="full"
++      maxW="container.sm"
++      mx="auto"
++      pt="10"
++      gap="6"
++      role="status"
++      aria-label="Cargando"
++    >
++      <Skeleton h="10" w="28%" alignSelf="center" />
++      <SkeletonCard height="14rem">
++        <Stack p="6" gap="4" width="full">
++          <FieldSkeleton />
++          <FieldSkeleton />
++          <FieldSkeleton labelWidth="35%" />
++        </Stack>
++      </SkeletonCard>
++      <SkeletonCard height="11rem">
++        <Stack p="6" gap="3" width="full">
++          <SkeletonLine w="45%" h="4" />
++          <Skeleton h="16" w="100%" borderRadius="md" />
++          <Skeleton h="16" w="100%" borderRadius="md" />
++        </Stack>
++      </SkeletonCard>
++    </Stack>
++  );
++}
++
++/** Panel admin: tabla de usuarios. */
++export function AdminUsersSkeleton() {
++  return (
++    <Stack width="full" gap="4" role="status" aria-label="Cargando">
++      <SkeletonLine w="45%" h="3" />
++      <SkeletonTable rows={8} cols={["45%", "25%", "30%"]} />
++    </Stack>
++  );
++}
++
++/** Lista en card: encabezado (título + botón) y tabla. Cupones y leads. */
++export function ListCardSkeleton({
++  titleWidth = "30%",
++  buttonWidth = "120px",
++  cols,
++  rows = 6,
++  withSearch = false,
++}: {
++  titleWidth?: string;
++  buttonWidth?: string;
++  cols: string[];
++  rows?: number;
++  withSearch?: boolean;
++}) {
++  return (
++    <Stack gap="4" width="full" role="status" aria-label="Cargando">
++      <Flex justify="space-between" align="center" wrap="wrap" gap="3">
++        <SkeletonLine w={titleWidth} h="4" />
++        <Skeleton h="2.5rem" w={buttonWidth} borderRadius="lg" />
++      </Flex>
++      {withSearch ? (
++        <Flex gap="2" wrap="wrap">
++          <Skeleton h="2.5rem" flex="1" minW="160px" borderRadius="md" />
++          <Skeleton h="2.5rem" w="100px" borderRadius="lg" />
++        </Flex>
++      ) : null}
++      <SkeletonTable rows={rows} cols={cols} />
++    </Stack>
++  );
++}
++
++/** Calculadora: card de creación + búsqueda con filtros + tabla. */
++export function AbmListSkeleton({
++  cols,
++  rows = 6,
++  withCreate = false,
++  selects = 0,
++}: {
++  cols: string[];
++  rows?: number;
++  withCreate?: boolean;
++  selects?: number;
++}) {
++  return (
++    <Flex
++      direction="column"
++      gap="4"
++      width="full"
++      role="status"
++      aria-label="Cargando"
++    >
++      {withCreate ? (
++        <Box
++          borderWidth="1px"
++          borderColor="border.muted"
++          borderRadius="lg"
++          p="4"
++        >
++          <Stack gap="3">
++            <SkeletonLine w="25%" h="3" />
++            <SimpleGrid columns={{ base: 1, md: 3 }} gap="3">
++              <FieldSkeleton labelWidth="60%" inputHeight="2rem" />
++              <FieldSkeleton labelWidth="60%" inputHeight="2rem" />
++              <FieldSkeleton labelWidth="60%" inputHeight="2rem" />
++            </SimpleGrid>
++          </Stack>
++        </Box>
++      ) : null}
++      <Flex gap="3" wrap="wrap" align="center">
++        <Skeleton h="2.5rem" flex="1" minW="180px" borderRadius="md" />
++        {Array.from({ length: selects }).map((_, i) => (
++          <Skeleton key={i} h="2.5rem" minW="10rem" borderRadius="md" />
++        ))}
++      </Flex>
++      <SkeletonTable rows={rows} cols={cols} />
++    </Flex>
++  );
++}
++
++/** Calculadora: 6 KPIs + dos secciones con tablas. */
++export function CalcDashboardSkeleton() {
++  const section = (key: string) => (
++    <Box
++      key={key}
++      p="4"
++      bg="white"
++      borderRadius="md"
++      shadow="sm"
++      border="1px solid"
++      borderColor="gray.200"
++    >
++      <Stack gap="3">
++        <SkeletonLine w="50%" h="4" />
++        <SkeletonTable rows={4} cols={["40%", "20%", "20%", "20%"]} />
++      </Stack>
++    </Box>
++  );
++  return (
++    <Flex
++      direction="column"
++      gap="6"
++      width="full"
++      role="status"
++      aria-label="Cargando"
++    >
++      <SimpleGrid columns={{ base: 1, sm: 2, md: 4 }} gap={4}>
++        {Array.from({ length: 6 }).map((_, i) => (
++          <Box
++            key={i}
++            p={4}
++            bg="white"
++            borderRadius="md"
++            shadow="sm"
++            border="1px solid"
++            borderColor="gray.200"
++          >
++            <Stack gap="2">
++              <SkeletonLine w="60%" h="3" />
++              <SkeletonLine w="45%" h="8" />
++              <SkeletonLine w="70%" h="2.5" />
++            </Stack>
++          </Box>
++        ))}
++      </SimpleGrid>
++      <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
++        {section("a")}
++        {section("b")}
++      </SimpleGrid>
++    </Flex>
++  );
++}
++
++/** Calculadora: búsqueda en card + tabla de productos + paginación. */
++export function CalcProductListSkeleton() {
++  return (
++    <Flex
++      direction="column"
++      gap="4"
++      width="full"
++      role="status"
++      aria-label="Cargando"
++    >
++      <Flex
++        direction={{ base: "column", lg: "row" }}
++        gap="4"
++        p="4"
++        bg="gray.50"
++        borderRadius="md"
++        align="end"
++      >
++        <Flex direction="column" flex="1" gap="2">
++          <SkeletonLine w="20%" h="3" />
++          <Skeleton h="2.5rem" borderRadius="md" />
++        </Flex>
++        <Skeleton h="2.5rem" minW="10rem" borderRadius="md" />
++        <Skeleton h="2.5rem" w="140px" borderRadius="lg" />
++      </Flex>
++      <SkeletonTable rows={8} cols={["35%", "20%", "25%", "20%"]} />
++      <Flex justify="center" mt="2">
++        <Skeleton h="2.5rem" w="240px" borderRadius="md" />
++      </Flex>
++    </Flex>
++  );
++}
++
++/** Calculadora: encabezado + formulario en dos columnas (editor de producto). */
++export function CalcFormSkeleton() {
++  return (
++    <Flex
++      direction="column"
++      gap="6"
++      maxW="1200px"
++      mx="auto"
++      p="6"
++      width="full"
++      role="status"
++      aria-label="Cargando"
++    >
++      <Flex justify="space-between" align="center" gap="3" wrap="wrap">
++        <SkeletonLine w="35%" h="8" />
++        <Skeleton h="2.5rem" w="110px" borderRadius="lg" />
++      </Flex>
++      <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
++        <Box
++          borderWidth="1px"
++          borderColor="border.muted"
++          borderRadius="md"
++          p="4"
++        >
++          <Stack gap="3">
++            <SkeletonLine w="40%" h="4" />
++            <FieldSkeleton />
++            <FieldSkeleton />
++            <FieldSkeleton labelWidth="40%" inputHeight="2rem" />
++          </Stack>
++        </Box>
++        <Box
++          borderWidth="1px"
++          borderColor="border.muted"
++          borderRadius="md"
++          p="4"
++        >
++          <Stack gap="3">
++            <SkeletonLine w="40%" h="4" />
++            <FieldSkeleton />
++            <FieldSkeleton inputHeight="2rem" />
++            <Skeleton h="2.5rem" w="120px" borderRadius="lg" />
++          </Stack>
++        </Box>
++      </SimpleGrid>
++    </Flex>
++  );
++}
++
++/** Catálogo público: badge de audiencia + botones + tabla. */
++export function CatalogSkeleton() {
++  return (
++    <Flex
++      direction="column"
++      gap="4"
++      width="full"
++      role="status"
++      aria-label="Cargando"
++    >
++      <Flex gap="3" wrap="wrap" align="center">
++        <Skeleton h="6" w="110px" borderRadius="full" />
++        <Flex gap="3" wrap="wrap">
++          <Skeleton h="2.5rem" w="120px" borderRadius="lg" />
++          <Skeleton h="2.5rem" w="120px" borderRadius="lg" />
++        </Flex>
++      </Flex>
++      <SkeletonTable rows={8} cols={["40%", "18%", "18%", "24%"]} />
++    </Flex>
++  );
++}
++
++/** Ingredientes (admin): búsqueda + botón + tabla. */
++export function IngredientsSkeleton() {
++  return (
++    <Flex
++      direction="column"
++      gap="4"
++      width="full"
++      role="status"
++      aria-label="Cargando"
++    >
++      <Flex gap="3" wrap="wrap" align="center">
++        <Skeleton h="2.5rem" flex="1" minW="200px" borderRadius="md" />
++        <Skeleton h="2.5rem" w="150px" borderRadius="lg" />
++      </Flex>
++      <SkeletonTable rows={8} cols={["35%", "20%", "20%", "25%"]} />
++    </Flex>
++  );
++}
++
++/** Página de detalle: volver + título + badge + botones + tabs + tabla. */
++export function DetailPageSkeleton({
++  tabs = 2,
++  dataRows = 4,
++}: {
++  tabs?: number;
++  dataRows?: number;
++}) {
++  return (
++    <Flex
++      direction="column"
++      gap="5"
++      width="full"
++      role="status"
++      aria-label="Cargando"
++    >
++      <SkeletonLine w="100px" h="3" />
++      <Flex justify="space-between" align="center" wrap="wrap" gap="3">
++        <Flex gap="3" align="center" wrap="wrap">
++          <SkeletonLine w="40%" h="8" />
++          <Skeleton h="5" w="80px" borderRadius="full" />
++        </Flex>
++        <Flex gap="2" wrap="wrap">
++          <Skeleton h="2.5rem" w="100px" borderRadius="lg" />
++          <Skeleton h="2.5rem" w="100px" borderRadius="lg" />
++          <Skeleton h="2.5rem" w="110px" borderRadius="lg" />
++        </Flex>
++      </Flex>
++      <Flex
++        gap="6"
++        borderBottomWidth="1px"
++        borderColor="border.muted"
++        pb="2"
++        wrap="wrap"
++      >
++        {Array.from({ length: tabs }).map((_, i) => (
++          <Skeleton key={i} h="4" w={i === 0 ? "130px" : "110px"} />
++        ))}
++      </Flex>
++      <SkeletonTable rows={dataRows} cols={["30%", "23%", "23%", "24%"]} />
++    </Flex>
++  );
++}
++
++/** Formulario: título + subtítulo + campos + botón de guardar. */
++export function FormSkeleton({
++  fields = 5,
++  titleWidth = "45%",
++  withSubtitle = true,
++}: {
++  fields?: number;
++  titleWidth?: string;
++  withSubtitle?: boolean;
++}) {
++  return (
++    <Stack width="full" gap="4" role="status" aria-label="Cargando">
++      <Stack gap="1" w="full">
++        <SkeletonLine w={titleWidth} h="8" />
++        {withSubtitle ? <SkeletonLine w="65%" h="3" /> : null}
++      </Stack>
++      {Array.from({ length: fields }).map((_, i) => (
++        <FieldSkeleton key={i} labelWidth={i % 2 ? "35%" : "45%"} />
++      ))}
++      <Flex justify="flex-end">
++        <Skeleton h="2.5rem" w="130px" borderRadius="lg" />
++      </Flex>
++    </Stack>
++  );
++}
++
++/** Configuración de la app: título + fieldsets + guardar. */
++export function SettingsSkeleton() {
++  return (
++    <Flex
++      direction="column"
++      gap="6"
++      width="full"
++      role="status"
++      aria-label="Cargando"
++    >
++      <Stack gap="1" w="full">
++        <SkeletonLine w="30%" h="8" />
++        <SkeletonLine w="55%" h="3" />
++      </Stack>
++      {[2, 2, 3].map((n, i) => (
++        <Box
++          key={i}
++          borderWidth="1px"
++          borderColor="border.muted"
++          borderRadius="md"
++          p="5"
++        >
++          <Stack gap="3">
++            <SkeletonLine w="45%" h="4" />
++            <SimpleGrid columns={{ base: 1, sm: 2 }} gap="3">
++              {Array.from({ length: n }).map((_, j) => (
++                <FieldSkeleton key={j} labelWidth="70%" inputHeight="2rem" />
++              ))}
++            </SimpleGrid>
++          </Stack>
++        </Box>
++      ))}
++      <Flex justify="flex-end">
++        <Skeleton h="2.5rem" w="130px" borderRadius="lg" />
++      </Flex>
++    </Flex>
++  );
++}
++
++/** Formulario de producto: encabezado + tabs + campos. */
++export function ProductFormSkeleton() {
++  return (
++    <Flex
++      direction="column"
++      gap="5"
++      width="full"
++      role="status"
++      aria-label="Cargando"
++    >
++      <Flex align="flex-start" justify="space-between" gap="3" flexWrap="wrap">
++        <Stack gap="1" w="full">
++          <SkeletonLine w="35%" h="8" />
++          <SkeletonLine w="50%" h="3" />
++        </Stack>
++        <Skeleton h="2.5rem" w="110px" borderRadius="lg" />
++      </Flex>
++      <Flex
++        gap="6"
++        borderBottomWidth="1px"
++        borderColor="border.muted"
++        pb="2"
++        wrap="wrap"
++      >
++        <Skeleton h="4" w="120px" />
++        <Skeleton h="4" w="110px" />
++        <Skeleton h="4" w="120px" />
++      </Flex>
++      <Stack gap="4" w="full">
++        <FieldSkeleton />
++        <FieldSkeleton />
++        <FieldSkeleton labelWidth="40%" />
++        <FieldSkeleton inputHeight="6rem" />
++      </Stack>
++    </Flex>
++  );
++}
++
++/** Mis pedidos: cards de pedido. */
++export function OrderListSkeleton({ cards = 3 }: { cards?: number }) {
++  return (
++    <Stack gap="3" width="full" role="status" aria-label="Cargando">
++      {Array.from({ length: cards }).map((_, i) => (
++        <Card.Root key={i}>
++          <Card.Header>
++            <Flex justify="space-between" align="center" gap="2">
++              <Flex gap="2" align="baseline">
++                <SkeletonLine w="38%" h="5" />
++                <SkeletonLine w="16%" h="3" />
++              </Flex>
++              <Skeleton h="5" w="72px" borderRadius="full" />
++            </Flex>
++          </Card.Header>
++          <Card.Body>
++            <Flex justify="space-between" align="center">
++              <SkeletonLine w="22%" h="3" />
++              <SkeletonLine w="16%" h="4" />
++            </Flex>
++          </Card.Body>
++        </Card.Root>
++      ))}
++    </Stack>
++  );
++}
++
++/** Checkout: pasos + formulario del paso actual. */
++export function CheckoutSkeleton() {
++  return (
++    <Flex
++      direction="column"
++      gap="6"
++      width="full"
++      role="status"
++      aria-label="Cargando"
++    >
++      <Flex gap={{ base: "3", md: "8" }} wrap="wrap">
++        {Array.from({ length: 4 }).map((_, i) => (
++          <Flex key={i} gap="2" align="center" flex="1" minW="120px">
++            <SkeletonCircle size="6" />
++            <Stack gap="1" flex="1">
++              <SkeletonLine h="3" />
++              <SkeletonLine h="2.5" w="55%" />
++            </Stack>
++          </Flex>
++        ))}
++      </Flex>
++      <Skeleton h="1px" w="100%" />
++      <Stack width="full" maxW="26rem" gap="4">
++        <FieldSkeleton labelWidth="80%" />
++        <FieldSkeleton labelWidth="60%" />
++        <Skeleton h="9" borderRadius="lg" w="100%" />
++      </Stack>
++    </Flex>
++  );
++}
++
++/** Presupuestos: filas del catálogo que se está cargando. */
++export function BudgetRowsSkeleton({ rows = 3 }: { rows?: number }) {
++  return (
++    <Stack gap="2" width="full" role="status" aria-label="Cargando">
++      {Array.from({ length: rows }).map((_, i) => (
++        <Flex key={i} gap="3" align="center" wrap="wrap">
++          <Skeleton h="2.5rem" flex="1" minW="180px" borderRadius="md" />
++          <Skeleton h="2.5rem" w="70px" borderRadius="md" />
++          <Skeleton h="2.5rem" w="90px" borderRadius="md" />
++        </Flex>
++      ))}
++    </Stack>
++  );
++}
++
++/** Libro de direcciones: filas de dirección. */
++export function AddressBookSkeleton() {
++  return (
++    <Stack gap="2" width="full" role="status" aria-label="Cargando">
++      <Skeleton h="18" w="100%" borderRadius="md" />
++      <Skeleton h="18" w="100%" borderRadius="md" />
++      <Skeleton h="18" w="100%" borderRadius="md" />
++      <Flex justify="flex-end" mt="2">
++        <Skeleton h="2.5rem" w="140px" borderRadius="lg" />
++      </Flex>
++    </Stack>
++  );
++}
++
++/** Editor de receta: líneas insumo (select + cantidad + unidad + quitar). */
++export function RecipeLinesSkeleton({ rows = 2 }: { rows?: number }) {
++  return (
++    <Stack gap="3" width="full" role="status" aria-label="Cargando">
++      {Array.from({ length: rows }).map((_, i) => (
++        <Flex key={i} gap="2" align="flex-end" flexWrap="wrap">
++          <Box flex="2 1 12rem">
++            <SkeletonLine w="100%" h="1.25rem" />
++            <Skeleton h="2.5rem" w="100%" borderRadius="md" />
++          </Box>
++          <Box flex="0 1 7rem">
++            <SkeletonLine w="100%" h="1.25rem" />
++            <Skeleton h="2.5rem" w="100%" borderRadius="md" />
++          </Box>
++          <Box flex="0 1 6.5rem">
++            <SkeletonLine w="100%" h="1.25rem" />
++            <Skeleton h="2.5rem" w="100%" borderRadius="md" />
++          </Box>
++          <Skeleton h="2.5rem" w="2.5rem" borderRadius="md" />
++        </Flex>
++      ))}
++    </Stack>
++  );
++}
+diff --git a/frontend/src/modules/budgets/components/BudgetEditPage.tsx b/frontend/src/modules/budgets/components/BudgetEditPage.tsx
+index b936dfb..a39926c 100644
+--- a/frontend/src/modules/budgets/components/BudgetEditPage.tsx
++++ b/frontend/src/modules/budgets/components/BudgetEditPage.tsx
+@@ -12,11 +12,12 @@ import {
+   HStack,
+   Input,
+   Skeleton,
+-  Spinner,
+   Stack,
+   Text,
+   VStack,
+ } from "@chakra-ui/react";
++import { BudgetRowsSkeleton } from "@/components/ui/skeleton";
++
+ import NextLink from "next/link";
+ import { useRouter } from "next/navigation";
+ import { formatCents, pesosToCents, centsToPesos } from "@/lib/format";
+@@ -361,12 +362,7 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
+               Productos
+             </Text>
+             {productsLoading ? (
+-              <HStack gap={2} py={2}>
+-                <Spinner size="sm" color="brand.400" />
+-                <Text fontSize="sm" color="fg.muted">
+-                  Cargando catálogo…
+-                </Text>
+-              </HStack>
++              <BudgetRowsSkeleton rows={3} />
+             ) : productsError ? (
+               <Alert.Root status="error" fontSize="sm">
+                 <Alert.Description>{productsError}</Alert.Description>
+diff --git a/frontend/src/modules/budgets/components/BudgetWizard.tsx b/frontend/src/modules/budgets/components/BudgetWizard.tsx
+index afaacc6..dca5f0d 100644
+--- a/frontend/src/modules/budgets/components/BudgetWizard.tsx
++++ b/frontend/src/modules/budgets/components/BudgetWizard.tsx
+@@ -13,11 +13,12 @@ import {
+   Heading,
+   HStack,
+   Input,
+-  Spinner,
+   Stack,
+   Text,
+   VStack,
+ } from "@chakra-ui/react";
++import { BudgetRowsSkeleton } from "@/components/ui/skeleton";
++
+ import { customersService } from "@/modules/orders/service";
+ import type { Customer } from "@/modules/orders/types";
+ import { budgetClientSchema, budgetItemsSchema } from "../schema";
+@@ -547,12 +548,7 @@ export function BudgetWizard() {
+                 Productos
+               </Text>
+               {productsLoading ? (
+-                <HStack gap={2} py={2}>
+-                  <Spinner size="sm" color="brand.400" />
+-                  <Text fontSize="sm" color="fg.muted">
+-                    Cargando catálogo…
+-                  </Text>
+-                </HStack>
++                <BudgetRowsSkeleton rows={3} />
+               ) : productsError ? (
+                 <Alert.Root status="error" fontSize="sm">
+                   <Alert.Description>{productsError}</Alert.Description>
+diff --git a/frontend/src/modules/imports/ImportDialogV2.tsx b/frontend/src/modules/imports/ImportDialogV2.tsx
+index 8a3007d..c46b614 100644
+--- a/frontend/src/modules/imports/ImportDialogV2.tsx
++++ b/frontend/src/modules/imports/ImportDialogV2.tsx
+@@ -9,10 +9,11 @@ import {
+   Button,
+   Dialog,
+   Flex,
+-  Spinner,
+   Table,
+   Text,
+ } from "@chakra-ui/react";
++import { ShimmerDot } from "@/components/ui/skeleton";
++
+ import { trackEvent } from "@/lib/analytics";
+ import { importsService } from "./service";
+ import { downloadTemplate } from "./download";
+@@ -317,7 +318,7 @@ function ImportDialogContent({
+ 
+               {uploading && (
+                 <Flex align="center" gap={3}>
+-                  <Spinner size="sm" />
++                  <ShimmerDot />
+                   <Text color="fg.muted">Procesando…</Text>
+                 </Flex>
+               )}
+diff --git a/frontend/src/modules/ingredients/components/IngredientDetailPage.tsx b/frontend/src/modules/ingredients/components/IngredientDetailPage.tsx
+index a32daf1..2e9a8fc 100644
+--- a/frontend/src/modules/ingredients/components/IngredientDetailPage.tsx
++++ b/frontend/src/modules/ingredients/components/IngredientDetailPage.tsx
+@@ -8,10 +8,11 @@ import {
+   Button,
+   Flex,
+   Heading,
+-  Spinner,
+   Tabs,
+   Text,
+ } from "@chakra-ui/react";
++import { DetailPageSkeleton } from "@/components/ui/skeleton";
++
+ import { formatCents, formatQty } from "@/lib/format";
+ import { toaster } from "@/lib/toaster";
+ import { useIngredientDetail } from "../hooks/useIngredientDetail";
+@@ -75,11 +76,7 @@ export function IngredientDetailPage({ id }: IngredientDetailPageProps) {
+   }
+ 
+   if (loading) {
+-    return (
+-      <Flex align="center" justify="center" py={16}>
+-        <Spinner size="xl" />
+-      </Flex>
+-    );
++    return <DetailPageSkeleton tabs={2} />;
+   }
+ 
+   if (error || !ingredient) {
+diff --git a/frontend/src/modules/ingredients/components/IngredientFormPage.tsx b/frontend/src/modules/ingredients/components/IngredientFormPage.tsx
+index 0467ded..72e46c9 100644
+--- a/frontend/src/modules/ingredients/components/IngredientFormPage.tsx
++++ b/frontend/src/modules/ingredients/components/IngredientFormPage.tsx
+@@ -10,9 +10,10 @@ import {
+   Flex,
+   Heading,
+   Input,
+-  Spinner,
+   Text,
+ } from "@chakra-ui/react";
++import { FormSkeleton } from "@/components/ui/skeleton";
++
+ import { useForm } from "react-hook-form";
+ import { zodResolver } from "@hookform/resolvers/zod";
+ import { EnumSelect } from "@/components/ui/enum-select";
+@@ -157,11 +158,7 @@ export function IngredientFormPage({ mode, ingredientId }: IngredientFormPagePro
+   }
+ 
+   if (loadingInitial) {
+-    return (
+-      <Flex align="center" justify="center" py={16}>
+-        <Spinner size="xl" />
+-      </Flex>
+-    );
++    return <FormSkeleton fields={6} />;
+   }
+ 
+   if (loadError) {
+diff --git a/frontend/src/modules/ingredients/components/IngredientsPage.tsx b/frontend/src/modules/ingredients/components/IngredientsPage.tsx
+index fa13754..de4927b 100644
+--- a/frontend/src/modules/ingredients/components/IngredientsPage.tsx
++++ b/frontend/src/modules/ingredients/components/IngredientsPage.tsx
+@@ -10,10 +10,11 @@ import {
+   Input,
+   InputGroup,
+   Pagination,
+-  Spinner,
+   Table,
+   Text,
+ } from "@chakra-ui/react";
++import { IngredientsSkeleton } from "@/components/ui/skeleton";
++
+ import NextLink from "next/link";
+ import { formatCents, formatQty } from "@/lib/format";
+ import { SearchIcon } from "@/components/ui/search-icon";
+@@ -100,9 +101,7 @@ export function IngredientsPage() {
+       ) : null}
+ 
+       {loading ? (
+-        <Flex align="center" justify="center" py={16}>
+-          <Spinner size="xl" />
+-        </Flex>
++        <IngredientsSkeleton />
+       ) : total === 0 && !hasSearched ? (
+         <EmptyState
+           title="Todavía no hay ingredientes"
+diff --git a/frontend/src/modules/products/components/ProductDetailPage.tsx b/frontend/src/modules/products/components/ProductDetailPage.tsx
+index 5016ee5..0d7ecda 100644
+--- a/frontend/src/modules/products/components/ProductDetailPage.tsx
++++ b/frontend/src/modules/products/components/ProductDetailPage.tsx
+@@ -6,14 +6,14 @@ import {
+   Alert,
+   Badge,
+   Button,
+-  Center,
+   Flex,
+   Heading,
+-  Spinner,
+   Table,
+   Tabs,
+   Text,
+ } from "@chakra-ui/react";
++import { DetailPageSkeleton } from "@/components/ui/skeleton";
++
+ import NextLink from "next/link";
+ import { formatCents, formatQty } from "@/lib/format";
+ import { toaster } from "@/lib/toaster";
+@@ -80,11 +80,7 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
+   }
+ 
+   if (loading) {
+-    return (
+-      <Center py={16}>
+-        <Spinner size="xl" />
+-      </Center>
+-    );
++    return <DetailPageSkeleton tabs={3} />;
+   }
+ 
+   if (error || !product) {
+diff --git a/frontend/src/modules/products/components/ProductFormPage.tsx b/frontend/src/modules/products/components/ProductFormPage.tsx
+index e74f834..3badfed 100644
+--- a/frontend/src/modules/products/components/ProductFormPage.tsx
++++ b/frontend/src/modules/products/components/ProductFormPage.tsx
+@@ -5,18 +5,18 @@ import { useRouter } from "next/navigation";
+ import {
+   Alert,
+   Button,
+-  Center,
+   Dialog,
+   Field,
+   Flex,
+   Heading,
+   Input,
+-  Spinner,
+   Table,
+   Tabs,
+   Text,
+   Textarea,
+ } from "@chakra-ui/react";
++import { ProductFormSkeleton } from "@/components/ui/skeleton";
++
+ import { useForm, useWatch, type FieldErrors } from "react-hook-form";
+ import { zodResolver } from "@hookform/resolvers/zod";
+ import { EnumSelect } from "@/components/ui/enum-select";
+@@ -235,11 +235,7 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
+   }
+ 
+   if (loadingInitial) {
+-    return (
+-      <Center py={16}>
+-        <Spinner size="xl" />
+-      </Center>
+-    );
++    return <ProductFormSkeleton />;
+   }
+ 
+   return (
+diff --git a/frontend/src/modules/products/components/RecipeEditor.tsx b/frontend/src/modules/products/components/RecipeEditor.tsx
+index d7d0a25..3d83463 100644
+--- a/frontend/src/modules/products/components/RecipeEditor.tsx
++++ b/frontend/src/modules/products/components/RecipeEditor.tsx
+@@ -9,6 +9,8 @@ import {
+   Input,
+   Text,
+ } from "@chakra-ui/react";
++import { RecipeLinesSkeleton } from "@/components/ui/skeleton";
++
+ import type {
+   Control,
+   FieldErrors,
+@@ -76,9 +78,7 @@ export function RecipeEditor({
+       </Text>
+ 
+       {ingredientsLoading ? (
+-        <Text fontSize="sm" color="fg.muted">
+-          Cargando insumos…
+-        </Text>
++        <RecipeLinesSkeleton />
+       ) : ingredients.length === 0 ? (
+         <Text fontSize="sm" color="orange.600">
+           No hay insumos cargados. Creá al menos uno en Ingredientes para poder
+diff --git a/frontend/src/modules/settings/components/SettingsPage.tsx b/frontend/src/modules/settings/components/SettingsPage.tsx
+index 189b13e..33b4892 100644
+--- a/frontend/src/modules/settings/components/SettingsPage.tsx
++++ b/frontend/src/modules/settings/components/SettingsPage.tsx
+@@ -10,10 +10,11 @@ import {
+   Grid,
+   Heading,
+   Input,
+-  Spinner,
+   Switch,
+   Text,
+ } from "@chakra-ui/react";
++import { SettingsSkeleton } from "@/components/ui/skeleton";
++
+ import { useForm } from "react-hook-form";
+ import { zodResolver } from "@hookform/resolvers/zod";
+ import { EnumSelect } from "@/components/ui/enum-select";
+@@ -113,11 +114,7 @@ export function SettingsPage() {
+   }
+ 
+   if (loading) {
+-    return (
+-      <Flex align="center" justify="center" py={16}>
+-        <Spinner size="xl" />
+-      </Flex>
+-    );
++    return <SettingsSkeleton />;
+   }
+ 
+   return (

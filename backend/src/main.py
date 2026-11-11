@@ -14,6 +14,7 @@ from api.v1.calc.router import router as calc_router
 from api.v1.cart.router import router as cart_router
 from api.v1.coupons.router import router as coupons_router
 from api.v1.customers.router import router as customers_router
+from api.v1.dashboard.router import router as dashboard_router
 from api.v1.ingredients.router import router as ingredients_router
 from api.v1.imports.router import router as imports_router
 from api.v1.leads.router import router as leads_router
@@ -27,6 +28,7 @@ from api.v1.webhooks.router import router as webhooks_router
 from api.v1.whatsapp.router import router as whatsapp_router
 from data.db import init_db
 from data.accent import SearchQueryError
+from domain.dashboard import InvalidDashboardPeriodError, InvalidTopProductsLimitError
 from data.pdf.client import PdfServiceError
 from core.config import settings as app_settings
 from data.models import Base
@@ -75,6 +77,7 @@ app.include_router(budgets_router, prefix="/api/v1")
 app.include_router(pdf_router, prefix="/api/v1")
 
 app.include_router(calc_router, prefix="/api/v1")
+app.include_router(dashboard_router, prefix="/api/v1")
 
 _media_dir = Path(app_settings.MEDIA_ROOT)
 _media_dir.mkdir(parents=True, exist_ok=True)
@@ -98,6 +101,36 @@ async def pdf_service_error_handler(request: Request, exc: PdfServiceError):
 @app.exception_handler(SearchQueryError)
 async def search_query_error_handler(request: Request, exc: SearchQueryError):
     return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+
+def _problem_422(title: str, code: str, detail: str) -> JSONResponse:
+    return JSONResponse(
+        status_code=422,
+        media_type="application/problem+json",
+        content={
+            "type": f"https://toscana.app/problems/{code.replace('_', '-')}",
+            "title": title,
+            "status": 422,
+            "detail": detail,
+            "code": code,
+        },
+    )
+
+
+@app.exception_handler(InvalidDashboardPeriodError)
+async def invalid_dashboard_period_handler(
+    request: Request, exc: InvalidDashboardPeriodError
+):
+    return _problem_422("Periodo invalido", exc.code, str(exc))
+
+
+@app.exception_handler(InvalidTopProductsLimitError)
+async def invalid_top_products_limit_handler(
+    request: Request, exc: InvalidTopProductsLimitError
+):
+    return _problem_422(
+        "Limite invalido", "invalid_limit", "limit debe estar entre 1 y 20"
+    )
 
 
 @app.get("/health")

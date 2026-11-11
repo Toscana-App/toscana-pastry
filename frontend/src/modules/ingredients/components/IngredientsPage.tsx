@@ -6,6 +6,7 @@ import {
   Box,
   Button,
   Flex,
+  FormatNumber,
   Heading,
   Input,
   InputGroup,
@@ -16,7 +17,7 @@ import {
 import { IngredientsSkeleton } from "@/components/ui/skeleton";
 
 import NextLink from "next/link";
-import { formatCents, formatQty } from "@/lib/format";
+import { formatQty, centsToPesos } from "@/lib/format";
 import { SearchIcon } from "@/components/ui/search-icon";
 import { EmptyState } from "@/modules/shared/EmptyState";
 import { useIngredients } from "../hooks/useIngredients";
@@ -39,8 +40,12 @@ export function IngredientsPage() {
     <Flex direction="column" gap={5}>
       <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
         <Flex direction="column" gap={1}>
-          <Heading fontSize="2xl">Ingredientes</Heading>
-          <Text color="fg.muted">{total} en total</Text>
+          <Heading as="h1" fontSize="2xl" textWrap="balance">
+            Ingredientes
+          </Heading>
+          <Text color="fg.muted" fontVariantNumeric="tabular-nums" aria-live="polite">
+            {total} en total
+          </Text>
         </Flex>
         <Flex gap={3}>
           <Button
@@ -68,6 +73,10 @@ export function IngredientsPage() {
 
       <InputGroup startElement={<SearchIcon />}>
         <Input
+          name="q"
+          type="search"
+          autoComplete="off"
+          spellCheck={false}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Buscar por nombre…"
@@ -108,16 +117,15 @@ export function IngredientsPage() {
         />
       ) : (
         <>
-          {}
           <Box display={{ base: "none", md: "block" }}>
             <Table.ScrollArea borderWidth="1px" rounded="md">
               <Table.Root size="sm">
                 <Table.Header>
                   <Table.Row>
-                    <Table.ColumnHeader>Name</Table.ColumnHeader>
-                    <Table.ColumnHeader>Unit price</Table.ColumnHeader>
+                    <Table.ColumnHeader>Nombre</Table.ColumnHeader>
+                    <Table.ColumnHeader>Precio unitario</Table.ColumnHeader>
                     <Table.ColumnHeader>Stock</Table.ColumnHeader>
-                    <Table.ColumnHeader>Status</Table.ColumnHeader>
+                    <Table.ColumnHeader>Estado</Table.ColumnHeader>
                   </Table.Row>
                 </Table.Header>
                 <Table.Body>
@@ -125,13 +133,13 @@ export function IngredientsPage() {
                     <Table.Row key={ing.id}>
                       <Table.Cell>
                         <NextLink href={`/admin/ingredients/${ing.id}`}>
-                          <Text fontWeight="500" color="brand.fg" textDecoration="none">
+                          <Text fontWeight="500" color="brand.fg" textDecoration="none" overflowWrap="anywhere">
                             {ing.name}
                           </Text>
                         </NextLink>
                       </Table.Cell>
-                      <Table.Cell>{formatCents(ing.price_per_unit)}</Table.Cell>
-                      <Table.Cell>{formatQty(ing.stock_qty, ing.unit)}</Table.Cell>
+                      <Table.Cell fontVariantNumeric="tabular-nums"><FormatNumber value={centsToPesos(ing.price_per_unit)} style="currency" currency="ARS" /></Table.Cell>
+                      <Table.Cell fontVariantNumeric="tabular-nums">{formatQty(ing.stock_qty, ing.unit)}</Table.Cell>
                       <Table.Cell>
                         <StockBadge
                           status={ing.status}
@@ -146,7 +154,6 @@ export function IngredientsPage() {
             </Table.ScrollArea>
           </Box>
 
-          {}
           <Flex direction="column" gap={3} display={{ base: "flex", md: "none" }}>
             {items.map((ing) => (
               <NextLink key={ing.id} href={`/admin/ingredients/${ing.id}`}>
@@ -160,7 +167,7 @@ export function IngredientsPage() {
                   _hover={{ borderColor: "brand.solid" }}
                 >
                   <Flex justify="space-between" align="center" gap={3}>
-                    <Text fontWeight="600">{ing.name}</Text>
+                    <Text fontWeight="600" overflowWrap="anywhere" minW={0}>{ing.name}</Text>
                     <StockBadge
                       status={ing.status}
                       stockQty={ing.stock_qty}
@@ -168,8 +175,8 @@ export function IngredientsPage() {
                     />
                   </Flex>
                   <Flex justify="space-between" color="fg.muted" fontSize="sm">
-                    <Text>Unit price: {formatCents(ing.price_per_unit)}</Text>
-                    <Text>Stock: {formatQty(ing.stock_qty, ing.unit)}</Text>
+                    <Text fontVariantNumeric="tabular-nums">Precio unitario: {<FormatNumber value={centsToPesos(ing.price_per_unit)} style="currency" currency="ARS" />}</Text>
+                    <Text fontVariantNumeric="tabular-nums">Stock: {formatQty(ing.stock_qty, ing.unit)}</Text>
                   </Flex>
                 </Flex>
               </NextLink>
@@ -178,7 +185,7 @@ export function IngredientsPage() {
 
           {pageCount > 1 ? (
             <Pagination.Root
-              colorScheme="brand"
+              colorPalette="brand"
               count={total}
               pageSize={PAGE_SIZE}
               page={page}

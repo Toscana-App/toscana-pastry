@@ -91,7 +91,7 @@ describe("ProductLines preview (F2)", () => {
         showPreview
       />
     );
-    expect(screen.getAllByText("3.000").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("Total estimado: 9.000")).toBeInTheDocument();
+    expect(screen.getAllByText(/\$\s3\.000,00/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/Total estimado:\s*\$\s9\.000,00/)).toBeInTheDocument();
   });
 });

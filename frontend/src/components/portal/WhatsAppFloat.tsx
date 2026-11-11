@@ -12,6 +12,7 @@ export function WhatsAppFloat() {
       bottom={6}
       right={6}
       zIndex={40}
+      touchAction="manipulation"
       boxSize={14}
       borderRadius="full"
       bg="#25D366"

@@ -7,13 +7,14 @@ import {
   Box,
   Button,
   Flex,
+  FormatNumber,
   Heading,
   Input,
   Skeleton,
   Text,
 } from "@chakra-ui/react";
 import { trackEvent } from "@/lib/analytics";
-import { formatCents } from "@/lib/format";
+import { centsToPesos } from "@/lib/format";
 import { weeklyService } from "../weekly.service";
 import type { WeeklySummary } from "../types";
 
@@ -98,10 +99,13 @@ export function WeeklySummaryView() {
       <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
         <Flex align="center" gap={3} flexWrap="wrap">
           <Input
+            name="week"
+            autoComplete="off"
+            spellCheck={false}
             value={weekInput}
             onChange={(e) => setWeekInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && applyWeek()}
-            placeholder="Ej. 2026-W45 o 2026-11-02"
+            placeholder="Ej. 2026-W45 o 2026-11-02…"
             aria-label="Semana a ver (ISO AAAA-Wnn o fecha)"
             maxW="240px"
             size="sm"
@@ -137,7 +141,7 @@ export function WeeklySummaryView() {
       </Flex>
 
       {summary && !loading ? (
-        <Text color="fg.muted" fontSize="sm">
+        <Text color="fg.muted" fontSize="sm" aria-live="polite">
           Semana del {summary.week.from} al {summary.week.to}
         </Text>
       ) : null}
@@ -181,7 +185,7 @@ export function WeeklySummaryView() {
                 direction="column"
                 gap={1}
                 borderWidth="1px"
-                borderColor="gray.200"
+                borderColor="border"
                 rounded="md"
                 p={4}
                 minW="160px"
@@ -190,7 +194,7 @@ export function WeeklySummaryView() {
                   {t.label}
                 </Text>
                 <Text fontSize="lg" fontWeight="600" fontVariantNumeric="tabular-nums">
-                  {formatCents(t.value)}
+                  <FormatNumber value={centsToPesos(t.value)} style="currency" currency="ARS" />
                 </Text>
               </Flex>
             ))}
@@ -201,7 +205,7 @@ export function WeeklySummaryView() {
               Sin pedidos confirmados o entregados en la semana.
             </Text>
           ) : (
-            <Box overflowX="auto" borderWidth="1px" borderColor="gray.200" rounded="md">
+            <Box overflowX="auto" borderWidth="1px" borderColor="border" rounded="md">
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
                 <thead>
                   <tr>
@@ -209,11 +213,11 @@ export function WeeklySummaryView() {
                       <th
                         key={h}
                         style={{
-                          textAlign: "left",
+                          textAlign: h === "Total" ? "right" : "left",
                           padding: "10px 14px",
-                          borderBottom: "1px solid #e5e5e5",
+                          borderBottom: "1px solid var(--chakra-colors-border)",
                           fontWeight: 600,
-                          color: "#525252",
+                          color: "var(--chakra-colors-fg-muted)",
                           whiteSpace: "nowrap",
                         }}
                       >
@@ -224,22 +228,23 @@ export function WeeklySummaryView() {
                 </thead>
                 <tbody>
                   {summary.items.map((item) => (
-                    <tr key={item.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                    <tr key={item.id} style={{ borderBottom: "1px solid var(--chakra-colors-border-muted)" }}>
                       <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
                         {item.date}
                       </td>
-                      <td style={{ padding: "10px 14px", fontWeight: 500 }}>
+                      <td style={{ padding: "10px 14px", fontWeight: 500, overflowWrap: "anywhere" }}>
                         {item.customer}
                       </td>
-                      <td style={{ padding: "10px 14px" }}>{item.items_count}</td>
+                      <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>{item.items_count}</td>
                       <td
                         style={{
                           padding: "10px 14px",
                           whiteSpace: "nowrap",
+                          textAlign: "right",
                           fontVariantNumeric: "tabular-nums",
                         }}
                       >
-                        {formatCents(item.total)}
+                        <FormatNumber value={centsToPesos(item.total)} style="currency" currency="ARS" />
                       </td>
                       <td style={{ padding: "10px 14px" }}>
                         <Badge colorPalette={item.paid ? "green" : "orange"} variant="subtle">

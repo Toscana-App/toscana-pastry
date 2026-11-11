@@ -12,6 +12,7 @@ import {
   Select,
   Table,
   Text,
+  FormatNumber,
 } from "@chakra-ui/react";
 import { SkeletonTable } from "@/components/ui/skeleton";
 
@@ -304,7 +305,9 @@ export default function DefaultCostsAbm() {
         >
           <Input
             aria-label="Nombre"
-            placeholder="Nombre"
+            name="name"
+            autoComplete="off"
+            placeholder="Nombre…"
             maxLength={120}
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
@@ -333,19 +336,25 @@ export default function DefaultCostsAbm() {
           </Select.Root>
           <Input
             aria-label="Costo unitario o tarifa"
+            name="default_unit_cost_or_rate"
+            autoComplete="off"
+            inputMode="decimal"
             type="number"
             step="0.01"
             min={0}
-            placeholder="Costo unitario o tarifa"
+            placeholder="Costo unitario o tarifa…"
             value={newCost}
             onChange={(e) => setNewCost(e.target.value)}
           />
           <Input
             aria-label="Cantidad o minutos"
+            name="default_quantity_or_minutes"
+            autoComplete="off"
+            inputMode="numeric"
             type="number"
             step="1"
             min={0}
-            placeholder="Cantidad o minutos"
+            placeholder="Cantidad o minutos…"
             value={newQuantity}
             onChange={(e) => setNewQuantity(e.target.value)}
           />
@@ -386,11 +395,17 @@ export default function DefaultCostsAbm() {
       <Flex align="center" gap={3}>
         <Input
           aria-label="Buscar"
-          placeholder="Buscar"
+          name="q"
+          type="search"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="Buscar…"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
         />
-        <Text color="fg.muted">Total: {total}</Text>
+        <Text color="fg.muted" fontVariantNumeric="tabular-nums" aria-live="polite">
+          Total: {total}
+        </Text>
       </Flex>
 
       {loading ? (
@@ -424,6 +439,8 @@ export default function DefaultCostsAbm() {
                     <Table.Cell>
                       <Input
                         aria-label="Editar nombre"
+                        name="name"
+                        autoComplete="off"
                         maxLength={120}
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
@@ -460,6 +477,9 @@ export default function DefaultCostsAbm() {
                     <Table.Cell>
                       <Input
                         aria-label="Editar costo"
+                        name="default_unit_cost_or_rate"
+                        autoComplete="off"
+                        inputMode="decimal"
                         type="number"
                         step="0.01"
                         min={0}
@@ -470,6 +490,9 @@ export default function DefaultCostsAbm() {
                     <Table.Cell>
                       <Input
                         aria-label="Editar cantidad"
+                        name="default_quantity_or_minutes"
+                        autoComplete="off"
+                        inputMode="numeric"
                         type="number"
                         step="1"
                         min={0}
@@ -530,8 +553,8 @@ export default function DefaultCostsAbm() {
                   <Table.Row key={cost.id}>
                     <Table.Cell>{cost.name}</Table.Cell>
                     <Table.Cell>{typeLabel(cost.type)}</Table.Cell>
-                    <Table.Cell>{formatAmount(cost.default_unit_cost_or_rate)}</Table.Cell>
-                    <Table.Cell>{formatAmount(cost.default_quantity_or_minutes)}</Table.Cell>
+                    <Table.Cell fontVariantNumeric="tabular-nums">{Number.isFinite(Number(cost.default_unit_cost_or_rate)) ? <FormatNumber value={Number(cost.default_unit_cost_or_rate)} style="currency" currency="ARS" /> : cost.default_unit_cost_or_rate}</Table.Cell>
+                    <Table.Cell fontVariantNumeric="tabular-nums">{formatAmount(cost.default_quantity_or_minutes)}</Table.Cell>
                     <Table.Cell>{statusLabel(cost.status)}</Table.Cell>
                     <Table.Cell>
                       <Flex gap={2}>

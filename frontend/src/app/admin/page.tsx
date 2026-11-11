@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Badge, Flex, Heading, Table, Text } from "@chakra-ui/react";
+import { Badge, Card, Flex, Heading, Stack, Table, Text } from "@chakra-ui/react";
 import { AdminUsersSkeleton } from "@/components/ui/skeleton";
 
 import CouponsAdmin from "@/components/admin/CouponsAdmin";
@@ -36,8 +36,11 @@ function AdminUsers() {
       } catch (error) {
         if (cancelled) return;
         toaster.create({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Could not load users.",
+          title: "¡Ups!",
+          description:
+            error instanceof Error
+              ? error.message
+              : "No se pudieron cargar los usuarios.",
           type: "error",
         });
       } finally {
@@ -56,40 +59,58 @@ function AdminUsers() {
   }
 
   return (
-    <Flex direction="column" gap={4}>
-      <Text color="fg.muted">{data?.total ?? 0} registered users</Text>
-      <Table.ScrollArea borderWidth="1px" rounded="md">
-        <Table.Root size="sm" stickyHeader>
-          <Table.Header>
-            <Table.Row>
-              <Table.ColumnHeader>Email</Table.ColumnHeader>
-              <Table.ColumnHeader>Role</Table.ColumnHeader>
-              <Table.ColumnHeader>Auth</Table.ColumnHeader>
-            </Table.Row>
-          </Table.Header>
-          <Table.Body>
-            {(data?.users ?? []).map((user) => (
-              <Table.Row key={user.user_id}>
-                <Table.Cell>{user.email}</Table.Cell>
-                <Table.Cell>
-                  <Badge colorPalette={user.role === "admin" ? "red" : "gray"}>
-                    {user.role}
-                  </Badge>
-                </Table.Cell>
-                <Table.Cell>{user.google_id ? "Google" : "Magic link"}</Table.Cell>
-              </Table.Row>
-            ))}
-          </Table.Body>
-        </Table.Root>
-      </Table.ScrollArea>
-    </Flex>
+    <Card.Root>
+      <Card.Body>
+        <Stack gap={4}>
+          <Text color="fg.muted" fontVariantNumeric="tabular-nums" aria-live="polite">
+            {data?.total ?? 0} usuario{data?.total === 1 ? "" : "s"} registrado
+            {data?.total === 1 ? "" : "s"}
+          </Text>
+          {data && data.users.length === 0 ? (
+            <Text fontSize="sm" color="fg.muted">
+              Todavía no hay usuarios registrados.
+            </Text>
+          ) : (
+            <Table.ScrollArea rounded="md">
+              <Table.Root size="sm" variant="outline" stickyHeader>
+                <Table.Header>
+                  <Table.Row>
+                    <Table.ColumnHeader>Correo</Table.ColumnHeader>
+                    <Table.ColumnHeader>Rol</Table.ColumnHeader>
+                    <Table.ColumnHeader>Autenticación</Table.ColumnHeader>
+                  </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                  {(data?.users ?? []).map((user) => (
+                    <Table.Row key={user.user_id}>
+                      <Table.Cell overflowWrap="anywhere">{user.email}</Table.Cell>
+                      <Table.Cell>
+                        <Badge
+                          colorPalette={user.role === "admin" ? "red" : "brand"}
+                          variant="subtle"
+                        >
+                          {user.role}
+                        </Badge>
+                      </Table.Cell>
+                      <Table.Cell>
+                        {user.google_id ? "Google" : "Enlace mágico"}
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Root>
+            </Table.ScrollArea>
+          )}
+        </Stack>
+      </Card.Body>
+    </Card.Root>
   );
 }
 
 export default function AdminPage() {
   return (
     <Flex direction="column" gap={6}>
-      <Heading fontSize="2xl">Usuarios</Heading>
+      <Heading as="h1" fontSize="2xl" textWrap="balance">Usuarios</Heading>
       <AdminUsers />
       <CouponsAdmin />
       <LeadAdmin />

@@ -8,6 +8,7 @@ import {
   Dialog,
   Field,
   Flex,
+  FormatNumber,
   Heading,
   Input,
   Switch,
@@ -21,7 +22,7 @@ import { ProductFormSkeleton } from "@/components/ui/skeleton";
 import { useForm, useWatch, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { EnumSelect } from "@/components/ui/enum-select";
-import { formatCents } from "@/lib/format";
+import { formatCents, centsToPesos } from "@/lib/format";
 import { toaster } from "@/lib/toaster";
 import { productFormSchema, type ProductFormValues } from "../schema";
 import { productsService } from "../service";
@@ -231,7 +232,7 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
     <Flex direction="column" gap={5} pb={{ base: "7rem", md: 4 }}>
       <Flex align="flex-start" justify="space-between" gap={3} flexWrap="wrap">
         <Flex direction="column" gap={1}>
-          <Heading fontSize="2xl">
+          <Heading as="h1" fontSize="2xl" textWrap="balance">
             {isEdit ? "Editar producto" : "Nuevo producto"}
           </Heading>
           <Text fontSize="sm" color="fg.muted">
@@ -289,13 +290,21 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
             <Flex direction="column" gap={4}>
               <Field.Root invalid={Boolean(errors.name)} required>
                 <Field.Label>Nombre</Field.Label>
-                <Input placeholder="Torta de chocolate" {...register("name")} />
+                <Input
+                  autoComplete="off"
+                  placeholder="Torta de chocolate…"
+                  {...register("name")}
+                />
                 <Field.ErrorText>{errors.name?.message}</Field.ErrorText>
               </Field.Root>
 
               <Field.Root invalid={Boolean(errors.category)} required>
                 <Field.Label>Categoría</Field.Label>
-                <Input placeholder="Tortas" {...register("category")} />
+                <Input
+                  autoComplete="off"
+                  placeholder="Tortas…"
+                  {...register("category")}
+                />
                 <Field.ErrorText>{errors.category?.message}</Field.ErrorText>
               </Field.Root>
 
@@ -303,7 +312,8 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
                 <Field.Label>Descripción</Field.Label>
                 <Textarea
                   rows={3}
-                  placeholder="Opcional"
+                  autoComplete="off"
+                  placeholder="Opcional…"
                   {...register("description")}
                 />
                 <Field.ErrorText>{errors.description?.message}</Field.ErrorText>
@@ -327,7 +337,7 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
                       })
                     }
                   >
-                    <Switch.HiddenInput />
+                    <Switch.HiddenInput aria-label="Disponible en tienda" />
                     <Switch.Control>
                       <Switch.Thumb />
                     </Switch.Control>
@@ -367,6 +377,7 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
                   type="number"
                   inputMode="numeric"
                   min={1}
+                  autoComplete="off"
                   {...register("prep_time_min", { valueAsNumber: true })}
                 />
                 <Field.ErrorText>
@@ -380,6 +391,7 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
                   type="number"
                   inputMode="numeric"
                   min={1}
+                  autoComplete="off"
                   {...register("servings", { valueAsNumber: true })}
                 />
                 <Field.ErrorText>{errors.servings?.message}</Field.ErrorText>
@@ -446,7 +458,7 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
       >
         <Dialog.Backdrop />
         <Dialog.Positioner>
-          <Dialog.Content>
+          <Dialog.Content overscrollBehavior="contain">
             <Dialog.Header>
               <Dialog.Title>¿Descartar los cambios?</Dialog.Title>
             </Dialog.Header>
@@ -505,7 +517,7 @@ function CostsPreview({
     );
   }
 
-  const rows: Array<{ label: string; value: string }> = [
+  const rows: Array<{ label: string; value: React.ReactNode }> = [
     { label: "Materiales", value: formatCents(breakdown.materials) },
     { label: "Merma", value: formatCents(breakdown.waste) },
     {
@@ -533,7 +545,7 @@ function CostsPreview({
       ) : null}
 
       {previewing ? (
-        <Text fontSize="xs" color="fg.muted">
+        <Text fontSize="xs" color="fg.muted" aria-live="polite">
           Calculando…
         </Text>
       ) : null}
@@ -560,7 +572,7 @@ function CostsPreview({
               fontWeight="600"
               fontVariantNumeric="tabular-nums"
             >
-              {formatCents(breakdown.rounded)}
+              <FormatNumber value={centsToPesos(breakdown.rounded)} style="currency" currency="ARS" />
             </Table.Cell>
           </Table.Row>
         </Table.Body>
@@ -570,15 +582,15 @@ function CostsPreview({
         <Flex justify="space-between" color="fg.muted">
           <Text>Precio por porción (aprox.)</Text>
           <Text fontVariantNumeric="tabular-nums">
-            {formatCents(breakdown.rounded / servings)}
+            <FormatNumber value={centsToPesos(breakdown.rounded / servings)} style="currency" currency="ARS" />
           </Text>
         </Flex>
       ) : null}
 
       {Number(breakdown.final) !== Number(breakdown.rounded) ? (
         <Text fontSize="sm" color="fg.muted">
-          Redondeo aplicado: de {formatCents(breakdown.final)} a{" "}
-          {formatCents(breakdown.rounded)}.
+          Redondeo aplicado: de <FormatNumber value={centsToPesos(breakdown.final)} style="currency" currency="ARS" /> a{" "}
+          <FormatNumber value={centsToPesos(breakdown.rounded)} style="currency" currency="ARS" />.
         </Text>
       ) : null}
     </Flex>

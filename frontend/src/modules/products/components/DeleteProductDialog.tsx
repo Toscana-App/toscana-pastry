@@ -25,7 +25,7 @@ export function DeleteProductDialog({
     >
       <Dialog.Backdrop />
       <Dialog.Positioner>
-        <Dialog.Content>
+        <Dialog.Content overscrollBehavior="contain">
           <Dialog.Header>
             <Dialog.Title>¿Eliminar «{productName}»?</Dialog.Title>
           </Dialog.Header>

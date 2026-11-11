@@ -70,6 +70,12 @@
       "skillPath": ".claude/skills/design-by-contract/SKILL.md",
       "computedHash": "6a1e55cba051c3b591ff36297a3895ada2e2197d98c307753e63a6967ddcaba6"
     },
+    "design-taste-frontend": {
+      "source": "Leonxlnx/taste-skill",
+      "sourceType": "github",
+      "skillPath": "skills/taste-skill/SKILL.md",
+      "computedHash": "974e1bb8cf7c78d3a63f1456d54a97119c03e7ab8bf374e04ade800892326ec7"
+    },
     "diagnosing-bugs": {
       "source": "mattpocock/skills",
       "sourceType": "github",

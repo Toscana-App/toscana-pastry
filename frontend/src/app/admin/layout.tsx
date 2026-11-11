@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Container } from "@chakra-ui/react";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
-import { AdminNav } from "@/components/layout/AdminNav";
 
 export const metadata: Metadata = {
   title: {
@@ -17,8 +16,7 @@ export default function AdminLayout({
 }) {
   return (
     <ProtectedRoute requiredRole="admin">
-      <Container py={10} maxW="container.md">
-        <AdminNav />
+      <Container py={10} maxW="4xl">
         {children}
       </Container>
     </ProtectedRoute>

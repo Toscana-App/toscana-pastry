@@ -42,9 +42,11 @@ const StyledOptionSelect = chakra("select", {
     background: "transparent",
     fontSize: "sm",
     outline: "none",
+    color: "fg",
+    "& option": { bg: "bg", color: "fg" },
     _focusVisible: {
       borderColor: "brand.solid",
-      boxShadow: "0 0 0 1px var(--chakra-colors-brand-600)",
+      boxShadow: "0 0 0 1px var(--chakra-colors-brand-focus-ring)",
     },
   },
 });
@@ -261,7 +263,7 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
   return (
     <VStack align="stretch" gap={5} maxW="860px" w="full">
       <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
-        <Heading fontSize="2xl">Editar presupuesto #{budget.seq}</Heading>
+        <Heading as="h1" fontSize="2xl" textWrap="balance">Editar presupuesto #{budget.seq}</Heading>
         <Button variant="ghost" asChild>
           <NextLink href={`/presupuestos/${budget.id}`}>Cancelar</NextLink>
         </Button>
@@ -305,7 +307,7 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
                   rounded="full"
                   whiteSpace="nowrap"
                   variant={mode === m ? "solid" : "outline"}
-                  colorPalette={mode === m ? "brand" : "gray"}
+                  colorPalette={mode === m ? "brand" : undefined}
                   aria-pressed={mode === m}
                   onClick={() => setMode(m)}
                 >
@@ -325,11 +327,14 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
               <Field.Label>Margen (%)</Field.Label>
               <Input
                 type="number"
+                name="margin_pct"
+                inputMode="decimal"
+                autoComplete="off"
                 min={0}
                 max={200}
                 value={margin}
                 onChange={(e) => setMargin(e.target.value)}
-                placeholder="Margen del negocio"
+                placeholder="Margen del negocio…"
                 aria-label="Margen por ciento"
               />
               <Field.HelperText>Vacío = margen del negocio.</Field.HelperText>
@@ -375,6 +380,9 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
                       <Field.Label>Cant.</Field.Label>
                       <Input
                         type="number"
+                        name="qty"
+                        inputMode="numeric"
+                        autoComplete="off"
                         min={1}
                         max={99}
                         value={row.qty}
@@ -387,11 +395,14 @@ export function BudgetEditPage({ budgetId }: BudgetEditPageProps) {
                         <Field.Label>Precio de venta</Field.Label>
                         <Input
                           type="number"
+                          name="price"
+                          inputMode="decimal"
+                          autoComplete="off"
                           min={0.01}
                           step={0.01}
                           value={row.price}
                           onChange={(e) => patchRow(row.key, { price: e.target.value })}
-                          placeholder="0.00"
+                          placeholder="0.00…"
                           aria-label={`Precio de la línea ${idx + 1}`}
                         />
                         {fieldErrors[`${row.key}-price_override`] ? (

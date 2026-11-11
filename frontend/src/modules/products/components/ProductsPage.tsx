@@ -51,8 +51,12 @@ export function ProductsPage() {
     <Flex direction="column" gap={5}>
       <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
         <Flex direction="column" gap={1}>
-          <Heading fontSize="2xl">Productos</Heading>
-          <Text color="fg.muted">{total} en total</Text>
+          <Heading as="h1" fontSize="2xl" textWrap="balance">
+            Productos
+          </Heading>
+          <Text color="fg.muted" fontVariantNumeric="tabular-nums" aria-live="polite">
+            {total} en total
+          </Text>
         </Flex>
         {isAdmin ? (
           <Flex gap={3}>
@@ -82,6 +86,10 @@ export function ProductsPage() {
 
       <InputGroup startElement={<SearchIcon />}>
         <Input
+          name="q"
+          type="search"
+          autoComplete="off"
+          spellCheck={false}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Buscar por nombre…"
@@ -170,7 +178,6 @@ export function ProductsPage() {
         />
       ) : (
         <>
-          {}
           <Grid
             gap={4}
             gridTemplateColumns={{

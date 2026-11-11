@@ -264,35 +264,49 @@ export default function SupplierAbm() {
     <>
       <Input
         aria-label="Nombre"
-        placeholder="Nombre"
+        name="name"
+        autoComplete="off"
+        placeholder="Nombre…"
         maxLength={120}
         value={form.name}
         onChange={setCreateField("name")}
       />
       <Input
         aria-label="Contacto"
-        placeholder="Contacto"
+        name="contact_name"
+        autoComplete="off"
+        placeholder="Contacto…"
         maxLength={120}
         value={form.contact_name}
         onChange={setCreateField("contact_name")}
       />
       <Input
         aria-label="Teléfono"
-        placeholder="Teléfono"
+        name="phone"
+        type="tel"
+        inputMode="tel"
+        autoComplete="off"
+        placeholder="Teléfono…"
         maxLength={30}
         value={form.phone}
         onChange={setCreateField("phone")}
       />
       <Input
         aria-label="Email"
-        placeholder="Email"
+        name="email"
+        type="email"
+        autoComplete="off"
+        spellCheck={false}
+        placeholder="Email…"
         maxLength={120}
         value={form.email}
         onChange={setCreateField("email")}
       />
       <Input
         aria-label="Notas"
-        placeholder="Notas"
+        name="notes"
+        autoComplete="off"
+        placeholder="Notas…"
         maxLength={500}
         value={form.notes}
         onChange={setCreateField("notes")}
@@ -344,11 +358,17 @@ export default function SupplierAbm() {
       <Flex align="center" gap={3}>
         <Input
           aria-label="Buscar"
-          placeholder="Buscar"
+          name="q"
+          type="search"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="Buscar…"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
         />
-        <Text color="fg.muted">Total: {total}</Text>
+        <Text color="fg.muted" fontVariantNumeric="tabular-nums" aria-live="polite">
+          Total: {total}
+        </Text>
       </Flex>
 
       {loading ? (
@@ -382,6 +402,8 @@ export default function SupplierAbm() {
                     <Table.Cell>
                       <Input
                         aria-label="Editar nombre"
+                        name="name"
+                        autoComplete="off"
                         maxLength={120}
                         value={editForm.name}
                         onChange={setEditField("name")}
@@ -390,6 +412,8 @@ export default function SupplierAbm() {
                     <Table.Cell>
                       <Input
                         aria-label="Editar contacto"
+                        name="contact_name"
+                        autoComplete="off"
                         maxLength={120}
                         value={editForm.contact_name}
                         onChange={setEditField("contact_name")}
@@ -398,6 +422,10 @@ export default function SupplierAbm() {
                     <Table.Cell>
                       <Input
                         aria-label="Editar teléfono"
+                        name="phone"
+                        type="tel"
+                        inputMode="tel"
+                        autoComplete="off"
                         maxLength={30}
                         value={editForm.phone}
                         onChange={setEditField("phone")}
@@ -406,6 +434,10 @@ export default function SupplierAbm() {
                     <Table.Cell>
                       <Input
                         aria-label="Editar email"
+                        name="email"
+                        type="email"
+                        autoComplete="off"
+                        spellCheck={false}
                         maxLength={120}
                         value={editForm.email}
                         onChange={setEditField("email")}
@@ -414,6 +446,8 @@ export default function SupplierAbm() {
                     <Table.Cell>
                       <Input
                         aria-label="Editar notas"
+                        name="notes"
+                        autoComplete="off"
                         maxLength={500}
                         value={editForm.notes}
                         onChange={setEditField("notes")}
@@ -445,7 +479,7 @@ export default function SupplierAbm() {
                     <Table.Cell>{supplier.name}</Table.Cell>
                     <Table.Cell>{supplier.contact_name ?? "—"}</Table.Cell>
                     <Table.Cell>{supplier.phone ?? "—"}</Table.Cell>
-                    <Table.Cell>{supplier.email ?? "—"}</Table.Cell>
+                    <Table.Cell overflowWrap="anywhere">{supplier.email ?? "—"}</Table.Cell>
                     <Table.Cell>{supplier.notes ?? "—"}</Table.Cell>
                     <Table.Cell>
                       <Flex gap={2}>

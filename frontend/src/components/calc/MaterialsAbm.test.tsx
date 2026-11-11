@@ -123,7 +123,7 @@ describe("MaterialsAbm", () => {
 
     expect(await screen.findByText("Harina 000")).toBeInTheDocument();
     expect(screen.getByText("HAR-001")).toBeInTheDocument();
-    expect(screen.getByText("100.00")).toBeInTheDocument();
+    expect(screen.getByText(/\$\s100,00/)).toBeInTheDocument();
     expect(screen.getByText("Manteca")).toBeInTheDocument();
     const table = screen.getByRole("table");
     expect(within(table).getByText("Masa")).toBeInTheDocument();

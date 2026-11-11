@@ -17,7 +17,7 @@ interface ProfileCardProps {
 }
 
 function roleColor(role: string) {
-  return role === "admin" ? "red" : "blue";
+  return role === "admin" ? "red" : "brand";
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -36,15 +36,14 @@ export function ProfileCard({ user }: ProfileCardProps) {
       borderWidth="1px"
       borderColor="border"
       bg="bg.panel"
-      boxShadow="lg"
     >
       <VStack gap={6} align="center">
         <Avatar.Root size="2xl" colorPalette="brand">
           <Avatar.Fallback>{user.email.charAt(0).toUpperCase()}</Avatar.Fallback>
         </Avatar.Root>
         <VStack gap={1}>
-          <Heading fontSize="xl">Perfil de usuario</Heading>
-          <Badge colorPalette={roleColor(user.role)}>
+          <Heading fontSize="xl" textWrap="balance">Perfil de usuario</Heading>
+          <Badge colorPalette={roleColor(user.role)} variant="subtle">
             {ROLE_LABELS[user.role] ?? user.role}
           </Badge>
         </VStack>
@@ -52,17 +51,17 @@ export function ProfileCard({ user }: ProfileCardProps) {
         <VStack width="full" align="start" gap={3}>
           <HStack justifyContent="space-between" width="full">
             <Text fontWeight="medium">Correo electrónico</Text>
-            <Text color="fg.muted" fontWeight="bold">{user.email}</Text>
+            <Text color="fg.muted" fontWeight="bold" minW={0} overflowWrap="anywhere" textAlign="end">{user.email}</Text>
           </HStack>
           {user.googleId && (
             <HStack justifyContent="space-between" width="full">
               <Text fontWeight="medium">Google ID</Text>
-              <Text color="fg.muted" fontWeight="bold">{user.googleId}</Text>
+              <Text color="fg.muted" fontWeight="bold" minW={0} overflowWrap="anywhere" textAlign="end">{user.googleId}</Text>
             </HStack>
           )}
           <HStack justifyContent="space-between" width="full">
             <Text fontWeight="medium">ID de cuenta</Text>
-            <Text color="fg.muted" fontWeight="bold">{user.id}</Text>
+            <Text color="fg.muted" fontWeight="bold" minW={0} overflowWrap="anywhere" textAlign="end">{user.id}</Text>
           </HStack>
         </VStack>
       </VStack>

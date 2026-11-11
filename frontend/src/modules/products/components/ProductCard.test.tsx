@@ -33,7 +33,7 @@ describe("ProductCard", () => {
 
     expect(screen.getByText("En tienda")).toBeInTheDocument();
     expect(screen.queryByText("Oculto")).not.toBeInTheDocument();
-    expect(screen.getByText("ARS 1.550")).toBeInTheDocument();
+    expect(screen.getByText(/\$\s1\.550,00/)).toBeInTheDocument();
   });
 
   it("muestra 'Oculto' cuando no está publicado", () => {

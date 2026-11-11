@@ -1,0 +1,1653 @@
+diff --git a/frontend/package.json b/frontend/package.json
+index 697178b..b3c0b40 100644
+--- a/frontend/package.json
++++ b/frontend/package.json
+@@ -13,6 +13,10 @@
+     "@chakra-ui/react": "^3.37.0",
+     "@emotion/react": "^11.14.0",
+     "@hookform/resolvers": "^5.9.2",
++    "@react-aria/focus": "^3.22.1",
++    "@react-aria/interactions": "^3.28.1",
++    "@react-aria/utils": "^3.34.1",
++    "@react-stately/list": "^3.14.1",
+     "framer-motion": "^14.9.0",
+     "goey-toast": "^0.5.0",
+     "next": "16.4.1",
+diff --git a/frontend/src/app/(portal)/page.tsx b/frontend/src/app/(portal)/page.tsx
+index 1c92424..e142a05 100644
+--- a/frontend/src/app/(portal)/page.tsx
++++ b/frontend/src/app/(portal)/page.tsx
+@@ -2,19 +2,29 @@
+ 
+ import { Container, Heading } from "@chakra-ui/react";
+ import { ProductsCatalog } from "@/components/catalog/ProductsCatalog";
++import { CATALOG_ANCHOR, HeroSection } from "@/components/portal/hero_section";
++import ProductsSection from "@/components/sections/ProductsSection";
++import MenuCategories from "@/components/sections/MenuCategories";
++import PricingSection from "@/components/sections/PricingSection";
+ 
+ /**
+- * Portal home tab: catalog with the role's audience price
++ * Portal home tab: hero + catalog with the role's audience price
+  * (business → resellers, customer → end consumer) + restriction
+  * tags when present (p11 UC-02, RNF-P11-03).
+  */
+ export default function PortalHome() {
+   return (
+-    <Container maxW="5xl" py={8}>
+-      <Heading size="2xl" mb={6}>
+-        Catálogo
+-      </Heading>
+-      <ProductsCatalog />
+-    </Container>
++    <>
++      <HeroSection />
++      <ProductsSection />
++      <MenuCategories />
++      <PricingSection />
++      <Container id={CATALOG_ANCHOR} maxW="5xl" py={8} scrollMarginTop="72px">
++        <Heading as="h2" size="2xl" mb={6}>
++          Catálogo
++        </Heading>
++        <ProductsCatalog />
++      </Container>
++    </>
+   );
+ }
+diff --git a/frontend/src/components/layout/Navbar.tsx b/frontend/src/components/layout/Navbar.tsx
+index 7d7aeb1..90fb9de 100644
+--- a/frontend/src/components/layout/Navbar.tsx
++++ b/frontend/src/components/layout/Navbar.tsx
+@@ -1,9 +1,11 @@
+ "use client";
+ 
+-import { Badge, Box, Button, Container, Flex } from "@chakra-ui/react";
++import { Suspense, useState } from "react";
++import { usePress } from "@react-aria/interactions";
++import { Box, Container, Flex, Text } from "@chakra-ui/react";
+ import NextLink from "next/link";
++import { usePathname } from "next/navigation";
+ import { useAuth } from "@/contexts/AuthContext";
+-import { isPortalRole } from "@/lib/portalRoutes";
+ import { ColorModeButton } from "@/components/ui/color-mode";
+ import { BrandLogo } from "./BrandLogo";
+ 
+@@ -13,25 +15,185 @@ const ROLE_LABELS: Record<string, string> = {
+   customer: "Cliente",
+ };
+ 
++type NavItem = {
++  label: string;
++  sublabel?: string;
++  href: string;
++  roles?: string[];
++};
++
++const NAV_ITEMS: NavItem[] = [
++  { label: "Inicio", sublabel: "Página principal", href: "/" },
++  { label: "Catálogo", sublabel: "Productos y precios", href: "/products" },
++  { label: "Pedidos", sublabel: "Gestionar pedidos", href: "/pedidos", roles: ["admin"] },
++  { label: "Presupuestos", sublabel: "Cotizaciones", href: "/presupuestos", roles: ["admin"] },
++  { label: "Admin", sublabel: "Panel de administración", href: "/admin", roles: ["admin"] },
++];
++
+ /**
+- * Global navbar with the visible role (p11 "UI — portal shell").
+- *
+- * - admin: Productos / Pedidos / Presupuestos / Catálogo / Admin / Settings / Profile
+- * - portal (business/customer): Profile + Logout — portal navigation
+- *   lives in the tab bar of the `(portal)` route group; no access to /admin.
+- * - no session: Login.
++ * Global navbar — impuestito pattern + React Aria accessibility:
++ * - usePress for hamburger toggle (keyboard, touch, pointer)
++ * - useFocusRing for visible keyboard focus on nav items
++ * - aria-current="page" for active nav item
++ * - aria-expanded on mobile menu trigger
++ * - Mobile: stacked full-width with border-b
++ * - Desktop: horizontal, rounded-lg hover
+  */
+ export function Navbar() {
++  return (
++    <Suspense fallback={<NavFallback />}>
++      <NavbarInner />
++    </Suspense>
++  );
++}
++
++function NavFallback() {
++  return (
++    <Box as="nav" bg="bg" borderBottomWidth={1} borderColor="border" position="sticky" top={0} zIndex={50} w="full" py={4} px={4}>
++      <Container maxW="container.xl">
++        <BrandLogo variant="horizontal" height={32} />
++      </Container>
++    </Box>
++  );
++}
++
++/**
++ * Nav link with React Aria focus ring + aria-current.
++ */
++function NavLink({
++  href,
++  label,
++  sublabel,
++  isActive,
++  isMobile,
++}: {
++  href: string;
++  label: string;
++  sublabel?: string;
++  isActive: boolean;
++  isMobile: boolean;
++}) {
++  return (
++    <NextLink href={href} style={{ width: isMobile ? "100%" : undefined }} aria-current={isActive ? "page" : undefined}>
++      <Flex
++        align="center"
++        gap={2}
++        px={4}
++        py={isMobile ? "3.5" : 2}
++        borderRadius={isMobile ? "none" : "lg"}
++        borderBottomWidth={isMobile ? (isActive ? "2px" : "1px") : 0}
++        borderColor={isActive ? "brand.solid" : isMobile ? "border" : "transparent"}
++        bg={isActive ? "brand.subtle" : "transparent"}
++        outline="none"
++        _focusVisible={{ outline: "2px solid", outlineColor: "brand.solid", outlineOffset: "-2px" }}
++        _hover={{ bg: isActive ? "brand.subtle" : "bg.muted" }}
++        transition="background-color 0.15s ease"
++        cursor="pointer"
++      >
++        <Text
++          fontSize="sm"
++          fontWeight={isActive ? "semibold" : "medium"}
++          color={isActive ? "brand.solid" : "fg"}
++        >
++          {label}
++        </Text>
++        {sublabel && (
++          <Text fontSize="xs" color="fg.muted" fontWeight="normal" ml={1}>
++            {sublabel}
++          </Text>
++        )}
++      </Flex>
++    </NextLink>
++  );
++}
++
++/**
++ * Hamburger button with React Aria usePress (keyboard, touch, pointer).
++ */
++function MenuToggle({ isOpen, onToggle }: { isOpen: boolean; onToggle: () => void }) {
++  const { pressProps } = usePress({
++    onPress: onToggle,
++  });
++
++  return (
++    <button
++      type="button"
++      aria-label={isOpen ? "Cerrar navegación" : "Mostrar navegación"}
++      aria-expanded={isOpen}
++      aria-controls="mobile-nav"
++      style={{
++        display: "inline-flex",
++        alignItems: "center",
++        justifyContent: "center",
++        width: 36,
++        height: 36,
++        borderRadius: 8,
++        cursor: "pointer",
++        outline: "none",
++        border: "none",
++        background: "transparent",
++      }}
++      className="max-md:inline-flex md:hidden"
++      onFocus={(e) => {
++        if (e.target.matches(":focus-visible")) {
++          e.target.style.outline = "2px solid var(--chakra-colors-brand-solid)";
++          e.target.style.outlineOffset = "2px";
++        }
++      }}
++      onBlur={(e) => {
++        e.target.style.outline = "none";
++      }}
++      {...pressProps}
++    >
++      <Flex direction="column" align="center" justify="center" gap={isOpen ? 1.5 : 5}>
++        <Box
++          w={5}
++          h="1.5px"
++          bg="fg"
++          borderRadius="full"
++          transform={isOpen ? "rotate(45deg) translate(3px, 3px)" : "none"}
++          transition="transform 0.2s ease"
++        />
++        <Box
++          w={5}
++          h="1.5px"
++          bg="fg"
++          borderRadius="full"
++          opacity={isOpen ? 0 : 1}
++          transition="opacity 0.15s ease"
++        />
++        <Box
++          w={5}
++          h="1.5px"
++          bg="fg"
++          borderRadius="full"
++          transform={isOpen ? "rotate(-45deg) translate(3px, -3px)" : "none"}
++          transition="transform 0.2s ease"
++        />
++      </Flex>
++    </button>
++  );
++}
++
++function NavbarInner() {
+   const { user, isAuthenticated, logout } = useAuth();
++  const pathname = usePathname();
++  const [mobileOpen, setMobileOpen] = useState(false);
+ 
+   const role = user?.role;
+   const isAdmin = role === "admin";
+ 
++  const visibleItems = NAV_ITEMS.filter(
++    (item) => !item.roles || (role && item.roles.includes(role))
++  );
++
++  const isActive = (href: string) =>
++    href === "/" ? pathname === "/" : pathname.startsWith(href);
++
+   return (
+     <Box
+       as="nav"
+-      px={4}
+-      py={3}
++      aria-label="Navegación principal"
+       bg="bg"
+       borderBottomWidth={1}
+       borderColor="border"
+@@ -40,59 +202,192 @@ export function Navbar() {
+       zIndex={50}
+       w="full"
+     >
+-      <Container maxW="container.xl">
+-        <Flex h="auto" align="center" justify="space-between" gap={3} wrap="wrap">
+-          <Flex align="center" gap={3}>
+-            <NextLink href="/">
+-              <BrandLogo variant="horizontal" height={36} priority />
+-            </NextLink>
+-            {isAuthenticated && (
+-              <Badge colorPalette={isAdmin ? "red" : "brand"}>
+-                {ROLE_LABELS[role ?? ""] ?? role}
+-              </Badge>
+-            )}
+-          </Flex>
++      <Container maxW="container.xl" py={0}>
++        <Flex
++          direction={{ base: "column", md: "row" }}
++          align={{ base: "stretch", md: "center" }}
++          justify="space-between"
++          gap={0}
++        >
++          {/* Top row: logo + hamburger (mobile) / auth (desktop) */}
++          <Flex
++            align="center"
++            justify="space-between"
++            px={4}
++            py={{ base: 3, md: 4 }}
++            w="full"
++            gap={3}
++          >
++            <Flex align="center" gap={3}>
++              <NextLink href="/" style={{ display: "contents" }}>
++                <BrandLogo variant="horizontal" height={32} priority />
++              </NextLink>
++              {isAuthenticated && (
++                <Text
++                  as="span"
++                  fontSize="xs"
++                  fontWeight="semibold"
++                  color={isAdmin ? "red" : "brand.solid"}
++                  bg={isAdmin ? "red.subtle" : "brand.subtle"}
++                  px={2}
++                  py={0.5}
++                  borderRadius="full"
++                >
++                  {ROLE_LABELS[role ?? ""] ?? role}
++                </Text>
++              )}
++            </Flex>
+ 
+-          <Flex align="center" gap={2} wrap="wrap">
+-            {isAuthenticated ? (
+-              <>
+-                {isAdmin && (
++            <Flex align="center" gap={2}>
++              <MenuToggle isOpen={mobileOpen} onToggle={() => setMobileOpen(!mobileOpen)} />
++              <Flex align="center" gap={2} display={{ base: "none", md: "flex" }}>
++                {isAuthenticated ? (
+                   <>
+-                    <Button variant="ghost" asChild>
+-                      <NextLink href="/productos">Productos</NextLink>
+-                    </Button>
+-                    <Button variant="ghost" asChild>
+-                      <NextLink href="/pedidos">Pedidos</NextLink>
+-                    </Button>
+-                    <Button variant="ghost" asChild>
+-                      <NextLink href="/presupuestos">Presupuestos</NextLink>
+-                    </Button>
+-                    <Button variant="ghost" asChild>
+-                      <NextLink href="/products">Catálogo</NextLink>
+-                    </Button>
+-                    <Button variant="ghost" asChild>
+-                      <NextLink href="/admin">Admin</NextLink>
+-                    </Button>
+-                    <Button variant="ghost" asChild>
+-                      <NextLink href="/admin/settings">Settings</NextLink>
+-                    </Button>
++                    <NextLink href="/profile" style={{ display: "block" }}>
++                      <Box
++                        px={3}
++                        py={2}
++                        borderRadius="lg"
++                        fontSize="sm"
++                        fontWeight="medium"
++                        color="fg"
++                        _hover={{ bg: "bg.muted" }}
++                        transition="background-color 0.15s ease"
++                        cursor="pointer"
++                      >
++                        Profile
++                      </Box>
++                    </NextLink>
++                    <Box
++                      as="button"
++                      onClick={logout}
++                      px={3}
++                      py={2}
++                      borderRadius="lg"
++                      fontSize="sm"
++                      fontWeight="medium"
++                      color="red"
++                      border="1px solid"
++                      borderColor="red.subtle"
++                      _hover={{ bg: "red.subtle" }}
++                      transition="background-color 0.15s ease"
++                      cursor="pointer"
++                    >
++                      Logout
++                    </Box>
+                   </>
++                ) : (
++                  <NextLink href="/login" style={{ display: "block" }}>
++                    <Box
++                      px={4}
++                      py={2}
++                      borderRadius="lg"
++                      fontSize="sm"
++                      fontWeight="medium"
++                      color="white"
++                      bg="brand.solid"
++                      _hover={{ bg: "brand.muted" }}
++                      transition="background-color 0.15s ease"
++                      cursor="pointer"
++                    >
++                      Login
++                    </Box>
++                  </NextLink>
+                 )}
+-                {!isPortalRole(role) && !isAdmin && null}
+-                <Button variant="ghost" asChild>
+-                  <NextLink href="/profile">Profile</NextLink>
+-                </Button>
+-                <Button onClick={logout} colorPalette="red" size="sm" variant="outline">
+-                  Logout
+-                </Button>
+-              </>
+-            ) : (
+-              <Button colorPalette="brand" asChild>
+-                <NextLink href="/login">Login</NextLink>
+-              </Button>
+-            )}
+-            <ColorModeButton />
++                <ColorModeButton />
++              </Flex>
++            </Flex>
++          </Flex>
++
++          {/* Desktop nav links */}
++          <Flex
++            direction="row"
++            gap={0}
++            display={{ base: "none", md: "flex" }}
++            align="center"
++            px={2}
++            py={2}
++          >
++            {visibleItems.map((item) => (
++              <NavLink
++                key={item.href}
++                href={item.href}
++                label={item.label}
++                sublabel={item.sublabel}
++                isActive={isActive(item.href)}
++                isMobile={false}
++              />
++            ))}
+           </Flex>
++
++          {/* Mobile nav panel */}
++          {mobileOpen && (
++            <Box
++              id="mobile-nav"
++              as="div"
++              display={{ base: "block", md: "none" }}
++              bg="bg"
++              borderTopWidth={1}
++              borderColor="border"
++            >
++              <Flex direction="column" gap={0} px={2} py={2}>
++                {visibleItems.map((item) => (
++                  <NavLink
++                    key={item.href}
++                    href={item.href}
++                    label={item.label}
++                    sublabel={item.sublabel}
++                    isActive={isActive(item.href)}
++                    isMobile={true}
++                  />
++                ))}
++                <Flex direction="column" gap={2} pt={3} mt={2} borderTopWidth={1} borderColor="border" px={2}>
++                  {isAuthenticated ? (
++                    <>
++                      <NextLink href="/profile" style={{ display: "block" }}>
++                        <Box px={3} py={2.5} fontSize="sm" fontWeight="medium" color="fg" _hover={{ bg: "bg.muted" }} borderRadius="lg">
++                          Profile
++                        </Box>
++                      </NextLink>
++                      <Box
++                        as="button"
++                        onClick={logout}
++                        px={3}
++                        py={2.5}
++                        fontSize="sm"
++                        fontWeight="medium"
++                        color="red"
++                        textAlign="left"
++                        border="none"
++                        bg="none"
++                        cursor="pointer"
++                        _hover={{ bg: "red.subtle" }}
++                        borderRadius="lg"
++                      >
++                        Logout
++                      </Box>
++                    </>
++                  ) : (
++                    <NextLink href="/login" style={{ display: "block" }}>
++                      <Box
++                        px={4}
++                        py={2.5}
++                        borderRadius="lg"
++                        fontSize="sm"
++                        fontWeight="medium"
++                        color="white"
++                        bg="brand.solid"
++                        textAlign="center"
++                      >
++                        Login
++                      </Box>
++                    </NextLink>
++                  )}
++                  <ColorModeButton />
++                </Flex>
++              </Flex>
++            </Box>
++          )}
+         </Flex>
+       </Container>
+     </Box>
+diff --git a/frontend/src/components/portal/hero_section.test.tsx b/frontend/src/components/portal/hero_section.test.tsx
+new file mode 100644
+index 0000000..1deaa0b
+--- /dev/null
++++ b/frontend/src/components/portal/hero_section.test.tsx
+@@ -0,0 +1,33 @@
++import { describe, expect, it } from "vitest"
++import { screen, within } from "@testing-library/react"
++import { renderWithProviders } from "@/test-utils"
++import { HERO_ATTRIBUTES, HeroSection } from "./hero_section"
++
++describe("HeroSection", () => {
++  it("opens the portal with a single level-1 heading", () => {
++    renderWithProviders(<HeroSection />)
++
++    const heading = screen.getByRole("heading", { level: 1 })
++    expect(heading).toHaveTextContent("Pastelería natural,")
++    expect(heading).toHaveTextContent("para cada momento.")
++  })
++
++  it("points its one action at the catalog below and offers orders as a text link", () => {
++    renderWithProviders(<HeroSection />)
++
++    expect(screen.getByRole("link", { name: /ver el catálogo/i })).toHaveAttribute("href", "#catalogo")
++    expect(screen.getByRole("link", { name: /mirá tus pedidos/i })).toHaveAttribute("href", "/my-orders")
++  })
++
++  it("lists every product attribute with its status in the ledger panel", () => {
++    renderWithProviders(<HeroSection />)
++
++    const list = screen.getByRole("list", { name: /etiquetas del catálogo/i })
++    const rows = within(list).getAllByRole("listitem")
++    expect(rows).toHaveLength(HERO_ATTRIBUTES.length)
++    HERO_ATTRIBUTES.forEach(({ label, status }, index) => {
++      expect(rows[index]).toHaveTextContent(label)
++      expect(rows[index]).toHaveTextContent(status)
++    })
++  })
++})
+diff --git a/frontend/src/components/portal/hero_section.tsx b/frontend/src/components/portal/hero_section.tsx
+new file mode 100644
+index 0000000..9e83c44
+--- /dev/null
++++ b/frontend/src/components/portal/hero_section.tsx
+@@ -0,0 +1,154 @@
++"use client"
++
++import { Box, Button, Flex, Grid, GridItem, Heading, Icon, Link, Text } from "@chakra-ui/react"
++import NextLink from "next/link"
++import { BrandLogo } from "@/components/layout/BrandLogo"
++
++/** One row of the hero ledger panel: an attribute and what it means for the buyer. */
++interface HeroAttribute {
++  label: string
++  status: string
++}
++
++export const HERO_ATTRIBUTES: readonly HeroAttribute[] = [
++  { label: "Sin TACC", status: "Apto celíacos" },
++  { label: "100% Natural", status: "Sin conservantes" },
++  { label: "Keto & Paleo", status: "Compatible" },
++]
++
++/** Anchor of the catalog rendered right below the hero on the portal home. */
++export const CATALOG_ANCHOR = "catalogo"
++
++// Entrance: opacity + transform only (compositor), expo-out, disabled under
++// prefers-reduced-motion. Keyframes live in components/ui/theme.ts.
++const ENTRANCE = "600ms cubic-bezier(0.16, 1, 0.3, 1) both"
++const PANEL_DELAY_MS = 150
++const ROW_BASE_DELAY_MS = 300
++const ROW_STAGGER_MS = 80
++
++// Ledger ruling: a faint 40px grid in the muted rule token, so it follows the mode.
++const LEDGER_GRID = {
++  backgroundImage:
++    "linear-gradient(var(--chakra-colors-border-muted) 1px, transparent 1px), linear-gradient(90deg, var(--chakra-colors-border-muted) 1px, transparent 1px)",
++  backgroundSize: "40px 40px",
++}
++
++/**
++ * Portal home hero. Layout and motion follow the djangoblaze.com hero
++ * (copy + one action on the left, an evidence panel on the right, rise/slide
++ * entrance with staggered rows); every color, type and shape comes from the
++ * Toscana design system (DESIGN.md): flat surfaces, 1px rules, coral as the
++ * only action accent, positive state in green.fg. No product photography.
++ */
++export function HeroSection() {
++  return (
++    <Box as="section" aria-labelledby="hero-title" bg="bg" css={LEDGER_GRID} borderBottomWidth="1px" borderColor="border.muted">
++      <Box maxW="6xl" mx="auto" px={{ base: 6, sm: 8 }} pt={{ base: 14, md: 20 }} pb={{ base: 14, md: 16 }}>
++        <Grid templateColumns={{ base: "1fr", lg: "repeat(12, minmax(0, 1fr))" }} gap={{ base: 12, lg: 14 }} alignItems="start">
++          <GridItem colSpan={{ base: 1, lg: 6 }} animation={`hero-rise ${ENTRANCE}`} _motionReduce={{ animation: "none" }}>
++            <Text fontSize="sm" fontWeight="semibold" color="brand.fg" mb={6}>
++              Horneando momentos
++            </Text>
++
++            <Heading
++              as="h1"
++              id="hero-title"
++              fontSize={{ base: "2.5rem", sm: "3rem", lg: "3.75rem" }}
++              fontWeight="extrabold"
++              lineHeight="1.05"
++              color="fg"
++              css={{ textWrap: "balance" }}
++            >
++              Pastelería natural,{" "}
++              <Box as="span" display="block" color="brand.fg">
++                para cada momento.
++              </Box>
++            </Heading>
++
++            <Text mt={7} maxW="xl" fontSize={{ base: "md", sm: "lg" }} lineHeight="tall" color="fg.muted" css={{ textWrap: "pretty" }}>
++              Elegí del catálogo con los precios de tu lista, armá tu pedido y seguilo hasta que llega.
++            </Text>
++
++            <Box mt={9}>
++              <Button asChild colorPalette="brand" h="56px" px={9} w={{ base: "full", sm: "auto" }} fontSize="md" fontWeight="bold" className="group">
++                <a href={`#${CATALOG_ANCHOR}`}>
++                  Ver el catálogo
++                  <Icon
++                    asChild
++                    boxSize={4}
++                    ml={1}
++                    transition="transform 200ms ease-out"
++                    _groupHover={{ transform: "translateX(4px)" }}
++                    _motionReduce={{ transition: "none" }}
++                  >
++                    <svg aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
++                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M17 8l4 4m0 0l-4 4m4-4H3" />
++                    </svg>
++                  </Icon>
++                </a>
++              </Button>
++
++              <Text mt={5} fontSize="md" lineHeight="tall" color="fg.muted">
++                ¿Ya pediste?{" "}
++                <Link asChild color="brand.fg" fontWeight="semibold" textDecoration="underline" textUnderlineOffset="3px">
++                  <NextLink href="/my-orders">Mirá tus pedidos</NextLink>
++                </Link>{" "}
++                y en qué estado está cada uno.
++              </Text>
++            </Box>
++          </GridItem>
++
++          <GridItem
++            colSpan={{ base: 1, lg: 6 }}
++            animation={{ base: `hero-rise ${ENTRANCE}`, lg: `hero-slide ${ENTRANCE}` }}
++            animationDelay={`${PANEL_DELAY_MS}ms`}
++            _motionReduce={{ animation: "none" }}
++          >
++            <Box borderWidth="1px" borderColor="border" bg="bg.panel" rounded="lg" overflow="hidden">
++              <Flex align="center" justify="space-between" h="44px" px={{ base: 4, sm: 5 }} bg="bg.muted" borderBottomWidth="1px" borderColor="border">
++                <Text id="hero-attributes" fontSize="sm" fontWeight="semibold" color="fg">
++                  Etiquetas del catálogo
++                </Text>
++                <Text fontSize="xs" color="fg.muted">
++                  En cada producto
++                </Text>
++              </Flex>
++
++              <Box as="ul" aria-labelledby="hero-attributes" listStyleType="none" px={{ base: 4, sm: 5 }} py={2}>
++                {HERO_ATTRIBUTES.map(({ label, status }, index) => (
++                  <Flex
++                    as="li"
++                    key={label}
++                    align="center"
++                    justify="space-between"
++                    gap={4}
++                    minH="52px"
++                    borderBottomWidth={index < HERO_ATTRIBUTES.length - 1 ? "1px" : "0"}
++                    borderColor="border.muted"
++                    animation={`hero-rise ${ENTRANCE}`}
++                    animationDelay={`${PANEL_DELAY_MS + ROW_BASE_DELAY_MS + index * ROW_STAGGER_MS}ms`}
++                    _motionReduce={{ animation: "none" }}
++                  >
++                    <Text fontSize={{ base: "md", sm: "lg" }} fontWeight="semibold" color="fg">
++                      {label}
++                    </Text>
++                    <Text fontSize="sm" fontWeight="medium" color="green.fg" textAlign="right">
++                      {status}
++                    </Text>
++                  </Flex>
++                ))}
++              </Box>
++
++              <Flex align="center" justify="space-between" gap={4} px={{ base: 4, sm: 5 }} py={4} borderTopWidth="1px" borderColor="border">
++                <BrandLogo variant="horizontal" height={28} />
++                <Text fontSize="sm" color="fg.muted" textAlign="right">
++                  Pastelería artesanal
++                </Text>
++              </Flex>
++            </Box>
++          </GridItem>
++        </Grid>
++      </Box>
++    </Box>
++  )
++}
+diff --git a/frontend/src/components/sections/MenuCategories.tsx b/frontend/src/components/sections/MenuCategories.tsx
+new file mode 100644
+index 0000000..e2e5103
+--- /dev/null
++++ b/frontend/src/components/sections/MenuCategories.tsx
+@@ -0,0 +1,243 @@
++"use client";
++
++import {
++  Box,
++  Container,
++  SimpleGrid,
++  Card,
++  Badge,
++  Button,
++  Flex,
++  HStack,
++  Text,
++  Heading,
++} from "@chakra-ui/react";
++import {
++  GiftIcon,
++  CoffeeIcon,
++  CookieIcon,
++  UsersIcon,
++  HeartIcon,
++  StarIcon,
++} from "./icons";
++import { motion } from "framer-motion";
++
++const CORAL = "#ff7078";
++const SAGE = "#cce0c9";
++const PEACH = "#f5ccad";
++const TEAL = "#75bda3";
++
++const MenuCategories = () => {
++
++  const categories = [
++    {
++      id: "special-occasions",
++      title: "Ocasiones Especiales",
++      description: "Pasteles temáticos para cumpleaños, bodas y más",
++      Icon: GiftIcon,
++      color: CORAL,
++      badge: "Popular",
++      badgeColor: "brand",
++      itemCount: 24,
++      avgPrice: "$35.00",
++    },
++    {
++      id: "daily-browse",
++      title: "Para el Día a Día",
++      description: "Nuestros favoritos diarios y cafés",
++      Icon: CoffeeIcon,
++      color: TEAL,
++      badge: "Top ventas",
++      badgeColor: "green",
++      itemCount: 12,
++      avgPrice: "$18.00",
++    },
++    {
++      id: "sweet-tooth",
++      title: "Tentaciones Dulces",
++      description: "Galletas artesanales y postres especiales",
++      Icon: CookieIcon,
++      color: PEACH,
++      badge: "Nuevo",
++      badgeColor: "orange",
++      itemCount: 18,
++      avgPrice: "$12.00",
++    },
++    {
++      id: "family-packages",
++      title: "Paquetes Familiares",
++      description: "Opciones perfectas para compartir en familia",
++      Icon: UsersIcon,
++      color: SAGE,
++      badge: "Recomendado",
++      badgeColor: "purple",
++      itemCount: 8,
++      avgPrice: "$45.00",
++    },
++    {
++      id: "diet-friendly",
++      title: "Opciones Saludables",
++      description: "Delicias con ingredientes seleccionados",
++      Icon: HeartIcon,
++      color: CORAL,
++      badge: "Premium",
++      badgeColor: "brand",
++      itemCount: 6,
++      avgPrice: "$28.00",
++    },
++    {
++      id: "seasonal-specials",
++      title: "Especiales de Temporada",
++      description: "Creaciones únicas de temporada limitada",
++      Icon: StarIcon,
++      color: PEACH,
++      badge: "Limitado",
++      badgeColor: "orange",
++      itemCount: 4,
++      avgPrice: "$55.00",
++    },
++  ];
++
++  return (
++    <Box as="section" py={{ base: 12, md: 16 }} bg="bg.subtle">
++      <Container maxW="container.xl">
++        {/* Section header */}
++        <Flex
++          flexDirection="column"
++          gap={4}
++          mb={{ base: 10, md: 14 }}
++          align="center"
++          textAlign="center"
++        >
++          <Badge colorPalette="brand" variant="subtle" px={3} py={1} fontSize="sm" borderRadius="full">
++            {categories.length} categorías
++          </Badge>
++
++          <Heading as="h2" size={{ base: "2xl", md: "3xl" }} color="fg" maxW="2xl" lineHeight="1.2">
++            Explora Nuestras Categorías
++          </Heading>
++
++          <Text color="fg.muted" fontSize={{ base: "sm", md: "base" }} maxW="xl" lineHeight="1.5">
++            Selecciones organizadas para cada ocasión, desde delicias diarias hasta creaciones para momentos memorables
++          </Text>
++        </Flex>
++
++        {/* Categories grid — impuestito pattern: outline cards, radius lg, clean meta row */}
++        <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} gap={{ base: 6, md: 8 }}>
++          {categories.map((category, index) => (
++            <motion.div
++              key={category.id}
++              initial={{ opacity: 0, y: 20 }}
++              whileHover={{ y: -4 }}
++              animate={{ opacity: 1, y: 0 }}
++              transition={{ duration: 0.3, delay: index * 0.08 }}
++            >
++              <Card.Root
++                variant="outline"
++                size="lg"
++                borderRadius="lg"
++                height="full"
++                position="relative"
++                transition="all 0.15s cubic-bezier(0.4, 0, 0.2, 1)"
++                _hover={{ boxShadow: "lg", borderColor: "border.emphasized" }}
++              >
++                {/* Corner badge */}
++                <Box position="absolute" top={4} right={4} zIndex={1}>
++                  <Badge
++                    colorPalette={category.badgeColor as any}
++                    variant="subtle"
++                    fontSize="xs"
++                    borderRadius="full"
++                    px={2.5}
++                    py={0.5}
++                  >
++                    {category.badge}
++                  </Badge>
++                </Box>
++
++                <Card.Body
++                  p={{ base: 5, md: 6 }}
++                  flex="1"
++                  display="flex"
++                  flexDirection="column"
++                  gap={3}
++                >
++                  {/* Icon */}
++                  <Flex
++                    w={12}
++                    h={12}
++                    bg={`${category.color}15`}
++                    borderRadius="md"
++                    align="center"
++                    justify="center"
++                  >
++                    <category.Icon size={6} color={category.color} />
++                  </Flex>
++
++                  <Box flex="1">
++                    <Card.Title fontSize="lg" fontWeight="semibold" color="fg" mb={1}>
++                      {category.title}
++                    </Card.Title>
++                    <Card.Description fontSize="sm" color="fg.muted" lineHeight="1.5">
++                      {category.description}
++                    </Card.Description>
++                  </Box>
++
++                  {/* Meta row */}
++                  <HStack
++                    justify="space-between"
++                    align="center"
++                    pt={4}
++                    borderTopWidth="1px"
++                    borderColor="border.muted"
++                  >
++                    <Text fontSize="xs" color="fg.muted">
++                      {category.itemCount} productos, desde {category.avgPrice}
++                    </Text>
++                    <Button
++                      size="xs"
++                      colorPalette="brand"
++                      variant="ghost"
++                      borderRadius="sm"
++                      px={3}
++                    >
++                      Explorar
++                    </Button>
++                  </HStack>
++                </Card.Body>
++              </Card.Root>
++            </motion.div>
++          ))}
++        </SimpleGrid>
++
++        {/* CTA */}
++        <Flex justify="center" mt={{ base: 10, md: 14 }} gap={4} flexWrap="wrap">
++          <Button
++            colorPalette="brand"
++            size="lg"
++            borderRadius="sm"
++            px={8}
++            py={5}
++            _hover={{ transform: "translateY(-2px)", boxShadow: "lg" }}
++            transition="all 0.15s cubic-bezier(0.4, 0, 0.2, 1)"
++          >
++            Ver Todo el Catálogo
++          </Button>
++          <Button
++            variant="outline"
++            size="lg"
++            borderRadius="sm"
++            px={8}
++            py={5}
++            _hover={{ bg: "bg.muted", transform: "translateY(-2px)" }}
++            transition="all 0.15s cubic-bezier(0.4, 0, 0.2, 1)"
++          >
++            Cotizar Personalizado
++          </Button>
++        </Flex>
++      </Container>
++    </Box>
++  );
++};
++
++export default MenuCategories;
+diff --git a/frontend/src/components/sections/PricingSection.tsx b/frontend/src/components/sections/PricingSection.tsx
+new file mode 100644
+index 0000000..6350950
+--- /dev/null
++++ b/frontend/src/components/sections/PricingSection.tsx
+@@ -0,0 +1,306 @@
++"use client";
++
++import {
++  Box,
++  Container,
++  SimpleGrid,
++  Card,
++  Badge,
++  Button,
++  Flex,
++  HStack,
++  VStack,
++  Text,
++  Heading,
++} from "@chakra-ui/react";
++import { HeartIcon, CrownIcon, ZapIcon, CheckIcon, XIcon } from "./icons";
++import { motion } from "framer-motion";
++
++/** Brand color constants — avoids useToken type inference issues. */
++const CORAL = "#ff7078";
++const PEACH = "#f5ccad";
++const TEAL = "#75bda3";
++
++/** Simple div-based progress bar (Chakra v3 Progress is a namespace). */
++const PlanProgress = ({ value, highlight }: { value: number; highlight: boolean }) => (
++  <Box h="6px" bg="border.muted" borderRadius="full" overflow="hidden" w="full">
++    <Box
++      h="full"
++      w={`${value}%`}
++      bg={highlight ? TEAL : "border.emphasized"}
++      borderRadius="full"
++      transition="width 0.4s ease"
++    />
++  </Box>
++);
++
++const PricingSection = () => {
++  const pricingPlans = [
++    {
++      id: "basic",
++      name: "Cocina Casera",
++      subtitle: "Para empezar tu experiencia pastelería",
++      Icon: HeartIcon,
++      color: CORAL,
++      price: "129",
++      period: "/mes",
++      description: "Perfecto para quienes comienzan su aventura con pasteles caseros",
++      features: [
++        { name: "Acceso a 5 recetas básicas", included: true },
++        { name: "Videos tutoriales paso a paso", included: true },
++        { name: "Soporte por email", included: true },
++        { name: "Acceso a comunidad básica", included: false },
++        { name: "Recetas exclusivas semanales", included: false },
++        { name: "Asesoría personalizada 1x1", included: false },
++      ],
++      popular: false,
++      badge: "Principiante",
++      badgeColor: "brand" as const,
++    },
++    {
++      id: "pro",
++      name: "Maestro Pastelero",
++      subtitle: "Para los apasionados de la repostería",
++      Icon: CrownIcon,
++      color: TEAL,
++      price: "249",
++      period: "/mes",
++      description: "Nivel intermedio con acceso completo a contenido premium",
++      features: [
++        { name: "Acceso ilimitado a 50+ recetas", included: true },
++        { name: "Videos tutoriales avanzados", included: true },
++        { name: "Soporte prioritario 24/7", included: true },
++        { name: "Acceso a comunidad premium", included: true },
++        { name: "Recetas exclusivas semanales", included: true },
++        { name: "Asesoría personalizada 2x1", included: false },
++      ],
++      popular: true,
++      badge: "Más popular",
++      badgeColor: "green" as const,
++    },
++    {
++      id: "elite",
++      name: "Maestro Artesano",
++      subtitle: "Para los expertos en repostería",
++      Icon: ZapIcon,
++      color: PEACH,
++      price: "399",
++      period: "/mes",
++      description: "Acceso completo con beneficios exclusivos y servicios premium",
++      features: [
++        { name: "Acceso ilimitado a 200+ recetas", included: true },
++        { name: "Videos tutoriales profesionales", included: true },
++        { name: "Soporte VIP prioritario", included: true },
++        { name: "Acceso a comunidad elite", included: true },
++        { name: "Recetas exclusivas diarias", included: true },
++        { name: "Asesoría personalizada mensual", included: true },
++      ],
++      popular: false,
++      badge: "Máximo valor",
++      badgeColor: "purple" as const,
++    },
++  ];
++
++  return (
++    <Box as="section" py={{ base: 12, md: 16 }} bg="bg">
++      <Container maxW="container.xl">
++        {/* Section header */}
++        <Flex
++          flexDirection="column"
++          gap={4}
++          mb={{ base: 10, md: 14 }}
++          align="center"
++          textAlign="center"
++        >
++          <Badge colorPalette="green" variant="subtle" px={3} py={1} fontSize="sm" borderRadius="full">
++            Planes desde $129/mes
++          </Badge>
++
++          <Heading as="h2" size={{ base: "2xl", md: "3xl" }} color="fg" maxW="2xl" lineHeight="1.2">
++            Elige el Plan Perfecto
++          </Heading>
++
++          <Text color="fg.muted" fontSize={{ base: "sm", md: "base" }} maxW="xl" lineHeight="1.5">
++            Desde recetas básicas hasta maestría profesional, cada plan te lleva desde principiante hasta maestro
++          </Text>
++        </Flex>
++
++        {/* Pricing grid */}
++        <SimpleGrid columns={{ base: 1, md: 3 }} gap={{ base: 6, md: 8 }}>
++          {pricingPlans.map((plan, index) => (
++            <motion.div
++              key={plan.id}
++              initial={{ opacity: 0, y: 20 }}
++              whileHover={{ y: -4 }}
++              animate={{ opacity: 1, y: 0 }}
++              transition={{ duration: 0.3, delay: index * 0.1 }}
++            >
++              <Card.Root
++                variant="outline"
++                size="lg"
++                borderRadius="lg"
++                height="full"
++                borderWidth={plan.popular ? "2px" : "1px"}
++                borderColor={plan.popular ? "brand.muted" : "border"}
++                boxShadow={plan.popular ? "lg" : "none"}
++                position="relative"
++                transition="all 0.15s cubic-bezier(0.4, 0, 0.2, 1)"
++                _hover={{
++                  boxShadow: plan.popular ? "xl" : "lg",
++                  borderColor: plan.popular ? "brand.solid" : "border.emphasized",
++                }}
++              >
++                {plan.popular && (
++                  <Box
++                    position="absolute"
++                    top="-12px"
++                    left="50%"
++                    transform="translateX(-50%)"
++                    zIndex={1}
++                  >
++                    <Badge
++                      colorPalette="green"
++                      variant="solid"
++                      px={4}
++                      py={1}
++                      fontSize="xs"
++                      fontWeight="bold"
++                      borderRadius="full"
++                      boxShadow="md"
++                    >
++                      {plan.badge}
++                    </Badge>
++                  </Box>
++                )}
++
++                <Card.Body
++                  p={{ base: 6, md: 8 }}
++                  flex="1"
++                  display="flex"
++                  flexDirection="column"
++                  gap={5}
++                >
++                  {/* Icon + badge */}
++                  <Flex align="start" justify="space-between">
++                    <Flex
++                      w={12}
++                      h={12}
++                      bg={`${plan.color}15`}
++                      borderRadius="md"
++                      align="center"
++                      justify="center"
++                    >
++                      <plan.Icon size={6} color={plan.color} />
++                    </Flex>
++                    {!plan.popular && (
++                      <Badge
++                        colorPalette={plan.badgeColor}
++                        variant="subtle"
++                        fontSize="xs"
++                        borderRadius="full"
++                      >
++                        {plan.badge}
++                      </Badge>
++                    )}
++                  </Flex>
++
++                  {/* Title */}
++                  <Box>
++                    <Card.Title fontSize="lg" fontWeight="semibold" color="fg">
++                      {plan.name}
++                    </Card.Title>
++                    <Text fontSize="sm" color="fg.muted" mt={0.5}>
++                      {plan.subtitle}
++                    </Text>
++                  </Box>
++
++                  {/* Price */}
++                  <HStack align="baseline" gap={1}>
++                    <Text fontSize="sm" color="fg.muted" fontWeight="normal">
++                      $
++                    </Text>
++                    <Text fontSize="4xl" fontWeight="bold" color="fg">
++                      {plan.price}
++                    </Text>
++                    <Text fontSize="sm" color="fg.muted">
++                      {plan.period}
++                    </Text>
++                  </HStack>
++
++                  {/* Features */}
++                  <VStack
++                    align="start"
++                    flex="1"
++                    pt={4}
++                    borderTopWidth="1px"
++                    borderColor="border.muted"
++                    gap={3}
++                  >
++                    {plan.features.map((feature, idx) => (
++                      <HStack key={idx} gap={3} w="full">
++                        <Box
++                          p={1}
++                          bg={feature.included ? "green.subtle" : "transparent"}
++                          borderRadius="full"
++                        >
++                          {feature.included ? (
++                            <CheckIcon size={3} color="green.fg" />
++                          ) : (
++                            <XIcon size={3} color="fg.subtle" />
++                          )}
++                        </Box>
++                        <Text
++                          fontSize="sm"
++                          color={feature.included ? "fg" : "fg.subtle"}
++                        >
++                          {feature.name}
++                        </Text>
++                      </HStack>
++                    ))}
++                  </VStack>
++
++                  {/* Progress */}
++                  <Box>
++                    <HStack justify="space-between" mb={2}>
++                      <Text fontSize="xs" color="fg.muted">
++                        Cobertura del plan
++                      </Text>
++                      <Text fontSize="xs" color="fg.muted">
++                        {plan.features.filter((f) => f.included).length}/
++                        {plan.features.length}
++                      </Text>
++                    </HStack>
++                    <PlanProgress
++                      value={
++                        (plan.features.filter((f) => f.included).length /
++                          plan.features.length) *
++                        100
++                      }
++                      highlight={plan.popular}
++                    />
++                  </Box>
++
++                  {/* CTA */}
++                  <Button
++                    w="full"
++                    size="lg"
++                    colorPalette={plan.popular ? "brand" : "gray"}
++                    variant={plan.popular ? "solid" : "outline"}
++                    borderRadius="sm"
++                    py={4}
++                    _hover={{ transform: "translateY(-2px)", boxShadow: "lg" }}
++                    transition="all 0.15s cubic-bezier(0.4, 0, 0.2, 1)"
++                  >
++                    {plan.popular ? "Comenzar Ahora" : "Seleccionar Plan"}
++                  </Button>
++                </Card.Body>
++              </Card.Root>
++            </motion.div>
++          ))}
++        </SimpleGrid>
++      </Container>
++    </Box>
++  );
++};
++
++export default PricingSection;
+diff --git a/frontend/src/components/sections/ProductsSection.tsx b/frontend/src/components/sections/ProductsSection.tsx
+new file mode 100644
+index 0000000..4fb7f80
+--- /dev/null
++++ b/frontend/src/components/sections/ProductsSection.tsx
+@@ -0,0 +1,176 @@
++"use client";
++
++import {
++  Box,
++  Container,
++  SimpleGrid,
++  Card,
++  Badge,
++  Button,
++  Flex,
++  HStack,
++  Text,
++  Heading,
++} from "@chakra-ui/react";
++import { PackageIcon, CoffeeIcon, TrendingUpIcon } from "./icons";
++import { motion } from "framer-motion";
++
++const CORAL = "#ff7078";
++const SAGE = "#cce0c9";
++const TEAL = "#75bda3";
++
++const ProductsSection = () => {
++
++  const productCategories = [
++    {
++      id: "pastries",
++      title: "Pasteles",
++      description: "Selección de pasteles artesanales para cada ocasión",
++      Icon: PackageIcon,
++      color: CORAL,
++      priceRange: "$15.00 - $45.00",
++      itemCount: 24,
++    },
++    {
++      id: "cookies",
++      title: "Galletas Artesanales",
++      description: "Galletas especiales con recetas clásicas y toques únicos",
++      Icon: TrendingUpIcon,
++      color: TEAL,
++      priceRange: "$8.00 - $25.00",
++      itemCount: 36,
++    },
++    {
++      id: "drinks",
++      title: "Bebidas Selectas",
++      description: "Complementos para tus momentos especiales",
++      Icon: CoffeeIcon,
++      color: SAGE,
++      priceRange: "$5.00 - $20.00",
++      itemCount: 18,
++    },
++  ];
++
++  return (
++    <Box as="section" py={{ base: 12, md: 16 }} bg="bg">
++      <Container maxW="container.xl">
++        {/* Section header — impuestito pattern: badge + heading + description, centered */}
++        <Flex
++          flexDirection="column"
++          gap={4}
++          mb={{ base: 10, md: 14 }}
++          align="center"
++          textAlign="center"
++        >
++          <Badge colorPalette="brand" variant="subtle" px={3} py={1} fontSize="sm" borderRadius="full">
++            {productCategories.length} categorías
++          </Badge>
++
++          <Heading as="h2" size={{ base: "2xl", md: "3xl" }} color="fg" maxW="2xl" lineHeight="1.2">
++            Nuestros Productos
++          </Heading>
++
++          <Text color="fg.muted" fontSize={{ base: "sm", md: "base" }} maxW="xl" lineHeight="1.5">
++            Delicias artesanales hechas con ingredientes seleccionados, perfectas para cada momento
++          </Text>
++        </Flex>
++
++        {/* Product grid — impuestito card: outline, radius lg, subtle hover */}
++        <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} gap={{ base: 6, md: 8 }} mb={12}>
++          {productCategories.map((category, index) => (
++            <motion.div
++              key={category.id}
++              initial={{ opacity: 0, y: 20 }}
++              whileHover={{ y: -4 }}
++              animate={{ opacity: 1, y: 0 }}
++              transition={{ duration: 0.3, delay: index * 0.1 }}
++            >
++              <Card.Root
++                variant="outline"
++                size="lg"
++                borderRadius="lg"
++                height="full"
++                transition="all 0.15s cubic-bezier(0.4, 0, 0.2, 1)"
++                _hover={{ boxShadow: "lg", borderColor: "border.emphasized" }}
++              >
++                <Card.Body gap={3} p={{ base: 5, md: 6 }} flex="1" display="flex" flexDirection="column">
++                  {/* Icon — impuestito pattern: colored bg, radius md */}
++                  <Flex
++                    w={12}
++                    h={12}
++                    bg={`${category.color}15`}
++                    borderRadius="md"
++                    align="center"
++                    justify="center"
++                    mb={2}
++                  >
++                    <category.Icon size={6} color={category.color} />
++                  </Flex>
++
++                  <Card.Title fontSize="lg" fontWeight="semibold" color="fg">
++                    {category.title}
++                  </Card.Title>
++
++                  <Card.Description fontSize="sm" color="fg.muted" lineHeight="1.5">
++                    {category.description}
++                  </Card.Description>
++
++                  {/* Meta row */}
++                  <HStack
++                    justify="space-between"
++                    align="center"
++                    mt="auto"
++                    pt={4}
++                    borderTopWidth="1px"
++                    borderColor="border.muted"
++                  >
++                    <Text fontSize="xs" color="fg.muted">
++                      {category.itemCount} productos
++                    </Text>
++                    <Badge colorPalette="gray" variant="subtle" borderRadius="full" fontSize="xs">
++                      {category.priceRange}
++                    </Badge>
++                  </HStack>
++                </Card.Body>
++
++                <Card.Footer justifyContent="flex-end" pt={0}>
++                  <Button size="sm" colorPalette="brand" variant="outline" borderRadius="sm">
++                    Ver productos
++                  </Button>
++                </Card.Footer>
++              </Card.Root>
++            </motion.div>
++          ))}
++        </SimpleGrid>
++
++        {/* Action bar */}
++        <Flex justify="center" gap={4} mt={4} flexWrap="wrap">
++          <Button
++            colorPalette="brand"
++            size="lg"
++            borderRadius="sm"
++            px={8}
++            py={5}
++            _hover={{ transform: "translateY(-2px)", boxShadow: "lg" }}
++            transition="all 0.15s cubic-bezier(0.4, 0, 0.2, 1)"
++          >
++            Ver Catálogo Completo
++          </Button>
++          <Button
++            variant="outline"
++            size="lg"
++            borderRadius="sm"
++            px={8}
++            py={5}
++            _hover={{ bg: "bg.muted", transform: "translateY(-2px)" }}
++            transition="all 0.15s cubic-bezier(0.4, 0, 0.2, 1)"
++          >
++            Cotizar Pedido
++          </Button>
++        </Flex>
++      </Container>
++    </Box>
++  );
++};
++
++export default ProductsSection;
+diff --git a/frontend/src/components/sections/icons.tsx b/frontend/src/components/sections/icons.tsx
+new file mode 100644
+index 0000000..61b5782
+--- /dev/null
++++ b/frontend/src/components/sections/icons.tsx
+@@ -0,0 +1,117 @@
++import { Icon } from "@chakra-ui/react";
++
++/**
++ * Inline SVG icon set (Feather-style, 24x24 viewBox).
++ * Matches the project's existing pattern (search-icon.tsx, hero_section.tsx).
++ * No external icon library dependency.
++ *
++ * Usage: <PackageIcon size={6} color="#ff7078" />
++ */
++
++type IconProps = {
++  size?: number;
++  color?: string;
++};
++
++const svgBase = {
++  fill: "none",
++  stroke: "currentColor",
++  strokeWidth: 2,
++  strokeLinecap: "round" as const,
++  strokeLinejoin: "round" as const,
++};
++
++const px = (n: number) => `${n * 4}px`;
++
++export const PackageIcon = ({ size = 6, color }: IconProps) => (
++  <Icon as="svg" viewBox="0 0 24 24" w={px(size)} h={px(size)} color={color} {...svgBase}>
++    <path d="M16.5 9.4L7.5 4.21" />
++    <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
++    <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
++    <line x1="12" y1="22.08" x2="12" y2="12" />
++  </Icon>
++);
++
++export const CoffeeIcon = ({ size = 6, color }: IconProps) => (
++  <Icon as="svg" viewBox="0 0 24 24" w={px(size)} h={px(size)} color={color} {...svgBase}>
++    <path d="M18 8h1a4 4 0 010 8h-1" />
++    <path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z" />
++    <line x1="6" y1="1" x2="6" y2="4" />
++    <line x1="10" y1="1" x2="10" y2="4" />
++    <line x1="14" y1="1" x2="14" y2="4" />
++  </Icon>
++);
++
++export const TrendingUpIcon = ({ size = 6, color }: IconProps) => (
++  <Icon as="svg" viewBox="0 0 24 24" w={px(size)} h={px(size)} color={color} {...svgBase}>
++    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
++    <polyline points="17 6 23 6 23 12" />
++  </Icon>
++);
++
++export const GiftIcon = ({ size = 6, color }: IconProps) => (
++  <Icon as="svg" viewBox="0 0 24 24" w={px(size)} h={px(size)} color={color} {...svgBase}>
++    <polyline points="20 12 20 22 4 22 4 12" />
++    <rect x="2" y="7" width="20" height="5" />
++    <line x1="12" y1="22" x2="12" y2="7" />
++    <path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z" />
++    <path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z" />
++  </Icon>
++);
++
++export const CookieIcon = ({ size = 6, color }: IconProps) => (
++  <Icon as="svg" viewBox="0 0 24 24" w={px(size)} h={px(size)} color={color} {...svgBase}>
++    <circle cx="12" cy="12" r="10" />
++    <circle cx="8.5" cy="8" r="1.5" fill="currentColor" stroke="none" />
++    <circle cx="15.5" cy="10" r="1.5" fill="currentColor" stroke="none" />
++    <circle cx="10" cy="15" r="1.5" fill="currentColor" stroke="none" />
++    <circle cx="15" cy="16.5" r="1.5" fill="currentColor" stroke="none" />
++  </Icon>
++);
++
++export const UsersIcon = ({ size = 6, color }: IconProps) => (
++  <Icon as="svg" viewBox="0 0 24 24" w={px(size)} h={px(size)} color={color} {...svgBase}>
++    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
++    <circle cx="9" cy="7" r="4" />
++    <path d="M23 21v-2a4 4 0 00-3-3.87" />
++    <path d="M16 3.13a4 4 0 010 7.75" />
++  </Icon>
++);
++
++export const HeartIcon = ({ size = 6, color }: IconProps) => (
++  <Icon as="svg" viewBox="0 0 24 24" w={px(size)} h={px(size)} color={color} {...svgBase}>
++    <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
++  </Icon>
++);
++
++export const StarIcon = ({ size = 6, color }: IconProps) => (
++  <Icon as="svg" viewBox="0 0 24 24" w={px(size)} h={px(size)} color={color} {...svgBase}>
++    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
++  </Icon>
++);
++
++export const CheckIcon = ({ size = 3, color }: IconProps) => (
++  <Icon as="svg" viewBox="0 0 24 24" w={px(size)} h={px(size)} color={color} {...svgBase}>
++    <polyline points="20 6 9 17 4 12" />
++  </Icon>
++);
++
++export const XIcon = ({ size = 3, color }: IconProps) => (
++  <Icon as="svg" viewBox="0 0 24 24" w={px(size)} h={px(size)} color={color} {...svgBase}>
++    <line x1="18" y1="6" x2="6" y2="18" />
++    <line x1="6" y1="6" x2="18" y2="18" />
++  </Icon>
++);
++
++export const CrownIcon = ({ size = 6, color }: IconProps) => (
++  <Icon as="svg" viewBox="0 0 24 24" w={px(size)} h={px(size)} color={color} {...svgBase}>
++    <path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7z" />
++    <path d="M5 20h14" />
++  </Icon>
++);
++
++export const ZapIcon = ({ size = 6, color }: IconProps) => (
++  <Icon as="svg" viewBox="0 0 24 24" w={px(size)} h={px(size)} color={color} {...svgBase}>
++    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
++  </Icon>
++);
+diff --git a/frontend/src/components/ui/theme.ts b/frontend/src/components/ui/theme.ts
+index fa39b00..7c17cce 100644
+--- a/frontend/src/components/ui/theme.ts
++++ b/frontend/src/components/ui/theme.ts
+@@ -13,14 +13,39 @@ const FONT_STACK = `var(--font-sn-pro), -apple-system, BlinkMacSystemFont, "Sego
+  * Neutrals are warm (flour paper in light, cocoa near-black in dark); the
+  * logo ink is #373435. Text and status pairs are pinned to WCAG AA by
+  * theme.test.ts.
++ *
++ * Radius scale: derived from impuestito.org design system (base 0.5rem = 8px).
+  */
+ const customConfig = defineConfig({
+   theme: {
++    // Hero entrance (components/portal/hero_section.tsx): compositor-only props.
++    keyframes: {
++      "hero-rise": {
++        from: { opacity: "0", transform: "translateY(24px)" },
++        to: { opacity: "1", transform: "translateY(0)" },
++      },
++      "hero-slide": {
++        from: { opacity: "0", transform: "translateX(32px)" },
++        to: { opacity: "1", transform: "translateX(0)" },
++      },
++    },
+     tokens: {
+       fonts: {
+         heading: { value: FONT_STACK },
+         body: { value: FONT_STACK },
+       },
++      // Radius scale from impuestito.org: base 0.5rem with multipliers.
++      radii: {
++        "2xs": { value: "4px" },    // ×0.5 — small elements
++        xs: { value: "6px" },       // ×0.75 — small inputs
++        sm: { value: "8px" },       // ×1 — buttons, chips
++        md: { value: "12px" },      // ×1.5 — form fields
++        lg: { value: "16px" },      // ×2 — standard cards
++        xl: { value: "20px" },      // ×2.5 — large cards
++        "2xl": { value: "24px" },   // ×3 — panels, modals
++        "3xl": { value: "32px" },   // ×4 — large containers
++        full: { value: "9999px" },  // pills, badges
++      },
+       colors: {
+         brand: {
+           50: { value: "#fff4f4" },
+@@ -56,9 +81,7 @@ const customConfig = defineConfig({
+         fg: {
+           DEFAULT: { value: { _light: "#1c1718", _dark: "#f7f1ee" } },
+           muted: { value: { _light: "#5e5553", _dark: "#b0a5a2" } },
+-          // Placeholder/disabled tier only; not for body copy.
+           subtle: { value: { _light: "#7d7371", _dark: "#807573" } },
+-          // Chakra defaults (500/600 in light) fail 4.5:1 on white.
+           error: { value: { _light: "{colors.red.700}", _dark: "{colors.red.300}" } },
+           success: { value: { _light: "{colors.green.fg}", _dark: "{colors.green.fg}" } },
+           warning: { value: { _light: "{colors.orange.700}", _dark: "{colors.orange.300}" } },
+@@ -69,8 +92,6 @@ const customConfig = defineConfig({
+           subtle: { value: { _light: "#f6f1ee", _dark: "#1d1817" } },
+           emphasized: { value: { _light: "#d6ccc7", _dark: "#463c3a" } },
+         },
+-        // Keys read by Chakra's colorPalette recipes. The fill is the exact
+-        // brand coral in both modes; white on it is 2.6:1, so its text is dark ink.
+         brand: {
+           solid: { value: { _light: "{colors.brand.400}", _dark: "{colors.brand.400}" } },
+           contrast: { value: { _light: "#2a1215", _dark: "#2a1215" } },
+@@ -80,7 +101,6 @@ const customConfig = defineConfig({
+           emphasized: { value: { _light: "{colors.brand.200}", _dark: "{colors.brand.800}" } },
+           focusRing: { value: { _light: "{colors.brand.500}", _dark: "{colors.brand.400}" } },
+         },
+-        // Positive state speaks in the brand teal and sage.
+         green: {
+           solid: { value: { _light: "{colors.toscana.teal}", _dark: "{colors.toscana.teal}" } },
+           contrast: { value: { _light: "#10251d", _dark: "#10251d" } },
+@@ -90,7 +110,6 @@ const customConfig = defineConfig({
+           emphasized: { value: { _light: "#b3d3ae", _dark: "#21443a" } },
+           focusRing: { value: { _light: "{colors.toscana.teal}", _dark: "{colors.toscana.teal}" } },
+         },
+-        // Status fills: Chakra's defaults put white text under 4.5:1.
+         red: { solid: { value: { _light: "{colors.red.600}", _dark: "{colors.red.600}" } } },
+         orange: {
+           solid: { value: { _light: "{colors.orange.700}", _dark: "{colors.orange.700}" } },
