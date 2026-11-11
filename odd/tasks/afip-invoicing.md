@@ -105,7 +105,7 @@ Fuente: ARCA — Montos y categorías vigentes (tabla oficial). 11 categorías:
   (snapshot, unit_price String), `customers` (name, phone — sin CUIT),
   `business_settings` (business_name — sin datos fiscales).
 - Money en la DB: String decimal (`unit_price`, `discount_amount`); en el borde
-  de API: string con 2 decimales (patrón `money_str`).
+  de API: **integer cents** (convención del repo: `long` de centavos).
 - Guards: `require_admin` en `backend/src/api/v1/dependencies.py`; matriz RBAC
   por archivo (`tests/integration/api/test_admin_rbac_matrix.py`).
 - Última migración: `0010_refresh_tokens.sql` → la nueva es `0011`.
@@ -220,8 +220,10 @@ token cliente o token negocio— puede emitir ni leer comprobantes.
   explícito y `validate_for_startup` lo exige cuando `ENVIRONMENT=prod`
   (evita desplegar prod apuntando a homologación por accidente). Las pruebas
   SIEMPRE corren contra homo (y de hecho con cliente AFIP fake: cero red).
-- **D5**: money: String decimal en la DB (patrón del repo), string con 2
-  decimales en el borde de API (como el detalle de pedido). El frontend no
+- **D5**: money: String decimal en la DB (patrón del repo), **integer cents en
+  el borde de API** (convención de todo el repo — `imp_total` y
+  `items[].precio_unit` como int de centavos; el frontend ya está implementado
+  así). El frontend no
   calcula importes.
 - **D6**: una factura por pedido (`unique invoices.order_id`). NC/ND quedan
   fuera de scope de esta entrega (el anulación es vía contador en v1).
