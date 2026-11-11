@@ -98,14 +98,14 @@ async def seeded(db_session):
     )
     await _add_order(
         db_session,
-        when=_utc(2026, 4, 30, 23, 59),
+        when=_utc(2026, 5, 1, 2, 59),
         status="nuevo",
         payment_method="cash",
         items=[("torta", "Torta", 100, "1000.00")],
     )
     await _add_order(
         db_session,
-        when=_utc(2026, 6, 1, 0, 0),
+        when=_utc(2026, 6, 1, 3, 0),
         status="nuevo",
         payment_method="cash",
         items=[("torta", "Torta", 100, "1000.00")],
