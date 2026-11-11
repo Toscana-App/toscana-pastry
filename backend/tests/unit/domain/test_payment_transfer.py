@@ -45,7 +45,7 @@ class TestPlacePortalTransfer:
     def test_place_portal_with_transfer(self):
         order = Order.place_portal(
             customer_id="cust-1",
-            date=datetime.datetime(2026, 1, 1),
+            date=datetime.datetime.now(datetime.UTC),
             items=_items(),
             payment_method=PaymentMethod.TRANSFER,
             delivery_mode=DeliveryMode.DELIVERY,
