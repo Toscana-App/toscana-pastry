@@ -26,6 +26,7 @@ import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
+from typing import Protocol
 
 CONCEPTO_PRODUCTOS = 1
 CONCEPTO_SERVICIOS = 2
@@ -96,6 +97,35 @@ class AfipUnavailableError(AfipError):
 
 class AfipWsfeError(AfipError):
     """ARCA respondió con errores (Errors u observaciones) en WSFEv1."""
+
+
+class InvoicingNotConfiguredError(Exception):
+    """Faltan CUIT y/o punto de venta en los settings de facturación."""
+
+
+@dataclass(frozen=True)
+class AfipCaeResult:
+    """Respuesta de ``FeCAESolicitar`` ya normalizada por la capa data.
+
+    ``resultado`` es ``A`` (aprobado) o ``R`` (rechazado); las observaciones
+    llegan como ``"<código>: <mensaje>"`` listas para sanear.
+    """
+
+    resultado: str
+    cae: str = ""
+    cae_vto: datetime.date | None = None
+    observaciones: tuple[str, ...] = ()
+
+
+class AfipClient(Protocol):
+    """Contrato del cliente ARCA (implementado en ``data/invoicing``)."""
+
+    async def last_authorized(
+        self, *, cuit: str, punto_venta: int, tipo_cbte: int
+    ) -> int: ...
+
+    async def request_cae(self, *, cuit: str, request: dict) -> AfipCaeResult: ...
+
 
 
 # ─── Validaciones puras ────────────────────────────────────────────────────

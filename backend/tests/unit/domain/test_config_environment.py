@@ -1,6 +1,6 @@
 import pytest
 
-from core.config import Settings, DEFAULT_DEV_SECRET_KEY
+from core.config import DEFAULT_DEV_SECRET_KEY, Settings
 
 
 def _settings(env: str, key: str, mp: str = "") -> Settings:
@@ -9,6 +9,9 @@ def _settings(env: str, key: str, mp: str = "") -> Settings:
     s.ENVIRONMENT = env
     s.SECRET_KEY = key
     s.REFRESH_SECRET_KEY = "a-real-refresh-secret"
+    s.AFIP_ENV = "prod"
+    s.AFIP_PRIVATE_KEY_PATH = "/run/secrets/afip_key.pem"
+    s.AFIP_CERT_PATH = "/run/secrets/afip_cert.pem"
     return s
 
 
