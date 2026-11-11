@@ -335,6 +335,27 @@ api/presentation/routers/
 
 ---
 
+## FASE 6 — Facturación electrónica ARCA (P13)
+> Objetivo: el admin emite la Factura C con CAE (WSAA + WSFEv1) de los pedidos que elija, y descarga el PDF oficial con QR. ~6 endpoints, todos **admin-only**. Especificación completa: `p13_invoicing.md`. El frontend decide qué ventas se facturan (botón solo en pedidos entregados/pagados sin comprobante); el backend nunca emite por su cuenta.
+
+### Emisión y registro de comprobantes
+| Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
+|---|---|---|---|---|---|
+| POST | `/api/v1/invoices` | Emite Factura C (admin). | `{order_id*, concepto ∈ {1,2,3}*, fch_serv_desde?, fch_serv_hasta?, doc_tipo ∈ {99,80,86}*, doc_nro, receptor_nombre, items?[]}` → 201 `{id, order_id, punto_venta, tipo_cbte, numero, cae, cae_vto, fecha, imp_total, estado, pdf_url}` | 201 / 404 / 409 / 422 / 503 | `concepto` 2/3 exige `fch_serv_desde`/`fch_serv_hasta` (422). `imp_total` = **neto del pedido** (autoridad del backend; el payload no envía montos). 409 `{existing_invoice}` si el pedido ya tiene comprobante (`unique order_id`). 404 pedido inexistente. 400 rechazo ARCA con observaciones saneadas. 503 `invoicing_not_configured` / `afip_credential_missing` / `afip_unavailable`. Acción irreversible (alert obligatorio en frontend). |
+| GET | `/api/v1/invoices` | Lista de comprobantes (admin). | `?order_id,page,page_size(20)` → `{items,total,...}` | 200 | Item: `id, order_id, punto_venta, tipo_cbte, numero, cae, cae_vto, fecha, imp_total, estado, created_at`. |
+| GET | `/api/v1/invoices/{id}` | Detalle (admin). | — → `{invoice, items[], observaciones}` | 200 / 404 | |
+| GET | `/api/v1/invoices/{id}/pdf` | PDF oficial con QR (admin). | — → `application/pdf` | 200 / 404 / 409 / 503 | Solo `estado=A` (rechazado → 409). Render vía `pdfgenerator` `POST /render/invoice-arca`; service caído → 503. |
+
+### Settings del emisor
+| Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
+|---|---|---|---|---|---|
+| GET | `/api/v1/invoicing/settings` | Datos del emisor (admin). | — → `{cuit, punto_venta, razon_social, domicilio, condicion_iva, categoria_monotributo, ingresos_brutos, inicio_actividades}` (o `{configured:false}`) | 200 | Fila única; sin CUIT+PV no hay emisión (503 en POST /invoices). |
+| PUT | `/api/v1/invoicing/settings` | Configura/actualiza el emisor (admin). | `{cuit* (11 dígitos), punto_venta* (int), razon_social, domicilio, condicion_iva, categoria_monotributo ∈ A–K, ingresos_brutos, inicio_actividades}` → `{settings}` | 200 / 422 | `extra="forbid"`. CUIT y punto de venta no son secretos (van en todo comprobante): viven en la DB, no en env. |
+
+**Criterio de salida F6**: el admin configura el emisor → elige un pedido entregado → "Facturar" → confirma el alert de irreversibilidad → ve número `PV-NNNNNNNN` + CAE + vencimiento y descarga el PDF con QR. Cliente/negocio en cualquiera de los 6 endpoints → 403 (matriz en `security.md`).
+
+---
+
 ## Resumen (conteo por fase)
 
 | Fase | Endpoints core | Routers |
@@ -345,7 +366,8 @@ api/presentation/routers/
 | F3 Presupuestos + PDF + WhatsApp | 15 | budgets, pdf, webhooks |
 | F4 Endurecimiento | 0 nuevos (+1 opcional contacto) | cross-cutting |
 | F5 Portal + checkout e2e (P11) | 25 | orders(mine), cart, payments+webhook, customers(addresses), coupons, leads, whatsapp(sends) |
-| **Total** | **~88** | 14 routers |
+| F6 Facturación ARCA (P13) | 6 | invoicing (comprobantes + settings) |
+| **Total** | **~94** | 15 routers |
 
 ### Endpoints aún por confirmar con Gaspar
 1. `/tenant/settings/recalculate` (F1): ¿recálculo global síncrono o task asíncrona? (impacta UX si catálogo grande).
