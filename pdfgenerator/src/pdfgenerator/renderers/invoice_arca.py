@@ -143,7 +143,7 @@ class EmisorArca(BaseModel):
     razon_social: str
     domicilio: str
     condicion_iva: str
-    categoria_monotributo: str
+    categoria_monotributo: str = ""
     ingresos_brutos: str
     inicio_actividades: str
 
@@ -155,6 +155,9 @@ class EmisorArca(BaseModel):
     @field_validator("categoria_monotributo")
     @classmethod
     def _valida_categoria(cls, value: str) -> str:
+        value = (value or "").strip()
+        if not value:
+            return ""
         upper = value.upper()
         if len(value) != 1 or upper not in _MONOTRIBUTO_CATEGORIES:
             raise ValueError("categoria_monotributo debe ser una letra entre A y K")
@@ -369,9 +372,14 @@ def _draw_header_box(c: canvas.Canvas, em: EmisorArca, cb: ComprobanteArca) -> N
         _paragraph(f"Domicilio: {escape(em.domicilio)}"),
         _paragraph(f"Ingresos Brutos: {escape(em.ingresos_brutos)}"),
         _paragraph(f"Condición IVA: {escape(em.condicion_iva)}"),
-        _paragraph(f"Monotributo: Cat. {escape(em.categoria_monotributo)}"),
-        _paragraph(f"Inicio de actividades: {escape(em.inicio_actividades)}"),
     ]
+    if em.categoria_monotributo:
+        emisor_flowables.append(
+            _paragraph(f"Monotributo: Cat. {escape(em.categoria_monotributo)}")
+        )
+    emisor_flowables.append(
+        _paragraph(f"Inicio de actividades: {escape(em.inicio_actividades)}")
+    )
     _stack(c, emisor_flowables, x=lx, width=left_width, y_top_mm=29.5, gap_mm=1.2)
 
     # Columna derecha: encabezado del comprobante
