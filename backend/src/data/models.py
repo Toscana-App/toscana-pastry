@@ -631,7 +631,7 @@ class OrderORM(Base):
     __tablename__ = "orders"
 
     id = Column(String, primary_key=True)
-    customer_id = Column(String, ForeignKey("customers.id"), nullable=False, index=True)
+    customer_id = Column(String, nullable=False, index=True)
     code = Column(String, nullable=False, unique=True, index=True)
     status = Column(_OrderStatusColumn(), default="nuevo", nullable=False)
     date = Column(DateTime(timezone=True), nullable=False)
