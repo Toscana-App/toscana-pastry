@@ -1,61 +1,24 @@
-"""Render de reportes de export (PyMuPDF).
-
-Movido de ``backend/src/data/pdf_export/pymupdf_renderer.py`` al binario
-``pdfgenerator``: funciones puras de datos -> bytes, sin dependencia del
-dominio de core-api. Patrón "buffer" de PyMuPDF (documento en memoria,
-``tobytes(garbage=3, deflate=True)``, sin archivo intermedio en disco).
-"""
 from __future__ import annotations
 
 import datetime
-import html
+import re
 from typing import Iterable, List, Sequence
 
-import pymupdf
+from .document import render_document_pdf
 
-# Geometría A4 en puntos (new_page() por defecto = 595 x 842).
-_PAGE_W = 595.0
-_MARGIN_X = 40.0
-_TOP_Y = 70.0  # baseline del título
-_SUBTITLE_Y = 90.0  # baseline del subtítulo
-_TABLE_TOP = 112.0
-_TABLE_BOTTOM = 778.0
-_ROW_HEIGHT = 20.0  # cota conservadora por fila (9pt + padding)
-_FOOTER_Y = 808.0
+_ISO_DATE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
 
-# CSS mínimo para la tabla de insert_htmlbox (bordes + celdas).
-_TABLE_CSS = (
-    "table { border-collapse: collapse; width: 100%; font-size: 9pt; } "
-    "th { text-align: left; border-bottom: 1.5pt solid #333333; "
-    "padding: 2pt 4pt; font-weight: bold; } "
-    "td { border-bottom: 0.5pt solid #bbbbbb; padding: 2pt 4pt; }"
-)
+
+def _human_period(label: str) -> str:
+    return _ISO_DATE.sub(r"\3/\2/\1", label)
 
 
 def format_money_cents(cents: int) -> str:
-    """Centavos (long de la API) -> dinero legible "$1.234,56" (es-AR)."""
     sign = "-" if cents < 0 else ""
     c = abs(int(cents))
     pesos, centavos = divmod(c, 100)
     s = f"{pesos:,}".replace(",", ".")
     return f"{sign}${s},{centavos:02d}"
-
-
-def _page_count_needed(n_rows: int) -> int:
-    """Paginas necesarias para n_rows de tabla (1 si no hay filas)."""
-    usable = _TABLE_BOTTOM - _TABLE_TOP
-    per_page = max(int(usable // _ROW_HEIGHT), 1)
-    return max(1, (n_rows + per_page - 1) // per_page)
-
-
-def _table_html(columns: Sequence[str], rows: Sequence[Sequence[str]]) -> str:
-    """HTML de la tabla (cabecera + filas), con celdas escapadas."""
-    head = "".join(f"<th>{html.escape(c)}</th>" for c in columns)
-    body = "".join(
-        "<tr>" + "".join(f"<td>{html.escape(str(cell))}</td>" for cell in row) + "</tr>"
-        for row in rows
-    )
-    return f"<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>"
 
 
 def render_report_pdf(
@@ -64,51 +27,37 @@ def render_report_pdf(
     columns: Sequence[str],
     rows: List[List[str]],
     footer: str = "",
+    business_name: str = "",
+    footer_text: str = "",
+    numeric_columns: Sequence[int] = (),
+    pill_columns: Sequence[int] = (),
+    meta: Sequence[tuple[str, str]] = (),
+    totals: Sequence[tuple[str, str]] = (),
+    column_widths: Sequence[str] = (),
+    document_kind: str = "Documento de gestión",
+    badge: str = "",
+    section_title: str = "Detalle",
+    empty_message: str = "Sin registros en el período.",
 ) -> bytes:
-    """Renderiza un reporte genérico (titulo + tabla + footer) a bytes.
-
-    Paginacion automatica: si la tabla no cabe en la pagina A4 se abre una
-    pagina nueva y se repite la cabecera.
-    """
     if not columns:
         raise ValueError("columns no puede estar vacio")
-
-    doc = pymupdf.open()  # documento NUEVO en memoria (sin archivo)
-    body_rows = [list(r) for r in rows]
-    n_pages = _page_count_needed(len(body_rows))
-    per_page = max(int((_TABLE_BOTTOM - _TABLE_TOP) // _ROW_HEIGHT), 1)
-
-    for i in range(n_pages):
-        page = doc.new_page()  # A4 por defecto
-        page.insert_text(pymupdf.Point(_MARGIN_X, _TOP_Y), title, fontsize=16)
-        suffix = "" if i == 0 else " (continuación)"
-        if subtitle:
-            page.insert_text(
-                pymupdf.Point(_MARGIN_X, _SUBTITLE_Y),
-                subtitle + suffix,
-                fontsize=10,
-            )
-        chunk = body_rows[i * per_page:(i + 1) * per_page]
-        rect = pymupdf.Rect(
-            _MARGIN_X,
-            _TABLE_TOP,
-            _PAGE_W - _MARGIN_X,
-            _TABLE_BOTTOM,
-        )
-        # La cabecera (thead) se repite en cada pagina.
-        page.insert_htmlbox(rect, _table_html(columns, chunk), css=_TABLE_CSS)
-
-    if footer:
-        last = doc[-1]
-        last.insert_text(pymupdf.Point(_MARGIN_X, _FOOTER_Y), footer, fontsize=8)
-
-    # Buffer: serializa en memoria (version de save() sin disco).
-    pdf_bytes = doc.tobytes(garbage=3, deflate=True)
-    doc.close()
-    return pdf_bytes
-
-
-# ─── Wrappers específicos (formatean dinero y fechas) ────────────────
+    return render_document_pdf(
+        title=title,
+        subtitle=subtitle,
+        business_name=business_name,
+        footer_text=footer_text or footer,
+        document_kind=document_kind,
+        badge=badge,
+        meta=meta,
+        columns=columns,
+        rows=rows,
+        numeric_columns=numeric_columns,
+        pill_columns=pill_columns,
+        totals=totals,
+        section_title=section_title,
+        empty_message=empty_message,
+        column_widths=column_widths,
+    )
 
 
 def render_weekly_pdf(
@@ -117,18 +66,14 @@ def render_weekly_pdf(
     orders: Iterable[tuple[datetime.date, str, int, int, bool, str]],
     total_cents: int,
     paid_cents: int,
+    business_name: str = "",
+    footer_text: str = "",
 ) -> bytes:
-    """PDF del resumen semanal (RF-P6-11).
-
-    ``orders``: tuplas ``(fecha, cliente, items_count, total_cents,
-    paid, metodo)``.
-    """
     orders = list(orders)
-    subtitle = (
-        f"Semana del {monday.strftime('%d/%m/%Y')} al {sunday.strftime('%d/%m/%Y')}"
-        f" - {len(orders)} pedidos"
-    )
-    columns = ["Fecha", "Cliente", "Items", "Total", "Pago", "Metodo"]
+    pending_cents = total_cents - paid_cents
+    period = f"{monday.strftime('%d/%m/%Y')} al {sunday.strftime('%d/%m/%Y')}"
+    subtitle = f"Semana del {period} - {len(orders)} pedidos"
+    columns = ["Fecha", "Cliente", "Ítems", "Total", "Pago", "Método"]
     rows = [
         [
             d.strftime("%d/%m/%Y"),
@@ -140,33 +85,46 @@ def render_weekly_pdf(
         ]
         for d, cliente, n_items, cents, paid, metodo in orders
     ]
-    pending_cents = total_cents - paid_cents
-    footer = (
-        "Totales: "
-        f"{format_money_cents(total_cents)} | "
-        f"Pagado: {format_money_cents(paid_cents)} | "
-        f"Pendiente: {format_money_cents(pending_cents)}"
-    )
+    meta = [
+        ("Período", period),
+        ("Pedidos", str(len(orders))),
+        ("Ítems", str(sum(o[2] for o in orders))),
+        ("Clientes", str(len({o[1] for o in orders}))),
+    ]
+    totals = [
+        ("Cobrado", format_money_cents(paid_cents)),
+        ("Pendiente", format_money_cents(pending_cents)),
+        ("Total facturado", format_money_cents(total_cents)),
+    ]
     return render_report_pdf(
         title="Resumen semanal de pedidos",
         subtitle=subtitle,
         columns=columns,
         rows=rows,
-        footer=footer,
+        footer=footer_text or "Resumen generado por Toscana Pastry.",
+        business_name=business_name,
+        footer_text=footer_text,
+        numeric_columns=(2, 3),
+        column_widths=("12%", "31%", "8%", "16%", "15%", "18%"),
+        meta=meta,
+        totals=totals,
+        document_kind="Resumen operativo",
+        section_title="Pedidos de la semana",
+        empty_message="No hay pedidos registrados en esta semana.",
     )
 
 
 def render_orders_export_pdf(
     period_label: str,
     orders: Iterable[tuple[str, str, datetime.date, int, int, str, bool, str]],
+    business_name: str = "",
+    footer_text: str = "",
 ) -> bytes:
-    """PDF del export de pedidos (mismo contenido que el CSV).
-
-    ``orders``: tuplas ``(id, cliente, fecha, items_count, total_cents,
-    estado, paid, metodo)``.
-    """
     orders = list(orders)
-    columns = ["ID", "Cliente", "Fecha", "Items", "Total", "Estado", "Pago", "Metodo"]
+    total_cents = sum(o[4] for o in orders)
+    paid_cents = sum(o[4] for o in orders if o[6])
+    pending_cents = total_cents - paid_cents
+    columns = ["ID", "Cliente", "Fecha", "Ítems", "Total", "Estado", "Pago", "Método"]
     rows = [
         [
             oid or "",
@@ -175,32 +133,53 @@ def render_orders_export_pdf(
             str(n_items),
             format_money_cents(cents),
             estado,
-            "si" if paid else "no",
+            "Sí" if paid else "No",
             metodo,
         ]
         for oid, cliente, fecha, n_items, cents, estado, paid, metodo in orders
     ]
+    meta = [
+        ("Período", _human_period(period_label)),
+        ("Pedidos", str(len(orders))),
+        ("Ítems", str(sum(o[3] for o in orders))),
+        ("Clientes", str(len({o[1] for o in orders}))),
+    ]
+    totals = [
+        ("Cobrado", format_money_cents(paid_cents)),
+        ("Pendiente de cobro", format_money_cents(pending_cents)),
+        ("Total facturado", format_money_cents(total_cents)),
+    ]
     return render_report_pdf(
         title="Export de pedidos",
-        subtitle=f"Periodo: {period_label} - {len(orders)} pedidos",
+        subtitle=f"Período: {_human_period(period_label)} - {len(orders)} pedidos",
         columns=columns,
         rows=rows,
-        footer="Generado por Toscana Pastry — export de pedidos (Fase 5)",
+        footer=footer_text or "Generado por Toscana Pastry · export de pedidos.",
+        business_name=business_name,
+        footer_text=footer_text,
+        numeric_columns=(3, 4),
+        pill_columns=(5,),
+        column_widths=("8%", "22%", "11%", "8%", "13%", "16%", "7%", "15%"),
+        meta=meta,
+        totals=totals,
+        document_kind="Comprobante de gestión",
+        section_title="Pedidos del período",
+        empty_message="No hay pedidos para el período seleccionado.",
     )
 
 
 def render_budgets_export_pdf(
     period_label: str,
     budgets: Iterable[tuple[str, str, str, datetime.date, datetime.date | None, str, int, int]],
+    business_name: str = "",
+    footer_text: str = "",
 ) -> bytes:
-    """PDF del export de presupuestos (mismo contenido que el CSV).
-
-    ``budgets``: tuplas ``(seq, cliente, telefono, fecha, enviado,
-    estado, total_venta_cents, iva_cents)``.
-    """
     budgets = list(budgets)
+    total_cents = sum(b[6] for b in budgets)
+    iva_cents = sum(b[7] for b in budgets)
+    net_cents = total_cents - iva_cents
     columns = [
-        "Secuencia", "Cliente", "Telefono", "Fecha", "Enviado", "Estado",
+        "Secuencia", "Cliente", "Teléfono", "Fecha", "Enviado", "Estado",
         "Total venta", "IVA",
     ]
     rows = [
@@ -209,17 +188,38 @@ def render_budgets_export_pdf(
             cliente,
             telefono,
             fecha.strftime("%d/%m/%Y"),
-            enviado.strftime("%d/%m/%Y") if enviado else "",
+            enviado.strftime("%d/%m/%Y") if enviado else "—",
             estado,
-            format_money_cents(total_cents),
-            format_money_cents(iva_cents),
+            format_money_cents(total_cents_row),
+            format_money_cents(iva_row),
         ]
-        for seq, cliente, telefono, fecha, enviado, estado, total_cents, iva_cents in budgets
+        for seq, cliente, telefono, fecha, enviado, estado, total_cents_row, iva_row in budgets
+    ]
+    meta = [
+        ("Período", _human_period(period_label)),
+        ("Presupuestos", str(len(budgets))),
+        ("Enviados", str(sum(1 for b in budgets if b[4] is not None))),
+        ("Sin enviar", str(sum(1 for b in budgets if b[4] is None))),
+    ]
+    totals = [
+        ("Neto", format_money_cents(net_cents)),
+        ("IVA", format_money_cents(iva_cents)),
+        ("Total venta", format_money_cents(total_cents)),
     ]
     return render_report_pdf(
         title="Export de presupuestos",
-        subtitle=f"Periodo: {period_label} - {len(budgets)} presupuestos",
+        subtitle=f"Período: {_human_period(period_label)} - {len(budgets)} presupuestos",
         columns=columns,
         rows=rows,
-        footer="Generado por Toscana Pastry — export de presupuestos (Fase 5)",
+        footer=footer_text or "Generado por Toscana Pastry · export de presupuestos.",
+        business_name=business_name,
+        footer_text=footer_text,
+        numeric_columns=(6, 7),
+        pill_columns=(5,),
+        column_widths=("11%", "16%", "21%", "11%", "11%", "11%", "10%", "9%"),
+        meta=meta,
+        totals=totals,
+        document_kind="Comprobante de gestión",
+        section_title="Presupuestos del período",
+        empty_message="No hay presupuestos para el período seleccionado.",
     )

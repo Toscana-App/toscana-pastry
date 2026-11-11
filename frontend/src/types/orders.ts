@@ -1,7 +1,7 @@
 
 export type DeliveryMode = "delivery" | "pickup";
 
-export type PaymentMethod = "mercadopago" | "cash";
+export type PaymentMethod = "mercadopago" | "cash" | "transfer";
 
 export interface CartItemOut {
   product_id: string;

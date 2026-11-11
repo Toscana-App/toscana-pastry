@@ -39,7 +39,7 @@ async def order_with_repo(db_session):
 
 class TestUpdatePaymentStatus:
 
-    async def test_updates_reference_and_status(self, order_with_repo):
+    async def test_pending_updates_status_without_reference(self, order_with_repo):
         order, repo = order_with_repo
         result = await repo.update_payment_status(
             order_id=order.id,
@@ -48,7 +48,7 @@ class TestUpdatePaymentStatus:
             paid_at=None,
         )
         assert result is not None
-        assert result.payment_reference == "mp_456"
+        assert result.payment_reference is None
         assert result.payment_status == PaymentStatus.PENDING
 
     async def test_updates_paid_at_when_provided(self, order_with_repo):

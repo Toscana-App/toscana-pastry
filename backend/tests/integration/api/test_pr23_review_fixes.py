@@ -199,7 +199,7 @@ async def test_pdf_render_failure_is_generic_503(client, monkeypatch):
     await _add(client, "Harina")
 
     class Boom:
-        def render_pricelist(self, rows, audience_label):
+        def render_pricelist(self, rows, audience_label, business_name="", footer_text=""):
             raise PdfServiceError("pdfgenerator upstream 502: /secret/path/libpango.so")
 
     monkeypatch.setitem(app.dependency_overrides, get_pdf_client, lambda: Boom())
