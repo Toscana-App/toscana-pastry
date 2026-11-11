@@ -140,6 +140,18 @@ export interface OrderCustomer {
   phone: string;
 }
 
+/**
+ * Comprobante de facturación electrónica (ARCA) asociado al pedido. `null`
+ * cuando el pedido aún no está facturado.
+ */
+export interface OrderInvoice {
+  numero: number;
+  cae: string;
+  /** ISO datetime: vencimiento del CAE. */
+  cae_vto: string;
+  pdf_url: string;
+}
+
 export interface OrderDetail {
   id: string;
   customer: OrderCustomer;
@@ -152,6 +164,8 @@ export interface OrderDetail {
   whatsapp_sent_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Comprobante de facturación, si el pedido ya fue facturado. */
+  invoice: OrderInvoice | null;
 }
 
 export interface OrderPreviewItem {
