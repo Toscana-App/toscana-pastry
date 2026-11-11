@@ -213,6 +213,13 @@ class OrderListResponse(BaseModel):
     page_size: int
 
 
+class OrderInvoiceSummary(BaseModel):
+    numero: int
+    cae: str
+    cae_vto: str
+    pdf_url: str
+
+
 class OrderDetailResponse(BaseModel):
     id: str
     customer: OrderCustomerResponse
@@ -224,6 +231,7 @@ class OrderDetailResponse(BaseModel):
     whatsapp_sent_at: Optional[str] = None
     created_at: str
     updated_at: str
+    invoice: OrderInvoiceSummary | None = None
 
 
 class OrderPreviewItemResponse(BaseModel):

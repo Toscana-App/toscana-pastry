@@ -8,6 +8,9 @@ def _settings(monkeypatch, environment, secret=None):
     monkeypatch.setattr(Settings, "MP_WEBHOOK_SECRET", "whsec")
     monkeypatch.setattr(Settings, "ENVIRONMENT", environment)
     monkeypatch.setattr(Settings, "SECRET_KEY", secret or DEFAULT_DEV_SECRET_KEY)
+    monkeypatch.setattr(Settings, "AFIP_ENV", "prod")
+    monkeypatch.setattr(Settings, "AFIP_PRIVATE_KEY_PATH", "/run/secrets/afip_key.pem")
+    monkeypatch.setattr(Settings, "AFIP_CERT_PATH", "/run/secrets/afip_cert.pem")
     return Settings()
 
 

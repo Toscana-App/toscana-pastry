@@ -10,6 +10,9 @@ def _settings(**kw) -> Settings:
     s.SECRET_KEY = "a-real-secret"
     s.REFRESH_SECRET_KEY = "a-real-refresh-secret"
     s.MP_WEBHOOK_SECRET = "whsec"
+    s.AFIP_ENV = "prod"
+    s.AFIP_PRIVATE_KEY_PATH = "/run/secrets/afip_key.pem"
+    s.AFIP_CERT_PATH = "/run/secrets/afip_cert.pem"
     for k, v in kw.items():
         setattr(s, k, v)
     return s

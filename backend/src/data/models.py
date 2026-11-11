@@ -6,11 +6,11 @@ from sqlalchemy import (
     Column,
     Date,
     DateTime,
-    Enum as SQLAlchemyEnum,
     ForeignKey,
     Index,
     Integer,
     LargeBinary,
+    Numeric,
     String,
     Text,
     TypeDecorator,
@@ -808,3 +808,80 @@ class ImportRowORM(Base):
         default=lambda: datetime.datetime.now(datetime.UTC),
         nullable=False,
     )
+
+
+class InvoicingSettingsORM(Base):
+    """P13 — settings de facturación ARCA (una sola fila, id='singleton')."""
+
+    __tablename__ = "invoicing_settings"
+
+    id = Column(String, primary_key=True, default="singleton")
+    cuit = Column(String(11), nullable=False)
+    punto_venta = Column(Integer, nullable=False)
+    razon_social = Column(String, default="", nullable=False)
+    domicilio = Column(String, default="", nullable=False)
+    condicion_iva = Column(String, default="Responsable Monotributo", nullable=False)
+    categoria_monotributo = Column(String(1), default="", nullable=False)
+    ingresos_brutos = Column(String, default="", nullable=False)
+    inicio_actividades = Column(String, default="", nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        onupdate=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=True,
+    )
+
+
+class InvoiceORM(Base):
+    """P13 — comprobante ARCA emitido (Factura C + CAE)."""
+
+    __tablename__ = "invoices"
+
+    id = Column(String, primary_key=True)
+    order_id = Column(
+        String,
+        ForeignKey("orders.id", ondelete="RESTRICT"),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+    punto_venta = Column(Integer, nullable=False)
+    tipo_cbte = Column(Integer, nullable=False)
+    numero = Column(Integer, nullable=False)
+    cae = Column(String(14), nullable=False)
+    cae_vto = Column(Date, nullable=False)
+    fecha = Column(Date, nullable=False, index=True)
+    imp_total = Column(String, nullable=False)
+    condicion_iva = Column(String, default="Responsable Monotributo", nullable=False)
+    estado = Column(String(1), default="A", nullable=False)
+    obs = Column(Text, default="", nullable=False)
+    receptor_doc_tipo = Column(Integer, nullable=False)
+    receptor_doc_nro = Column(Integer, nullable=False)
+    receptor_nombre = Column(String, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+    invoice_items = relationship(
+        "InvoiceItemORM", back_populates="invoice", cascade="all, delete-orphan"
+    )
+    __table_args__ = (
+        UniqueConstraint("punto_venta", "tipo_cbte", "numero", name="uq_invoices_pvt_tipo_numero"),
+    )
+
+
+class InvoiceItemORM(Base):
+    """P13 — ítem de comprobante (detalle para el PDF)."""
+
+    __tablename__ = "invoice_items"
+
+    id = Column(String, primary_key=True)
+    invoice_id = Column(
+        String, ForeignKey("invoices.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    descripcion = Column(String, nullable=False)
+    cantidad = Column(Numeric, nullable=False)
+    precio_unit = Column(String, nullable=False)
+    position = Column(Integer, default=0, nullable=False)
+    invoice = relationship("InvoiceORM", back_populates="invoice_items")
