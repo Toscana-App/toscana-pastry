@@ -175,6 +175,24 @@ async def cash_order(db_session):
     return order
 
 
+@pytest_asyncio.fixture
+async def transfer_order(db_session):
+    order = Order(
+        customer_id=str(uuid.uuid4()),
+        date=datetime.datetime.now(datetime.UTC),
+        items=[
+            OrderItem(
+                product_id="p1",
+                product_name="Torta",
+                quantity=1,
+                unit_price=Decimal(1000),
+            )
+        ],
+        payment_method=PaymentMethod.TRANSFER,
+    )
+    repo = SQLOrderRepository(db_session)
+    await repo.create(order)
+    return order
 
 
 class TestPostOrderPayment:
@@ -267,6 +285,17 @@ class TestPostOrderPayment:
         assert response.status_code == 422
         assert response.json()["detail"] == "payment_method_not_mercadopago"
 
+    async def test_transfer_payment_returns_422_without_attempt(
+        self, client, transfer_order
+    ):
+        response = await client.post(
+            f"/api/v1/orders/{transfer_order.id}/payment",
+            headers={"Idempotency-Key": "key-1"},
+        )
+        assert response.status_code == 422
+        assert response.json()["detail"] == "payment_method_not_mercadopago"
+        assert _MP_REQUESTS == []
+
     async def test_missing_idempotency_key_returns_422(self, client, mercadopago_order):
         response = await client.post(
             f"/api/v1/orders/{mercadopago_order.id}/payment",
@@ -347,13 +376,13 @@ class TestPaymentIdempotency:
         assert second.json() == first.json()
         assert len(_MP_REQUESTS) == 1
 
-    async def test_initiating_payment_sets_pending_and_reference(
+    async def test_initiating_payment_sets_pending_without_reference(
         self, client, mercadopago_order
     ):
         await _pay(client, mercadopago_order.id, "key-1")
         status = await client.get(f"/api/v1/orders/{mercadopago_order.id}/payment")
         assert status.json()["status"] == "pending"
-        assert status.json()["payment_reference"] == f"pref-{mercadopago_order.id}"
+        assert status.json()["payment_reference"] is None
 
     async def test_other_key_after_initiation_returns_409_without_new_preference(
         self, client, mercadopago_order

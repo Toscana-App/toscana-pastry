@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import httpx
 
-from domain.budgets import IVA_PCT
-from domain.budgets import Budget
-from domain.pdf import PdfRenderer
+from domain.budgets import IVA_PCT, Budget
+from domain.pdf import InvoicePdfRenderer, PdfRenderer
 
 
 class PdfServiceError(RuntimeError):
@@ -38,7 +37,7 @@ def budget_pdf_payload(budget: Budget, business_name: str, footer_text: str) -> 
     }
 
 
-class PdfClient(PdfRenderer):
+class PdfClient(PdfRenderer, InvoicePdfRenderer):
 
     def __init__(self, base_url: str, timeout: float = 30.0) -> None:
         self._base_url = base_url.rstrip("/")
@@ -69,7 +68,22 @@ class PdfClient(PdfRenderer):
     def render_budgets_export(self, payload: dict) -> bytes:
         return self._post("/render/budgets-export", payload)
 
-    def render_pricelist(self, rows: list[dict], audience_label: str) -> bytes:
+    def render_pricelist(
+        self,
+        rows: list[dict],
+        audience_label: str,
+        business_name: str = "",
+        footer_text: str = "",
+    ) -> bytes:
         return self._post(
-            "/render/pricelist", {"audience_label": audience_label, "rows": rows}
+            "/render/pricelist",
+            {
+                "audience_label": audience_label,
+                "rows": rows,
+                "business_name": business_name,
+                "footer_text": footer_text,
+            },
         )
+
+    def render_invoice_arca(self, payload: dict) -> bytes:
+        return self._post("/render/invoice-arca", payload)

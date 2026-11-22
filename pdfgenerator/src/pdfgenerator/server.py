@@ -20,6 +20,7 @@ from .renderers import (
     render_pricelist,
     render_weekly_pdf,
 )
+from .renderers.invoice_arca import InvoiceArcaRequest, render_invoice_arca_pdf
 from .schemas import (
     BudgetPdfRequest,
     BudgetsExportRequest,
@@ -40,7 +41,13 @@ def create_app() -> FastAPI:
 
     @app.post("/render/pricelist")
     async def render_pricelist_endpoint(req: PricelistRequest) -> Response:
-        pdf = await asyncio.to_thread(render_pricelist, req.rows, req.audience_label)
+        pdf = await asyncio.to_thread(
+            render_pricelist,
+            req.rows,
+            req.audience_label,
+            req.business_name,
+            req.footer_text,
+        )
         return Response(content=pdf, media_type=PDF_RESPONSE)
 
     @app.post("/render/weekly")
@@ -56,6 +63,8 @@ def create_app() -> FastAPI:
             orders,
             req.total_cents,
             req.paid_cents,
+            req.business_name,
+            req.footer_text,
         )
         return Response(content=pdf, media_type=PDF_RESPONSE)
 
@@ -66,7 +75,11 @@ def create_app() -> FastAPI:
             for o in req.orders
         ]
         pdf = await asyncio.to_thread(
-            render_orders_export_pdf, req.period_label, orders
+            render_orders_export_pdf,
+            req.period_label,
+            orders,
+            req.business_name,
+            req.footer_text,
         )
         return Response(content=pdf, media_type=PDF_RESPONSE)
 
@@ -77,7 +90,11 @@ def create_app() -> FastAPI:
             for b in req.budgets
         ]
         pdf = await asyncio.to_thread(
-            render_budgets_export_pdf, req.period_label, budgets
+            render_budgets_export_pdf,
+            req.period_label,
+            budgets,
+            req.business_name,
+            req.footer_text,
         )
         return Response(content=pdf, media_type=PDF_RESPONSE)
 
@@ -85,6 +102,19 @@ def create_app() -> FastAPI:
     async def render_budget_endpoint(req: BudgetPdfRequest) -> Response:
         pdf = await asyncio.to_thread(build_budget_pdf, req)
         return Response(content=pdf, media_type=PDF_RESPONSE)
+
+    @app.post("/render/invoice-arca")
+    async def render_invoice_arca_endpoint(req: InvoiceArcaRequest) -> Response:
+        pdf = await asyncio.to_thread(render_invoice_arca_pdf, req)
+        filename = (
+            f"FACTURA_{req.comprobante.punto_venta}-"
+            f"{req.comprobante.numero:08d}.pdf"
+        )
+        return Response(
+            content=pdf,
+            media_type=PDF_RESPONSE,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
 
     return app
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Badge,
@@ -18,6 +18,17 @@ import {
 import NextLink from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCents, formatPct } from "@/lib/format";
+import { ApiError } from "@/lib/api";
+import { invoicesService } from "@/modules/invoicing/service";
+import { InvoiceDialog } from "@/modules/invoicing/components/InvoiceDialog";
+import { InvoiceResult } from "@/modules/invoicing/components/InvoiceResult";
+import {
+  isFacturable,
+  type Invoice,
+  type InvoiceComprobante,
+  type InvoiceCreatePayload,
+  type InvoiceItemPayload,
+} from "@/modules/invoicing/types";
 import { ordersService } from "../service";
 import {
   ALLOWED_TRANSITIONS,
@@ -33,6 +44,16 @@ const STATUS_COLORS: Record<OrderStatus, "blue" | "green" | "gray" | "red"> = {
   entregado: "gray",
   cancelado: "red",
 };
+
+/** Mensajes amigables para los errores de emisión de factura (sin stack traces). */
+function invoiceErrorMessage(e: unknown): string {
+  if (e instanceof ApiError) {
+    if (e.status === 409) return "El pedido ya tiene comprobante.";
+    if (e.status === 503)
+      return "Facturación no configurada. Revisá la configuración del emisor.";
+  }
+  return e instanceof Error ? e.message : "No se pudo emitir la factura";
+}
 
 interface OrderDetailPageProps {
   orderId: string;
@@ -50,6 +71,11 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingTransition, setPendingTransition] = useState<OrderStatus | null>(null);
+  const [invoiceOpen, setInvoiceOpen] = useState(false);
+  const [issued, setIssued] = useState<Invoice | null>(null);
+  const [issuing, setIssuing] = useState(false);
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   useEffect(() => {
     if (!orderId) return;
@@ -121,6 +147,80 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
       setActionLoading(false);
     }
   }, [order]);
+
+  const comprobante = useMemo<InvoiceComprobante | null>(() => {
+    if (issued != null) {
+      return {
+        punto_venta: issued.punto_venta,
+        numero: issued.numero,
+        cae: issued.cae,
+        cae_vto: issued.cae_vto,
+        pdf_url: issued.pdf_url,
+        id: issued.id,
+      };
+    }
+    if (order?.invoice != null) {
+      return {
+        punto_venta: null,
+        numero: order.invoice.numero,
+        cae: order.invoice.cae,
+        cae_vto: order.invoice.cae_vto,
+        pdf_url: order.invoice.pdf_url,
+      };
+    }
+    return null;
+  }, [issued, order]);
+
+  const canInvoice =
+    isAdmin &&
+    order != null &&
+    comprobante == null &&
+    isFacturable(order.status, order.paid);
+
+  const invoiceItems: InvoiceItemPayload[] = useMemo(
+    () =>
+      order
+        ? order.items.map((it) => ({
+            descripcion: it.note
+              ? `${it.product_name} — ${it.note}`
+              : it.product_name,
+            cantidad: it.qty,
+            precio_unit: it.qty > 0 ? Math.round(it.rounded / it.qty) : 0,
+          }))
+        : [],
+    [order],
+  );
+
+  const issueInvoice = useCallback(
+    async (payload: InvoiceCreatePayload) => {
+      setIssuing(true);
+      setInvoiceError(null);
+      try {
+        const inv = await invoicesService.create(payload);
+        setIssued(inv);
+        setInvoiceOpen(false);
+      } catch (e) {
+        setInvoiceError(invoiceErrorMessage(e));
+      } finally {
+        setIssuing(false);
+      }
+    },
+    [],
+  );
+
+  const downloadInvoicePdf = useCallback(async () => {
+    if (!comprobante) return;
+    setDownloadingPdf(true);
+    try {
+      await invoicesService.downloadPdf(comprobante.pdf_url);
+    } catch (e) {
+      setInvoiceError(
+        e instanceof Error ? e.message : "No se pudo descargar el PDF",
+      );
+    } finally {
+      setDownloadingPdf(false);
+    }
+  }, [comprobante]);
 
   if (loading) {
     return (
@@ -326,7 +426,23 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
           >
             WhatsApp
           </Button>
+          {canInvoice ? (
+            <Button variant="outline" onClick={() => setInvoiceOpen(true)}>
+              Facturar
+            </Button>
+          ) : null}
         </HStack>
+      ) : null}
+
+      {isAdmin && comprobante != null ? (
+        <InvoiceResult
+          comprobante={comprobante}
+          impTotal={issued?.imp_total ?? null}
+          downloading={downloadingPdf}
+          onDownload={() => {
+            void downloadInvoicePdf();
+          }}
+        />
       ) : null}
 
       {whatsapp ? (
@@ -397,6 +513,21 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
           </Dialog.Content>
         </Dialog.Positioner>
       </Dialog.Root>
+
+      <InvoiceDialog
+        open={invoiceOpen}
+        onOpenChange={(o) => setInvoiceOpen(o)}
+        orderId={order.id}
+        orderCode={order.id.slice(0, 8)}
+        total={order.total}
+        receptorNombreInicial={order.customer.name}
+        items={invoiceItems}
+        issuing={issuing}
+        error={invoiceError}
+        onConfirm={(payload) => {
+          void issueInvoice(payload);
+        }}
+      />
     </Flex>
   );
 }
