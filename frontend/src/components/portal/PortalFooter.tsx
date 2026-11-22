@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react";
 import { Box, Container, Flex, Link, Text } from "@chakra-ui/react";
 import NextLink from "next/link";
 import { BrandLogo } from "@/components/layout/BrandLogo";
@@ -14,7 +15,12 @@ const FOOTER_LINKS = [
   { label: "Mi cuenta", href: "/profile" },
 ] as const;
 
+const subscribeNoop = () => () => {};
+const getClientYear = () => new Date().getFullYear();
+const getServerYear = () => 2026;
+
 export function PortalFooter() {
+  const year = useSyncExternalStore(subscribeNoop, getClientYear, getServerYear);
   return (
     <Box as="footer" mt={{ base: 12, md: 16 }} bg="bg.panel" borderTopWidth="1px" borderColor="border.muted">
       <Container maxW="5xl" py={{ base: 10, md: 12 }}>
@@ -78,7 +84,7 @@ export function PortalFooter() {
 
         <Box mt={10} pt={5} borderTopWidth="1px" borderColor="border.muted" textAlign="center">
           <Text fontSize="xs" color="fg.muted">
-            © {new Date().getFullYear()} Toscana Pastry. Todos los derechos reservados.
+            © {year} Toscana Pastry. Todos los derechos reservados.
           </Text>
         </Box>
       </Container>
