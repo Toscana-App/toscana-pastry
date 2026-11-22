@@ -8,6 +8,7 @@ import datetime
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from api.v1.auth.dependencies import get_user_repository
@@ -329,6 +330,43 @@ class TestEmision:
         assert body["existing_invoice"]["id"] == first.json()["id"]
         assert body["existing_invoice"]["numero"] == first.json()["numero"]
         assert len(fake_afip.cae_requests) == 1
+
+    async def test_emision_doble_concurrente_409(
+        self, client, db_session, fake_afip, monkeypatch
+    ):
+        order_id = await _seed_order(db_session)
+        await _put_settings(client)
+        first = await _emit(client, order_id)
+        assert first.status_code == 201
+        first_id = first.json()["id"]
+
+        reads = {"n": 0}
+        real_get_by_order = SQLInvoiceRepository.get_by_order
+
+        async def _blind_read_then_real(self, oid):
+            reads["n"] += 1
+            if reads["n"] == 1:
+                return None
+            return await real_get_by_order(self, oid)
+
+        async def _save_conflict(self, invoice, items=None):
+            raise IntegrityError(
+                "INSERT INTO invoices ...",
+                {"order_id": order_id},
+                Exception(
+                    'duplicate key value violates unique constraint "uq_invoices_order_id"'
+                ),
+            )
+
+        monkeypatch.setattr(SQLInvoiceRepository, "get_by_order", _blind_read_then_real)
+        monkeypatch.setattr(SQLInvoiceRepository, "save_invoice", _save_conflict)
+        second = await _emit(client, order_id)
+
+        assert second.status_code == 409
+        body = second.json()
+        assert body["detail"] == "pedido_ya_facturado"
+        assert body["existing_invoice"]["id"] == first_id
+        assert len(fake_afip.cae_requests) == 2
 
     async def test_concepto_servicios_sin_fechas_422(self, client, db_session, fake_afip):
         order_id = await _seed_order(db_session)
