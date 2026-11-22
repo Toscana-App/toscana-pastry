@@ -4,6 +4,8 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.v1.dependencies import require_admin
 from api.v1.invoicing.dependencies import (
@@ -25,6 +27,7 @@ from api.v1.invoicing.schemas import (
     InvoicingSettingsSaved,
 )
 from api.v1.money import cents_to_decimal, decimal_to_cents
+from data.db import get_db
 from data.repositories.sql_invoice_repository import SQLInvoiceRepository
 from data.repositories.sql_order_repository import SQLOrderRepository
 from domain.invoicing import (
@@ -175,6 +178,7 @@ async def create_invoice(
     invoice_repo: SQLInvoiceRepository = Depends(get_invoice_repository),
     order_repo: SQLOrderRepository = Depends(get_invoicing_order_repository),
     afip_client: AfipClient = Depends(get_afip_client),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
     use_case = IssueInvoice(
@@ -230,6 +234,18 @@ async def create_invoice(
                 "observaciones": list(exc.observaciones),
             },
         )
+    except IntegrityError:
+        logger.warning("invoice_duplicate_emission order_id=%s", payload.order_id)
+        await db.rollback()
+        existing = await invoice_repo.get_by_order(payload.order_id)
+        if existing is not None:
+            return JSONResponse(
+                status_code=status.HTTP_409_CONFLICT,
+                content=_existing_invoice_body(existing),
+            )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="pedido_ya_facturado"
+        ) from None
 
     logger.info(
         "invoice_issued order_id=%s invoice_id=%s punto_venta=%s tipo_cbte=%s "
