@@ -6,6 +6,15 @@ from domain.customer_address import CustomerAddress
 from domain.models import User, UserRole, BusinessSettings, Ingredient, Product, StockMovement, StockStatus
 from domain.orders import Customer, Order
 from domain.budgets import Budget
+from domain.dashboard import (
+    DashboardPeriod,
+    Granularity,
+    PaymentSplit,
+    SalesPoint,
+    SalesTotals,
+    StatusCount,
+    TopProduct,
+)
 from domain.imports import ImportRow, ImportSession
 
 class UserRepository(ABC):
@@ -382,4 +391,31 @@ class ImportRepository(ABC):
 
     @abstractmethod
     async def purge_expired(self, now: datetime) -> int:
+        pass
+
+
+class DashboardRepository(ABC):
+
+    @abstractmethod
+    async def sales_totals(self, period: DashboardPeriod) -> SalesTotals:
+        pass
+
+    @abstractmethod
+    async def sales_series(
+        self, period: DashboardPeriod, granularity: Granularity
+    ) -> List[SalesPoint]:
+        pass
+
+    @abstractmethod
+    async def status_counts(self, period: DashboardPeriod) -> List[StatusCount]:
+        pass
+
+    @abstractmethod
+    async def top_products(
+        self, period: DashboardPeriod, limit: int
+    ) -> List[TopProduct]:
+        pass
+
+    @abstractmethod
+    async def payment_split(self, period: DashboardPeriod) -> List[PaymentSplit]:
         pass
