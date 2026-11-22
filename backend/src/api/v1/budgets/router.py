@@ -205,6 +205,7 @@ async def export_budgets(
     to_: Optional[datetime.date] = Query(default=None, alias="to"),
     fmt: Literal["csv", "pdf"] = Query(default="csv", alias="format"),
     repo: BudgetRepository = Depends(get_budget_repository),
+    settings_repo: SettingsRepository = Depends(get_settings_repository),
     pdf: PdfClient = Depends(get_pdf_client),
     _admin: User = Depends(require_admin),
 ):
@@ -270,8 +271,11 @@ async def export_budgets(
                 "Content-Disposition": f'attachment; filename="presupuestos_{period_slug}.csv"'
             },
         )
+    settings = await GetSettings(settings_repo).execute()
     payload = {
         "period_label": period_label,
+        "business_name": settings.business_name or "",
+        "footer_text": settings.footer_text or "",
         "budgets": [
             {
                 "seq": str(seq),

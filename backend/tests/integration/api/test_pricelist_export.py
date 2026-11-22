@@ -279,11 +279,11 @@ async def test_pdf_rows_carry_category_and_price(client, pdf_fake):
     assert label == "Consumidor final"
     by_name = {row["name"]: row for row in rows}
     assert set(by_name) == {"Pan de campo", "Muffin de chocolate", "Torta de almendras"}
-    assert by_name["Pan de campo"]["unit"] == "Pan"
-    assert by_name["Pan de campo"]["price"] == "$17.50"
-    assert by_name["Muffin de chocolate"]["unit"] == "Muffins"
-    assert by_name["Muffin de chocolate"]["price"] == "$26.25"
-    assert by_name["Torta de almendras"]["price"] == "$26.25"
+    assert by_name["Pan de campo"]["category"] == "Pan"
+    assert by_name["Pan de campo"]["price"] == "$17,50"
+    assert by_name["Muffin de chocolate"]["category"] == "Muffins"
+    assert by_name["Muffin de chocolate"]["price"] == "$26,25"
+    assert by_name["Torta de almendras"]["price"] == "$26,25"
 
 
 @pytest.mark.asyncio
@@ -299,7 +299,7 @@ async def test_pdf_revendedores_label(client, pdf_fake):
     rows, label = call[1]
     assert label == "Revendedores"
     by_name = {row["name"]: row for row in rows}
-    assert by_name["Pan de campo"]["price"] == "$12.50"
+    assert by_name["Pan de campo"]["price"] == "$12,50"
 
 
 @pytest.mark.asyncio

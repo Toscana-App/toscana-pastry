@@ -310,7 +310,7 @@ class TestWebhookPriorityAndAtomicity:
         await _notify(client, "1002")
         refreshed = await mercadopago_order._refresh()
         assert refreshed.payment_status == PaymentStatus.REJECTED
-        assert refreshed.payment_reference == "1001"
+        assert refreshed.payment_reference is None
 
     async def test_pending_after_failed_does_not_overwrite(self, client, mercadopago_order):
         _set_payment("1001", "cancelled", mercadopago_order.id)

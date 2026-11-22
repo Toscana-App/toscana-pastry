@@ -308,7 +308,7 @@ async def test_portal_order_persists_recipe_snapshot(client, db_session):
     ).scalar_one()
     assert item.snapshot is not None
     assert item.portions == 4
-    assert item.qty == 2
+    assert item.quantity == 2
     snapshot = json.loads(item.snapshot)
     assert len(snapshot["lines"]) == 1
     assert snapshot["lines"][0]["ingredient_name"] == "Insumo Pan de campo"

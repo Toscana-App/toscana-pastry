@@ -69,7 +69,19 @@ class PdfClient(PdfRenderer):
     def render_budgets_export(self, payload: dict) -> bytes:
         return self._post("/render/budgets-export", payload)
 
-    def render_pricelist(self, rows: list[dict], audience_label: str) -> bytes:
+    def render_pricelist(
+        self,
+        rows: list[dict],
+        audience_label: str,
+        business_name: str = "",
+        footer_text: str = "",
+    ) -> bytes:
         return self._post(
-            "/render/pricelist", {"audience_label": audience_label, "rows": rows}
+            "/render/pricelist",
+            {
+                "audience_label": audience_label,
+                "rows": rows,
+                "business_name": business_name,
+                "footer_text": footer_text,
+            },
         )

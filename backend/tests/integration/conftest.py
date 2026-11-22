@@ -40,7 +40,13 @@ class _FakePdfClient:
         self.calls.append(("render_budgets_export", payload))
         return b"%PDF-1.4\n%fake\n%%EOF\n"
 
-    def render_pricelist(self, rows: list[dict], audience_label: str) -> bytes:
+    def render_pricelist(
+        self,
+        rows: list[dict],
+        audience_label: str,
+        business_name: str = "",
+        footer_text: str = "",
+    ) -> bytes:
         self.calls.append(("render_pricelist", (rows, audience_label)))
         return b"%PDF-1.4\n%fake\n%%EOF\n"
 

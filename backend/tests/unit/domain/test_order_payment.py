@@ -101,6 +101,79 @@ class TestPaidMonotonic:
             order.mark_cash_payment()
 
 
+class TestPaymentReferenceInvariants:
+
+    def test_confirm_payment_rejected_never_marks_paid(self):
+        order = _make_order(payment_method=PaymentMethod.MERCADOPAGO)
+        with pytest.raises(ValueError, match="approved"):
+            order.confirm_payment(reference="mp_123", status=PaymentStatus.REJECTED)
+        assert order.paid is False
+        assert order.paid_at is None
+        assert order.payment_reference is None
+        assert order.payment_status is None
+
+    def test_confirm_payment_failed_never_marks_paid(self):
+        order = _make_order(payment_method=PaymentMethod.MERCADOPAGO)
+        with pytest.raises(ValueError, match="approved"):
+            order.confirm_payment(reference="mp_123", status=PaymentStatus.FAILED)
+        assert order.paid is False
+        assert order.paid_at is None
+        assert order.payment_reference is None
+        assert order.payment_status is None
+
+    def test_confirm_payment_pending_never_marks_paid(self):
+        order = _make_order(payment_method=PaymentMethod.MERCADOPAGO)
+        with pytest.raises(ValueError, match="approved"):
+            order.confirm_payment(reference="mp_123", status=PaymentStatus.PENDING)
+        assert order.paid is False
+        assert order.payment_reference is None
+
+    def test_register_payment_event_rejected_sets_status_only(self):
+        order = _make_order(payment_method=PaymentMethod.MERCADOPAGO)
+        order.register_payment_event(PaymentStatus.REJECTED)
+        assert order.payment_status == PaymentStatus.REJECTED
+        assert order.paid is False
+        assert order.paid_at is None
+        assert order.payment_reference is None
+
+    def test_register_payment_event_pending_sets_status_only(self):
+        order = _make_order(payment_method=PaymentMethod.MERCADOPAGO)
+        order.register_payment_event(PaymentStatus.PENDING)
+        assert order.payment_status == PaymentStatus.PENDING
+        assert order.paid is False
+        assert order.payment_reference is None
+
+    def test_register_payment_event_failed_sets_status_only(self):
+        order = _make_order(payment_method=PaymentMethod.MERCADOPAGO)
+        order.register_payment_event(PaymentStatus.FAILED)
+        assert order.payment_status == PaymentStatus.FAILED
+        assert order.paid is False
+        assert order.paid_at is None
+        assert order.payment_reference is None
+
+    def test_register_payment_event_rejects_approved(self):
+        order = _make_order(payment_method=PaymentMethod.MERCADOPAGO)
+        with pytest.raises(ValueError, match="confirm_payment"):
+            order.register_payment_event(PaymentStatus.APPROVED)
+        assert order.paid is False
+        assert order.payment_status is None
+        assert order.payment_reference is None
+
+    def test_register_payment_event_cannot_touch_paid_order(self):
+        order = _make_order(payment_method=PaymentMethod.MERCADOPAGO)
+        order.confirm_payment(reference="mp_123", status=PaymentStatus.APPROVED)
+        with pytest.raises(ValueError, match="already paid"):
+            order.register_payment_event(PaymentStatus.REJECTED)
+        assert order.payment_status == PaymentStatus.APPROVED
+        assert order.payment_reference == "mp_123"
+
+    def test_register_payment_event_cash_order_raises(self):
+        order = _make_order(payment_method=PaymentMethod.CASH)
+        with pytest.raises(ValueError, match="Cash orders"):
+            order.register_payment_event(PaymentStatus.PENDING)
+        assert order.payment_status is None
+
+
 class TestCashPaymentStatusNull:
 
     def test_cash_order_has_null_payment_status(self):
