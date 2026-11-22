@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 const PROTECTED_PREFIXES = [
-  '/',
   '/my-orders',
   '/carrito',
   '/checkout',
@@ -31,7 +30,6 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/',
     '/my-orders',
     '/my-orders/:path*',
     '/carrito',
