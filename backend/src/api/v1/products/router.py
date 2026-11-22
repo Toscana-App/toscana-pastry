@@ -26,7 +26,7 @@ from api.v1.dependencies import (
     require_role,
 )
 from api.v1.ingredients.dependencies import get_ingredient_repository
-from api.v1.money import money_str
+from api.v1.money import decimal_to_cents, format_money_cents, money_str
 from api.v1.pdf.dependencies import get_pdf_client
 from api.v1.pricing.schemas import Audience
 from data.accent import accent_fold, validate_search_term
@@ -572,15 +572,22 @@ async def pricelist_pdf(
     )
 
     audience_label = "Revendedores" if resolved == "revendedores" else "Consumidor final"
+    settings = await GetSettings(settings_repo).execute()
     rows = [
         {
             "name": product.name,
-            "unit": product.category,
-            "price": f"${audience_price}",
+            "category": product.category,
+            "price": format_money_cents(decimal_to_cents(audience_price)),
         }
         for product, audience_price, _ in priced
     ]
-    pdf_bytes = await asyncio.to_thread(pdf.render_pricelist, rows, audience_label)
+    pdf_bytes = await asyncio.to_thread(
+        pdf.render_pricelist,
+        rows,
+        audience_label,
+        settings.business_name or "",
+        settings.footer_text or "",
+    )
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

@@ -130,7 +130,6 @@ async def _seed_order(
             product_id="p1",
             product_name="Tortín de vainilla",
             quantity=1,
-            qty=1,
             portions=1,
             note="",
             position=0,

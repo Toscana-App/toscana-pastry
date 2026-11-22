@@ -1,9 +1,3 @@
-"""Tests del renderer de reportes PyMuPDF (movido de core-api).
-
-Verifica magic bytes %PDF, re-open en memoria, paginacion con repeticion de
-cabecera y los wrappers especificos (semanal, export pedidos, export
-presupuestos).
-"""
 import datetime
 
 import pymupdf
@@ -16,9 +10,6 @@ from pdfgenerator.renderers import (
     render_report_pdf,
     render_weekly_pdf,
 )
-
-
-# ─── format_money_cents ──────────────────────────────────────────────
 
 
 @pytest.mark.parametrize(
@@ -36,7 +27,7 @@ def test_format_money_cents(cents, expected):
     assert format_money_cents(cents) == expected
 
 
-COLUMNS = ["Fecha", "Cliente", "Items", "Total", "Pago", "Metodo"]
+COLUMNS = ["Fecha", "Cliente", "Ítems", "Total", "Pago", "Método"]
 ROWS = [
     ["02/11/2026", "Juan Pérez", "3", "$12.345,67", "Pagado", "efectivo"],
     ["03/11/2026", "María Gómez", "1", "$800,00", "Pendiente", "mp"],
@@ -55,20 +46,23 @@ def _text_of(doc: pymupdf.Document, page: int | None = None) -> str:
 def test_render_report_pdf_bytes_and_text():
     pdf_bytes = render_report_pdf(
         title="Resumen semanal de pedidos",
-        subtitle="Semana del 02/11/2026 al 08/11/2026 — 2 pedidos",
+        subtitle="Semana del 02/11/2026 al 08/11/2026 - 2 pedidos",
         columns=COLUMNS,
         rows=ROWS,
         footer="Totales: $13.145,67 | Pagado: $12.345,67 | Pendiente: $800,00",
+        business_name="Toscana Pastry",
     )
     assert isinstance(pdf_bytes, bytes)
-    assert pdf_bytes.startswith(b"%PDF"), "los bytes deben ser un PDF válido"
+    assert pdf_bytes.startswith(b"%PDF")
 
     doc = _open(pdf_bytes)
     assert doc.page_count >= 1
     text = _text_of(doc, 0)
+    assert "Toscana Pastry" in text
     assert "Resumen semanal de pedidos" in text
     assert "02/11/2026 al 08/11/2026" in text
-    assert "Cliente" in text
+    # El header "Cliente" se renderiza en mayúsculas (text-transform).
+    assert "cliente" in text.lower()
     assert "Juan Pérez" in text
     assert "$12.345,67" in text
     assert "Pendiente" in text
@@ -79,14 +73,17 @@ def test_render_report_pdf_bytes_and_text():
 def test_render_report_pdf_empty_rows_single_page():
     pdf_bytes = render_report_pdf(
         title="Export de pedidos",
-        subtitle="Periodo: todos — 0 pedidos",
+        subtitle="Período: todos - 0 pedidos",
         columns=COLUMNS,
         rows=[],
         footer="sin datos",
     )
     doc = _open(pdf_bytes)
     assert doc.page_count == 1
-    assert "Export de pedidos" in _text_of(doc, 0)
+    text = _text_of(doc, 0)
+    assert "Export de pedidos" in text
+    assert "Sin registros en el período." in text
+    assert "sin datos" in text
     doc.close()
 
 
@@ -100,9 +97,10 @@ def test_render_report_pdf_multipage_repeats_header():
     )
     doc = _open(pdf_bytes)
     assert doc.page_count > 1
-    assert "Cliente" in _text_of(doc, 1)
-    assert "Cliente 40" in _text_of(doc, 1) or "Cliente 60" in _text_of(doc, 1)
+    # El thead se repite en cada página; el header va en mayúsculas.
+    assert "CLIENTE" in _text_of(doc, 1)
     assert "Cliente 119" in _text_of(doc, -1)
+    assert "Página 1 de" in _text_of(doc, 0)
     doc.close()
 
 
@@ -129,9 +127,10 @@ def test_render_weekly_pdf():
     assert "Pagado" in text
     assert "Pendiente" in text
     full_text = _text_of(doc)
-    assert "Totales: $13.145,67" in full_text
-    assert "Pagado: $12.345,67" in full_text
-    assert "Pendiente: $800,00" in full_text
+    assert "Cobrado" in full_text
+    assert "$13.145,67" in full_text
+    assert "$800,00" in full_text
+    assert "TOTAL FACTURADO" in full_text
     doc.close()
 
 
@@ -158,7 +157,49 @@ def test_render_orders_export_pdf():
     assert "o-1" in text
     assert "Juan Pérez" in text
     assert "$12.345,67" in text
-    assert "confirmado" in text
+    assert "Confirmado" in text
+    assert "02/11/2026 a 08/11/2026" in text
+    doc.close()
+
+
+def test_render_orders_export_pdf_sums_paid_and_pending():
+    orders = [
+        ("o-1", "Juan Pérez", datetime.date(2026, 11, 2), 3, 100000,
+         "confirmado", True, "efectivo"),
+        ("o-2", "María Gómez", datetime.date(2026, 11, 3), 1, 50000,
+         "nuevo", False, "mp"),
+    ]
+    pdf_bytes = render_orders_export_pdf("todos", orders)
+    doc = _open(pdf_bytes)
+    text = _text_of(doc, 0)
+    assert "$1.000,00" in text
+    assert "$500,00" in text
+    assert "$1.500,00" in text
+    doc.close()
+
+
+def test_render_orders_export_pdf_escapes_client_name():
+    orders = [
+        ("o-1", "<script>alert(1)</script>", datetime.date(2026, 11, 2), 1, 100,
+         "nuevo", False, "mp"),
+    ]
+    pdf_bytes = render_orders_export_pdf("todos", orders)
+    doc = _open(pdf_bytes)
+    assert "<script>" in _text_of(doc, 0)
+    doc.close()
+
+
+def test_render_orders_export_pdf_uses_settings_identity():
+    orders = [
+        ("o-1", "Juan Pérez", datetime.date(2026, 11, 2), 1, 100, "nuevo", False, "mp"),
+    ]
+    pdf_bytes = render_orders_export_pdf(
+        "todos", orders, "Pastelería del Sur", "Devoluciones dentro de 48 horas."
+    )
+    doc = _open(pdf_bytes)
+    full_text = _text_of(doc)
+    assert "Pastelería del Sur" in full_text
+    assert "Devoluciones dentro de 48 horas." in full_text
     doc.close()
 
 
@@ -176,5 +217,16 @@ def test_render_budgets_export_pdf():
     assert "#00042" in text
     assert "María Gómez" in text
     assert "$4.520,00" in text
-    assert "enviado" in text
+    assert "Enviado" in text
+    doc.close()
+
+
+def test_render_budgets_export_pdf_empty_has_no_totals():
+    pdf_bytes = render_budgets_export_pdf("todos", [])
+    doc = _open(pdf_bytes)
+    text = _text_of(doc, 0)
+    assert "No hay presupuestos para el período seleccionado." in text
+    # Sin filas no se renderiza el bloque de totales (los headers de columna sí).
+    assert "Neto" not in text
+    assert "$0,00" not in text
     doc.close()

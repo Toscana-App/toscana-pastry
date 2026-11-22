@@ -166,7 +166,7 @@ def _order_to_domain(orm: OrderORM) -> P6Order:
     items = tuple(
         P6OrderItem(
             product_id=item.product_id,
-            qty=item.qty,
+            qty=item.quantity,
             portions=item.portions,
             note=item.note,
             product_name=item.product_name,
@@ -258,7 +258,6 @@ class SQLOrderRepository:
                     quantity=item.quantity,
                     unit_price=str(item.unit_price),
                     portion_note=item.portion_note,
-                    qty=item.quantity,
                     portions=item.portions or None,
                     note=item.portion_note,
                     position=index,
@@ -354,10 +353,11 @@ class SQLOrderRepository:
         orm = result.scalars().first()
         if orm is None:
             return None
-        orm.payment_reference = reference
+        if status == PaymentStatus.APPROVED:
+            orm.payment_reference = reference
+            if paid_at is not None:
+                orm.paid_at = paid_at
         orm.payment_status = status.value
-        if paid_at is not None:
-            orm.paid_at = paid_at
         await self.session.commit()
         return _to_domain(orm)
 
@@ -455,18 +455,16 @@ class SQLOrderRepository:
         replaceable = [s.value for s in overridable_payment_statuses(status)]
         conditions = [
             OrderORM.id == order_id,
-            OrderORM.payment_method != PaymentMethod.CASH.value,
+            OrderORM.payment_method == PaymentMethod.MERCADOPAGO.value,
             or_(
                 OrderORM.payment_status.is_(None),
                 OrderORM.payment_status.in_(replaceable),
             ),
         ]
-        values: dict[str, object] = {
-            "payment_reference": provider_payment_id,
-            "payment_status": status.value,
-        }
+        values: dict[str, object] = {"payment_status": status.value}
         if status == PaymentStatus.APPROVED:
             conditions.append(OrderORM.paid_at.is_(None))
+            values["payment_reference"] = provider_payment_id
             values["paid_at"] = paid_at
         await self.session.execute(update(OrderORM).where(*conditions).values(**values))
         await self.session.commit()
@@ -508,15 +506,6 @@ class SQLOrderRepository:
                 reference=result.reference,
                 checkout_url=result.checkout_url,
             )
-        )
-        await self.session.execute(
-            update(OrderORM)
-            .where(
-                OrderORM.id == order_id,
-                OrderORM.paid_at.is_(None),
-                OrderORM.payment_status == PaymentStatus.PENDING.value,
-            )
-            .values(payment_reference=result.reference)
         )
         try:
             await self.session.commit()
@@ -612,7 +601,6 @@ class SQLOrderRepository:
                     product_id=item.product_id,
                     product_name=item.product_name,
                     quantity=item.qty,
-                    qty=item.qty,
                     portions=item.portions,
                     note=item.note,
                     position=index,
@@ -648,7 +636,6 @@ class SQLOrderRepository:
                     product_id=item.product_id,
                     product_name=item.product_name,
                     quantity=item.qty,
-                    qty=item.qty,
                     portions=item.portions,
                     note=item.note,
                     position=index,

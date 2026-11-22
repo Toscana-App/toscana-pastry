@@ -138,6 +138,21 @@ export function PaymentCard({ order }: { order: OrderDetail }) {
     setAttempt((a) => a + 1);
   }, []);
 
+  if (order.payment_method === "transfer") {
+    return (
+      <Alert.Root status="info">
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>Pagar por transferencia</Alert.Title>
+          <Alert.Description>
+            Te compartimos los datos bancarios y confirmamos tu pedido al
+            recibir la transferencia.
+          </Alert.Description>
+        </Alert.Content>
+      </Alert.Root>
+    );
+  }
+
   if (!isMercadopago) {
     return (
       <Alert.Root status="info">
