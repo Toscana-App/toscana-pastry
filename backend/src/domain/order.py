@@ -11,6 +11,7 @@ from enum import StrEnum
 class PaymentMethod(StrEnum):
     MERCADOPAGO = "mercadopago"
     CASH = "cash"
+    TRANSFER = "transfer"
 
 
 class DeliveryMode(StrEnum):
@@ -158,12 +159,34 @@ class Order:
         )
 
     def confirm_payment(self, reference: str, status: PaymentStatus) -> None:
+        """Snapshot the approved payment: paid_at + payment_reference.
+
+        payment_reference invariants (I1-I3):
+        I1: payment_reference is non-null only once the order is paid
+            (paid_at non-null); paid is monotonic.
+        I2: For MercadoPago orders, payment_reference is the reference of
+            the approved attempt.
+        I3: Non-approved payment events (pending/rejected/failed) never set
+            payment_reference nor paid_at; use register_payment_event.
+        """
         if self.paid:
             raise ValueError("Order is already paid; paid is monotonic")
         if self.payment_method == PaymentMethod.CASH:
             raise ValueError("Cash orders cannot be auto-paid")
+        if status is not PaymentStatus.APPROVED:
+            raise ValueError("confirm_payment only applies to approved payments")
         self.paid_at = datetime.datetime.now(datetime.UTC)
         self.payment_reference = reference
+        self.payment_status = status
+
+    def register_payment_event(self, status: PaymentStatus) -> None:
+        """Record a non-approved provider event: payment_status only."""
+        if self.paid:
+            raise ValueError("Order is already paid; paid is monotonic")
+        if self.payment_method == PaymentMethod.CASH:
+            raise ValueError("Cash orders have no provider payment status")
+        if status is PaymentStatus.APPROVED:
+            raise ValueError("Use confirm_payment to register approved payments")
         self.payment_status = status
 
     def mark_cash_payment(self) -> None:

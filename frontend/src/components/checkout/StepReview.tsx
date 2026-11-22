@@ -166,7 +166,9 @@ export function StepReview({
             <DataList.ItemValue>
               {payment.payment_method === "mercadopago"
                 ? "Mercado Pago (online)"
-                : "Efectivo en la entrega"}
+                : payment.payment_method === "transfer"
+                  ? "Transferencia bancaria"
+                  : "Efectivo en la entrega"}
             </DataList.ItemValue>
           </DataList.Item>
         </DataList.Root>
@@ -240,7 +242,9 @@ export function CheckoutSuccess({
       <Text fontSize="sm" color="fg.muted">
         {order.payment_method === "cash"
           ? "Recordá: pagás en efectivo en la entrega o el retiro."
-          : "El pago se procesa online; podés dar seguimiento en Mis pedidos."}
+          : order.payment_method === "transfer"
+            ? "Recordá: transferí el total y mandanos el comprobante."
+            : "El pago se procesa online; podés dar seguimiento en Mis pedidos."}
       </Text>
       <Box w="100%">
         <PaymentCard order={order} />
