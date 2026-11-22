@@ -7,6 +7,7 @@ import {
   Box,
   Button,
   Flex,
+  FormatNumber,
   Heading,
   Input,
   InputGroup,
@@ -17,7 +18,7 @@ import {
 import NextLink from "next/link";
 import { SearchIcon } from "@/components/ui/search-icon";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatCents, formatDateTime } from "@/lib/format";
+import { formatDateTime, centsToPesos } from "@/lib/format";
 import { EmptyState } from "@/modules/shared/EmptyState";
 import { orderWindowService } from "@/modules/settings/service";
 import type { OrderWindow } from "@/modules/settings/types";
@@ -39,8 +40,8 @@ export function OrdersPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [view, setView] = useState<"list" | "weekly">("list");
-  const [exportError, setExportError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const {
     items,
     total,
@@ -111,8 +112,8 @@ export function OrdersPage() {
     <Flex direction="column" gap={5}>
       <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
         <Flex direction="column" gap={1}>
-          <Heading fontSize="2xl">Pedidos</Heading>
-          <Text color="fg.muted">
+          <Heading as="h1" fontSize="2xl" textWrap="balance">Pedidos</Heading>
+          <Text color="fg.muted" fontVariantNumeric="tabular-nums" aria-live="polite">
             {total} en total
             {unpaidCount > 0 ? ` · ${unpaidCount} sin pagar` : ""}
           </Text>
@@ -170,8 +171,18 @@ export function OrdersPage() {
         </Alert.Root>
       ) : null}
 
+      {exportError ? (
+        <Alert.Root status="error" borderRadius="md">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>No se pudo exportar el reporte</Alert.Title>
+            <Alert.Description>{exportError}</Alert.Description>
+          </Alert.Content>
+        </Alert.Root>
+      ) : null}
+
       {}
-      <Flex gap={1} borderBottomWidth="1px" borderColor="gray.200">
+      <Flex gap={1} borderBottomWidth="1px" borderColor="border">
         {(
           [
             { id: "list", label: "Listado" },
@@ -181,14 +192,17 @@ export function OrdersPage() {
           <Box
             key={tab.id}
             as="button"
+            aria-pressed={view === tab.id}
             onClick={() => setView(tab.id)}
+            _hover={{ color: "brand.fg" }}
+            _focusVisible={{ outline: "2px solid", outlineColor: "brand.focusRing", outlineOffset: "-2px" }}
             px={4}
             py={2}
             fontSize="sm"
             fontWeight={view === tab.id ? "600" : "400"}
-            color={view === tab.id ? "brand.500" : "fg.muted"}
+            color={view === tab.id ? "brand.fg" : "fg.muted"}
             borderBottomWidth="2px"
-            borderBottomColor={view === tab.id ? "brand.500" : "transparent"}
+            borderBottomColor={view === tab.id ? "brand.solid" : "transparent"}
             cursor="pointer"
           >
             {tab.label}
@@ -203,6 +217,10 @@ export function OrdersPage() {
       <Flex gap={3} flexWrap="wrap" align="center">
         <InputGroup startElement={<SearchIcon />} maxW="320px">
           <Input
+            name="q"
+            type="search"
+            autoComplete="off"
+            spellCheck={false}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar por cliente…"
@@ -215,7 +233,7 @@ export function OrdersPage() {
             size="sm"
             rounded="full"
             variant={status === null ? "solid" : "outline"}
-            colorPalette={status === null ? "brand" : "gray"}
+            colorPalette={status === null ? "brand" : undefined}
             aria-pressed={status === null}
             onClick={() => setStatus(null)}
           >
@@ -228,7 +246,7 @@ export function OrdersPage() {
               rounded="full"
               whiteSpace="nowrap"
               variant={status === s ? "solid" : "outline"}
-              colorPalette={status === s ? "brand" : "gray"}
+              colorPalette={status === s ? "brand" : undefined}
               aria-pressed={status === s}
               onClick={() => setStatus(status === s ? null : s)}
             >
@@ -240,7 +258,7 @@ export function OrdersPage() {
             rounded="full"
             whiteSpace="nowrap"
             variant={paid === false ? "solid" : "outline"}
-            colorPalette={paid === false ? "orange" : "gray"}
+            colorPalette={paid === false ? "orange" : undefined}
             aria-pressed={paid === false}
             onClick={() => setPaid(paid === false ? null : false)}
           >
@@ -251,6 +269,8 @@ export function OrdersPage() {
         <Flex gap={2} align="center">
           <Input
             type="date"
+            name="from"
+            autoComplete="off"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
             maxW="160px"
@@ -261,6 +281,8 @@ export function OrdersPage() {
           </Text>
           <Input
             type="date"
+            name="to"
+            autoComplete="off"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
             maxW="160px"
@@ -316,12 +338,12 @@ export function OrdersPage() {
                   "Total",
                   "Pago",
                   "Estado",
-                  "",
+                  "Ver",
                 ].map((h) => (
                   <th
                     key={h}
                     style={{
-                      textAlign: "left",
+                      textAlign: h === "Total" ? "right" : "left",
                       padding: "10px 14px",
                       borderBottom: "1px solid var(--chakra-colors-border)",
                       fontWeight: 600,
@@ -329,7 +351,13 @@ export function OrdersPage() {
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {h}
+                    {h === "Ver" ? (
+                      <span style={{ position: "absolute", width: "1px", height: "1px", overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" }}>
+                        Ver
+                      </span>
+                    ) : (
+                      h
+                    )}
                   </th>
                 ))}
               </tr>
@@ -340,15 +368,15 @@ export function OrdersPage() {
                   <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
                     {order.date}
                   </td>
-                  <td style={{ padding: "10px 14px", fontWeight: 500 }}>
+                  <td style={{ padding: "10px 14px", fontWeight: 500, overflowWrap: "anywhere" }}>
                     {order.customer_name}
                   </td>
                   <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
                     {order.customer_phone}
                   </td>
-                  <td style={{ padding: "10px 14px" }}>{order.item_count}</td>
-                  <td style={{ padding: "10px 14px", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-                    {formatCents(order.total)}
+                  <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>{order.item_count}</td>
+                  <td style={{ padding: "10px 14px", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                    <FormatNumber value={centsToPesos(order.total)} style="currency" currency="ARS" />
                   </td>
                   <td style={{ padding: "10px 14px" }}>
                     <Badge

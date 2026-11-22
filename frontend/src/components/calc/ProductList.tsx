@@ -1,19 +1,21 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import NextLink from "next/link";
 import {
-  Flex,
-  Input,
   Button,
+  Flex,
+  FormatNumber,
+  Input,
+  Link,
   Table,
   Text,
-  IconButton,
 } from "@chakra-ui/react";
 import { CalcProductListSkeleton } from "@/components/ui/skeleton";
 
 import { calcProductsService } from "@/services/calcProductsService";
 import { toaster } from "@/lib/toaster";
-import { formatCents } from "@/lib/format";
+import { centsToPesos } from "@/lib/format";
 import type {
   ProductListItem,
   ProductListQuery,
@@ -125,16 +127,56 @@ export default function ProductList({ mode = "library" }: ProductListProps) {
           <Table.ColumnHeader textAlign="right">Costo</Table.ColumnHeader>
           <Table.ColumnHeader textAlign="right">Precio Final</Table.ColumnHeader>
           <Table.ColumnHeader textAlign="right">Margen</Table.ColumnHeader>
-          <Table.ColumnHeader textAlign="center">Acciones</Table.ColumnHeader>
         </Table.Header>
         <Table.Body>
+          {data.length === 0 && (
+            <Table.Row>
+              <Table.Cell
+                colSpan={mode === "library" ? 7 : 6}
+                py={10}
+                textAlign="center"
+              >
+                {search || statusFilter ? (
+                  <Text color="fg.muted">
+                    Sin resultados con los filtros actuales.
+                  </Text>
+                ) : mode === "library" ? (
+                  <Flex direction="column" align="center" gap={2}>
+                    <Text fontWeight="medium">Todavía no hay productos</Text>
+                    <Text color="fg.muted" fontSize="sm">
+                      Creá tu primer producto para empezar a calcular costos.
+                    </Text>
+                    <Link
+                      asChild
+                      color="brand.fg"
+                      fontWeight="medium"
+                    >
+                      <NextLink href="/admin/calculator/products/new">
+                        + Nuevo producto
+                      </NextLink>
+                    </Link>
+                  </Flex>
+                ) : (
+                  <Text color="fg.muted">
+                    Todavía no hay productos activos en la lista de precios.
+                  </Text>
+                )}
+              </Table.Cell>
+            </Table.Row>
+          )}
           {data.map((item) => {
             const isProductListItem = (item: ProductListDisplayItem): item is ProductListItem => 
               'status' in item;
             
             return (
               <Table.Row key={item.id}>
-                <Table.Cell>{item.name}</Table.Cell>
+                <Table.Cell overflowWrap="anywhere">
+                  <Link asChild color="brand.fg" fontWeight="medium">
+                    <NextLink href={`/admin/calculator/products/${item.id}`}>
+                      {item.name}
+                    </NextLink>
+                  </Link>
+                </Table.Cell>
                 <Table.Cell>{item.sku || "-"}</Table.Cell>
                 <Table.Cell>{item.category_name || "-"}</Table.Cell>
                 {mode === "library" && isProductListItem(item) && (
@@ -144,19 +186,9 @@ export default function ProductList({ mode = "library" }: ProductListProps) {
                     </Text>
                   </Table.Cell>
                 )}
-                <Table.Cell textAlign="right">{formatCents(item.product_total_cost)}</Table.Cell>
-                <Table.Cell textAlign="right">{formatCents(item.final_sale_price)}</Table.Cell>
-                <Table.Cell textAlign="right">{item.margin_percent}</Table.Cell>
-                <Table.Cell textAlign="center">
-                  <IconButton
-                    size="sm"
-                    variant="ghost"
-                    aria-label="Ver detalles"
-                    onClick={() => window.open(`/admin/calculator/products/${item.id}`, "_blank")}
-                  >
-                    👁️
-                  </IconButton>
-                </Table.Cell>
+                <Table.Cell textAlign="right" fontVariantNumeric="tabular-nums"><FormatNumber value={centsToPesos(item.product_total_cost)} style="currency" currency="ARS" /></Table.Cell>
+                <Table.Cell textAlign="right" fontVariantNumeric="tabular-nums"><FormatNumber value={centsToPesos(item.final_sale_price)} style="currency" currency="ARS" /></Table.Cell>
+                <Table.Cell textAlign="right" fontVariantNumeric="tabular-nums">{item.margin_percent}</Table.Cell>
               </Table.Row>
             );
           })}
@@ -173,13 +205,17 @@ export default function ProductList({ mode = "library" }: ProductListProps) {
 
   return (
     <Flex direction="column" gap={4}>
-      {}
       <Flex direction={{ base: "column", lg: "row" }} gap={4} p={4} bg="bg.subtle" borderRadius="md" align="end">
         <Flex direction="column" flex={1}>
           <Text fontSize="sm" mb={1}>Búsqueda</Text>
           <Flex gap={2}>
             <Input
-              placeholder="Buscar por nombre o SKU"
+              name="q"
+              type="search"
+              aria-label="Buscar por nombre o SKU"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="Buscar por nombre o SKU…"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -193,12 +229,10 @@ export default function ProductList({ mode = "library" }: ProductListProps) {
         </Button>
       </Flex>
 
-      {}
       <Flex direction="column" gap={4}>
         {renderTable()}
       </Flex>
 
-      {}
       {totalPages > 1 && (
         <Flex justify="center" gap={2} mt={4}>
           <Button
@@ -208,7 +242,7 @@ export default function ProductList({ mode = "library" }: ProductListProps) {
           >
             Anterior
           </Button>
-          <Text py={2} px={4} bg="bg.muted" borderRadius="md">
+          <Text py={2} px={4} bg="bg.muted" borderRadius="md" fontVariantNumeric="tabular-nums" aria-live="polite">
             Página {page} de {totalPages}
           </Text>
           <Button

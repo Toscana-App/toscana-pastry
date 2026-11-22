@@ -9,6 +9,7 @@ import {
   Heading,
   Image,
   Text,
+  FormatNumber,
 } from "@chakra-ui/react";
 import { gooeyToast } from "goey-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,15 +18,6 @@ import { roleDefaultDisplayAudience } from "@/lib/roleAudience";
 import { addCartItem } from "@/services/cartService";
 import { fetchStoreDetail } from "@/services/storeService";
 import type { StoreProductDetail } from "@/types/pricing";
-
-function formatPrice(value: string): string {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return value;
-  return parsed.toLocaleString("es-AR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
 
 export function ProductStoreDetail({ id }: { id: string }) {
   const { user } = useAuth();
@@ -73,7 +65,7 @@ export function ProductStoreDetail({ id }: { id: string }) {
 
   if (loading) {
     return (
-      <Box py={12} textAlign="center">
+      <Box py={12} textAlign="center" role="status" aria-live="polite">
         <Text color="fg.muted">Cargando producto…</Text>
       </Box>
     );
@@ -82,7 +74,7 @@ export function ProductStoreDetail({ id }: { id: string }) {
   if (notFound || !detail) {
     return (
       <Box py={12} textAlign="center" flex="1">
-        <Heading size="md" mb={2}>
+        <Heading size="md" mb={2} textWrap="balance">
           Producto no disponible
         </Heading>
         <Text color="fg.muted">
@@ -103,6 +95,8 @@ export function ProductStoreDetail({ id }: { id: string }) {
           <Image
             src={detail.image_url}
             alt={`Imagen de ${detail.name}`}
+            htmlWidth={352}
+            htmlHeight={352}
             w="100%"
             aspectRatio="1"
             objectFit="cover"
@@ -127,11 +121,11 @@ export function ProductStoreDetail({ id }: { id: string }) {
           <Badge colorPalette="brand" variant="subtle" alignSelf="flex-start">
             {detail.category}
           </Badge>
-          <Heading as="h1" size="2xl">
+          <Heading as="h1" size="2xl" textWrap="balance" overflowWrap="anywhere">
             {detail.name}
           </Heading>
           {detail.description ? (
-            <Text color="fg.muted">{detail.description}</Text>
+            <Text color="fg.muted" overflowWrap="anywhere">{detail.description}</Text>
           ) : null}
         </Flex>
 
@@ -140,13 +134,13 @@ export function ProductStoreDetail({ id }: { id: string }) {
             <Text fontSize="xs" color="fg.muted">
               Rinde
             </Text>
-            <Text fontWeight="medium">{detail.servings} porciones</Text>
+            <Text fontWeight="medium" fontVariantNumeric="tabular-nums">{detail.servings} porciones</Text>
           </Box>
           <Box>
             <Text fontSize="xs" color="fg.muted">
               Preparación
             </Text>
-            <Text fontWeight="medium">{detail.prep_time_min} min</Text>
+            <Text fontWeight="medium" fontVariantNumeric="tabular-nums">{detail.prep_time_min} min</Text>
           </Box>
         </Flex>
 
@@ -165,7 +159,7 @@ export function ProductStoreDetail({ id }: { id: string }) {
               Precio
             </Text>
             <Text fontSize="xl" fontWeight="bold" fontVariantNumeric="tabular-nums">
-              ${formatPrice(detail.price)}
+              <FormatNumber value={Number(detail.price)} style="currency" currency="ARS" />
             </Text>
           </Box>
           {canBuy && (

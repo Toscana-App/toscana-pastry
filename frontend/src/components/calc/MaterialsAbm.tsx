@@ -11,6 +11,7 @@ import {
   Table,
   Tag,
   Text,
+  FormatNumber,
 } from "@chakra-ui/react";
 import { AbmListSkeleton } from "@/components/ui/skeleton";
 
@@ -318,7 +319,11 @@ export default function MaterialsAbm() {
       <Flex align="center" direction={{ base: "column", md: "row" }} gap={3}>
         <Input
           aria-label="Buscar"
-          placeholder="Buscar por nombre o código"
+          name="q"
+          type="search"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="Buscar por nombre o código…"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
         />
@@ -400,7 +405,9 @@ export default function MaterialsAbm() {
             </Select.Content>
           </Select.Positioner>
         </Select.Root>
-        <Text color="fg.muted">Total: {total}</Text>
+        <Text color="fg.muted" fontVariantNumeric="tabular-nums" aria-live="polite">
+          Total: {total}
+        </Text>
       </Flex>
 
       {items.length === 0 ? (
@@ -433,7 +440,9 @@ export default function MaterialsAbm() {
                 <Table.Row key={material.id}>
                   <Table.Cell>
                     <Flex direction="column">
-                      <Text fontWeight="medium">{material.name}</Text>
+                      <Text fontWeight="medium" overflowWrap="anywhere">
+                        {material.name}
+                      </Text>
                       {material.internal_code && (
                         <Text color="fg.muted" fontSize="xs">
                           {material.internal_code}
@@ -455,13 +464,15 @@ export default function MaterialsAbm() {
                     {material.unit_of_measure ?? "—"}
                   </Table.Cell>
                   {}
-                  <Table.Cell>
-                    {material.purchase_total_price ?? "—"}
+                  <Table.Cell fontVariantNumeric="tabular-nums">
+                    {material.purchase_total_price != null ? <FormatNumber value={Number(material.purchase_total_price)} style="currency" currency="ARS" /> : "—"}
                   </Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell fontVariantNumeric="tabular-nums">
                     {material.package_quantity ?? "—"}
                   </Table.Cell>
-                  <Table.Cell>{material.unit_cost ?? "—"}</Table.Cell>
+                  <Table.Cell fontVariantNumeric="tabular-nums">
+                    {material.unit_cost != null ? <FormatNumber value={Number(material.unit_cost)} style="currency" currency="ARS" /> : "—"}
+                  </Table.Cell>
                   <Table.Cell>
                     <StatusChip status={material.status} />
                   </Table.Cell>

@@ -84,6 +84,7 @@ function AddressBook() {
         if (cancelled) return;
         setAddresses(res.items ?? []);
       } catch {
+        // The empty state below covers load failures; retry via refresh.
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -148,7 +149,9 @@ function AddressBook() {
         await reload();
       } catch (err) {
         setFormError(
-          err instanceof Error ? err.message : "No se pudo cambiar el default"
+          err instanceof Error
+            ? err.message
+            : "No se pudo cambiar la dirección predeterminada"
         );
       } finally {
         setBusy(false);
@@ -185,13 +188,13 @@ function AddressBook() {
         <Stack gap={4}>
           <Flex justify="space-between" align="center">
             <Text fontWeight="semibold">Libro de direcciones</Text>
-            <Text fontSize="xs" color="fg.muted">
+            <Text fontSize="xs" color="fg.muted" fontVariantNumeric="tabular-nums">
               {addresses.length}/{MAX_ADDRESSES}
             </Text>
           </Flex>
 
           {error && (
-            <Alert.Root status="error">
+            <Alert.Root status="error" aria-live="polite">
               <Alert.Indicator />
               <Alert.Content>
                 <Alert.Description>{error}</Alert.Description>
@@ -290,7 +293,9 @@ function AddressBook() {
                   <Field.Root invalid={formError !== null}>
                     <Field.Label>Calle y número</Field.Label>
                     <Input
-                      placeholder="Calle 123"
+                      name="street_line_1"
+                      autoComplete="address-line1"
+                      placeholder="Calle 123…"
                       value={form.street_line_1}
                       onChange={(e) =>
                         setForm((f) => ({ ...f, street_line_1: e.target.value }))
@@ -302,7 +307,9 @@ function AddressBook() {
                   <Field.Root>
                     <Field.Label>Ciudad</Field.Label>
                     <Input
-                      placeholder="Ciudad"
+                      name="city"
+                      autoComplete="address-level2"
+                      placeholder="Ciudad…"
                       value={form.city}
                       onChange={(e) =>
                         setForm((f) => ({ ...f, city: e.target.value }))
@@ -314,7 +321,10 @@ function AddressBook() {
                   <Field.Root>
                     <Field.Label>Código postal</Field.Label>
                     <Input
-                      placeholder="1428"
+                      name="postal_code"
+                      autoComplete="postal-code"
+                      inputMode="numeric"
+                      placeholder="1428…"
                       value={form.postal_code}
                       onChange={(e) =>
                         setForm((f) => ({
@@ -331,7 +341,9 @@ function AddressBook() {
                   <Field.Root>
                     <Field.Label>Provincia</Field.Label>
                     <Input
-                      placeholder="Buenos Aires"
+                      name="province"
+                      autoComplete="address-level1"
+                      placeholder="Buenos Aires…"
                       value={form.province}
                       onChange={(e) =>
                         setForm((f) => ({ ...f, province: e.target.value }))
@@ -343,7 +355,11 @@ function AddressBook() {
                   <Field.Root>
                     <Field.Label>Teléfono</Field.Label>
                     <Input
-                      placeholder="11 2345 6789"
+                      type="tel"
+                      inputMode="tel"
+                      name="phone"
+                      autoComplete="tel"
+                      placeholder="11 2345 6789…"
                       value={form.phone}
                       onChange={(e) =>
                         setForm((f) => ({ ...f, phone: e.target.value }))
@@ -353,7 +369,7 @@ function AddressBook() {
                 </Box>
               </Flex>
               {formError && (
-                <Alert.Root status="error" py={2}>
+                <Alert.Root status="error" py={2} aria-live="polite">
                   <Alert.Indicator />
                   <Alert.Content>
                     <Alert.Description>{formError}</Alert.Description>

@@ -1,8 +1,8 @@
 "use client";
 
-import { Badge, Flex, Text } from "@chakra-ui/react";
+import { Badge, Flex, FormatNumber, Text } from "@chakra-ui/react";
 import NextLink from "next/link";
-import { formatCents } from "@/lib/format";
+import { centsToPesos } from "@/lib/format";
 import type { ProductListItem } from "../types";
 
 interface ProductCardProps {
@@ -26,12 +26,13 @@ export function ProductCard({ product }: ProductCardProps) {
         transition="border-color 120ms ease-out"
         _hover={{ borderColor: "brand.solid" }}
         _focusWithin={{
-          outline: "2px solid var(--chakra-colors-brand-600)",
+          outline: "2px solid",
+          outlineColor: "brand.focusRing",
           outlineOffset: "2px",
         }}
       >
         <Flex align="flex-start" justify="space-between" gap={3}>
-          <Text fontSize="lg" fontWeight="500" lineClamp={2}>
+          <Text fontSize="lg" fontWeight="500" lineClamp={2} overflowWrap="anywhere" minW={0}>
             {product.name}
           </Text>
           {product.complete && product.price_final !== null ? (
@@ -41,7 +42,7 @@ export function ProductCard({ product }: ProductCardProps) {
               fontVariantNumeric="tabular-nums"
               whiteSpace="nowrap"
             >
-              {formatCents(product.price_final)}
+              <FormatNumber value={centsToPesos(product.price_final)} style="currency" currency="ARS" />
             </Text>
           ) : (
             <Badge colorPalette="orange" size="sm" flexShrink={0}>

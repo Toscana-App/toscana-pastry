@@ -7,6 +7,7 @@ import {
   Box,
   Button,
   Flex,
+  FormatNumber,
   Heading,
   Input,
   InputGroup,
@@ -17,7 +18,7 @@ import {
 import NextLink from "next/link";
 import { SearchIcon } from "@/components/ui/search-icon";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatCents } from "@/lib/format";
+import { centsToPesos } from "@/lib/format";
 import { EmptyState } from "@/modules/shared/EmptyState";
 import { useBudgets } from "../hooks/useBudgets";
 import { budgetsService } from "../service";
@@ -91,8 +92,10 @@ export function BudgetsPage() {
     <Flex direction="column" gap={5}>
       <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
         <Flex direction="column" gap={1}>
-          <Heading fontSize="2xl">Presupuestos</Heading>
-          <Text color="fg.muted">{total} en total</Text>
+          <Heading as="h1" fontSize="2xl" textWrap="balance">Presupuestos</Heading>
+          <Text color="fg.muted" fontVariantNumeric="tabular-nums" aria-live="polite">
+            {total} en total
+          </Text>
         </Flex>
         <Flex gap={2}>
           <Button
@@ -133,6 +136,10 @@ export function BudgetsPage() {
       <Flex gap={3} flexWrap="wrap" align="center">
         <InputGroup startElement={<SearchIcon />} maxW="320px">
           <Input
+            name="q"
+            type="search"
+            autoComplete="off"
+            spellCheck={false}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar por cliente o nº…"
@@ -145,7 +152,7 @@ export function BudgetsPage() {
             size="sm"
             rounded="full"
             variant={status === null ? "solid" : "outline"}
-            colorPalette={status === null ? "brand" : "gray"}
+            colorPalette={status === null ? "brand" : undefined}
             aria-pressed={status === null}
             onClick={() => setStatus(null)}
           >
@@ -158,7 +165,7 @@ export function BudgetsPage() {
               rounded="full"
               whiteSpace="nowrap"
               variant={status === s ? "solid" : "outline"}
-              colorPalette={status === s ? "brand" : "gray"}
+              colorPalette={status === s ? "brand" : undefined}
               aria-pressed={status === s}
               onClick={() => setStatus(status === s ? null : s)}
             >
@@ -170,6 +177,8 @@ export function BudgetsPage() {
         <Flex gap={2} align="center">
           <Input
             type="date"
+            name="from"
+            autoComplete="off"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
             maxW="160px"
@@ -180,6 +189,8 @@ export function BudgetsPage() {
           </Text>
           <Input
             type="date"
+            name="to"
+            autoComplete="off"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
             maxW="160px"
@@ -234,7 +245,7 @@ export function BudgetsPage() {
                   <th
                     key={`${h}-${i}`}
                     style={{
-                      textAlign: "left",
+                      textAlign: h === "Total" ? "right" : "left",
                       padding: "10px 14px",
                       borderBottom: "1px solid var(--chakra-colors-border)",
                       fontWeight: 600,
@@ -242,7 +253,13 @@ export function BudgetsPage() {
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {h}
+                    {h === "" ? (
+                      <span style={{ position: "absolute", width: "1px", height: "1px", overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" }}>
+                        Ver
+                      </span>
+                    ) : (
+                      h
+                    )}
                   </th>
                 ))}
               </tr>
@@ -256,15 +273,15 @@ export function BudgetsPage() {
                   <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
                     {formatDate(budget.created_at)}
                   </td>
-                  <td style={{ padding: "10px 14px", fontWeight: 500 }}>
+                  <td style={{ padding: "10px 14px", fontWeight: 500, overflowWrap: "anywhere" }}>
                     {budget.customer_name}
                   </td>
                   <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
                     {budget.customer_phone}
                   </td>
-                  <td style={{ padding: "10px 14px" }}>{budget.item_count}</td>
-                  <td style={{ padding: "10px 14px", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-                    {formatCents(budget.total)}
+                  <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>{budget.item_count}</td>
+                  <td style={{ padding: "10px 14px", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                    <FormatNumber value={centsToPesos(budget.total)} style="currency" currency="ARS" />
                   </td>
                   <td style={{ padding: "10px 14px" }}>
                     <Badge colorPalette={STATUS_COLORS[budget.status]} variant="subtle">
