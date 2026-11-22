@@ -23,7 +23,6 @@ def google_config(monkeypatch):
 
 
 class _FakeVerify:
-    """Stands in for google.oauth2.id_token.verify_oauth2_token."""
 
     def __init__(self, payload=None, exc=None):
         self.payload = payload
@@ -151,7 +150,7 @@ async def test_signin_invalid_token_is_401(google_app, monkeypatch):
 async def test_signin_without_preauth_cookie_is_401(google_app, monkeypatch):
     async with _client() as ac:
         nonce = await _fetch_nonce(ac)
-        ac.cookies.clear()  # drop the preauth cookie on purpose
+        ac.cookies.clear()
     verify = _FakeVerify(payload=_payload(nonce))
     monkeypatch.setattr(google_domain, "verify_oauth2_token", verify)
     async with _client() as ac:
@@ -167,7 +166,7 @@ async def test_signin_without_preauth_cookie_is_401(google_app, monkeypatch):
 async def test_signin_nonce_mismatch_is_401(google_app, monkeypatch):
     async with _client() as ac:
         first = await _fetch_nonce(ac)
-        second = await _fetch_nonce(ac)  # cookie now points at the second
+        second = await _fetch_nonce(ac)
         assert first != second
     verify = _FakeVerify(payload=_payload(first))
     monkeypatch.setattr(google_domain, "verify_oauth2_token", verify)
@@ -314,7 +313,6 @@ async def test_signin_link_pending_when_email_exists_without_google_id(
         await _R(session).save(
             User(email="user@gmail.com", role=UserRole.CUSTOMER)
         )
-    # Verified gmail + hd: even so, RF-P1-10 forbids auto-linking.
     verify = _FakeVerify(payload=None)
     monkeypatch.setattr(google_domain, "verify_oauth2_token", verify)
     async with _client() as ac:

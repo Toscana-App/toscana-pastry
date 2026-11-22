@@ -43,11 +43,6 @@ function LoginFormPlaceholder() {
   );
 }
 
-// Server component: the GIS client id is a runtime env var shared with the
-// backend (RNF-P1-08: single source of truth, never NEXT_PUBLIC). Reading
-// headers() keeps the segment dynamic (the `dynamic` route segment config is
-// not compatible with nextConfig.cacheComponents), so the value comes from
-// the running server, not baked in at build time.
 export const metadata = {
   other: { "google-client-id": process.env.GOOGLE_CLIENT_ID || undefined },
 };
@@ -57,7 +52,7 @@ export default function LoginPage() {
   const googleClientId = process.env.GOOGLE_CLIENT_ID ?? "";
   return (
     <>
-      {/* Always from Google's CDN, never vendored (RNF-P1-08). */}
+      {}
       <Script
         src="https://accounts.google.com/gsi/client"
         strategy="beforeInteractive"

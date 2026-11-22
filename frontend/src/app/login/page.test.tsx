@@ -31,7 +31,6 @@ describe("login page", () => {
     );
     expect(screen.getByText("Iniciar sesión")).toBeTruthy();
     expect(screen.getByText("Continúa con tu cuenta de Google")).toBeTruthy();
-    // GOOGLE_CLIENT_ID is not set in the test env: honest fallback, no button.
     expect(
       screen.getByText("Acceso con Google no configurado"),
     ).toBeTruthy();

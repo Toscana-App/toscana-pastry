@@ -36,7 +36,6 @@ async def test_existing_google_id_logs_in_without_asking_about_email():
 
 
 async def test_email_match_without_google_id_is_always_link_pending():
-    # Even with a verified gmail: RF-P1-10 forbids auto-linking by email.
     existing = User(email="user@gmail.com", role=UserRole.CUSTOMER)
     repo = FakeUserRepository(by_google_id=None, by_email=existing)
     outcome = await GoogleSignIn(repo, auto_create=True).execute(dict(PAYLOAD))
@@ -74,9 +73,6 @@ async def test_new_email_is_no_account_when_auto_create_is_off():
 
 
 async def test_email_match_with_a_different_google_id_is_link_pending():
-    # Two Google accounts sharing one email: the account is bound to another
-    # google_id. Auto-linking is forbidden (RF-P1-10) and auto-creating would
-    # violate the email uniqueness constraint -> pending link, never 500.
     existing = User(email="user@gmail.com", google_id="google-sub-OTHER")
     repo = FakeUserRepository(by_google_id=None, by_email=existing)
     outcome = await GoogleSignIn(repo, auto_create=True).execute(dict(PAYLOAD))

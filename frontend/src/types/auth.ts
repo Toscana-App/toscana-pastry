@@ -26,7 +26,7 @@ export interface LoginRequest {
   googleId?: string;
 }
 
-/** POST /auth/google/signin success body (state is always "signed_in" on 200). */
+
 export interface GoogleSignInResponse {
   user_id: string;
   email: string;
@@ -34,7 +34,7 @@ export interface GoogleSignInResponse {
   state: "signed_in";
 }
 
-/** 409 body of POST /auth/google/signin (RNF-P1-07): branch on `state`. */
+
 export type GoogleSignInConflictState = "no_account" | "link_pending";
 
 export interface GoogleSignInConflictDetail {

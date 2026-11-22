@@ -30,12 +30,6 @@ def clear_session_cookies(response: Response) -> None:
 
 
 def set_google_preauth_cookie(response: Response, nonce_id: str, max_age: int) -> None:
-    """Pre-auth cookie binding a server-issued nonce to the browser (RF-P1-09).
-
-    SameSite=lax (not strict): the sign-in POST comes from the same origin,
-    but a lax pre-auth cookie also survives the initial page load that fetches
-    the nonce. httponly keeps the id out of JS reach.
-    """
     response.set_cookie(
         GOOGLE_PREAUTH_COOKIE,
         nonce_id,

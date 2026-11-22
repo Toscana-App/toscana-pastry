@@ -23,7 +23,6 @@ auth_limiter = SlidingWindowRateLimiter(max_requests=30, window_seconds=120)
 router = APIRouter(
     prefix="/auth",
     tags=["auth"],
-    # The whole auth surface (login/refresh/logout/google) shares this limiter.
     dependencies=[Depends(auth_limiter.dependency())],
 )
 

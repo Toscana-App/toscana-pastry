@@ -2,7 +2,6 @@ from core.config import Settings, _parse_google_auto_create
 
 
 class _FakeSettings:
-    """Duck-typed stand-in: only the two attributes the property reads."""
 
     def __init__(self, flag, environment):
         self.GOOGLE_AUTO_CREATE = flag

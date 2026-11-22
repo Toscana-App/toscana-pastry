@@ -44,7 +44,6 @@ def test_none_is_rejected_even_with_allowed_origin():
 
 
 def test_missing_sec_fetch_site_with_exact_allowed_origin_is_trusted():
-    # Fail-safe for non-sec-fetch browsers: exact Origin match only.
     assert google_json_flow_csrf_trusted(None, "http://localhost:3000", ALLOWED) is True
 
 

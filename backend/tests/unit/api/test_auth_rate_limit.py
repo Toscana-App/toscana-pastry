@@ -1,8 +1,3 @@
-"""The whole auth surface must share its own limiter instance.
-
-Kept separate from the public PDF limiter so rate-limiting one does not
-starve the other (decision 9).
-"""
 from api.v1.auth.router import auth_limiter
 from api.v1.pdf.router import public_pdf_limiter
 
