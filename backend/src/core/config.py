@@ -4,6 +4,20 @@ DEFAULT_DEV_SECRET_KEY = "super-secret-key-for-dev-only-12345"
 DEFAULT_DEV_REFRESH_SECRET_KEY = "refresh-secret-key-for-dev-only-67890"
 DEV_SECRET_KEY = DEFAULT_DEV_SECRET_KEY
 
+AFIP_ENV_HOMOLOGACION = "homo"
+AFIP_ENV_PRODUCCION = "prod"
+AFIP_ENVIRONMENTS = (AFIP_ENV_HOMOLOGACION, AFIP_ENV_PRODUCCION)
+
+AFIP_WSAA_URLS: dict[str, str] = {
+    AFIP_ENV_HOMOLOGACION: "https://wsaahomo.afip.gov.ar/ws/services/LoginCms?WSDL",
+    AFIP_ENV_PRODUCCION: "https://wsaa.afip.gov.ar/ws/services/LoginCms?WSDL",
+}
+AFIP_WSFE_URLS: dict[str, str] = {
+    AFIP_ENV_HOMOLOGACION: "https://wswhomo.afip.gov.ar/wsfev1/service.asmx?WSDL",
+    AFIP_ENV_PRODUCCION: "https://servicios1.afip.gov.ar/wsfev1/service.asmx?WSDL",
+}
+
+
 
 class Settings:
     PROJECT_NAME: str = "Toscana Pastry"
@@ -27,11 +41,59 @@ class Settings:
             os.path.join(os.path.dirname(__file__), "..", "..", "media")
         ),
     )
+    AFIP_ENV: str = (os.getenv("AFIP_ENV") or AFIP_ENV_HOMOLOGACION).strip().lower()
+    AFIP_PRIVATE_KEY_PATH: str = os.getenv("AFIP_PRIVATE_KEY_PATH", "")
+    AFIP_CERT_PATH: str = os.getenv("AFIP_CERT_PATH", "")
+    AFIP_PRIVATE_KEY_PEM: str = os.getenv("AFIP_PRIVATE_KEY_PEM", "")
+    AFIP_CERT_PEM: str = os.getenv("AFIP_CERT_PEM", "")
+    AFIP_WSAA_URL: str = os.getenv("AFIP_WSAA_URL", "")
+    AFIP_WSFE_URL: str = os.getenv("AFIP_WSFE_URL", "")
+
+    @property
+    def afip_wsaa_url(self) -> str:
+        return self.AFIP_WSAA_URL.strip() or AFIP_WSAA_URLS.get(
+            self.AFIP_ENV, AFIP_WSAA_URLS[AFIP_ENV_HOMOLOGACION]
+        )
+
+    @property
+    def afip_wsfe_url(self) -> str:
+        return self.AFIP_WSFE_URL.strip() or AFIP_WSFE_URLS.get(
+            self.AFIP_ENV, AFIP_WSFE_URLS[AFIP_ENV_HOMOLOGACION]
+        )
+
+    @property
+    def afip_credentials_configured(self) -> bool:
+        has_paths = bool(self.AFIP_PRIVATE_KEY_PATH.strip()) and bool(
+            self.AFIP_CERT_PATH.strip()
+        )
+        has_pem = bool(self.AFIP_PRIVATE_KEY_PEM.strip()) and bool(
+            self.AFIP_CERT_PEM.strip()
+        )
+        return has_paths or has_pem
+
+    def validate_afip(self, problems: list[str]) -> None:
+        if self.AFIP_ENV not in AFIP_ENVIRONMENTS:
+            problems.append(
+                f"AFIP_ENV inválido: {self.AFIP_ENV!r} (usar 'homo' o 'prod')"
+            )
+            return
+        if self.ENVIRONMENT != "prod":
+            return
+        if self.AFIP_ENV != AFIP_ENV_PRODUCCION:
+            problems.append("AFIP_ENV must be 'prod' in production")
+        if not self.afip_credentials_configured:
+            problems.append(
+                "AFIP_PRIVATE_KEY_PATH/AFIP_CERT_PATH (o AFIP_*_PEM) is missing"
+            )
 
     def validate_for_startup(self) -> None:
         if self.ENVIRONMENT not in ("dev", "prod"):
             raise RuntimeError(
                 f"ENVIRONMENT inválido: {self.ENVIRONMENT!r} (usar 'dev' o 'prod')"
+            )
+        if self.AFIP_ENV not in AFIP_ENVIRONMENTS:
+            raise RuntimeError(
+                f"AFIP_ENV inválido: {self.AFIP_ENV!r} (usar 'homo' o 'prod')"
             )
         if self.ENVIRONMENT != "prod":
             return
@@ -44,8 +106,10 @@ class Settings:
             problems.append("REFRESH_SECRET_KEY must differ from SECRET_KEY")
         if not self.MP_WEBHOOK_SECRET:
             problems.append("MP_WEBHOOK_SECRET is missing")
+        self.validate_afip(problems)
         if problems:
             raise RuntimeError("Unsafe production configuration: " + "; ".join(problems))
+
 
 
 settings = Settings()

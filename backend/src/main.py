@@ -16,6 +16,7 @@ from api.v1.coupons.router import router as coupons_router
 from api.v1.customers.router import router as customers_router
 from api.v1.ingredients.router import router as ingredients_router
 from api.v1.imports.router import router as imports_router
+from api.v1.invoicing.router import router as invoicing_router
 from api.v1.leads.router import router as leads_router
 from api.v1.orders.router import router as orders_router
 from api.v1.order_window.router import router as order_window_router
@@ -70,6 +71,7 @@ app.include_router(orders_router, prefix="/api/v1")
 app.include_router(order_window_router, prefix="/api/v1")
 app.include_router(webhooks_router, prefix="/api/v1")
 app.include_router(whatsapp_router, prefix="/api/v1")
+app.include_router(invoicing_router, prefix="/api/v1")
 
 app.include_router(budgets_router, prefix="/api/v1")
 app.include_router(pdf_router, prefix="/api/v1")

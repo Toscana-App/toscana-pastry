@@ -155,6 +155,15 @@ Cada módulo web es autónomo: propios componentes, hooks y tests; comparte solo
 - **WhatsApp Business upgrade** (p10 RF-P10-07/08): envío directo por Business API con estados `sent/delivered/read/failed`, reintentos y métricas; fallback `wa.me` intacto.
 - **Criterio de salida**: `negocio`/`cliente` completa el checkout e2e y paga (mock MP con webhook que marca `paid`, o efectivo con badge); la dueña ve el pedido en P6 con el método de pago; el portal nunca expone precios de la otra audiencia (tests cross-rol).
 
+### Fase 6 — Facturación electrónica ARCA · **Entrega: el admin emite Factura C con CAE y PDF con QR**
+- Especificación: `p13_invoicing.md` + `api_endpoints.md` §FASE 6 + matriz RBAC P13 en `security.md`. Tasks: `odd/tasks/afip-invoicing.md`.
+- Emisor monotributista: siempre **Factura C** (tipo 011) vía web services de ARCA — **WSAA** (TRA firmado PKCS#7 → token/sign ~12 h, cache en memoria) + **WSFEv1** (`FECompUltimoAutorizado` + `FeCAESolicitar` → CAE 14 dígitos). Referencia: skill `afip-facturacion`.
+- **El frontend decide qué ventas se facturan**: botón "Facturar" solo en pedidos entregados/pagados sin comprobante (detalle de pedido, admin). **Alert de irreversibilidad** obligatorio antes de emitir (CAE registrado en ARCA no se anula; solo NC, fuera de scope v1).
+- Un comprobante por pedido (`unique order_id`); importe = neto del pedido (autoridad del backend); `concepto` 1/2/3 con período de servicio; receptor CF (99) / CUIT (80) / DNI (86).
+- PDF oficial con QR RG 4291/2018 renderizado en `pdfgenerator` (`POST /render/invoice-arca`) — el backend conserva `PdfClient` como borde (503 si cae).
+- **Seguridad**: 6 endpoints admin-only (matriz P13) con test de matriz permanente; credenciales solo por env (`AFIP_*`, `.env` gitignored); `AFIP_ENV` default `homo` (siempre homologación en dev/tests; prod exige explícito); kill-switch 503 sin settings/credenciales; cero filtrado de tokens/certificados en errores o logs.
+- **Criterio de salida**: admin configura emisor (CUIT + punto de venta) → factura un pedido entregado (tras el alert) → ve número/CAE/vencimiento y descarga el PDF con QR; `cliente`/`negocio` → 403 en los 6 endpoints; la suite corre 100% sin tocar ARCA (cliente fake) y el smoke de homologación se documenta en el PR.
+
 ---
 
 ## 4. Checklist técnico (trazabilidad → fase)
@@ -196,6 +205,7 @@ Cada módulo web es autónomo: propios componentes, hooks y tests; comparte solo
 | 33 | **Portal self-service + checkout e2e de 5 pasos** (negocio/cliente; no-fuga de precios por audiencia) | p11, `api_endpoints.md` §FASE 5 | 5 |
 | 34 | **Pago Mercado Pago (contratos safe mode + mock)** y efectivo en la entrega (webhook firmado, idempotencia, `paid` automático) | p06 RF-P6-12…14, p11 RF-P11-10/11 | 5 |
 | 35 | **Leads + libro de direcciones + cupones** (captura `consumer`/`business`, máx. 5 direcciones por cliente, percent/fixed con `max_uses`) + WhatsApp Business upgrade (estados + reintentos) | p11 RF-P11-09/13/14, p10 RF-P10-07/08 | 5 |
+| 36 | **Facturación electrónica ARCA** (Factura C con CAE vía WSAA+WSFEv1, PDF con QR RG 4291/2018, admin-only, siempre homo, cero credenciales en repo) | p13, `api_endpoints.md` §FASE 6, `security.md` matriz P13 | 6 |
 
 ---
 
@@ -209,3 +219,4 @@ Cada módulo web es autónomo: propios componentes, hooks y tests; comparte solo
 6. **Multi-tenancy estricta**: `tenant_id` en toda consulta (middleware + a nivel de repositorio).
 7. **Sin portal self-service ni sockets en v1** (decisión de recon 2026-10-23, `elclubdelosaludable.ar`): single-usuario por tenant; si aparece el caso de seguimiento en vivo, el canal es SSE sobre los listados, no Socket.IO. El portal de clientes se revisa solo si 3+ tenants lo piden. — **Override parcial (2026-10-25, decisión del owner)**: el portal self-service + checkout e2e (Fase 5, `p11_portal_checkout.md`) está APROBADO para los roles `negocio`/`cliente`, con precondición del sistema de roles de 3 vías. La restricción de sockets (SSE, no Socket.IO) se mantiene vigente.
 8. **La tienda vende productos, no insumos** (decisión del owner, 2026-11-08, `odd/tasks/products-storefront.md`): catálogo, carrito y pedido del portal operan sobre productos con receta; precio por audiencia = motor + markup (`consumer_markup_pct` para `consumidor_final`). Switch de publicación `available` (default false; publicar incompleto → 409 `missing_ingredients`). Imagen por multipart admin-only. RBAC: todo endpoint de gestión exige `require_admin` — la fuga es 403, nunca ocultación en UI. Contratos: `p03`/`p04` (RF-P3-09, RF-P4-09…11), `p11`, `p12_product_media.md`, `security.md` §RBAC.
+9. **Facturación electrónica ARCA como módulo desacoplado** (decisión del owner, 2026-11-11, `odd/tasks/afip-invoicing.md` + `p13_invoicing.md`): la emisión de comprobantes es **admin-only** (6 endpoints, matriz P13 en `security.md`) y el frontend decide qué ventas se facturan — el backend nunca emite por su cuenta. Emisor monotributista → siempre Factura C (011) con CAE vía WSAA+WSFEv1; el PDF con QR RG 4291/2018 se renderiza en `pdfgenerator` (borde HTTP, `PdfClient`), no en el backend. Credenciales **solo por variables de entorno** (`AFIP_*`, `.env` gitignored, `.env.example` sin valores) — nunca en el repo ni en el frontend. `AFIP_ENV` default `homo` (pruebas siempre en homologación; prod exige explícito); kill-switch 503 sin settings/credenciales; emisión irreversible (alert obligatorio en UI). Un comprobante por pedido (`unique order_id`); NC/ND fuera de scope v1.
