@@ -186,7 +186,6 @@ async def _seed_order(
             quantity=quantity,
             unit_price=unit_price,
             portion_note="",
-            qty=quantity,
             portions=20,
             note="",
             position=1,

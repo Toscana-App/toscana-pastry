@@ -153,7 +153,6 @@ async def _seed_order(db_session, suffix: str = "1") -> str:
             quantity=1,
             unit_price="5200.00",
             portion_note="",
-            qty=1,
             portions=20,
             note="",
             position=1,
