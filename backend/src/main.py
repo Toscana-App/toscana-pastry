@@ -1,4 +1,3 @@
-import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -9,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from api.v1.admin.router import router as admin_router
 from api.v1.auth.router import router as auth_router
+from api.v1.auth.google import router as auth_google_router
 from api.v1.budgets.router import router as budgets_router
 from api.v1.calc.router import router as calc_router
 from api.v1.cart.router import router as cart_router
@@ -34,12 +34,6 @@ from data.pdf.client import PdfServiceError
 from core.config import settings as app_settings
 from data.models import Base
 
-ALLOWED_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
-    if origin.strip()
-]
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -52,13 +46,14 @@ app = FastAPI(title="Toscana Pastry API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=app_settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(auth_google_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
 app.include_router(settings_router, prefix="/api/v1")
 app.include_router(pricing_router, prefix="/api/v1")

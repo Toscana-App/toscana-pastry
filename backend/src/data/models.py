@@ -1,4 +1,5 @@
 import datetime
+import uuid
 from enum import StrEnum
 
 from sqlalchemy import (
@@ -15,6 +16,7 @@ from sqlalchemy import (
     Text,
     TypeDecorator,
     UniqueConstraint,
+    Uuid,
     text,
 )
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column, relationship
@@ -60,6 +62,20 @@ class RefreshTokenORM(Base):
     family_id = Column(String, nullable=False, index=True)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     revoked_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.UTC))
+
+
+class GoogleNonceORM(Base):
+    """Server-issued GIS nonce; one row per pre-auth cookie (migration 0014).
+
+    consumed_at set = already used by a sign-in (a replay finds nothing).
+    """
+
+    __tablename__ = "google_nonces"
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4)
+    nonce = Column(String, unique=True, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    consumed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.UTC))
 
 class BusinessSettingsORM(Base):

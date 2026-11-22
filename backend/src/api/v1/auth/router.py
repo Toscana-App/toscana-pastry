@@ -9,6 +9,7 @@ from domain.auth.sessions import (
     start_session,
 )
 from api.v1.dependencies import get_current_user
+from api.v1.rate_limit import SlidingWindowRateLimiter
 from api.v1.auth.cookies import (
     REFRESH_COOKIE,
     clear_session_cookies,
@@ -17,7 +18,14 @@ from api.v1.auth.cookies import (
 from api.v1.auth.dependencies import get_refresh_token_repository, get_user_repository
 from api.v1.auth.schemas import AuthRequest, AuthResponse, UserInfo
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+auth_limiter = SlidingWindowRateLimiter(max_requests=30, window_seconds=120)
+
+router = APIRouter(
+    prefix="/auth",
+    tags=["auth"],
+    # The whole auth surface (login/refresh/logout/google) shares this limiter.
+    dependencies=[Depends(auth_limiter.dependency())],
+)
 
 
 @router.post("/login", response_model=AuthResponse)

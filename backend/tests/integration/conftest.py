@@ -1,3 +1,4 @@
+import pytest
 import pytest_asyncio
 from sqlalchemy import text
 
@@ -7,6 +8,17 @@ from main import app
 from api.v1.pdf.dependencies import get_pdf_client
 from api.v1.invoicing.dependencies import get_invoice_pdf_renderer
 from data.pdf.client import budget_pdf_payload
+from api.v1.auth.router import auth_limiter
+
+
+@pytest.fixture(autouse=True)
+def _reset_auth_limiter():
+    """The auth router is rate limited per client IP; every test in this suite
+    comes from the same "client", so each test gets a fresh window. Without
+    this reset, auth-heavy files exhaust the budget and later tests get 429."""
+    auth_limiter.reset()
+    yield
+    auth_limiter.reset()
 
 
 @pytest_asyncio.fixture(autouse=True)

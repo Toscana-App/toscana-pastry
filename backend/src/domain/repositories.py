@@ -56,6 +56,21 @@ class RefreshTokenRepository(ABC):
         pass
 
 
+class GoogleNonceRepository(ABC):
+    """Server-issued, one-time-consumable sign-in nonces (RF-P1-09)."""
+
+    @abstractmethod
+    async def issue(self, nonce: str, ttl_seconds: int) -> str:
+        """Store a fresh nonce with a TTL; return the row id (cookie value)."""
+        pass
+
+    @abstractmethod
+    async def consume(self, nonce_id: str) -> Optional[str]:
+        """Atomically consume the nonce; return it, or None when the id is
+        unknown, already consumed or expired (anti-replay)."""
+        pass
+
+
 class SettingsRepository(ABC):
     @abstractmethod
     async def get(self) -> Optional[BusinessSettings]:

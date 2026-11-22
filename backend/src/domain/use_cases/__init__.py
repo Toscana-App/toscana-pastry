@@ -1,4 +1,5 @@
 from .authenticate_user import AuthenticateUser
+from .google_sign_in import GoogleSignIn, GoogleSignInOutcome
 from .list_users import ListUsers
 from .get_settings import GetSettings
 from .update_settings import UpdateSettings
