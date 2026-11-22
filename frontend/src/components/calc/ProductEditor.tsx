@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import {
   Button,
   Flex,
-  Input,
-  Textarea,
-  Select,
+  FormatNumber,
   Heading,
+  Input,
+  Select,
   Text as UIText,
+  Textarea,
 } from "@chakra-ui/react";
 import { CalcFormSkeleton } from "@/components/ui/skeleton";
 
@@ -19,7 +20,7 @@ import { calcMaterialsService } from "@/services/calcMaterialsService";
 import { calcSettingsService } from "@/services/calcSettingsService";
 import ProductLines from "./ProductLines";
 import { toaster } from "@/lib/toaster";
-import { centsToPesos, formatCents } from "@/lib/format";
+import { centsToPesos } from "@/lib/format";
 import type {
   Category,
   Material,
@@ -229,7 +230,7 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
   return (
     <Flex direction="column" gap={6} maxW="1200px" mx="auto" p={6}>
       <Flex justify="space-between" align="center">
-        <Heading as="h1" size="xl">
+        <Heading as="h1" fontSize="2xl" textWrap="balance">
           {initial?.id ? "Editar Producto" : "Nuevo Producto"}
         </Heading>
         <Button variant="ghost" onClick={() => router.back()}>
@@ -239,14 +240,17 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
 
       <Flex direction={{ base: "column", lg: "row" }} gap={6}>
         <Flex direction="column" gap={4} flex={1}>
-          <Heading as="h2" size="md">Información Básica</Heading>
+          <Heading as="h2" fontSize="lg">Información Básica</Heading>
 
           <Flex direction="column" gap={3}>
             <Flex direction={{ base: "column", sm: "row" }} gap={3}>
               <Flex direction="column" flex={1}>
                 <UIText fontSize="sm" mb={1}>Nombre *</UIText>
                 <Input
-                  placeholder="Nombre del producto"
+                  name="name"
+                  aria-label="Nombre"
+                  autoComplete="off"
+                  placeholder="Nombre del producto…"
                   maxLength={120}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -256,7 +260,11 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
               <Flex direction="column" flex={1}>
                 <UIText fontSize="sm" mb={1}>SKU</UIText>
                 <Input
-                  placeholder="Código de producto (opcional)"
+                  name="sku"
+                  aria-label="SKU"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="Código de producto (opcional)…"
                   maxLength={40}
                   value={sku}
                   onChange={(e) => setSku(e.target.value)}
@@ -275,8 +283,8 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
                     if (next) setCategoryId(next);
                   }}
                 >
-                  <Select.Trigger>
-                    <Select.ValueText placeholder="_placeholder" />
+                  <Select.Trigger aria-label="Categoría">
+                    <Select.ValueText placeholder="Elegí una categoría…" />
                   </Select.Trigger>
                   <Select.Positioner>
                     <Select.Content>
@@ -299,8 +307,8 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
                     if (next) setStatus(next as ProductStatus);
                   }}
                 >
-                  <Select.Trigger>
-                    <Select.ValueText placeholder="_placeholder" />
+                  <Select.Trigger aria-label="Estado">
+                    <Select.ValueText placeholder="Elegí un estado…" />
                   </Select.Trigger>
                   <Select.Positioner>
                     <Select.Content>
@@ -319,7 +327,11 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
               <Flex direction="column" flex={1}>
                 <UIText fontSize="sm" mb={1}>Margen %</UIText>
                 <Input
-                  placeholder="%"
+                  name="margin_percent"
+                  aria-label="Margen %"
+                  autoComplete="off"
+                  inputMode="decimal"
+                  placeholder="%…"
                   type="number"
                   min="0"
                   max="100"
@@ -331,7 +343,11 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
               <Flex direction="column" flex={1}>
                 <UIText fontSize="sm" mb={1}>Descuento %</UIText>
                 <Input
-                  placeholder="%"
+                  name="discount_percent"
+                  aria-label="Descuento %"
+                  autoComplete="off"
+                  inputMode="decimal"
+                  placeholder="%…"
                   type="number"
                   min="0"
                   max="100"
@@ -343,7 +359,11 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
               <Flex direction="column" flex={1}>
                 <UIText fontSize="sm" mb={1}>Impuesto %</UIText>
                 <Input
-                  placeholder="%"
+                  name="tax_percent"
+                  aria-label="Impuesto %"
+                  autoComplete="off"
+                  inputMode="decimal"
+                  placeholder="%…"
                   type="number"
                   min="0"
                   max="100"
@@ -357,7 +377,10 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
             <Flex direction="column">
               <UIText fontSize="sm" mb={1}>Descripción</UIText>
               <Textarea
-                placeholder="Descripción del producto (opcional)"
+                name="description"
+                aria-label="Descripción"
+                autoComplete="off"
+                placeholder="Descripción del producto (opcional)…"
                 rows={2}
                 maxLength={500}
                 value={description}
@@ -368,7 +391,10 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
             <Flex direction="column">
               <UIText fontSize="sm" mb={1}>Notas</UIText>
               <Textarea
-                placeholder="Notas internas (opcional)"
+                name="notes"
+                aria-label="Notas"
+                autoComplete="off"
+                placeholder="Notas internas (opcional)…"
                 rows={2}
                 maxLength={500}
                 value={notes}
@@ -380,7 +406,7 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
       </Flex>
 
       <Flex direction="column" gap={4}>
-        <Heading as="h2" size="md">Líneas de Producto</Heading>
+        <Heading as="h2" fontSize="lg">Líneas de Producto</Heading>
         <ProductLines
           materials={materials}
           materialLines={materialLines}
@@ -393,13 +419,13 @@ export default function ProductEditor({ initial, onSave }: ProductEditorProps) {
 
       {costs && (
         <Flex direction="column" gap={2} p={4} bg="bg.subtle" borderRadius="md" maxW="420px">
-          <Heading as="h3" size="sm">Costos (motor)</Heading>
-          <Flex gap={4}><UIText flex={1}>Costo total:</UIText><UIText fontWeight="bold">{formatCents(costs.product_total_cost)}</UIText></Flex>
-          <Flex gap={4}><UIText flex={1}>Ganancia:</UIText><UIText fontWeight="bold">{formatCents(costs.profit_amount)}</UIText></Flex>
-          <Flex gap={4}><UIText flex={1}>Descuento:</UIText><UIText fontWeight="bold">{formatCents(costs.discount_amount)}</UIText></Flex>
-          <Flex gap={4}><UIText flex={1}>Ganancia ajustada:</UIText><UIText fontWeight="bold">{formatCents(costs.adjusted_profit_amount)}</UIText></Flex>
-          <Flex gap={4}><UIText flex={1}>Impuesto:</UIText><UIText fontWeight="bold">{formatCents(costs.tax_amount)}</UIText></Flex>
-          <Flex gap={4}><UIText flex={1}>Precio final:</UIText><UIText fontWeight="bold">{formatCents(costs.final_sale_price)}</UIText></Flex>
+          <Heading as="h3" fontSize="md">Costos (motor)</Heading>
+          <Flex gap={4}><UIText flex={1}>Costo total:</UIText><UIText fontWeight="bold" fontVariantNumeric="tabular-nums"><FormatNumber value={centsToPesos(costs.product_total_cost)} style="currency" currency="ARS" /></UIText></Flex>
+          <Flex gap={4}><UIText flex={1}>Ganancia:</UIText><UIText fontWeight="bold" fontVariantNumeric="tabular-nums"><FormatNumber value={centsToPesos(costs.profit_amount)} style="currency" currency="ARS" /></UIText></Flex>
+          <Flex gap={4}><UIText flex={1}>Descuento:</UIText><UIText fontWeight="bold" fontVariantNumeric="tabular-nums"><FormatNumber value={centsToPesos(costs.discount_amount)} style="currency" currency="ARS" /></UIText></Flex>
+          <Flex gap={4}><UIText flex={1}>Ganancia ajustada:</UIText><UIText fontWeight="bold" fontVariantNumeric="tabular-nums"><FormatNumber value={centsToPesos(costs.adjusted_profit_amount)} style="currency" currency="ARS" /></UIText></Flex>
+          <Flex gap={4}><UIText flex={1}>Impuesto:</UIText><UIText fontWeight="bold" fontVariantNumeric="tabular-nums"><FormatNumber value={centsToPesos(costs.tax_amount)} style="currency" currency="ARS" /></UIText></Flex>
+          <Flex gap={4}><UIText flex={1}>Precio final:</UIText><UIText fontWeight="bold" fontVariantNumeric="tabular-nums"><FormatNumber value={centsToPesos(costs.final_sale_price)} style="currency" currency="ARS" /></UIText></Flex>
         </Flex>
       )}
 

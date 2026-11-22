@@ -128,14 +128,19 @@ export default function MaterialForm({
       <Flex direction={{ base: "column", sm: "row" }} gap={3}>
         <Input
           aria-label="Nombre"
-          placeholder="Nombre"
+          name="name"
+          autoComplete="off"
+          placeholder="Nombre…"
           maxLength={120}
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
         <Input
           aria-label="Código interno"
-          placeholder="Código interno (opcional)"
+          name="internal_code"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="Código interno (opcional)…"
           maxLength={40}
           value={internalCode}
           onChange={(e) => setInternalCode(e.target.value)}
@@ -194,14 +199,19 @@ export default function MaterialForm({
       <Flex direction={{ base: "column", sm: "row" }} gap={3}>
         <Input
           aria-label="Unidad de medida"
-          placeholder="Unidad de medida (kg, litro, unidad)"
+          name="unit_of_measure"
+          autoComplete="off"
+          placeholder="Unidad de medida (kg, litro, unidad)…"
           maxLength={20}
           value={unitOfMeasure}
           onChange={(e) => setUnitOfMeasure(e.target.value)}
         />
         <Input
           aria-label="Precio del paquete"
-          placeholder="Precio del paquete (opcional)"
+          name="purchase_total_price"
+          autoComplete="off"
+          inputMode="decimal"
+          placeholder="Precio del paquete (opcional)…"
           type="number"
           step="0.01"
           value={price}
@@ -209,7 +219,10 @@ export default function MaterialForm({
         />
         <Input
           aria-label="Cantidad por paquete"
-          placeholder="Cantidad por paquete (opcional)"
+          name="package_quantity"
+          autoComplete="off"
+          inputMode="decimal"
+          placeholder="Cantidad por paquete (opcional)…"
           type="number"
           step="0.01"
           value={quantity}
@@ -218,7 +231,9 @@ export default function MaterialForm({
       </Flex>
       <Textarea
         aria-label="Notas"
-        placeholder="Notas (opcional)"
+        name="notes"
+        autoComplete="off"
+        placeholder="Notas (opcional)…"
         rows={2}
         maxLength={500}
         value={notes}

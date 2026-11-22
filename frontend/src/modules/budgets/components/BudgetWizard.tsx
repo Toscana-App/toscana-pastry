@@ -10,6 +10,7 @@ import {
   chakra,
   Field,
   Flex,
+  FormatNumber,
   Heading,
   HStack,
   Input,
@@ -26,7 +27,7 @@ import { budgetsService } from "../service";
 import { CALCULATION_MODE_LABELS, type CalculationMode } from "../types";
 import { productsService } from "@/modules/products/service";
 import type { ProductListItem } from "@/modules/products/types";
-import { formatCents, pesosToCents } from "@/lib/format";
+import { formatCents, pesosToCents, centsToPesos } from "@/lib/format";
 
 const DRAFT_KEY = "budget_wizard_draft";
 
@@ -41,9 +42,11 @@ const StyledOptionSelect = chakra("select", {
     background: "transparent",
     fontSize: "sm",
     outline: "none",
+    color: "fg",
+    "& option": { bg: "bg", color: "fg" },
     _focusVisible: {
       borderColor: "brand.solid",
-      boxShadow: "0 0 0 1px var(--chakra-colors-brand-600)",
+      boxShadow: "0 0 0 1px var(--chakra-colors-brand-focus-ring)",
     },
   },
 });
@@ -186,6 +189,7 @@ export function BudgetWizard() {
     try {
       window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     } catch {
+      // sessionStorage no disponible (modo privado): se omite el borrador.
     }
   }, [draft]);
 
@@ -344,6 +348,7 @@ export function BudgetWizard() {
       try {
         window.sessionStorage.removeItem(DRAFT_KEY);
       } catch {
+        // sessionStorage no disponible: el borrador se mantiene hasta cerrar la pestaña.
       }
       router.push(`/presupuestos/${budget.id}`);
     } catch (e) {
@@ -356,6 +361,7 @@ export function BudgetWizard() {
     try {
       window.sessionStorage.removeItem(DRAFT_KEY);
     } catch {
+      // sessionStorage no disponible (modo privado): se limpia solo el estado en memoria.
     }
     setDraft(freshDraft());
     setClientErrors({});
@@ -367,7 +373,7 @@ export function BudgetWizard() {
   return (
     <VStack align="stretch" gap={5} maxW="860px" w="full">
       <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
-        <Heading fontSize="2xl">Nuevo presupuesto</Heading>
+        <Heading as="h1" fontSize="2xl" textWrap="balance">Nuevo presupuesto</Heading>
         <Button variant="ghost" size="sm" onClick={clearDraft}>
           Empezar de cero
         </Button>
@@ -394,9 +400,11 @@ export function BudgetWizard() {
             <Field.Root w="100%">
               <Field.Label>Nombre</Field.Label>
               <Input
+                name="name"
+                autoComplete="off"
                 value={draft.name}
                 onChange={(e) => patch({ name: e.target.value })}
-                placeholder="Ej.: María González"
+                placeholder="Ej.: María González…"
                 aria-label="Nombre del cliente"
               />
               {clientErrors.name ? <Field.ErrorText>{clientErrors.name}</Field.ErrorText> : null}
@@ -404,9 +412,13 @@ export function BudgetWizard() {
             <Field.Root w="100%">
               <Field.Label>Teléfono (WhatsApp)</Field.Label>
               <Input
+                name="phone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="off"
                 value={draft.phone}
                 onChange={(e) => patch({ phone: e.target.value })}
-                placeholder="Ej.: 11 5555 0100"
+                placeholder="Ej.: 11 5555 0100…"
                 aria-label="Teléfono del cliente"
               />
               {clientErrors.phone ? <Field.ErrorText>{clientErrors.phone}</Field.ErrorText> : null}
@@ -414,9 +426,11 @@ export function BudgetWizard() {
             <Field.Root w="100%">
               <Field.Label>Dirección de entrega</Field.Label>
               <Input
+                name="delivery_address"
+                autoComplete="off"
                 value={draft.deliveryAddress}
                 onChange={(e) => patch({ deliveryAddress: e.target.value })}
-                placeholder="Ej.: Av. San Martín 1234, San Francisco"
+                placeholder="Ej.: Av. San Martín 1234, San Francisco…"
                 aria-label="Dirección de entrega del cliente"
               />
               <Field.HelperText>
@@ -477,7 +491,7 @@ export function BudgetWizard() {
                     rounded="full"
                     whiteSpace="nowrap"
                     variant={draft.mode === m ? "solid" : "outline"}
-                    colorPalette={draft.mode === m ? "brand" : "gray"}
+                    colorPalette={draft.mode === m ? "brand" : undefined}
                     aria-pressed={draft.mode === m}
                     onClick={() => patch({ mode: m })}
                   >
@@ -497,11 +511,14 @@ export function BudgetWizard() {
                 <Field.Label>Margen (%)</Field.Label>
                 <Input
                   type="number"
+                  name="margin_pct"
+                  inputMode="decimal"
+                  autoComplete="off"
                   min={0}
                   max={200}
                   value={draft.margin}
                   onChange={(e) => patch({ margin: e.target.value })}
-                  placeholder="Margen del negocio"
+                  placeholder="Margen del negocio…"
                   aria-label="Margen por ciento"
                 />
                 <Field.HelperText>Vacío = margen del negocio.</Field.HelperText>
@@ -545,6 +562,9 @@ export function BudgetWizard() {
                         <Field.Label>Cant.</Field.Label>
                         <Input
                           type="number"
+                          name="qty"
+                          inputMode="numeric"
+                          autoComplete="off"
                           min={1}
                           max={99}
                           value={row.qty}
@@ -557,11 +577,14 @@ export function BudgetWizard() {
                           <Field.Label>Precio de venta</Field.Label>
                           <Input
                             type="number"
+                            name="price"
+                            inputMode="decimal"
+                            autoComplete="off"
                             min={0.01}
                             step={0.01}
                             value={row.price}
                             onChange={(e) => patchRow(row.key, { price: e.target.value })}
-                            placeholder="0.00"
+                            placeholder="0.00…"
                             aria-label={`Precio de la línea ${idx + 1}`}
                           />
                           {itemErrors[`${row.key}-price_override`] ? (
@@ -621,7 +644,7 @@ export function BudgetWizard() {
                       <th
                         key={`${h}-${i}`}
                         style={{
-                          textAlign: "left",
+                          textAlign: h === "Precio unitario" || h === "Cantidad" ? "right" : "left",
                           padding: "10px 14px",
                           borderBottom: "1px solid var(--chakra-colors-border)",
                           fontWeight: 600,
@@ -629,7 +652,13 @@ export function BudgetWizard() {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {h}
+                        {h === "" ? (
+                          <span style={{ position: "absolute", width: "1px", height: "1px", overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" }}>
+                            Quitar
+                          </span>
+                        ) : (
+                          h
+                        )}
                       </th>
                     ))}
                   </tr>
@@ -642,19 +671,19 @@ export function BudgetWizard() {
                       draft.mode === "manual" ? manualPrice : priceByProduct.get(row.product_id) ?? null;
                     return (
                       <tr key={row.key} style={{ borderBottom: "1px solid var(--chakra-colors-border-muted)" }}>
-                        <td style={{ padding: "10px 14px", fontWeight: 500 }}>
+                        <td style={{ padding: "10px 14px", fontWeight: 500, overflowWrap: "anywhere" }}>
                           {product?.name ?? "—"}
                         </td>
-                        <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
+                        <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                           {row.qty}
                         </td>
-                        <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>
+                        <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                           {price != null ? (
-                            <HStack gap={2}>
+                            <HStack gap={2} justify="flex-end">
                               <Badge colorPalette={draft.mode === "manual" ? "purple" : "gray"} variant="subtle">
                                 {draft.mode === "manual" ? "manual" : "motor"}
                               </Badge>
-                              <span>{formatCents(price)}</span>
+                              <span><FormatNumber value={centsToPesos(price)} style="currency" currency="ARS" /></span>
                             </HStack>
                           ) : (
                             "se calcula al guardar"

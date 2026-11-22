@@ -7,14 +7,20 @@ import {
   Box,
   Button,
   Card,
+  Container,
   Flex,
+  FormatNumber,
+  Heading,
+  SimpleGrid,
   Skeleton,
   Stack,
+  Status,
   Text,
 } from "@chakra-ui/react";
 import { OrderListSkeleton } from "@/components/ui/skeleton";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { gooeyToast } from "goey-toast";
 import {
   fetchMyOrderByCode,
@@ -25,13 +31,12 @@ import { OrderDetail } from "@/types/orders";
 
 const PAGE_SIZE = 10;
 
-function formatMoney(value: string): string {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return value;
-  return parsed.toLocaleString("es-AR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+function Money({ value, ...rest }: { value: string; fontWeight?: string }) {
+  return (
+    <Text as="span" fontVariantNumeric="tabular-nums" {...rest}>
+      <FormatNumber value={Number(value)} style="currency" currency="ARS" />
+    </Text>
+  );
 }
 
 function canPayNow(order: OrderDetail): boolean {
@@ -170,6 +175,11 @@ function OrderCard({
     try {
       setDetail(await fetchMyOrderByCode(order.code));
       setExpanded(true);
+    } catch (error) {
+      gooeyToast.error("¡Ups! No se pudo cargar el detalle", {
+        description:
+          error instanceof Error ? error.message : "Intentá de nuevo.",
+      });
     } finally {
       setLoadingDetail(false);
     }
@@ -178,53 +188,26 @@ function OrderCard({
   const statusBadge = STATUS_BADGES[order.status] ?? STATUS_BADGES.nuevo;
 
   return (
-    <Card.Root>
+    <Card.Root h="full">
+      <Card.Header>
+        <Box minW={0}>
+          <Text fontWeight="semibold" translate="no" overflowWrap="anywhere">{order.code}</Text>
+          <Text fontSize="sm" color="fg.muted">
+            {formatDate(order.date)} ·{" "}
+            {order.delivery_mode === "delivery" ? "A domicilio" : "Retiro"}
+          </Text>
+        </Box>
+      </Card.Header>
       <Card.Body>
         <Stack gap={3}>
-          <Flex
-            justify="space-between"
-            align="center"
-            gap={2}
-            flexWrap="wrap"
-          >
-            <Box>
-              <Text fontWeight="semibold">{order.code}</Text>
-              <Text fontSize="sm" color="fg.muted">
-                {formatDate(order.date)} ·{" "}
-                {order.delivery_mode === "delivery"
-                  ? "A domicilio"
-                  : "Retiro"}
-              </Text>
-            </Box>
-            <Flex gap={2} align="center" flexWrap="wrap">
-              <Badge colorPalette={statusBadge.palette} variant="solid">
-                {statusBadge.label}
-              </Badge>
-              <PaymentBadge order={order} />
-              {canPayNow(order) && (
-                <Button
-                  size="sm"
-                  colorPalette="brand"
-                  loading={paying}
-                  onClick={() => void handlePay()}
-                >
-                  Pagar con Mercado Pago
-                </Button>
-              )}
-            </Flex>
+          <Status.Root colorPalette={statusBadge.palette}>
+            <Status.Indicator />
+            {statusBadge.label}
+          </Status.Root>
+          <Flex gap={2} align="center" flexWrap="wrap">
+            <PaymentBadge order={order} />
           </Flex>
-
-          <Flex justify="space-between" align="center">
-            <Text fontWeight="bold">${formatMoney(order.total)}</Text>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => void toggleDetail()}
-              loading={loadingDetail}
-            >
-              {expanded ? "Ocultar detalle" : "Ver detalle"}
-            </Button>
-          </Flex>
+          <Money value={order.total} fontWeight="bold" />
 
           {expanded && !detail && loadingDetail && (
             <Stack gap={2}>
@@ -234,9 +217,9 @@ function OrderCard({
           )}
 
           {expanded && detail && (
-            <Stack gap={2} fontSize="sm">
+            <Stack gap={2} fontSize="sm" aria-live="polite">
               {detail.delivery_address && (
-                <Text>
+                <Text overflowWrap="anywhere">
                   Dirección: {detail.delivery_address}
                 </Text>
               )}
@@ -244,8 +227,13 @@ function OrderCard({
                 <Text>
                   Cupón: {detail.coupon_code}
                   {detail.discount_amount !== null &&
-                    detail.discount_amount !== "0" &&
-                    ` (ahorras $${formatMoney(detail.discount_amount)})`}
+                    detail.discount_amount !== "0" && (
+                      <>
+                        {" (ahorras "}
+                        <Money value={detail.discount_amount} />
+                        {")"}
+                      </>
+                    )}
                 </Text>
               )}
               <Box>
@@ -255,10 +243,10 @@ function OrderCard({
                     justify="space-between"
                     gap={2}
                   >
-                    <Text>
+                    <Text minW={0} overflowWrap="anywhere">
                       {item.product_name} × {item.quantity}
                     </Text>
-                    <Text>${formatMoney(item.total)}</Text>
+                    <Money value={item.total} />
                   </Flex>
                 ))}
               </Box>
@@ -266,11 +254,33 @@ function OrderCard({
           )}
         </Stack>
       </Card.Body>
+      <Card.Footer justifyContent="space-between" flexWrap="wrap" gap={2}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => void toggleDetail()}
+          aria-expanded={expanded}
+          loading={loadingDetail}
+        >
+          {expanded ? "Ocultar detalle" : "Ver detalle"}
+        </Button>
+        {canPayNow(order) && (
+          <Button
+            size="sm"
+            colorPalette="brand"
+            loading={paying}
+            onClick={() => void handlePay()}
+          >
+            Pagar con Mercado Pago
+          </Button>
+        )}
+      </Card.Footer>
     </Card.Root>
   );
 }
 
 function MyOrdersPage() {
+  const router = useRouter();
   const [orders, setOrders] = useState<OrderDetail[] | null>(null);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -311,7 +321,9 @@ function MyOrdersPage() {
 
   if (error) {
     return (
-      <Alert.Root status="error">
+      <main>
+      <Container maxW="4xl">
+      <Alert.Root status="error" aria-live="polite">
         <Alert.Indicator />
         <Alert.Content>
           <Alert.Title>¡Ups! No pudimos cargar tus pedidos</Alert.Title>
@@ -331,19 +343,31 @@ function MyOrdersPage() {
           </Flex>
         </Alert.Content>
       </Alert.Root>
+      </Container>
+      </main>
     );
   }
 
   if (!orders || orders.length === 0) {
     return (
-      <Card.Root>
+      <Card.Root as="main">
         <Card.Body>
-          <Stack align="center" gap={3} py={8} textAlign="center">
-            <Text fontWeight="semibold">Todavía no tienes pedidos</Text>
-            <Text fontSize="sm" color="fg.muted">
-              Cuando hagas tu primer pedido podrás seguirlo acá.
-            </Text>
-          </Stack>
+          <Container maxW="4xl">
+            <Stack align="center" gap={3} py={8} textAlign="center">
+              <Heading as="h1" size="md">
+                Todavía no tenés pedidos
+              </Heading>
+              <Text fontSize="sm" color="fg.muted">
+                Cuando hagas tu primer pedido podrás seguirlo acá.
+              </Text>
+              <Button
+                colorPalette="brand"
+                onClick={() => router.push("/")}
+              >
+                Ver catálogo
+              </Button>
+            </Stack>
+          </Container>
         </Card.Body>
       </Card.Root>
     );
@@ -352,10 +376,16 @@ function MyOrdersPage() {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <Stack gap={3}>
-      {orders.map((order) => (
-        <OrderCard key={order.id} order={order} onPaidChange={refresh} />
-      ))}
+    <main>
+    <Stack gap={4} maxW="4xl" mx="auto" px={3} pt={2} pb={6}>
+      <Heading as="h1" size="lg" textWrap="balance">
+        Mis pedidos
+      </Heading>
+      <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} gap={3} alignItems="start">
+        {orders.map((order) => (
+          <OrderCard key={order.id} order={order} onPaidChange={refresh} />
+        ))}
+      </SimpleGrid>
       {pageCount > 1 && (
         <Flex justify="center" align="center" gap={3} mt={2}>
           <Button
@@ -366,7 +396,7 @@ function MyOrdersPage() {
           >
             Anterior
           </Button>
-          <Text fontSize="sm">
+          <Text fontSize="sm" fontVariantNumeric="tabular-nums" aria-live="polite">
             {page} / {pageCount}
           </Text>
           <Button
@@ -380,6 +410,7 @@ function MyOrdersPage() {
         </Flex>
       )}
     </Stack>
+    </main>
   );
 }
 

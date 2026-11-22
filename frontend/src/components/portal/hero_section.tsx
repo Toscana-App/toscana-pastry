@@ -1,7 +1,8 @@
 "use client"
 
-import { Box, Button, Flex, Grid, Heading, Icon, Link, Text } from "@chakra-ui/react"
+import { Box, Button, Heading, Icon, Link, Text } from "@chakra-ui/react"
 import NextLink from "next/link"
+import { HeroSearchNav } from "@/components/layout/HeroSearchNav"
 
 interface HeroAttribute {
   label: string
@@ -9,8 +10,8 @@ interface HeroAttribute {
 }
 
 export const HERO_ATTRIBUTES: readonly HeroAttribute[] = [
-  { label: "Sin gluten", status: "100% harina de almendras" },
-  { label: "100% Natural", status: "Sin conservantes" },
+  { label: "Sin gluten", status: "100 % harina de almendras" },
+  { label: "100 % Natural", status: "Sin conservantes" },
   { label: "Ricos", status: "Pastelería artesanal" },
 ]
 
@@ -24,7 +25,8 @@ const CARD_STAGGER_MS = 90
 export function HeroSection() {
   return (
     <Box as="section" aria-labelledby="hero-title" bg="bg" borderBottomWidth="1px" borderColor="border.muted">
-      <Box maxW="6xl" mx="auto" px={{ base: 6, sm: 8 }} pt={{ base: 14, md: 20 }} pb={{ base: 14, md: 16 }}>
+      <HeroSearchNav />
+      <Box maxW="6xl" mx="auto" px={{ base: 6, sm: 8 }} pt={{ base: 10, md: 16 }} pb={{ base: 14, md: 16 }}>
         <Box
           textAlign="center"
           maxW="3xl"
@@ -66,6 +68,7 @@ export function HeroSection() {
                   ml={1}
                   transition="transform 200ms ease-out"
                   _groupHover={{ transform: "translateX(4px)" }}
+                  _groupFocusVisible={{ transform: "translateX(4px)" }}
                   _motionReduce={{ transition: "none" }}
                 >
                   <svg aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -87,6 +90,7 @@ export function HeroSection() {
 
         <Box
           as="ul"
+          role="list"
           aria-label="Etiquetas del catálogo"
           listStyleType="none"
           mt={{ base: 10, md: 12 }}

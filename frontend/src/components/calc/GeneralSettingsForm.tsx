@@ -130,6 +130,8 @@ export default function GeneralSettingsForm() {
       <Field.Root>
         <Field.Label>Nombre del negocio</Field.Label>
         <Input
+          name="business_name"
+          autoComplete="organization"
           value={form.business_name}
           maxLength={120}
           onChange={setField("business_name")}
@@ -139,6 +141,8 @@ export default function GeneralSettingsForm() {
       <Field.Root>
         <Field.Label>Moneda principal (nombre)</Field.Label>
         <Input
+          name="main_currency_name"
+          autoComplete="off"
           value={form.main_currency_name}
           maxLength={40}
           onChange={setField("main_currency_name")}
@@ -148,6 +152,8 @@ export default function GeneralSettingsForm() {
       <Field.Root>
         <Field.Label>Moneda principal (símbolo)</Field.Label>
         <Input
+          name="main_currency_symbol"
+          autoComplete="off"
           value={form.main_currency_symbol}
           maxLength={8}
           onChange={setField("main_currency_symbol")}
@@ -161,6 +167,9 @@ export default function GeneralSettingsForm() {
           step="0.01"
           min={0}
           max={100}
+          name="default_margin_percent"
+          autoComplete="off"
+          inputMode="decimal"
           value={form.default_margin_percent}
           onChange={setField("default_margin_percent")}
         />
@@ -173,6 +182,9 @@ export default function GeneralSettingsForm() {
           step="0.01"
           min={0}
           max={100}
+          name="default_discount_percent"
+          autoComplete="off"
+          inputMode="decimal"
           value={form.default_discount_percent}
           onChange={setField("default_discount_percent")}
         />
@@ -185,6 +197,9 @@ export default function GeneralSettingsForm() {
           step="0.01"
           min={0}
           max={100}
+          name="default_tax_percent"
+          autoComplete="off"
+          inputMode="decimal"
           value={form.default_tax_percent}
           onChange={setField("default_tax_percent")}
         />

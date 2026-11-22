@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Box, Button, Input, InputGroup } from "@chakra-ui/react";
+import { Box, Button, Flex, Input, InputGroup } from "@chakra-ui/react";
 import { SearchIcon } from "@/components/ui/search-icon";
 
 const DEBOUNCE_MS = 400;
@@ -48,37 +48,38 @@ function PortalSearchInner() {
   };
 
   return (
-    <form role="search" onSubmit={submit} aria-label="Buscar productos">
-      <InputGroup
-        w="full"
-        maxW="560px"
-        borderRadius="full"
-        startElement={<SearchIcon />}
-        endElement={
-          <Button
-            type="submit"
-            size="sm"
-            px={5}
-            fontWeight="600"
-            colorPalette="brand"
-            borderRadius="full"
-            mr="1px"
-          >
-            Buscar
-          </Button>
-        }
-      >
-        <Input
-          type="search"
-          value={term}
-          onChange={(e) => setTerm(e.target.value)}
-          placeholder="¿Qué producto buscás?"
-          aria-label="Buscar productos"
+    <form role="search" onSubmit={submit}>
+      <Flex w="full" maxW="640px" align="center" gap="12px">
+        <InputGroup
+          w="full"
           borderRadius="full"
-          fontSize="sm"
-          maxLength={120}
-        />
-      </InputGroup>
+          startElement={<SearchIcon />}
+        >
+          <Input
+            type="search"
+            name="q"
+            autoComplete="off"
+            enterKeyHint="search"
+            value={term}
+            onChange={(e) => setTerm(e.target.value)}
+            placeholder="Ej.: torta de almendras…"
+            aria-label="Buscar productos"
+            borderRadius="full"
+            fontSize={{ base: "md", md: "sm" }}
+            maxLength={120}
+          />
+        </InputGroup>
+        <Button
+          type="submit"
+          size="sm"
+          px={5}
+          fontWeight="600"
+          colorPalette="brand"
+          flexShrink={0}
+        >
+          Buscar
+        </Button>
+      </Flex>
     </form>
   );
 }
@@ -87,7 +88,7 @@ export function PortalSearch() {
   return (
     <Suspense
       fallback={
-        <Box w="full" maxW="560px" h="2.5rem" borderRadius="full" bg="bg.muted" />
+        <Box w="full" maxW="640px" h="2.5rem" borderRadius="full" bg="bg.muted" />
       }
     >
       <PortalSearchInner />

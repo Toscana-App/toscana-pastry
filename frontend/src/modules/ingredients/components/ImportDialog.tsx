@@ -71,7 +71,7 @@ export function ImportDialog({ open, onOpenChange, onImported }: ImportDialogPro
     <Dialog.Root open={open} onOpenChange={(e) => (e.open ? onOpenChange(true) : close())} size="lg">
       <Dialog.Backdrop />
       <Dialog.Positioner>
-        <Dialog.Content>
+        <Dialog.Content overscrollBehavior="contain">
           <Dialog.Header>
             <Dialog.Title>Import ingredients</Dialog.Title>
             <Dialog.Description>
@@ -88,6 +88,9 @@ export function ImportDialog({ open, onOpenChange, onImported }: ImportDialogPro
                 rows={8}
                 disabled={submitting}
                 aria-label="Líneas a importar"
+                name="lines"
+                autoComplete="off"
+                spellCheck={false}
               />
               {clientError ? (
                 <Alert.Root status="error">
@@ -97,7 +100,7 @@ export function ImportDialog({ open, onOpenChange, onImported }: ImportDialogPro
                 </Alert.Root>
               ) : null}
               {result ? (
-                <Flex direction="column" gap={2}>
+                <Flex direction="column" gap={2} aria-live="polite">
                   <Text fontWeight="600">{result.created} created</Text>
                   {result.errors.length > 0 ? (
                     <Box>

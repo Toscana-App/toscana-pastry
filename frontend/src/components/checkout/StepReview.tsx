@@ -8,8 +8,10 @@ import {
   Code,
   DataList,
   Flex,
+  Heading,
   Stack,
   Text,
+  FormatNumber,
 } from "@chakra-ui/react";
 import { useState } from "react";
 import { PaymentCard } from "@/components/checkout/PaymentCard";
@@ -102,7 +104,7 @@ export function StepReview({
   if (windowClosed) {
     return (
       <Stack gap={4} maxW="md">
-        <Alert.Root status="error">
+        <Alert.Root status="error" aria-live="polite">
           <Alert.Indicator />
           <Alert.Content>
             <Alert.Title>La ventana de pedidos está cerrada</Alert.Title>
@@ -181,10 +183,10 @@ export function StepReview({
         <Stack gap={2}>
           {cart.items.map((item) => (
             <Flex key={item.product_id} justify="space-between" gap={2}>
-              <Text fontSize="sm">
+              <Text fontSize="sm" minW={0} overflowWrap="anywhere">
                 {item.name} × {item.qty}
               </Text>
-              <Text fontSize="sm">${item.total}</Text>
+              <Text fontSize="sm" fontVariantNumeric="tabular-nums"><FormatNumber value={Number(item.total)} style="currency" currency="ARS" /></Text>
             </Flex>
           ))}
           {cart.coupon && (
@@ -193,13 +195,13 @@ export function StepReview({
                 Cupón {cart.coupon.code}
               </Text>
               <Text fontSize="sm" color="green.fg">
-                −${cart.discount_amount}
+                −<FormatNumber value={Number(cart.discount_amount)} style="currency" currency="ARS" />
               </Text>
             </Flex>
           )}
           <Flex justify="space-between" borderTopWidth="1px" pt={2}>
             <Text fontWeight="semibold">Total</Text>
-            <Text fontWeight="bold">${cart.total}</Text>
+            <Text fontWeight="bold" fontVariantNumeric="tabular-nums"><FormatNumber value={Number(cart.total)} style="currency" currency="ARS" /></Text>
           </Flex>
         </Stack>
       </Box>
@@ -228,13 +230,16 @@ export function CheckoutSuccess({
 }) {
   return (
     <Stack gap={4} maxW="md" align="center" textAlign="center" py={8}>
-      <Text fontSize="2xl" fontWeight="bold" color="green.fg">
+      <Heading as="h1" srOnly textWrap="balance">
+        Pedido recibido
+      </Heading>
+      <Text fontSize="2xl" fontWeight="bold" color="green.fg" textWrap="balance">
         ¡Pedido recibido!
       </Text>
       <Text color="fg.muted">
         Tu código de pedido es
       </Text>
-      <Code fontSize="lg" px={3} py={1}>
+      <Code fontSize="lg" px={3} py={1} translate="no" overflowWrap="anywhere">
         {order.code}
       </Code>
       <Text fontSize="sm" color="fg.muted">

@@ -22,6 +22,9 @@ export function TabLink({
         whiteSpace="nowrap"
         borderBottomWidth="2px"
         borderColor={active ? "brand.solid" : "transparent"}
+        _hover={{ bg: "bg.muted" }}
+        transition="background-color 150ms ease-out"
+        _motionReduce={{ transition: "none" }}
       >
         <Text
           fontSize="sm"

@@ -16,6 +16,7 @@ import {
   Table,
   Text,
   Switch,
+  FormatNumber,
 } from "@chakra-ui/react";
 import { ListCardSkeleton } from "@/components/ui/skeleton";
 
@@ -38,12 +39,6 @@ const EMPTY_FORM: CouponCreatePayload = {
   max_uses: null,
   status: "active",
 };
-
-function valueLabel(coupon: CouponOut): string {
-  return coupon.type === "percent"
-    ? `${coupon.value}%`
-    : `$${coupon.value}`;
-}
 
 function CouponsAdmin() {
   const [coupons, setCoupons] = useState<CouponOut[]>([]);
@@ -210,8 +205,10 @@ function CouponsAdmin() {
                       <Table.Cell>
                         <Text fontWeight="medium">{coupon.code}</Text>
                       </Table.Cell>
-                      <Table.Cell>{valueLabel(coupon)}</Table.Cell>
-                      <Table.Cell>
+                      <Table.Cell fontVariantNumeric="tabular-nums">
+                        {coupon.type === "percent" ? `${coupon.value}%` : <FormatNumber value={Number(coupon.value)} style="currency" currency="ARS" />}
+                      </Table.Cell>
+                      <Table.Cell fontVariantNumeric="tabular-nums">
                         {coupon.uses}
                         {coupon.max_uses !== null && `/${coupon.max_uses}`}
                       </Table.Cell>
@@ -265,7 +262,7 @@ function CouponsAdmin() {
       >
         <Dialog.Backdrop />
         <Dialog.Positioner>
-          <Dialog.Content maxW="sm">
+          <Dialog.Content maxW="sm" overscrollBehavior="contain">
             <Dialog.Header>
               <Dialog.Title>Nuevo cupón</Dialog.Title>
             </Dialog.Header>
@@ -274,7 +271,10 @@ function CouponsAdmin() {
                 <Field.Root invalid={formError !== null}>
                   <Field.Label>Código</Field.Label>
                   <Input
-                    placeholder="VERANO20"
+                    name="code"
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder="VERANO20…"
                     value={form.code}
                     onChange={(e) =>
                       setForm((f) => ({ ...f, code: e.target.value }))
@@ -308,9 +308,12 @@ function CouponsAdmin() {
                         {form.type === "percent" ? "Porcentaje (0-100)" : "Monto (ARS)"}
                       </Field.Label>
                       <Input
+                        name="value"
+                        autoComplete="off"
                         type="number"
+                        inputMode="decimal"
                         min="0"
-                        placeholder={form.type === "percent" ? "10" : "5000"}
+                        placeholder={form.type === "percent" ? "10…" : "5000…"}
                         value={form.value}
                         onChange={(e) =>
                           setForm((f) => ({ ...f, value: e.target.value }))
@@ -322,9 +325,12 @@ function CouponsAdmin() {
                 <Field.Root>
                   <Field.Label>Máximo de usos (opcional)</Field.Label>
                   <Input
+                    name="max_uses"
+                    autoComplete="off"
                     type="number"
+                    inputMode="numeric"
                     min="1"
-                    placeholder="Sin límite"
+                    placeholder="Sin límite…"
                     value={form.max_uses ?? ""}
                     onChange={(e) =>
                       setForm((f) => ({

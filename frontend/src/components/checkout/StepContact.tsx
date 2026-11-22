@@ -49,7 +49,8 @@ export function StepContact({
         <Field.Label htmlFor="contact-name">Nombre</Field.Label>
         <Input
           id="contact-name"
-          placeholder="Tu nombre"
+          autoComplete="name"
+          placeholder="Tu nombre…"
           aria-invalid={!!errors.name}
           aria-describedby={errors.name ? "contact-name-error" : undefined}
           {...register("name")}
@@ -65,7 +66,9 @@ export function StepContact({
         </Field.Label>
         <Input
           id="contact-phone"
-          placeholder="+54 9 11 5555-5555"
+          autoComplete="tel"
+          placeholder="+54 9 11 5555-5555…"
+          type="tel"
           inputMode="tel"
           aria-invalid={!!errors.phone}
           aria-describedby={
@@ -86,6 +89,9 @@ export function StepContact({
         <Input
           id="contact-email"
           type="email"
+          autoComplete="email"
+          inputMode="email"
+          spellCheck={false}
           aria-invalid={!!errors.email}
           aria-describedby={errors.email ? "contact-email-error" : undefined}
           {...register("email")}

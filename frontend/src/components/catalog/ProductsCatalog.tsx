@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Badge,
   Box,
@@ -10,6 +10,7 @@ import {
   SegmentGroup,
   Table,
   Text,
+  FormatNumber,
 } from "@chakra-ui/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import NextLink from "next/link";
@@ -31,16 +32,6 @@ function audienceLabel(audience: Audience): string {
   return audience === "revendedores" ? "Revendedores" : "Consumidor final";
 }
 
-function formatPrice(value: string | null): string {
-  if (value === null) return "—";
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return value;
-  return parsed.toLocaleString("es-AR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
 export function ProductsCatalog() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
@@ -48,13 +39,18 @@ export function ProductsCatalog() {
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [loadErrorDetail, setLoadErrorDetail] = useState("");
+  const [retryTick, setRetryTick] = useState(0);
   const [audience, setAudience] = useState<Audience>("revendedores");
   const [addingId, setAddingId] = useState<string | null>(null);
 
   const q = (searchParams.get("q") ?? "").trim().slice(0, 120);
 
   const role = user?.role ?? "";
-  const allowedAudiences = roleAllowedAudiences(role);
+  // Memo: con una lista nueva por render, el efecto de carga volvería a
+  // correr en cada render y re-pediría la lista en bucle.
+  const allowedAudiences = useMemo(() => roleAllowedAudiences(role), [role]);
   const canSwitch = canSwitchAudience(role);
   const showCart = isPortalRole(user?.role);
 
@@ -93,12 +89,22 @@ export function ProductsCatalog() {
 
     if (!allowedAudiences.includes(audience)) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoadError(false);
+    setLoadErrorDetail("");
+
     async function load() {
       try {
         const response = await fetchStoreList(audience, q || undefined);
         if (!cancelled) setProducts(response.products ?? []);
       } catch (error) {
         if (cancelled) return;
+        setLoadError(true);
+        setLoadErrorDetail(
+          error instanceof Error && error.message
+            ? error.message
+            : "Revisá tu conexión e intentá de nuevo.",
+        );
         gooeyToast.error("¡Ups! No se pudieron cargar los productos", {
           description:
             error instanceof Error ? error.message : "Intenta de nuevo.",
@@ -112,10 +118,61 @@ export function ProductsCatalog() {
     return () => {
       cancelled = true;
     };
-  }, [audience, allowedAudiences, q]);
+  }, [audience, allowedAudiences, q, retryTick]);
+
+  if (allowedAudiences.length === 0) {
+    return (
+      <Box
+        border="1px"
+        borderColor="border.muted"
+        rounded="md"
+        py={10}
+        px={4}
+        textAlign="center"
+      >
+        <Text color="fg" fontWeight="medium" mb={1}>
+          Iniciá sesión para ver la lista de precios
+        </Text>
+        <Text color="fg.muted" mb={5}>
+          Cada cuenta ve la lista de precios de su rol.
+        </Text>
+        <Button asChild colorPalette="brand" size="md" minH="44px">
+          <NextLink href="/login">Iniciar sesión</NextLink>
+        </Button>
+      </Box>
+    );
+  }
 
   if (loading) {
     return <CatalogSkeleton />;
+  }
+
+  if (loadError) {
+    return (
+      <Box
+        border="1px"
+        borderColor="border.muted"
+        rounded="md"
+        py={10}
+        px={4}
+        textAlign="center"
+      >
+        <Text color="fg.error" fontWeight="medium" mb={1}>
+          No se pudieron cargar los productos
+        </Text>
+        <Text color="fg.muted" mb={5}>
+          {loadErrorDetail || "Revisá tu conexión e intentá de nuevo."}
+        </Text>
+        <Button
+          colorPalette="brand"
+          size="md"
+          minH="44px"
+          onClick={() => setRetryTick((tick) => tick + 1)}
+        >
+          Reintentar
+        </Button>
+      </Box>
+    );
   }
 
   return (
@@ -157,10 +214,38 @@ export function ProductsCatalog() {
           )}
           {role === "admin" && (
             <>
-              <Button variant="outline" size="sm" onClick={() => downloadPricelistCSV(audience)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  downloadPricelistCSV(audience).catch(
+                    (error: unknown) =>
+                      gooeyToast.error("No se pudo exportar el CSV", {
+                        description:
+                          error instanceof Error
+                            ? error.message
+                            : "Intenta de nuevo.",
+                      }),
+                  )
+                }
+              >
                 Exportar CSV
               </Button>
-              <Button variant="outline" size="sm" onClick={() => downloadPricelistPDF(audience)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  downloadPricelistPDF(audience).catch(
+                    (error: unknown) =>
+                      gooeyToast.error("No se pudo exportar el PDF", {
+                        description:
+                          error instanceof Error
+                            ? error.message
+                            : "Intenta de nuevo.",
+                      }),
+                  )
+                }
+              >
                 Exportar PDF
               </Button>
             </>
@@ -196,7 +281,7 @@ export function ProductsCatalog() {
               {products.map((product) => (
                 <Table.Row key={product.id}>
                   <Table.Cell>
-                    <Flex align="center" gap={3}>
+                    <Flex align="center" gap={3} minW={0}>
                       <Box
                         boxSize="2.5rem"
                         rounded="md"
@@ -208,12 +293,15 @@ export function ProductsCatalog() {
                           <Image
                             src={product.image_url}
                             alt={`Imagen de ${product.name}`}
+                            htmlWidth={40}
+                            htmlHeight={40}
+                            loading="lazy"
                             boxSize="100%"
                             objectFit="cover"
                           />
                         ) : null}
                       </Box>
-                      <Flex direction="column" gap={1}>
+                      <Flex direction="column" gap={1} minW={0}>
                         <NextLink
                           href={`/tienda/${product.id}`}
                           style={{
@@ -232,10 +320,10 @@ export function ProductsCatalog() {
                   </Table.Cell>
                   <Table.Cell textAlign="end" fontVariantNumeric="tabular-nums">
                     <Flex direction="column" gap={0.5} align="flex-end">
-                      <Text fontWeight="medium">${formatPrice(product.price)}</Text>
+                      <Text fontWeight="medium">{product.price === null ? "—" : <FormatNumber value={Number(product.price)} style="currency" currency="ARS" />}</Text>
                       {product.price_per_serving && (
                         <Text fontSize="xs" color="fg.muted">
-                          ${formatPrice(product.price_per_serving)} por porción
+                          <FormatNumber value={Number(product.price_per_serving)} style="currency" currency="ARS" /> por porción
                         </Text>
                       )}
                     </Flex>
@@ -246,6 +334,7 @@ export function ProductsCatalog() {
                         size="sm"
                         variant="outline"
                         colorPalette="brand"
+                        minH="44px"
                         disabled={addingId !== null}
                         onClick={() => void addToCart(product.id, product.name)}
                         aria-label={`Agregar ${product.name} al carrito`}

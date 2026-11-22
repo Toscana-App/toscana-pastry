@@ -110,7 +110,7 @@ describe('CartPage - Accesibilidad (WCAG 2.1 AA) - ego-browser integration', () 
     expect(heading).toBeInTheDocument();
     expect(heading.tagName).toBe('H1');
     
-    const couponInput = screen.getByPlaceholderText('Código de cupón');
+    const couponInput = screen.getByPlaceholderText('Código de cupón…');
     expect(couponInput).toBeInTheDocument();
   });
 
@@ -127,7 +127,7 @@ describe('CartPage - Accesibilidad (WCAG 2.1 AA) - ego-browser integration', () 
     const increaseButtons = screen.getAllByRole('button', { name: /Agregar un/ });
     expect(increaseButtons).toHaveLength(2);
     
-    const couponInput = screen.getByPlaceholderText('Código de cupón');
+    const couponInput = screen.getByPlaceholderText('Código de cupón…');
     expect(couponInput).toBeInTheDocument();
     
     const form = screen.getByRole('form');
@@ -160,7 +160,7 @@ describe('CartPage - Accesibilidad (WCAG 2.1 AA) - ego-browser integration', () 
     const applyButton = screen.getByRole('button', { name: /Aplicar/ });
     expect(applyButton).toBeInTheDocument();
     
-    const couponInput = screen.getByPlaceholderText('Código de cupón');
+    const couponInput = screen.getByPlaceholderText('Código de cupón…');
     expect(couponInput).toBeInTheDocument();
     
     fireEvent.change(couponInput, { target: { value: 'TEST123' } });
@@ -233,7 +233,7 @@ describe('CartPage - Accesibilidad (WCAG 2.1 AA) - ego-browser integration', () 
     const cartTitle = screen.getByText('Tu carrito');
     expect(cartTitle).toBeInTheDocument();
     
-    const couponInput = screen.getByPlaceholderText('Código de cupón');
+    const couponInput = screen.getByPlaceholderText('Código de cupón…');
     expect(couponInput).toBeInTheDocument();
     
     expect(screen.getByText('Torta')).toBeInTheDocument();
@@ -249,7 +249,7 @@ describe('CartPage - Accesibilidad (WCAG 2.1 AA) - ego-browser integration', () 
     
     const cartTitle = screen.getByText('Tu carrito');
     const cartItems = screen.getAllByText(/Torta|Alfajor/);
-    const priceTexts = screen.getAllByText(/\$\d+/);
+    const priceTexts = screen.getAllByText(/\$\s?[\d.]+,\d{2}/);
     
     
     expect(cartTitle).toBeInTheDocument();
