@@ -9,6 +9,7 @@ dependencies = [
     "pymupdf>=1.24,<2",
     "reportlab>=5.1,<6",
     "weasyprint>=62",
+    "qrcode>=7.4",
 ]
 
 [project.scripts]

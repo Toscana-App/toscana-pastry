@@ -24,6 +24,7 @@ from api.v1.orders.dependencies import (
     get_product_repository,
 )
 from api.v1.settings.dependencies import get_settings_repository
+from api.v1.invoicing.dependencies import get_invoice_repository
 from api.v1.orders.schemas import (
     InsufficientStockItem,
     OrderCustomerResponse,
@@ -32,6 +33,7 @@ from api.v1.orders.schemas import (
     OrderItemBreakdown,
     OrderItemInput,
     OrderItemResponse,
+    OrderInvoiceSummary,
     OrderListItem,
     OrderListResponse,
     OrderPreviewItemResponse,
@@ -61,6 +63,7 @@ from api.v1.orders.schemas import (
 )
 from data.repositories.sql_order_repository import SQLOrderRepository
 from domain.checkout_provider import CheckoutProvider, PaymentProviderError
+from domain.invoicing import Invoice
 from domain.models import User, UserRole
 from domain.order import (
     DeliveryMode,
@@ -209,7 +212,7 @@ async def initiate_payment(
             reference=saved.reference, checkout_url=saved.checkout_url
         )
 
-    if order.payment_method == PaymentMethod.CASH:
+    if order.payment_method != PaymentMethod.MERCADOPAGO:
         raise HTTPException(
             status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="payment_method_not_mercadopago",
@@ -575,7 +578,9 @@ def _item_response(item: P6OrderItem, snapshot: OrderItemSnapshot) -> OrderItemR
 
 
 def _detail_response(
-    order: P6Order, whatsapp_sent_at: Optional[datetime.datetime]
+    order: P6Order,
+    whatsapp_sent_at: Optional[datetime.datetime],
+    invoice: Invoice | None = None,
 ) -> OrderDetailResponse:
     return OrderDetailResponse(
         id=order.id or "",
@@ -595,6 +600,16 @@ def _detail_response(
         whatsapp_sent_at=_iso(whatsapp_sent_at),
         created_at=order.created_at.isoformat(),
         updated_at=order.updated_at.isoformat(),
+        invoice=(
+            OrderInvoiceSummary(
+                numero=invoice.numero,
+                cae=invoice.cae,
+                cae_vto=invoice.cae_vto.isoformat(),
+                pdf_url=f"/api/v1/invoices/{invoice.id}/pdf",
+            )
+            if invoice is not None
+            else None
+        ),
     )
 
 
@@ -946,6 +961,7 @@ async def weekly_summary(
 async def weekly_summary_pdf(
     week: Optional[str] = Query(default=None, max_length=10),
     repo: OrderRepository = Depends(get_order_repository),
+    settings_repo: SettingsRepository = Depends(get_settings_repository),
     pdf: PdfClient = Depends(get_pdf_client),
     _admin: User = Depends(require_admin),
 ):
@@ -957,6 +973,7 @@ async def weekly_summary_pdf(
 
     total_cents = sum((decimal_to_cents(o.total) for o in orders), 0)
     paid_cents = sum((decimal_to_cents(o.total) for o in orders if o.paid), 0)
+    settings = await GetSettings(settings_repo).execute()
     payload = {
         "monday": monday.isoformat(),
         "sunday": sunday.isoformat(),
@@ -973,6 +990,8 @@ async def weekly_summary_pdf(
         ],
         "total_cents": total_cents,
         "paid_cents": paid_cents,
+        "business_name": settings.business_name or "",
+        "footer_text": settings.footer_text or "",
     }
     pdf_bytes = await asyncio.to_thread(pdf.render_weekly, payload)
     iso_week = monday.isocalendar()
@@ -994,6 +1013,7 @@ async def export_orders(
     paid: Optional[bool] = Query(default=None),
     fmt: Literal["csv", "pdf"] = Query(default="csv", alias="format"),
     repo: OrderRepository = Depends(get_order_repository),
+    settings_repo: SettingsRepository = Depends(get_settings_repository),
     pdf: PdfClient = Depends(get_pdf_client),
     _admin: User = Depends(require_admin),
 ):
@@ -1005,8 +1025,11 @@ async def export_orders(
         period = "todos"
     if fmt == "csv":
         return _csv_response(_orders_csv_rows(orders), f"pedidos_{period}.csv")
+    settings = await GetSettings(settings_repo).execute()
     payload = {
         "period_label": period,
+        "business_name": settings.business_name or "",
+        "footer_text": settings.footer_text or "",
         "orders": [
             {
                 "id": o.id or "",
@@ -1033,6 +1056,7 @@ async def export_orders(
 async def get_order(
     order_id: str,
     repo: OrderRepository = Depends(get_order_repository),
+    invoice_repo=Depends(get_invoice_repository),
     current_user: User = Depends(require_admin),
 ):
     order = await repo.get_full(order_id)
@@ -1040,7 +1064,8 @@ async def get_order(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Pedido no encontrado"
         )
-    return _detail_response(order, order.whatsapp_sent_at)
+    invoice = await invoice_repo.get_by_order(order.id)
+    return _detail_response(order, order.whatsapp_sent_at, invoice)
 
 
 @router.patch("/{order_id}", response_model=OrderDetailResponse)

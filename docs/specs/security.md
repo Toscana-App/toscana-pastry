@@ -231,6 +231,21 @@
 | `POST|DELETE /products/{id}/image` | imagen del producto | admin |
 | `POST|DELETE /cart*`, `GET /orders/mine*`, `/customers/me/addresses` | carrito y pedidos propios | rol portal + pertenencia |
 
+### Matriz P13 — Facturación ARCA (2026-11-11)
+
+> Módulo nuevo: emisión de comprobantes fiscales. Regla: **admin-only sin excepciones** — un token de sesión `cliente`/`negocio` no puede emitir ni leer comprobantes ni el PDF, ni desde consola ni con cookie de sesión de otro rol. Kill-switch: sin CUIT+punto de venta configurados (`invoicing_settings`) y sin credenciales legibles, la emisión devuelve 503 con código explícito (`invoicing_not_configured` / `afip_credential_missing` / `afip_unavailable`) — nunca 500. Test de regresión permanente: `backend/tests/integration/api/test_invoicing_rbac_matrix.py`.
+
+| Endpoint | Dato expuesto | Guard |
+|---|---|---|
+| `POST /api/v1/invoices` | CAE, importes, receptor (PII) — **acción financiera irreversible** | `require_admin` + kill-switch 503 |
+| `GET /api/v1/invoices` | CAE, receptor (PII) | `require_admin` |
+| `GET /api/v1/invoices/{id}` | CAE, receptor (PII), observaciones de ARCA | `require_admin` |
+| `GET /api/v1/invoices/{id}/pdf` | PDF fiscal completo (CUIT, CAE, importe) | `require_admin` |
+| `GET /api/v1/invoicing/settings` | datos fiscales del emisor (CUIT, domicilio, IB) | `require_admin` |
+| `PUT /api/v1/invoicing/settings` | modifica datos fiscales del emisor | `require_admin` |
+
+> Credenciales AFIP (certificado, clave privada, token WSAA) **nunca** viajan por la API ni aparecen en responses/logs: solo por variables de entorno del backend (`AFIP_*`, ítems 1–2). El CUIT y el punto de venta no son secretos (van impresos en todo comprobante) y viven en la tabla de settings.
+
 ---
 
 ## 21. Anti-patterns observados en producto de referencia (no aplicar)

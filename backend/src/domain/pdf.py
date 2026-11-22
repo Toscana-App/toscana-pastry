@@ -1,10 +1,10 @@
 import hashlib
 import json
 from abc import ABC, abstractmethod
-from decimal import ROUND_HALF_UP
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
-from domain.budgets import Budget, IVA_PCT
+from domain.budgets import IVA_PCT, Budget
+from domain.invoicing import Invoice, InvoicingSettings
 
 
 def format_money_peso(amount: Decimal) -> str:
@@ -50,3 +50,52 @@ class PdfRenderer(ABC):
     @abstractmethod
     def render(self, budget: Budget, business_name: str, footer_text: str) -> bytes:
         pass
+
+
+class InvoicePdfRenderer(ABC):
+    """Borde de render del PDF oficial de un comprobante ARCA (pdfgenerator)."""
+
+    @abstractmethod
+    def render_invoice_arca(self, payload: dict) -> bytes:
+        pass
+
+
+def invoice_arca_pdf_payload(invoice: Invoice, settings: InvoicingSettings) -> dict:
+    """Payload de ``POST /render/invoice-arca`` (contrato del servicio pdfgenerator).
+
+    Money viaja como string decimal (2 decimales) porque el render formatea el
+    documento fiscal; los centavos son la unidad del borde de API propio.
+    """
+    return {
+        "emisor": {
+            "cuit": settings.cuit,
+            "razon_social": settings.razon_social,
+            "domicilio": settings.domicilio,
+            "condicion_iva": settings.condicion_iva,
+            "categoria_monotributo": settings.categoria_monotributo,
+            "ingresos_brutos": settings.ingresos_brutos,
+            "inicio_actividades": settings.inicio_actividades,
+        },
+        "comprobante": {
+            "punto_venta": invoice.punto_venta,
+            "tipo_cbte": invoice.tipo_cbte,
+            "numero": invoice.numero,
+            "fecha": invoice.fecha.isoformat(),
+            "cae": invoice.cae,
+            "cae_vto": invoice.cae_vto.isoformat(),
+            "imp_total": invoice.imp_total,
+            "receptor": {
+                "doc_tipo": invoice.receptor_doc_tipo,
+                "doc_nro": invoice.receptor_doc_nro,
+                "doc_nombre": invoice.receptor_nombre,
+            },
+            "items": [
+                {
+                    "descripcion": item.descripcion,
+                    "cantidad": float(item.cantidad),
+                    "precio_unit": item.precio_unit,
+                }
+                for item in invoice.items
+            ],
+        },
+    }

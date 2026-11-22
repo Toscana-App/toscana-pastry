@@ -91,6 +91,7 @@ function previewItemOf(raw: Record<string, unknown>): OrderPreviewItem {
 
 function detailOf(raw: Record<string, unknown>): OrderDetail {
   const customer = raw.customer as Record<string, unknown>;
+  const rawInvoice = raw.invoice as Record<string, unknown> | null;
   return {
     id: raw.id as string,
     customer: {
@@ -107,6 +108,14 @@ function detailOf(raw: Record<string, unknown>): OrderDetail {
     whatsapp_sent_at: raw.whatsapp_sent_at as string | null,
     created_at: raw.created_at as string,
     updated_at: raw.updated_at as string,
+    invoice: rawInvoice == null
+      ? null
+      : {
+          numero: Number(rawInvoice.numero),
+          cae: rawInvoice.cae as string,
+          cae_vto: rawInvoice.cae_vto as string,
+          pdf_url: rawInvoice.pdf_url as string,
+        },
   };
 }
 
