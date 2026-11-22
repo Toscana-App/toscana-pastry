@@ -10,6 +10,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   loading: boolean;
   logout: () => void;
+  /** Re-fetch /auth/me; resolve with the fresh user (null when unauthenticated). */
+  refresh: () => Promise<User | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -19,31 +21,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const isAuthenticated = !!user;
 
+  const refresh = React.useCallback(async (): Promise<User | null> => {
+    try {
+      const response = await authService.getUser();
+      const next: User = {
+        id: response.user_id,
+        email: response.email,
+        role: response.role,
+        googleId: response.google_id,
+      };
+      setUser(next);
+      return next;
+    } catch {
+      setUser(null);
+      return null;
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
     async function checkAuth() {
-      try {
-        const response = await authService.getUser();
-        if (cancelled) return;
-        setUser({
-          id: response.user_id,
-          email: response.email,
-          role: response.role,
-          googleId: response.google_id,
-        });
-      } catch {
-        if (!cancelled) setUser(null);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      await refresh();
+      if (!cancelled) setLoading(false);
     }
 
     checkAuth();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refresh]);
 
   useEffect(() => {
     const onSessionCleared = () => setUser(null);
@@ -54,11 +61,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setUser(null);
+    // GIS: stop auto-selecting the account for subsequent sign-ins (RNF-P1-08
+    // hygiene). Guarded: the script may not have loaded (no clientId configured).
+    window.google?.accounts?.id?.disableAutoSelect?.();
     void authService.logout();
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, loading, logout }}>
+    <AuthContext.Provider
+      value={{ user, isAuthenticated, loading, logout, refresh }}
+    >
       {children}
     </AuthContext.Provider>
   );

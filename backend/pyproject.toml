@@ -13,6 +13,7 @@ dependencies = [
     "python-multipart>=0.0.9",
     "zeep>=4.3",
     "cryptography>=43",
+    "google-auth>=2.31",
 ]
 
 [dependency-groups]

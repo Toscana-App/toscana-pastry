@@ -17,6 +17,24 @@ AFIP_WSFE_URLS: dict[str, str] = {
     AFIP_ENV_PRODUCCION: "https://servicios1.afip.gov.ar/wsfev1/service.asmx?WSDL",
 }
 
+_GOOGLE_AUTO_CREATE_TRUE = {"1", "true", "yes", "on"}
+_GOOGLE_AUTO_CREATE_FALSE = {"0", "false", "no", "off"}
+
+
+def _parse_google_auto_create(value: "str | None") -> "bool | None":
+    """Parse GOOGLE_AUTO_CREATE: unset/empty/unknown -> None (resolves to
+    'not prod'); explicit true/false spellings -> bool."""
+    if value is None:
+        return None
+    normalized = value.strip().lower()
+    if not normalized:
+        return None
+    if normalized in _GOOGLE_AUTO_CREATE_TRUE:
+        return True
+    if normalized in _GOOGLE_AUTO_CREATE_FALSE:
+        return False
+    return None
+
 
 
 class Settings:
@@ -29,6 +47,19 @@ class Settings:
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "15"))
     REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
+    CORS_ORIGINS: list = [
+        origin.strip()
+        for origin in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+        if origin.strip()
+    ]
+    # Google Sign-In (GIS ID-token). GOOGLE_CLIENT_ID is public: when empty the
+    # feature is disabled (no button, 404 from the endpoints). GOOGLE_AUTO_CREATE
+    # gates sign-up through Google: unset (None) resolves to "not prod".
+    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+    GOOGLE_AUTO_CREATE: "bool | None" = _parse_google_auto_create(
+        os.getenv("GOOGLE_AUTO_CREATE")
+    )
+    GOOGLE_NONCE_TTL_SECONDS: int = int(os.getenv("GOOGLE_NONCE_TTL_SECONDS", "600"))
     MP_ACCESS_TOKEN: str = os.getenv("MP_ACCESS_TOKEN", "")
     MP_WEBHOOK_SECRET: str = os.getenv("MP_WEBHOOK_SECRET", "")
     MP_NOTIFICATION_URL: str = os.getenv("MP_NOTIFICATION_URL", "")
@@ -48,6 +79,14 @@ class Settings:
     AFIP_CERT_PEM: str = os.getenv("AFIP_CERT_PEM", "")
     AFIP_WSAA_URL: str = os.getenv("AFIP_WSAA_URL", "")
     AFIP_WSFE_URL: str = os.getenv("AFIP_WSFE_URL", "")
+
+    @property
+    def google_auto_create(self) -> bool:
+        """Effective auto-create flag: explicit env wins; unset resolves to
+        'not prod' (production never auto-creates accounts via Google)."""
+        if self.GOOGLE_AUTO_CREATE is not None:
+            return self.GOOGLE_AUTO_CREATE
+        return self.ENVIRONMENT != "prod"
 
     @property
     def afip_wsaa_url(self) -> str:
