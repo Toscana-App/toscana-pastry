@@ -71,3 +71,15 @@ async def test_new_email_is_no_account_when_auto_create_is_off():
     assert outcome.state == "no_account"
     assert outcome.user is None
     assert repo.saved == []
+
+
+async def test_email_match_with_a_different_google_id_is_link_pending():
+    # Two Google accounts sharing one email: the account is bound to another
+    # google_id. Auto-linking is forbidden (RF-P1-10) and auto-creating would
+    # violate the email uniqueness constraint -> pending link, never 500.
+    existing = User(email="user@gmail.com", google_id="google-sub-OTHER")
+    repo = FakeUserRepository(by_google_id=None, by_email=existing)
+    outcome = await GoogleSignIn(repo, auto_create=True).execute(dict(PAYLOAD))
+    assert outcome.state == "link_pending"
+    assert outcome.user is existing
+    assert repo.saved == []

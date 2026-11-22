@@ -164,7 +164,7 @@ export default function LoginForm({
       theme: "outline",
       size: "large",
       text: "continue_with",
-      width: 360,
+      width: "auto",
     });
   }, [gsiReady, nonce, googleClientId, handleCredential]);
 

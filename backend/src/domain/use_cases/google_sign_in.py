@@ -43,9 +43,12 @@ class GoogleSignIn:
         email = (payload.get("email") or "").strip().lower()
         if email:
             existing = await self.user_repository.get_by_email(email)
-            if existing is not None and existing.google_id is None:
+            if existing is not None:
                 # Never auto-link: Google verifying the inbox once is not
-                # proof that this person owns the local account.
+                # proof that this person owns the local account. This also
+                # covers an account already bound to a DIFFERENT google_id
+                # (two Google accounts sharing one email): auto-creating
+                # would violate the email uniqueness constraint.
                 return GoogleSignInOutcome(state="link_pending", user=existing)
 
         if not self.auto_create:

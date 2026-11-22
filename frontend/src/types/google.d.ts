@@ -28,7 +28,7 @@ export interface GoogleGsiRenderButtonOptions {
   shape?: "pill" | "circle" | "square";
   text?: "sign_in" | "sign_up" | "continue_with" | "signin_with";
   logo_alignment?: "left" | "center";
-  width?: number;
+  width?: number | "auto";
   [key: string]: unknown;
 }
 
