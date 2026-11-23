@@ -41,6 +41,8 @@ from api.v1.products.image_service import (
 )
 from api.v1.products.schemas import (
     PriceBreakdownResponse,
+    ProductCategoriesResponse,
+    ProductCategoryCount,
     ProductCreate,
     ProductDetailResponse,
     ProductListItem,
@@ -372,6 +374,19 @@ async def list_products(
         page=page,
         page_size=page_size,
         categories=categories,
+    )
+
+
+@router.get("/categories", response_model=ProductCategoriesResponse)
+async def list_product_categories(
+    repo: ProductRepository = Depends(get_product_repository),
+    current_user: User = Depends(require_admin_or_audience),
+):
+    rows = await repo.category_counts()
+    return ProductCategoriesResponse(
+        categories=[
+            ProductCategoryCount(name=name, count=count) for name, count in rows
+        ]
     )
 
 

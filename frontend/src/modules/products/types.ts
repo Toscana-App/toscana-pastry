@@ -42,6 +42,15 @@ export interface ProductTagsResponse {
   tags: ProductTagCount[];
 }
 
+export interface ProductCategoryCount {
+  name: string;
+  count: number;
+}
+
+export interface ProductCategoriesResponse {
+  categories: ProductCategoryCount[];
+}
+
 export interface PriceBreakdown {
   materials: number;
   waste: number;

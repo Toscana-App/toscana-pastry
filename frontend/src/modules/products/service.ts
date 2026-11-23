@@ -6,6 +6,7 @@ import type {
   ProductDeleteImpact,
   ProductDetail,
   ProductImageResponse,
+  ProductCategoriesResponse,
   ProductListParams,
   ProductListResponse,
   ProductTagsResponse,
@@ -32,6 +33,10 @@ export const productsService = {
 
   listTags(): Promise<ProductTagsResponse> {
     return apiFetch<ProductTagsResponse>(`${BASE}/tags`);
+  },
+
+  listCategories(): Promise<ProductCategoriesResponse> {
+    return apiFetch<ProductCategoriesResponse>(`${BASE}/categories`);
   },
 
   create(input: ProductCreateInput): Promise<ProductDetail> {

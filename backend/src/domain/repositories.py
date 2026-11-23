@@ -190,6 +190,10 @@ class ProductRepository(ABC):
         pass
 
     @abstractmethod
+    async def category_counts(self) -> List[Tuple[str, int]]:
+        pass
+
+    @abstractmethod
     async def get(self, product_id: str) -> Optional[Product]:
         pass
 
