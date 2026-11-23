@@ -15,6 +15,8 @@ import { gooeyToast } from "goey-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { isPortalRole } from "@/lib/portalRoutes";
 import { roleDefaultDisplayAudience } from "@/lib/roleAudience";
+import { trackEvent } from "@/lib/analytics";
+import type { Ga4Item } from "@/lib/ga4-ecommerce";
 import { addCartItem } from "@/services/cartService";
 import { fetchStoreDetail } from "@/services/storeService";
 import type { StoreProductDetail } from "@/types/pricing";
@@ -34,7 +36,17 @@ export function ProductStoreDetail({ id }: { id: string }) {
     async function load() {
       try {
         const data = await fetchStoreDetail(id, audience);
-        if (!cancelled) setDetail(data);
+        if (!cancelled) {
+          setDetail(data);
+          const item: Ga4Item = {
+            item_id: data.id,
+            item_name: data.name,
+            price: Number(data.price),
+            quantity: 1,
+            currency: "ARS",
+          };
+          trackEvent("view_item", { item });
+        }
       } catch {
         if (!cancelled) setNotFound(true);
       } finally {
@@ -52,6 +64,15 @@ export function ProductStoreDetail({ id }: { id: string }) {
     setAdding(true);
     try {
       await addCartItem(detail.id, 1);
+      const item: Ga4Item = {
+        item_id: detail.id,
+        item_name: detail.name,
+        price: Number(detail.price),
+        quantity: 1,
+        currency: "ARS",
+      };
+      trackEvent("select_item", { item });
+      trackEvent("add_to_cart", { item });
       gooeyToast.success("¡Agregado al carrito!", { description: detail.name });
     } catch (error) {
       gooeyToast.error("¡Ups! No se pudo agregar al carrito", {

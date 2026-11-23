@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test-utils";
 import { ProductStoreDetail } from "./ProductStoreDetail";
@@ -12,6 +12,7 @@ const toast = vi.hoisted(() => ({
   success: vi.fn(),
   error: vi.fn(),
 }));
+const analytics = vi.hoisted(() => ({ trackEvent: vi.fn() }));
 
 vi.mock("@/services/storeService", () => ({
   fetchStoreDetail: store.detail,
@@ -20,6 +21,9 @@ vi.mock("@/services/cartService", () => ({
   addCartItem: cart.add,
 }));
 vi.mock("goey-toast", () => ({ gooeyToast: toast }));
+vi.mock("@/lib/analytics", () => ({
+  trackEvent: analytics.trackEvent,
+}));
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ user: { role: "customer" } }),
 }));
@@ -45,6 +49,7 @@ describe("ProductStoreDetail (portal)", () => {
     cart.add.mockReset();
     toast.success.mockClear();
     toast.error.mockClear();
+    analytics.trackEvent.mockClear();
   });
 
   afterEach(() => {
@@ -81,6 +86,70 @@ describe("ProductStoreDetail (portal)", () => {
 
     expect(cart.add).toHaveBeenCalledWith("p1", 1);
     expect(toast.success).toHaveBeenCalled();
+  });
+
+  it("dispara view_item con el shape GA4 tras cargar el detalle", async () => {
+    store.detail.mockResolvedValueOnce(DETAIL);
+
+    renderWithProviders(<ProductStoreDetail id="p1" />);
+    await screen.findByText("Torta de chocolate");
+
+    expect(analytics.trackEvent).toHaveBeenCalledWith("view_item", {
+      item: {
+        item_id: "p1",
+        item_name: "Torta de chocolate",
+        price: 17500,
+        quantity: 1,
+        currency: "ARS",
+      },
+    });
+  });
+
+  it("dispara select_item y add_to_cart tras agregar al carrito con éxito", async () => {
+    store.detail.mockResolvedValueOnce(DETAIL);
+    cart.add.mockResolvedValueOnce({});
+    const user = userEvent.setup();
+
+    renderWithProviders(<ProductStoreDetail id="p1" />);
+    await screen.findByText("Torta de chocolate");
+    await user.click(screen.getByRole("button", { name: /al carrito/i }));
+
+    expect(analytics.trackEvent).toHaveBeenCalledWith("select_item", {
+      item: expect.objectContaining({
+        item_id: "p1",
+        price: 17500,
+        quantity: 1,
+        currency: "ARS",
+      }),
+    });
+    expect(analytics.trackEvent).toHaveBeenCalledWith("add_to_cart", {
+      item: expect.objectContaining({
+        item_id: "p1",
+        price: 17500,
+        quantity: 1,
+        currency: "ARS",
+      }),
+    });
+  });
+
+  it("no dispara select_item ni add_to_cart si agregar al carrito falla", async () => {
+    store.detail.mockResolvedValueOnce(DETAIL);
+    cart.add.mockRejectedValueOnce(new Error("cart_error"));
+    const user = userEvent.setup();
+
+    renderWithProviders(<ProductStoreDetail id="p1" />);
+    await screen.findByText("Torta de chocolate");
+    await user.click(screen.getByRole("button", { name: /al carrito/i }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(analytics.trackEvent).not.toHaveBeenCalledWith(
+      "select_item",
+      expect.anything(),
+    );
+    expect(analytics.trackEvent).not.toHaveBeenCalledWith(
+      "add_to_cart",
+      expect.anything(),
+    );
   });
 
   it("muestra un estado amable cuando el producto no está disponible (404)", async () => {
