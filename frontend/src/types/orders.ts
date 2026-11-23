@@ -9,6 +9,8 @@ export interface CartItemOut {
   unit_price: string;
   qty: number;
   total: string;
+  available?: boolean;
+  issue?: string | null;
 }
 
 export interface CartCouponOut {

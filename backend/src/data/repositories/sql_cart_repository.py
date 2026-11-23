@@ -1,8 +1,17 @@
 
-from sqlalchemy import func, select
+import datetime
+from typing import cast
+
+from sqlalchemy import delete, func, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from data.models import CartItemORM, CartORM
+from domain.cart import CART_TTL_DAYS
+
+
+def _now() -> datetime.datetime:
+    return datetime.datetime.now(datetime.UTC)
 
 
 class SQLCartRepository:
@@ -12,6 +21,29 @@ class SQLCartRepository:
     async def get_state(
         self, user_id: str
     ) -> tuple[list[tuple[str, int]], str | None]:
+        cutoff = _now() - datetime.timedelta(days=CART_TTL_DAYS)
+        pruned = cast(
+            "CursorResult",
+            await self.session.execute(
+                delete(CartItemORM).where(
+                    CartItemORM.user_id == user_id,
+                    CartItemORM.updated_at < cutoff,
+                )
+            ),
+        )
+        if pruned.rowcount:
+            import logging
+            logging.getLogger(__name__).info(
+                "Cart TTL: pruned %d stale lines for user %s",
+                pruned.rowcount,
+                user_id,
+            )
+            remaining = await self.count_items(user_id)
+            if remaining == 0:
+                cart = await self.session.get(CartORM, user_id)
+                if cart is not None and cart.coupon_code is not None:
+                    cart.coupon_code = None
+            await self.session.commit()
         cart = await self.session.get(CartORM, user_id)
         coupon_code = cart.coupon_code if cart is not None else None
         result = await self.session.execute(
@@ -49,9 +81,15 @@ class SQLCartRepository:
         row = result.scalars().first()
         if row is not None:
             row.qty = qty
+            row.updated_at = _now()
         else:
             self.session.add(
-                CartItemORM(user_id=user_id, product_id=product_id, qty=qty)
+                CartItemORM(
+                    user_id=user_id,
+                    product_id=product_id,
+                    qty=qty,
+                    updated_at=_now(),
+                )
             )
         await self._touch_cart(user_id)
 
@@ -66,8 +104,28 @@ class SQLCartRepository:
         if row is None:
             return False
         await self.session.delete(row)
+        if await self.count_items(user_id) == 0:
+            await self.clear_coupon(user_id)
         await self._touch_cart(user_id)
         return True
+
+    async def delete_lines(self, user_id: str, product_ids: list[str]) -> int:
+        """Elimina lineas (ej: productos eliminados). Devuelve cuantas.
+
+        No hace commit: el caller decide cuando confirmar la transaccion.
+        """
+        if not product_ids:
+            return 0
+        result = cast(
+            "CursorResult",
+            await self.session.execute(
+                delete(CartItemORM).where(
+                    CartItemORM.user_id == user_id,
+                    CartItemORM.product_id.in_(product_ids),
+                )
+            ),
+        )
+        return result.rowcount or 0
 
     async def set_coupon_code(self, user_id: str, code: str) -> None:
         await self._touch_cart(user_id)

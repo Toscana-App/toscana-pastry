@@ -94,7 +94,8 @@ export function CheckoutFlow() {
   const checkoutTrackedRef = useRef(false);
 
   useEffect(() => {
-    if (!cart || cart.items.length === 0) return;
+    if (!cart) return;
+    if (cart.items.filter((item) => item.available !== false).length === 0) return;
     if (checkoutTrackedRef.current) return;
     checkoutTrackedRef.current = true;
     trackEvent("begin_checkout", {
@@ -155,6 +156,29 @@ export function CheckoutFlow() {
             onClick={() => router.push("/")}
           >
             Ir al catálogo
+          </Button>
+        </Stack>
+      </Center>
+    );
+  }
+
+  if (cart.items.every((item) => item.available === false)) {
+    return (
+      <Center minH="50dvh" py={12}>
+        <Stack gap={4} align="center" textAlign="center">
+          <Heading as="h1" size="lg" textWrap="balance">
+            No hay productos disponibles
+          </Heading>
+          <Text color="fg.muted">
+            Los productos de tu carrito quedaron sin stock o no están
+            disponibles. Quitálos del carrito para continuar.
+          </Text>
+          <Button
+            colorPalette="brand"
+            size="sm"
+            onClick={() => router.push("/cart")}
+          >
+            Ir al carrito
           </Button>
         </Stack>
       </Center>

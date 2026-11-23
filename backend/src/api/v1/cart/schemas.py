@@ -23,6 +23,8 @@ class CartItemOut(BaseModel):
     unit_price: str
     qty: int
     total: str
+    available: bool = True
+    issue: str | None = None
 
 
 class CartResponse(BaseModel):

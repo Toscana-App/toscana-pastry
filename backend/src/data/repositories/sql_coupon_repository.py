@@ -1,6 +1,8 @@
 from decimal import Decimal
+from typing import cast
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -158,3 +160,26 @@ class SQLCouponRepository:
         orm.uses += 1
         await self.session.commit()
         return _to_domain(orm)
+
+    async def claim_use(self, coupon_id: str) -> bool:
+        """Incrementa `uses` atomicamente SOLO si no alcanza el tope.
+
+        No hace commit: el claim se confirma junto al pedido (mismo
+        transaccion) y se revierte si el pedido no se crea. Devuelve False
+        si el tope se alcanzo (la corrida ganadora quedo primero).
+        """
+        result = cast(
+            "CursorResult",
+            await self.session.execute(
+                update(CouponORM)
+                .where(
+                    CouponORM.id == coupon_id,
+                    or_(
+                        CouponORM.max_uses.is_(None),
+                        CouponORM.uses < CouponORM.max_uses,
+                    ),
+                )
+                .values(uses=CouponORM.uses + 1)
+            ),
+        )
+        return (result.rowcount or 0) > 0
