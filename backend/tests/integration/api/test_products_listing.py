@@ -35,6 +35,7 @@ _STORE_ROW_KEYS = {
     "price",
     "price_per_serving",
     "complete",
+    "tags",
 }
 
 _LEAKY_KEYS = {
@@ -447,6 +448,7 @@ _STORE_DETAIL_KEYS = {
     "price",
     "servings",
     "prep_time_min",
+    "tags",
 }
 
 
