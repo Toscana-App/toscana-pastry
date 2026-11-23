@@ -19,6 +19,7 @@ from sqlalchemy import (
     Uuid,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column, relationship
 
 Base = declarative_base()
@@ -137,6 +138,12 @@ class ProductORM(Base):
     difficulty = Column(String, nullable=False, default="simple")
     available = Column(Boolean, nullable=False, default=False, index=True)
     image_url = Column(String, nullable=True)
+    tags: Mapped[list] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'::jsonb"),
+    )
     deleted_at = Column(DateTime(timezone=True), nullable=True)
     recipe_items = relationship(
         "RecipeItemORM",

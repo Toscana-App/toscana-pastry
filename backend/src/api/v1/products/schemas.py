@@ -1,11 +1,14 @@
-from typing import List, Literal, Optional
+from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from api.v1.money import Money, Qty, Pct
 
 ProductDifficulty = Literal["simple", "intermedio", "complejo"]
 RecipeUnit = Literal["kg", "g", "L", "ml", "unidad"]
+ProductTag = Annotated[
+    str, StringConstraints(min_length=1, max_length=30, strip_whitespace=True)
+]
 
 
 class RecipeItemInput(BaseModel):
@@ -26,6 +29,7 @@ class ProductCreate(BaseModel):
     prep_time_min: Optional[int] = Field(default=None, ge=0, le=1440)
     servings: Optional[int] = Field(default=None, ge=1, le=999)
     difficulty: Optional[ProductDifficulty] = None
+    tags: List[ProductTag] = Field(default_factory=list, max_length=10)
     recipe: List[RecipeItemInput] = Field(min_length=1, max_length=30)
 
 
@@ -39,6 +43,7 @@ class ProductUpdate(BaseModel):
     prep_time_min: Optional[int] = Field(default=None, ge=0, le=1440)
     servings: Optional[int] = Field(default=None, ge=1, le=999)
     difficulty: Optional[ProductDifficulty] = None
+    tags: Optional[List[ProductTag]] = Field(default=None, max_length=10)
     recipe: Optional[List[RecipeItemInput]] = Field(
         default=None, min_length=1, max_length=30
     )
@@ -55,6 +60,7 @@ class ProductListItem(BaseModel):
     complete: bool
     available: bool
     image_url: Optional[str] = None
+    tags: List[str] = []
 
 
 class ProductListResponse(BaseModel):
@@ -102,6 +108,16 @@ class ProductDetailResponse(BaseModel):
     missing_ingredients: List[str]
     available: bool
     image_url: Optional[str] = None
+    tags: List[str] = []
     price: Optional[PriceBreakdownResponse] = None
     price_per_serving: Optional[Money] = None
     recipe: List[RecipeItemResponse]
+
+
+class ProductTagCount(BaseModel):
+    name: str
+    count: int
+
+
+class ProductTagsResponse(BaseModel):
+    tags: List[ProductTagCount]

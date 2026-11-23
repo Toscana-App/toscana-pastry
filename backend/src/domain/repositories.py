@@ -181,7 +181,12 @@ class ProductRepository(ABC):
         category: Optional[str],
         page: int,
         page_size: int,
+        tags: Optional[List[str]] = None,
     ) -> tuple[List[Product], int]:
+        pass
+
+    @abstractmethod
+    async def tag_counts(self) -> List[Tuple[str, int]]:
         pass
 
     @abstractmethod

@@ -27,6 +27,7 @@ def assemble_product(
     ingredients_by_id: Dict[str, Ingredient],
     available: Optional[bool] = None,
     image_url: Optional[str] = None,
+    tags: Optional[Sequence[str]] = None,
 ) -> Product:
     if existing is None:
         name = name or ""
@@ -39,6 +40,7 @@ def assemble_product(
         difficulty = settings.default_difficulty if difficulty is None else difficulty
         available = False
         image_url = None
+        resolved_tags: Sequence[str] = tags if tags is not None else ()
     else:
         name = name if name is not None else existing.name
         category = category if category is not None else existing.category
@@ -50,6 +52,7 @@ def assemble_product(
         difficulty = difficulty if difficulty is not None else existing.difficulty
         available = available if available is not None else existing.available
         image_url = image_url if image_url is not None else existing.image_url
+        resolved_tags = tags if tags is not None else existing.tags
 
     if recipe is not None:
         recipe_items: List[RecipeItem] = list(recipe)
@@ -87,6 +90,7 @@ def assemble_product(
             difficulty=difficulty,
             available=available,
             image_url=image_url,
+            tags=tuple(resolved_tags),
             **({"id": existing.id, "deleted_at": existing.deleted_at} if existing else {}),
         )
         calculate_price(line_items, product.prep_time_min, settings.to_pricing())
