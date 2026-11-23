@@ -23,11 +23,11 @@ Objective: apply Vercel Web Interface Guidelines across the frontend, Client rol
 - S13: "Todos los componentes nombrados forman parte de chakra-ui"
 
 ## Tasks (feature 2)
-- T3 (S5,S6,S11,S7) Navbar: Menu, Avatar, Float cart badge. Route: delegated (parallel). Status: pending
-- T4 (S8,S9,S7) My orders: vertical Cards + Status. Route: delegated (parallel). Status: pending
-- T5 (S10,S7) Cart: EmptyState. Route: delegated (parallel). Status: pending
-- T6 (S12,S7) Dashboard: useChart KPIs. Route: delegated (parallel). Status: pending
-- T7 (S7) FormatNumber for remaining money amounts. Route: after T3-T6. Status: pending
+- T3 (S5,S6,S11,S7) Navbar: Menu, Avatar, Float cart badge. Route: delegated (parallel). Status: **DONE** (re-audit 2026-11-22: `Menu.Root` + Avatar en `Navbar.tsx`)
+- T4 (S8,S9,S7) My orders: vertical Cards + Status. Route: delegated (parallel). Status: **DONE** (re-audit 2026-11-22: `Card.Root` + `Status.Root` en `MyOrdersPage.tsx`)
+- T5 (S10,S7) Cart: EmptyState. Route: delegated (parallel). Status: **DONE** (re-audit 2026-11-22: `EmptyState` en `CartPage.tsx`)
+- T6 (S12,S7) Dashboard: useChart KPIs. Route: delegated (parallel). Status: **DONE** (re-audit 2026-11-22: `useChart` en `DashboardCharts.tsx`)
+- T7 (S7) FormatNumber for remaining money amounts. Route: after T3-T6. Status: pending (re-audit 2026-11-22: `FormatNumber` ya en uso en varios módulos; auditoría pantalla por pantalla no hecha)
 
 ## Specs (feature 3: dashboard endpoints, backend)
 - S14: "crea los casos de uso para incorporar los endpoints para crear los dashboard"
@@ -36,7 +36,7 @@ Objective: apply Vercel Web Interface Guidelines across the frontend, Client rol
 - S17: out of scope now: frontend wiring of these endpoints.
 
 ## Tasks (feature 3)
-- T8 (S14-S17) Backend dashboard use cases + endpoints + tests. Route: delegated (parallel with T7, disjoint surface). Risk: item 1 (index migration). Status: pending
+- T8 (S14-S17) Backend dashboard use cases + endpoints + tests. Route: delegated (parallel with T7, disjoint surface). Risk: item 1 (index migration). Status: **DONE** (re-audit 2026-11-22: `GET /dashboard/{summary,sales-series,orders-by-status,top-products,payment-methods}` + `test_calc_dashboard_api.py` en main)
 
 ## Log
 - L5 (2026-11-10): "si, hacelo así.\nLuego,crea los casos de uso para incorporar los endpoints para crear los dashboard.Sigue las caracteristicas de senior-dev para la definicion del nuevo endpoint para la implementacion del dashboard,para que sean consultas a la db livianas y performantes"

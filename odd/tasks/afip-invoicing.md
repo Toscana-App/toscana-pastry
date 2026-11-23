@@ -97,6 +97,8 @@ Fuente: ARCA — Montos y categorías vigentes (tabla oficial). 11 categorías:
 
 ## Estado actual (evidencia sobre origin/main)
 
+> **Re-audit 2026-11-22 (sobre `origin/main` `644fde2`)**: el módulo P13 está **implementado y en main**. El inventario abajo describe el baseline de 2026-11-11 (`1f26c09`), antes del trabajo. En main existen hoy: `backend/src/domain/invoicing.py`, migración `0011_invoicing.sql` + `InvoiceORM`, `backend/src/data/invoicing/{wsaa,wsfe,ssl_session}.py`, `backend/src/api/v1/invoicing/` (router + guards admin), use case de emisión, renderer `invoice-arca` con QR en `pdfgenerator/`, `GET /invoices/{id}/pdf`, `frontend/src/modules/invoicing/` y tests (API, matriz RBAC, repositorio, dominio, PDF). `zeep` + `cryptography` en `backend/pyproject.toml`, `qrcode` en `pdfgenerator/pyproject.toml`.
+
 - No existe ninguna tabla de facturación: `backend/src/data/models.py`
   (793 líneas, 42 tablas) no tiene `invoices`/`facturas`; el PRD excluye
   facturación en v1 ("No se hace en v1: facturación/emisión de facturas").
@@ -253,7 +255,7 @@ commit por task (los archivos compartidos se integran antes de commitear).
 - Archivos: `odd/tasks/afip-invoicing.md` (este), `docs/specs/p13_invoicing.md`,
   `docs/specs/api_endpoints.md` (filas + conteo), `docs/specs/security.md`
   (matriz S6), `docs/specs/master_plan.md` (fase + decisión de arquitectura).
-- Status: OPEN
+- Status: **DONE** (re-audit 2026-11-22: spec `p13_invoicing.md` + rows en `api_endpoints.md` en main)
 
 ### T1 — Dominio (puro)
 - Archivos: `backend/src/domain/invoicing.py` (entidades `Invoice`,
@@ -263,7 +265,7 @@ commit por task (los archivos compartidos se integran antes de commitear).
   domain/test_invoicing.py`.
 - Commits: `feat(invoicing): dominio de comprobantes ARCA con reglas puras`
   (+ tests en el mismo commit, TDD).
-- Status: OPEN
+- Status: **DONE** (re-audit 2026-11-22: `backend/src/domain/invoicing.py` + `tests/unit/domain/test_invoicing.py` en main)
 
 ### T2 — Data (ORM + migración + repositorio)
 - Archivos: `backend/src/data/models.py` (`InvoiceORM`, `InvoiceItemORM`,
@@ -272,7 +274,7 @@ commit por task (los archivos compartidos se integran antes de commitear).
   `backend/migrations/0011_invoicing.sql`,
   `backend/src/data/repositories/sql_invoice_repository.py` + tests.
 - Commits: `feat(invoicing): tablas de comprobantes, settings y migración 0011`
-- Status: OPEN
+- Status: **DONE** (re-audit 2026-11-22: `InvoiceORM`/`InvoiceItemORM` en models, `0011_invoicing.sql`, `sql_invoice_repository.py` + tests en main)
 
 ### T3 — Cliente AFIP (WSAA + WSFEv1) + config
 - Archivos: `backend/src/core/config.py` (bloques `AFIP_*`),
@@ -285,7 +287,7 @@ commit por task (los archivos compartidos se integran antes de commitear).
   (FECompUltimoAutorizado, FeCAESolicitar) + tests unitarios con transporte
   fake (cero red, cero credenciales).
 - Commits: `feat(invoicing): cliente WSAA/WSFEv1 con config por entorno`
-- Status: OPEN
+- Status: **DONE** (re-audit 2026-11-22: `data/invoicing/{wsaa,wsfe,ssl_session}.py`, bloques `AFIP_*` en config, tests con transporte fake en main)
 
 ### T4 — Use case + API + matriz RBAC
 - Archivos: `backend/src/domain/use_cases/issue_invoice.py`,
@@ -295,7 +297,7 @@ commit por task (los archivos compartidos se integran antes de commitear).
   `backend/tests/integration/api/test_invoices_api.py` (con cliente AFIP
   fake) + `test_invoicing_rbac_matrix.py` (401/403/2xx por endpoint).
 - Commits: `feat(invoicing): endpoints de emisión y settings con guards admin`
-- Status: OPEN
+- Status: **DONE** (re-audit 2026-11-22: `api/v1/invoicing/` + use case + kill-switch 503 + `test_invoices_api.py` + matriz RBAC en main)
 
 ### T5 — PDF ARCA en pdfgenerator
 - Archivos: `pdfgenerator/src/pdfgenerator/server.py` (endpoint
@@ -303,14 +305,14 @@ commit por task (los archivos compartidos se integran antes de commitear).
   renderers/invoice_arca.py` (formato oficial + QR RG 4291/2018),
   `pdfgenerator/pyproject.toml` (+`qrcode`), tests en `pdfgenerator/tests/`.
 - Commits: `feat(pdfgenerator): render de factura ARCA con QR`
-- Status: OPEN
+- Status: **DONE** (re-audit 2026-11-22: `POST /render/invoice-arca` + renderer con QR RG 4291/2018 + `qrcode` en pyproject en main)
 
 ### T6 — Endpoint de PDF del comprobante
 - Archivos: extensión de `PdfClient.render_invoice_arca` + payload builder,
   `GET /invoices/{id}/pdf` en el router de invoicing, 503 con el service caído,
   tests (fake client, como `_FakePdfClient` de `tests/integration/conftest.py`).
 - Commits: `feat(invoicing): descarga del PDF del comprobante`
-- Status: OPEN
+- Status: **DONE** (re-audit 2026-11-22: `render_invoice_arca` en PdfClient + `GET /invoices/{id}/pdf` + 503 con service caído, tests en main)
 
 ### T7 — Frontend
 - Archivos: `frontend/src/modules/invoicing/{types.ts,schema.ts,service.ts,
@@ -318,7 +320,7 @@ commit por task (los archivos compartidos se integran antes de commitear).
   `modules/orders/components/OrderDetailPage.tsx` (AlertDialog de
   irreversibilidad + form + resultado CAE + descarga PDF).
 - Commits: `feat(invoicing): acción de facturación en el detalle de pedido`
-- Status: OPEN
+- Status: **DONE** (re-audit 2026-11-22: `frontend/src/modules/invoicing/` + acción "Facturar" con alert de irreversibilidad en el detalle de pedido, en main)
 
 ### T8 — Verificación + entrega
 - Gates: suite completa backend en CI (Postgres), suite de pdfgenerator en
@@ -327,7 +329,7 @@ commit por task (los archivos compartidos se integran antes de commitear).
   `npm run build`). Smoke en homologación real: pendiente de credenciales
   (`AFIP_ENV=homo` + certificado de homo vía env) — se declara en el PR.
 - Commits: fixes que exijan los gates (si los hay).
-- Status: OPEN
+- Status: **PARCIAL** (re-audit 2026-11-22: suite backend en CI verde en main — incluye el fix de race 409 sobre unique(order_id), PR #69 mergeado; **smoke en homologación ARCA pendiente de credenciales externas** `AFIP_ENV=homo` + certificado, declarado en el PR)
 
 ## Status
 
@@ -335,7 +337,13 @@ commit por task (los archivos compartidos se integran antes de commitear).
 - Orden de delivery: T0 → T1 → T2 → T3 → T4 → T5 → T6 → T7 → T8.
   T5 es independiente del backend (se puede paralelizar con T4).
 - Pendiente de OK del usuario: **D1** (deps `zeep` + `cryptography` en
-  backend; `qrcode` en pdfgenerator).
+  backend; `qrcode` en pdfgenerator). **Resuelto (re-audit 2026-11-22): aplicado**
+  — `zeep>=4.3` + `cryptography>=43` en `backend/pyproject.toml`, `qrcode>=7.4`
+  en `pdfgenerator/pyproject.toml`.
+- **Re-audit 2026-11-22 (sobre `origin/main` `644fde2`)**: T0–T7 **DONE** en
+  main. T8 **PARCIAL**: único remanente es el smoke en homologación ARCA
+  (credenciales externas). PR #69 (mergeado) = fix de race 409 sobre
+  unique(order_id).
 
 ## Log
 
