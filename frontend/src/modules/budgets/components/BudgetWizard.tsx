@@ -19,6 +19,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { BudgetRowsSkeleton } from "@/components/ui/skeleton";
+import { TagChips } from "@/modules/shared/tag-chips";
 
 import { customersService } from "@/modules/orders/service";
 import type { Customer } from "@/modules/orders/types";
@@ -538,71 +539,77 @@ export function BudgetWizard() {
                 </Alert.Root>
               ) : (
                 <Stack gap={3}>
-                  {draft.rows.map((row, idx) => (
-                    <Flex key={row.key} gap={3} wrap="wrap" align="end">
-                      <Field.Root w="100%" maxW="300px" flex={1}>
-                        <Field.Label>Producto {idx + 1}</Field.Label>
-                        <OptionSelect
-                          value={row.product_id}
-                          onChange={(v) => patchRow(row.key, { product_id: v })}
-                          placeholder="Elegir producto…"
-                          aria-label={`Producto de la línea ${idx + 1}`}
-                          options={products.map((p) => ({
-                            value: p.id,
-                            label:
-                              p.name +
-                              (p.price_final != null ? ` · ${formatCents(p.price_final)}` : " · sin precio"),
-                          }))}
-                        />
-                        {itemErrors[String(row.key)] ? (
-                          <Field.ErrorText>{itemErrors[String(row.key)]}</Field.ErrorText>
-                        ) : null}
-                      </Field.Root>
-                      <Field.Root w="110px">
-                        <Field.Label>Cant.</Field.Label>
-                        <Input
-                          type="number"
-                          name="qty"
-                          inputMode="numeric"
-                          autoComplete="off"
-                          min={1}
-                          max={99}
-                          value={row.qty}
-                          onChange={(e) => patchRow(row.key, { qty: e.target.value })}
-                          aria-label={`Cantidad de la línea ${idx + 1}`}
-                        />
-                      </Field.Root>
-                      {draft.mode === "manual" ? (
-                        <Field.Root w="100%" maxW="170px" flex={1}>
-                          <Field.Label>Precio de venta</Field.Label>
-                          <Input
-                            type="number"
-                            name="price"
-                            inputMode="decimal"
-                            autoComplete="off"
-                            min={0.01}
-                            step={0.01}
-                            value={row.price}
-                            onChange={(e) => patchRow(row.key, { price: e.target.value })}
-                            placeholder="0.00…"
-                            aria-label={`Precio de la línea ${idx + 1}`}
+                  {draft.rows.map((row, idx) => {
+                    const rowProduct = products.find((p) => p.id === row.product_id);
+                    return (
+                      <Flex key={row.key} gap={3} wrap="wrap" align="end">
+                        <Field.Root w="100%" maxW="300px" flex={1}>
+                          <Field.Label>Producto {idx + 1}</Field.Label>
+                          <OptionSelect
+                            value={row.product_id}
+                            onChange={(v) => patchRow(row.key, { product_id: v })}
+                            placeholder="Elegir producto…"
+                            aria-label={`Producto de la línea ${idx + 1}`}
+                            options={products.map((p) => ({
+                              value: p.id,
+                              label:
+                                p.name +
+                                (p.price_final != null ? ` · ${formatCents(p.price_final)}` : " · sin precio"),
+                            }))}
                           />
-                          {itemErrors[`${row.key}-price_override`] ? (
-                            <Field.ErrorText>{itemErrors[`${row.key}-price_override`]}</Field.ErrorText>
+                          <Box mt={1}>
+                            <TagChips tags={rowProduct?.tags ?? []} />
+                          </Box>
+                          {itemErrors[String(row.key)] ? (
+                            <Field.ErrorText>{itemErrors[String(row.key)]}</Field.ErrorText>
                           ) : null}
                         </Field.Root>
-                      ) : null}
-                      <Button
-                        variant="ghost"
-                        colorPalette="red"
-                        aria-label={`Quitar línea ${idx + 1}`}
-                        onClick={() => removeRow(row.key)}
-                        disabled={draft.rows.length <= 1}
-                      >
-                        Quitar
-                      </Button>
-                    </Flex>
-                  ))}
+                        <Field.Root w="110px">
+                          <Field.Label>Cant.</Field.Label>
+                          <Input
+                            type="number"
+                            name="qty"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            min={1}
+                            max={99}
+                            value={row.qty}
+                            onChange={(e) => patchRow(row.key, { qty: e.target.value })}
+                            aria-label={`Cantidad de la línea ${idx + 1}`}
+                          />
+                        </Field.Root>
+                        {draft.mode === "manual" ? (
+                          <Field.Root w="100%" maxW="170px" flex={1}>
+                            <Field.Label>Precio de venta</Field.Label>
+                            <Input
+                              type="number"
+                              name="price"
+                              inputMode="decimal"
+                              autoComplete="off"
+                              min={0.01}
+                              step={0.01}
+                              value={row.price}
+                              onChange={(e) => patchRow(row.key, { price: e.target.value })}
+                              placeholder="0.00…"
+                              aria-label={`Precio de la línea ${idx + 1}`}
+                            />
+                            {itemErrors[`${row.key}-price_override`] ? (
+                              <Field.ErrorText>{itemErrors[`${row.key}-price_override`]}</Field.ErrorText>
+                            ) : null}
+                          </Field.Root>
+                        ) : null}
+                        <Button
+                          variant="ghost"
+                          colorPalette="red"
+                          aria-label={`Quitar línea ${idx + 1}`}
+                          onClick={() => removeRow(row.key)}
+                          disabled={draft.rows.length <= 1}
+                        >
+                          Quitar
+                        </Button>
+                      </Flex>
+                    );
+                  })}
                   <Box alignSelf="start">
                     <Button variant="outline" onClick={addRow}>
                       + Agregar producto
@@ -672,7 +679,10 @@ export function BudgetWizard() {
                     return (
                       <tr key={row.key} style={{ borderBottom: "1px solid var(--chakra-colors-border-muted)" }}>
                         <td style={{ padding: "10px 14px", fontWeight: 500, overflowWrap: "anywhere" }}>
-                          {product?.name ?? "—"}
+                          <Box>
+                            {product?.name ?? "—"}
+                            <TagChips tags={product?.tags ?? []} />
+                          </Box>
                         </td>
                         <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                           {row.qty}

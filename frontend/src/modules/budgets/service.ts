@@ -30,6 +30,7 @@ function itemOf(raw: Record<string, unknown>): BudgetItem {
     line_cost: raw.line_cost as number,
     line_selling: raw.line_selling as number,
     price_overridden: (raw.price_overridden as boolean | undefined) ?? false,
+    tags: (raw.tags as string[] | undefined) ?? [],
   };
 }
 

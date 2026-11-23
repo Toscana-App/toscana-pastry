@@ -20,6 +20,7 @@ import NextLink from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatPct, centsToPesos } from "@/lib/format";
+import { TagChips } from "@/modules/shared/tag-chips";
 import { budgetsService } from "../service";
 import {
   BUDGET_STATUS_LABELS,
@@ -281,7 +282,12 @@ export function BudgetDetailPage({ budgetId }: BudgetDetailPageProps) {
           <tbody>
             {budget.items.map((item) => (
               <tr key={item.product_id} style={{ borderBottom: "1px solid var(--chakra-colors-border-muted)" }}>
-                <td style={{ padding: "10px 14px", fontWeight: 500, overflowWrap: "anywhere" }}>{item.product_name}</td>
+                <td style={{ padding: "10px 14px", fontWeight: 500, overflowWrap: "anywhere" }}>
+                  <Box>
+                    {item.product_name}
+                    <TagChips tags={item.tags ?? []} />
+                  </Box>
+                </td>
                 <td style={{ padding: "10px 14px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                   {item.qty}
                 </td>
