@@ -46,6 +46,66 @@ jobs:
       - name: Build
         run: npm run build
 
+  frontend-lighthouse:
+    name: Frontend (Lighthouse)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      NEXT_PUBLIC_SITE_URL: http://localhost:3111
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npx -y npm@latest ci
+
+      - name: Build
+        run: |
+          for attempt in 1 2 3; do
+            if npm run build; then
+              exit 0
+            fi
+            echo "build failed (attempt ${attempt}); retrying"
+          done
+          exit 1
+
+      - name: Start production server
+        run: |
+          nohup npx next start -p 3111 > next-server.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null http://localhost:3111/; then
+              echo "server ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          cat next-server.log
+          exit 1
+
+      - name: Crawl links
+        run: node scripts/check_links.mjs --base http://localhost:3111 --routes /,/contact
+
+      - name: Lighthouse CI
+        run: |
+          npx -y @lhci/cli autorun \
+            --collect.url=http://localhost:3111/ \
+            --collect.url=http://localhost:3111/contact \
+            --collect.numberOfRuns=1 \
+            --assert.assertions.categories:performance='["error",{"minScore":0.8}]' \
+            --assert.assertions.categories:accessibility='["error",{"minScore":0.9}]' \
+            --assert.assertions.categories:best-practices='["error",{"minScore":0.9}]' \
+            --assert.assertions.categories:seo='["error",{"minScore":0.9}]'
+
   backend:
     name: Backend (pytest + Postgres)
     runs-on: ubuntu-latest

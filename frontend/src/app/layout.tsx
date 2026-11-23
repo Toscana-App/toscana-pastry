@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext"
 import { Navbar } from "@/components/layout/Navbar"
 import { IconSprite } from "@/components/icons/sprite"
 import { AppGooeyToaster } from "@/components/ui/GoeyToasterClient"
+import { ServiceWorkerRegistrar } from "@/components/layout/service_worker_registrar"
 import "goey-toast/styles.css"
 
 const snPro = SN_Pro({
@@ -16,8 +17,9 @@ const snPro = SN_Pro({
 });
 
 export const metadata: Metadata = {
-  title: "Toscana Pastry",
-  description: "Toscana Pastry — calculá costos, gestioná pedidos y enviá tus listas de precios.",
+  title: "Pastelería Toscana",
+  description: "Pastelería Toscana — calculá costos, gestioná pedidos y enviá tus listas de precios.",
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({
@@ -30,6 +32,7 @@ export default function RootLayout({
       <body className="min-h-screen antialiased">
         <Provider>
           <AuthProvider>
+            <ServiceWorkerRegistrar />
             <IconSprite />
             <Link
               href="#main-content"
