@@ -59,7 +59,7 @@ precio_enviado  = round_up(precio_final, paso_redondeo)
 | # | Premisa |
 |---|---|
 | 1–3 | Secrets solo en env del backend (cero `NEXT_PUBLIC_*`); gitleaks en repo y build; Postgres en red interna con usuario dedicado y sin puerto expuesto. |
-| 4–7 | **RLS** por `tenant_id` en Postgres (defensa en profundidad); auth por defecto (allow-list de 9 endpoints públicos); sin IDOR (404 anti-sondeo). |
+| 4–7 | **RLS** por rol en Postgres, single-tenant (admin ve todo; cliente solo sus pedidos, carrito y direcciones) (defensa en profundidad); auth por defecto (allow-list de 9 endpoints públicos); sin IDOR (404 anti-sondeo). |
 | 8 | Campos computados (`price`, `total`, `seq`, `breakdown`) solo-escritura del servidor; Pydantic `extra="forbid"`. |
 | 9–10 | Sesión en cookie `HttpOnly; Secure; SameSite=Strict` con TTL corto + rotación; v1 sin contraseñas (magic link + Google GIS), tokens ≥256 bits almacenados como hash; futuro: argon2id. |
 | 11–12 | `slowapi` con límites por endpoint (tabla en `api_endpoints.md` §0); hCaptcha en entradas públicas, firma de webhook, `/docs` cerrado en producción. |
@@ -130,7 +130,7 @@ Cada módulo web es autónomo: propios componentes, hooks y tests; comparte solo
 - **Criterio de salida**: presupuesto desde cero → PDF descargado → enviado por WhatsApp con un toque; bot responde al cliente.
 
 ### Fase 4 — Endurecimiento y producción (Semana 8) · **Entrega: production-ready**
-- Auditoría de seguridad completa contra `security.md` (20 ítems, checklist 100%): **cero keys/secrets en el bundle del frontend** (env solo backend + whitelist de `NEXT_PUBLIC_*`; check en CI que escanea el build), headers presentes en todas las rutas, matriz IDOR + tests cross-tenant de RLS, rate limits por endpoint verificados, firma de webhook, scan de dependencias sin CVE high.
+- Auditoría de seguridad completa contra `security.md` (20 ítems, checklist 100%): **cero keys/secrets en el bundle del frontend** (env solo backend + whitelist de `NEXT_PUBLIC_*`; check en CI que escanea el build), headers presentes en todas las rutas, matriz IDOR + tests cross-customer de RLS, rate limits por endpoint verificados, firma de webhook, scan de dependencias sin CVE high.
 - Auditoría de contraste (WCAG AA 4.5:1) — **hallazgo previo: `--fg-muted #909090` sobre `--paper-50` da 3.1:1 (fallo)**. Corregir a `#6F6F6F` (≈4.9:1) y revalidar todos los tokens.
 - Responsive audit: Lighthouse mobile ≥ 90, touch targets ≥ 44px, safe-areas, test en dispositivos reales (iOS/Android).
 - Imágenes: pipeline webp (next/image + sharp), fuentes self-hosted.

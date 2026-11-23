@@ -11,11 +11,14 @@ from fastapi import status as http_status
 from fastapi.requests import Request
 from pydantic import ValidationError
 
+from api.v1.dependencies import set_rls_webhook_order
 from api.v1.orders.dependencies import get_checkout_provider, get_order_repository
 from api.v1.orders.schemas import WebhookNotification, WebhookResponse
+from data.db import get_db
 from data.repositories.sql_order_repository import SQLOrderRepository
 from domain.checkout_provider import CheckoutProvider, PaymentProviderError
 from domain.order import PaymentStatus
+from sqlalchemy.ext.asyncio import AsyncSession
 
 _PAYMENT_CURRENCY = "ARS"
 
@@ -28,6 +31,7 @@ async def mercadopago_webhook(
     request: Request,
     repo: SQLOrderRepository = Depends(get_order_repository),
     provider: CheckoutProvider = Depends(get_checkout_provider),
+    db: AsyncSession = Depends(get_db),
 ):
     verified = provider.verify_webhook(
         await request.body(),
@@ -66,6 +70,7 @@ async def mercadopago_webhook(
 
     if not payment.order_id:
         return WebhookResponse()
+    await set_rls_webhook_order(db, payment.order_id)
     payment_status = PaymentStatus(payment.status)
 
     event_id = f"{payment_id}:{payment_status.value}"

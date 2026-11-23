@@ -37,15 +37,17 @@
 - **Verificación**: en staging, `ss -lntp` no muestra 5432 fuera de la red interna; check de CI: el servicio `db` no tiene sección `ports`.
 
 ## 4. Row-Level Security
-- **Control**: aislamiento de tenants **en la base de datos** (defensa en profundidad, no solo en repositorio).
-- **Implementación**:
-  - `ENABLE ROW LEVEL SECURITY` (+ `FORCE`) en toda tabla con `tenant_id`.
-  - Política: `USING (tenant_id = current_setting('app.tenant_id')::uuid)`.
-  - Dependencia FastAPI: al iniciar cada transacción `SELECT set_config('app.tenant_id', $1, true)` (local por transacción).
-  - Tablas: `ingredients`, `products`, `recipe_items` (vía `product_id` + FK), `customers`, `orders`, `order_items`, `budgets`, `budget_items`, `stock_movements`, `magic_tokens` (scope por email).
-  - Migración Alembic: RLS se habilita **antes** de insertar datos (o en la misma transacción con política por defecto que rechaza).
-- **Dónde**: `api/data/` (migraciones + session factory) · F0 (primeras tablas) → F3 (todas).
-- **Verificación**: pytest cross-tenant por tabla: sesión del tenant A hace query directa (sin repositorio) con un id del tenant B → **0 filas**.
+- **Control**: aislamiento de los datos privados del cliente **en la base de datos** (defensa en profundidad, no solo en repositorio).
+- **Alcance**: single-tenant (decisión 2026-11-23: un único sistema para Toscana). No hay entidad tenant; la política es por rol y usuario.
+- **Implementación** (`backend/migrations/0018_rls_role_policies.sql`):
+  - Rol de aplicación `toscana_app` (LOGIN, sin superuser ni BYPASSRLS), distinto del owner de las tablas: las policies lo restringen.
+  - `ENABLE` + `FORCE ROW LEVEL SECURITY` en las tablas con datos privados: `cart`, `cart_items`, `customer_addresses`, `orders`, `order_items`, `order_events`, `order_idempotency_keys`.
+  - Contexto por sesión: `app.current_user_id` y `app.current_role` (seteados en `get_current_user` con `set_config(..., false)` y reseteados al cerrar la sesión de `get_db`); `app.webhook_order_id` (solo el webhook de pagos, después de verificar la firma).
+  - Política: `admin` ve todo; `customer`/`negocio` solo filas propias (`user_id`/`customer_id`); sin contexto no matchea → deny por defecto.
+  - `users`, `refresh_tokens` y `google_nonces` fuera de RLS a propósito: login y refresh las leen antes de que exista contexto autenticado.
+- **Dónde**: `backend/migrations/0018_rls_role_policies.sql` · `backend/src/api/v1/dependencies.py` · `backend/src/data/db.py`.
+- **Verificación**: `backend/tests/integration/test_rls_policies.py` — matriz por tabla conectando como `toscana_app`: cliente ve solo lo propio, anónimo no ve nada, admin ve todo, `negocio` scopeado como cliente, contexto de webhook limitado a un pedido, INSERT/UPDATE ajenos denegados.
+- **Deploy**: apuntar `DATABASE_URL` a `toscana_app` (cambiando la password placeholder); mientras la app corra como superuser las policies quedan dormidas.
 
 ## 5. Encriptar datos sensibles
 - **Control**: en tránsito (TLS), en reposo (volumen), y a nivel de campo.
@@ -267,7 +269,7 @@
 | 1 | Ocultar API keys | ● | | | | ● (auditoría build) |
 | 2 | Eliminar secretos de Git | ● | | | | |
 | 3 | Key pública para DB | ● | | | | |
-| 4 | Row-Level Security | ● (RLS activada) | ● | ● | ● | ● (tests cross-tenant) |
+| 4 | Row-Level Security | ● (RLS activada) | ● | ● | ● | ● (tests cross-customer) |
 | 5 | Encriptar datos sensibles | ● (tokens) | | ● (Fernet phone/email) | | |
 | 6 | Forzar la autenticación | ● | ● | ● | ● | |
 | 7 | Restringir acceso a registros | ● (convención) | ● | ● | ● | ● (matriz IDOR) |
@@ -290,7 +292,7 @@
 - [x] 1. Ocultar API keys — §1 (build scan en CI, cero `NEXT_PUBLIC_*`)
 - [x] 2. Eliminar secretos de Git — §2 (gitleaks pre-commit + CI + runbook)
 - [x] 3. Key pública para DB — §3 (red interna, usuario dedicado, sin puerto expuesto)
-- [x] 4. Row-Level Security — §4 (RLS + `set_config`, tests cross-tenant)
+- [x] 4. Row-Level Security — §4 (RLS por rol + `set_config`, tests cross-customer)
 - [x] 5. Encriptar datos sensibles — §5 (Fernet campo, tokens solo hash)
 - [x] 6. Forzar la autenticación — §6 (default auth, allow-list de 9)
 - [x] 7. Restringir el acceso a registros — §7 (repo + RLS, 404 anti-sondeo)

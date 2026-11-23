@@ -29,6 +29,21 @@ async def init_db(base, bind=engine) -> None:
 
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
+_RLS_RESET = (
+    "SELECT set_config('app.current_user_id', '', false),"
+    " set_config('app.current_role', '', false),"
+    " set_config('app.webhook_order_id', '', false)"
+)
+
 async def get_db():
     async with AsyncSessionLocal() as session:
-        yield session
+        try:
+            yield session
+        finally:
+            bind = getattr(session, "bind", None)
+            if bind is not None and bind.dialect.name == "postgresql":
+                try:
+                    await session.execute(text(_RLS_RESET))
+                    await session.commit()
+                except Exception:
+                    await session.invalidate()
