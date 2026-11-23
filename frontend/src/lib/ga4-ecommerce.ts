@@ -27,13 +27,15 @@ export function catalogItems(products: Product[]): Ga4Item[] {
 }
 
 export function cartItems(cart: CartResponse): Ga4Item[] {
-  return cart.items.map((item) => ({
-    item_id: item.product_id,
-    item_name: item.name,
-    price: Number(item.unit_price),
-    quantity: item.qty,
-    currency: "ARS",
-  }));
+  return cart.items
+    .filter((item) => item.available !== false)
+    .map((item) => ({
+      item_id: item.product_id,
+      item_name: item.name,
+      price: Number(item.unit_price),
+      quantity: item.qty,
+      currency: "ARS",
+    }));
 }
 
 export function cartValue(cart: CartResponse): number {

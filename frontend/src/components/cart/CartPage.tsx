@@ -183,6 +183,11 @@ function CartPage() {
     );
   }
 
+  const unavailableCount = cart.items.filter(
+    (item) => item.available === false
+  ).length;
+  const hasAvailable = cart.items.some((item) => item.available !== false);
+
   return (
       <Card.Root as="main">
         <Card.Body>
@@ -201,21 +206,54 @@ function CartPage() {
               </Badge>
             )}
 
+            {unavailableCount > 0 && (
+              <Alert.Root status="warning" role="status" aria-live="polite">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Title>
+                    {unavailableCount === 1
+                      ? "Un producto de tu carrito no está disponible"
+                      : `${unavailableCount} productos de tu carrito no están disponibles`}
+                  </Alert.Title>
+                  <Alert.Description>
+                    No se incluyen en el total. Quitalos para poder pagar el
+                    resto.
+                  </Alert.Description>
+                </Alert.Content>
+              </Alert.Root>
+            )}
+
             <Stack gap={2}>
-              {cart.items.map((item) => (
+              {cart.items.map((item) => {
+                const unavailable = item.available === false;
+                return (
                 <Flex key={item.product_id} justify="space-between" align="center" gap={3} flexWrap="wrap">
                   <Box minW="0" flex="1">
-                    <Text fontWeight="medium" overflowWrap="anywhere">{item.name}</Text>
-                    <Text fontSize="sm" color="fg.muted" fontVariantNumeric="tabular-nums">
-                      <FormatNumber value={Number(item.unit_price)} style="currency" currency="ARS" /> c/u
+                    <Text
+                      fontWeight="medium"
+                      overflowWrap="anywhere"
+                      color={unavailable ? "fg.muted" : undefined}
+                    >
+                      {item.name}
                     </Text>
+                    {unavailable ? (
+                      <Badge colorPalette="red" variant="subtle" mt={1}>
+                        {item.issue === "out_of_stock"
+                          ? "Sin stock"
+                          : "No disponible"}
+                      </Badge>
+                    ) : (
+                      <Text fontSize="sm" color="fg.muted" fontVariantNumeric="tabular-nums">
+                        <FormatNumber value={Number(item.unit_price)} style="currency" currency="ARS" /> c/u
+                      </Text>
+                    )}
                   </Box>
                   <Flex align="center" gap={2}>
                     <Button
                       size="xs"
                       variant="outline"
                       aria-label={`Quitar un ${item.name}`}
-                      disabled={busy || item.qty <= 1}
+                      disabled={busy || unavailable || item.qty <= 1}
                       onClick={() => void changeQty(item.product_id, item.qty - 1)}
                     >
                       −
@@ -227,14 +265,24 @@ function CartPage() {
                       size="xs"
                       variant="outline"
                       aria-label={`Agregar un ${item.name}`}
-                      disabled={busy}
+                      disabled={busy || unavailable}
                       onClick={() => void changeQty(item.product_id, item.qty + 1)}
                     >
                       +
                     </Button>
                   </Flex>
-                  <Text fontWeight="medium" minW="8ch" textAlign="right" fontVariantNumeric="tabular-nums">
-                    <FormatNumber value={Number(item.total)} style="currency" currency="ARS" />
+                  <Text
+                    fontWeight="medium"
+                    minW="8ch"
+                    textAlign="right"
+                    fontVariantNumeric="tabular-nums"
+                    color={unavailable ? "fg.muted" : undefined}
+                  >
+                    {unavailable ? (
+                      "—"
+                    ) : (
+                      <FormatNumber value={Number(item.total)} style="currency" currency="ARS" />
+                    )}
                   </Text>
                   <Button
                     size="xs"
@@ -247,7 +295,8 @@ function CartPage() {
                     Quitar
                   </Button>
                 </Flex>
-              ))}
+                );
+              })}
             </Stack>
 
             <Separator />
@@ -338,7 +387,7 @@ function CartPage() {
                 )}
                 <Button
                   colorPalette="brand"
-                  disabled={busy}
+                  disabled={busy || !hasAvailable}
                   onClick={() => router.push("/checkout")}
                 >
                   Ir a pagar

@@ -61,12 +61,14 @@ export function StepReview({
   const [submitting, setSubmitting] = useState(false);
   const [windowClosed, setWindowClosed] = useState(false);
 
+  const availableItems = cart.items.filter((item) => item.available !== false);
+
   const confirm = async () => {
     if (windowClosed || submitting) return;
     setSubmitting(true);
     try {
       const payload: PortalOrderPayload = {
-        items: cart.items.map((item) => ({
+        items: availableItems.map((item) => ({
           product_id: item.product_id,
           quantity: item.qty,
           portion_note: "",
@@ -99,8 +101,14 @@ export function StepReview({
         setWindowClosed(true);
       } else {
         toaster.create({
-          title: "No se pudo crear el pedido",
-          description: message || "Intentá de nuevo",
+          title:
+            message === "out_of_stock"
+              ? "Algunos productos quedaron sin stock"
+              : "No se pudo crear el pedido",
+          description:
+            message === "out_of_stock"
+              ? "Revisá tu carrito: quitá los productos sin stock e intentá de nuevo."
+              : message || "Intentá de nuevo",
           type: "error",
         });
       }
@@ -191,7 +199,7 @@ export function StepReview({
         p={4}
       >
         <Stack gap={2}>
-          {cart.items.map((item) => (
+          {availableItems.map((item) => (
             <Flex key={item.product_id} justify="space-between" gap={2}>
               <Text fontSize="sm" minW={0} overflowWrap="anywhere">
                 {item.name} × {item.qty}

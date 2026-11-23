@@ -16,7 +16,9 @@ export function OrderSummaryPanel({ cart }: { cart: CartResponse }) {
       <Stack gap={3}>
         <Text fontWeight="semibold">Resumen</Text>
 
-        {cart.items.map((item) => (
+        {cart.items
+          .filter((item) => item.available !== false)
+          .map((item) => (
           <Flex key={item.product_id} justify="space-between" gap={2}>
             <Text fontSize="sm" minW={0} overflowWrap="anywhere">
               {item.name} × {item.qty}
