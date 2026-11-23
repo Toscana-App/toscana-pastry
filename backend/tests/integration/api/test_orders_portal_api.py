@@ -17,7 +17,13 @@ from api.v1.auth.dependencies import get_user_repository
 from api.v1.dependencies import get_current_user, require_admin
 from api.v1.products.dependencies import get_product_repository
 from data.db import get_db
-from data.models import Base, IngredientORM, ProductORM, RecipeItemORM
+from data.models import (
+    Base,
+    IngredientORM,
+    OrderIdempotencyKeyORM,
+    ProductORM,
+    RecipeItemORM,
+)
 from data.repositories.sql_order_repository import SQLOrderRepository
 from data.repositories.sql_product_repository import SQLProductRepository
 from data.repositories.sql_user_repository import SQLUserRepository
@@ -124,11 +130,15 @@ def _body(product_id: str, **overrides) -> dict:
     return body
 
 
+def _h(key: str | None = None) -> dict[str, str]:
+    return {"Idempotency-Key": key or str(uuid.uuid4())}
+
+
 class TestPortalOrderPricing:
     async def test_prices_and_names_come_from_the_catalog(self, client, product_id):
         body = _body(product_id)
         body["items"][0].update(unit_price="0", product_name="Gratis")
-        response = await client.post(ORDERS, json=body)
+        response = await client.post(ORDERS, json=body, headers=_h())
         assert response.status_code == 200, response.text
         data = response.json()
         [item] = data["items"]
@@ -137,7 +147,7 @@ class TestPortalOrderPricing:
         assert Decimal(data["total"]) == Decimal(item["unit_price"]) * 2
 
     async def test_unknown_product_is_rejected(self, client):
-        response = await client.post(ORDERS, json=_body("no-such-product"))
+        response = await client.post(ORDERS, json=_body("no-such-product"), headers=_h())
         assert response.status_code == 422
         assert response.json()["detail"] == "product_not_found"
 
@@ -145,31 +155,31 @@ class TestPortalOrderPricing:
         for qty in (0, -3):
             body = _body(product_id)
             body["items"][0]["quantity"] = qty
-            response = await client.post(ORDERS, json=body)
+            response = await client.post(ORDERS, json=body, headers=_h())
             assert response.status_code == 422, qty
 
 
 class TestPortalOrderDomainRules:
     async def test_delivery_requires_address(self, client, product_id):
         response = await client.post(
-            ORDERS, json=_body(product_id, delivery_mode="delivery", delivery_address="  ")
+            ORDERS, json=_body(product_id, delivery_mode="delivery", delivery_address="  "), headers=_h()
         )
         assert response.status_code == 422
         assert response.json()["detail"] == "delivery_requires_address"
 
     async def test_past_date_is_rejected(self, client, product_id):
         past = (datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=3)).isoformat()
-        response = await client.post(ORDERS, json=_body(product_id, date=past))
+        response = await client.post(ORDERS, json=_body(product_id, date=past), headers=_h())
         assert response.status_code == 422
         assert response.json()["detail"] == "date_must_be_today_or_later"
 
     async def test_invalid_payment_method_is_rejected(self, client, product_id):
-        response = await client.post(ORDERS, json=_body(product_id, payment_method="bitcoin"))
+        response = await client.post(ORDERS, json=_body(product_id, payment_method="bitcoin"), headers=_h())
         assert response.status_code == 422
         assert response.json()["detail"] == "invalid_payment_method"
 
     async def test_order_is_persisted_for_the_caller(self, client, db_session, product_id):
-        response = await client.post(ORDERS, json=_body(product_id))
+        response = await client.post(ORDERS, json=_body(product_id), headers=_h())
         assert response.status_code == 200
         stored = await SQLOrderRepository(db_session).get(response.json()["id"])
         assert stored is not None
@@ -185,8 +195,75 @@ class TestOrderWindowRetryAfter:
         await SQLOrderRepository(db_session).update_order_window(
             OrderWindow(open=False, reopens_at=reopens, message="closed")
         )
-        response = await client.post(ORDERS, json=_body(product_id))
+        response = await client.post(ORDERS, json=_body(product_id), headers=_h())
         assert response.status_code == 409
         assert response.json()["detail"] == "order_window_closed"
         assert response.headers["retry-after"] == "Wed, 02 Jan 2030 03:04:05 GMT"
         assert "reafter" not in response.headers
+
+
+class TestPortalOrderIdempotency:
+    async def test_missing_idempotency_key_is_rejected(self, client, product_id):
+        response = await client.post(ORDERS, json=_body(product_id))
+        assert response.status_code == 422
+        assert any(
+            "Idempotency-Key" in str(err) for err in response.json()["detail"]
+        )
+
+    async def test_replay_same_key_same_body_returns_same_order(
+        self, client, product_id
+    ):
+        key = str(uuid.uuid4())
+        body = _body(product_id)
+        first = await client.post(ORDERS, json=body, headers=_h(key))
+        assert first.status_code == 200, first.text
+        second = await client.post(ORDERS, json=body, headers=_h(key))
+        assert second.status_code == 200, second.text
+        assert second.json()["id"] == first.json()["id"]
+
+    async def test_same_key_different_body_is_rejected(self, client, product_id):
+        key = str(uuid.uuid4())
+        first = await client.post(ORDERS, json=_body(product_id), headers=_h(key))
+        assert first.status_code == 200, first.text
+        other = _body(product_id)
+        other["items"][0]["quantity"] = 3
+        response = await client.post(ORDERS, json=other, headers=_h(key))
+        assert response.status_code == 422
+        assert response.json()["detail"] == "idempotency_key_mismatch"
+
+    async def test_key_scopes_to_the_user(self, client, db_session, product_id):
+        key = str(uuid.uuid4())
+        body = _body(product_id)
+        first = await client.post(ORDERS, json=body, headers=_h(key))
+        assert first.status_code == 200, first.text
+
+        async def _admin_user():
+            return ADMIN
+
+        original = app.dependency_overrides[get_current_user]
+        app.dependency_overrides[get_current_user] = _admin_user
+        try:
+            second = await client.post(ORDERS, json=body, headers=_h(key))
+        finally:
+            app.dependency_overrides[get_current_user] = original
+        assert second.status_code == 200, second.text
+        assert second.json()["id"] != first.json()["id"]
+
+    async def test_expired_key_allows_a_new_order(self, client, db_session, product_id):
+        key = str(uuid.uuid4())
+        body = _body(product_id)
+        first = await client.post(ORDERS, json=body, headers=_h(key))
+        assert first.status_code == 200, first.text
+
+        saved = await db_session.get(
+            OrderIdempotencyKeyORM, f"{CUSTOMER.id}:{key}"
+        )
+        assert saved is not None
+        saved.expires_at = datetime.datetime(
+            2000, 1, 1, tzinfo=datetime.UTC
+        )
+        await db_session.commit()
+
+        second = await client.post(ORDERS, json=body, headers=_h(key))
+        assert second.status_code == 200, second.text
+        assert second.json()["id"] != first.json()["id"]

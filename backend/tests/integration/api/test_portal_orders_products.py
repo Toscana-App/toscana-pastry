@@ -174,6 +174,10 @@ async def client(db_session):
         app.dependency_overrides.clear()
 
 
+def _h(key: str | None = None) -> dict[str, str]:
+    return {"Idempotency-Key": key or str(uuid.uuid4())}
+
+
 def _order_body(product_id: str, quantity: int = 2, **overrides) -> dict:
     body = {
         "items": [{"product_id": product_id, "quantity": quantity}],
@@ -268,7 +272,7 @@ async def test_cart_line_of_retired_product_stops_contributing(client, db_sessio
 @pytest.mark.asyncio
 async def test_portal_order_prices_from_engine_and_product_catalog(client, db_session):
     product_id, _ = await _seed_product(db_session, "Pan de campo")
-    r = await client.post(ORDERS, json=_order_body(product_id, quantity=2))
+    r = await client.post(ORDERS, json=_order_body(product_id, quantity=2), headers=_h())
     assert r.status_code == 200, r.text
     body = r.json()
     item = body["items"][0]
@@ -281,7 +285,7 @@ async def test_portal_order_prices_from_engine_and_product_catalog(client, db_se
 @pytest.mark.asyncio
 async def test_portal_order_rejects_hidden_product_422(client, db_session):
     product_id, _ = await _seed_product(db_session, "Torta oculta", available=False)
-    r = await client.post(ORDERS, json=_order_body(product_id))
+    r = await client.post(ORDERS, json=_order_body(product_id), headers=_h())
     assert r.status_code == 422
     assert r.json()["detail"] == "product_not_available"
 
@@ -289,7 +293,7 @@ async def test_portal_order_rejects_hidden_product_422(client, db_session):
 @pytest.mark.asyncio
 async def test_portal_order_rejects_incomplete_product_422(client, db_session):
     product_id, _ = await _seed_product(db_session, "Torta incompleta", complete=False)
-    r = await client.post(ORDERS, json=_order_body(product_id))
+    r = await client.post(ORDERS, json=_order_body(product_id), headers=_h())
     assert r.status_code == 422
     assert r.json()["detail"] == "product_not_available"
 
@@ -297,7 +301,7 @@ async def test_portal_order_rejects_incomplete_product_422(client, db_session):
 @pytest.mark.asyncio
 async def test_portal_order_persists_recipe_snapshot(client, db_session):
     product_id, _ = await _seed_product(db_session, "Pan de campo")
-    r = await client.post(ORDERS, json=_order_body(product_id, quantity=2))
+    r = await client.post(ORDERS, json=_order_body(product_id, quantity=2), headers=_h())
     assert r.status_code == 200
     order_id = r.json()["id"]
 
@@ -318,7 +322,7 @@ async def test_portal_order_persists_recipe_snapshot(client, db_session):
 @pytest.mark.asyncio
 async def test_confirm_order_discounts_stock_from_snapshot(client, db_session):
     product_id, ingredient_id = await _seed_product(db_session, "Pan de campo")
-    r = await client.post(ORDERS, json=_order_body(product_id, quantity=2))
+    r = await client.post(ORDERS, json=_order_body(product_id, quantity=2), headers=_h())
     assert r.status_code == 200
     order_id = r.json()["id"]
     assert await _stock_of(db_session, ingredient_id) == Decimal("10")
@@ -331,7 +335,7 @@ async def test_confirm_order_discounts_stock_from_snapshot(client, db_session):
 @pytest.mark.asyncio
 async def test_cancel_order_replenishes_stock(client, db_session):
     product_id, ingredient_id = await _seed_product(db_session, "Pan de campo")
-    r = await client.post(ORDERS, json=_order_body(product_id, quantity=2))
+    r = await client.post(ORDERS, json=_order_body(product_id, quantity=2), headers=_h())
     order_id = r.json()["id"]
     r = await client.patch(f"{ORDERS}{order_id}/status", json={"status": "confirmado"})
     assert r.status_code == 200, r.text
@@ -345,7 +349,7 @@ async def test_confirm_fails_409_when_stock_is_short(client, db_session):
     product_id, ingredient_id = await _seed_product(
         db_session, "Pan de campo", stock_qty="1"
     )
-    r = await client.post(ORDERS, json=_order_body(product_id, quantity=2))
+    r = await client.post(ORDERS, json=_order_body(product_id, quantity=2), headers=_h())
     order_id = r.json()["id"]
     r = await client.patch(f"{ORDERS}{order_id}/status", json={"status": "confirmado"})
     assert r.status_code == 409, r.text
