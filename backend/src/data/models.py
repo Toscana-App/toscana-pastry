@@ -3,6 +3,7 @@ import uuid
 from enum import StrEnum
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     Column,
     Date,
@@ -139,10 +140,10 @@ class ProductORM(Base):
     available = Column(Boolean, nullable=False, default=False, index=True)
     image_url = Column(String, nullable=True)
     tags: Mapped[list] = mapped_column(
-        JSONB,
+        JSON().with_variant(JSONB(), "postgresql"),
         nullable=False,
         default=list,
-        server_default=text("'[]'::jsonb"),
+        server_default=text("'[]'"),
     )
     deleted_at = Column(DateTime(timezone=True), nullable=True)
     recipe_items = relationship(
