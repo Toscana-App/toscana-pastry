@@ -11,6 +11,7 @@ from domain.pricing import round_to_step
 MAX_CART_LINES = 50
 MIN_QTY = 1
 MAX_QTY = 999
+CART_TTL_DAYS = 30
 
 _CENT = Decimal("0.01")
 _HUNDRED = Decimal(100)

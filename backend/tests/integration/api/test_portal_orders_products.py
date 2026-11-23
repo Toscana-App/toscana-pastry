@@ -250,7 +250,9 @@ async def test_cart_unknown_product_404(client):
 
 
 @pytest.mark.asyncio
-async def test_cart_line_of_retired_product_stops_contributing(client, db_session):
+async def test_cart_line_of_retired_product_is_flagged_not_silently_dropped(
+    client, db_session
+):
     product_id, _ = await _seed_product(db_session, "Pan de campo")
     db_session.add(CartItemORM(user_id=CUSTOMER.id, product_id=product_id, qty=1))
     await db_session.commit()
@@ -265,7 +267,11 @@ async def test_cart_line_of_retired_product_stops_contributing(client, db_sessio
     r = await client.get(CART)
     assert r.status_code == 200
     body = r.json()
-    assert body["items"] == []
+    assert len(body["items"]) == 1
+    line = body["items"][0]
+    assert line["available"] is False
+    assert line["issue"] == "product_not_available"
+    assert Decimal(line["total"]) == Decimal("0")
     assert Decimal(body["subtotal"]) == Decimal("0.00")
 
 
@@ -345,12 +351,39 @@ async def test_cancel_order_replenishes_stock(client, db_session):
 
 
 @pytest.mark.asyncio
-async def test_confirm_fails_409_when_stock_is_short(client, db_session):
+async def test_create_order_rejects_insufficient_stock_422(client, db_session):
+    """El checkout falla antes de crear el pedido: no se reserva stock ajeno."""
     product_id, ingredient_id = await _seed_product(
         db_session, "Pan de campo", stock_qty="1"
     )
-    r = await client.post(ORDERS, json=_order_body(product_id, quantity=2), headers=_h())
+    r = await client.post(
+        ORDERS, json=_order_body(product_id, quantity=2), headers=_h()
+    )
+    assert r.status_code == 422, r.text
+    assert r.json()["detail"] == "out_of_stock"
+    assert await _stock_of(db_session, ingredient_id) == Decimal("1")
+
+
+@pytest.mark.asyncio
+async def test_confirm_fails_409_when_stock_drops_after_creation(client, db_session):
+    """Red de seguridad: el stock puede caer entre crear y confirmar."""
+    product_id, ingredient_id = await _seed_product(
+        db_session, "Pan de campo", stock_qty="10"
+    )
+    r = await client.post(
+        ORDERS, json=_order_body(product_id, quantity=2), headers=_h()
+    )
+    assert r.status_code == 200, r.text
     order_id = r.json()["id"]
+
+    ingredient = (
+        await db_session.execute(
+            select(IngredientORM).where(IngredientORM.id == ingredient_id)
+        )
+    ).scalar_one()
+    ingredient.stock_qty = "1"
+    await db_session.commit()
+
     r = await client.patch(f"{ORDERS}{order_id}/status", json={"status": "confirmado"})
     assert r.status_code == 409, r.text
     assert await _stock_of(db_session, ingredient_id) == Decimal("1")

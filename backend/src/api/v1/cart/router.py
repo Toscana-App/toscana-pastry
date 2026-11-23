@@ -26,6 +26,11 @@ from domain.cart import (
 )
 from domain.coupon import Coupon
 from domain.models import User, UserRole
+from domain.order_pricing import (
+    check_stock,
+    plan_order_deductions,
+    price_order_item,
+)
 from domain.pricing_service import resolve_audience, derive_audience_price
 from domain.product_price import derive_product_price
 from domain.repositories import IngredientRepository, ProductRepository
@@ -34,6 +39,21 @@ from domain.use_cases import GetSettings
 router = APIRouter(prefix="/cart", tags=["cart"])
 
 _CART_GUARD = require_role(UserRole.CUSTOMER, UserRole.NEGOCIO)
+
+
+def _flagged_item(
+    product_id: str, name: str, qty: int, issue: str
+) -> CartItemOut:
+    """Linea mostrada pero no cobrable: disponible=False, total 0."""
+    return CartItemOut(
+        product_id=product_id,
+        name=name,
+        unit_price="0",
+        qty=qty,
+        total="0",
+        available=False,
+        issue=issue,
+    )
 
 
 def _coupon_out(coupon: Coupon) -> CartCouponOut:
@@ -66,20 +86,49 @@ async def _build_cart(
     settings = await GetSettings(settings_repo).execute()
     lines_state, coupon_code = await cart_repo.get_state(user.id)
 
-    products = []
+    products: list[tuple] = []
+    orphan_ids: list[str] = []
     for product_id, qty in lines_state:
         product = await product_repo.get(product_id)
-        if product is not None:
+        if product is None:
+            orphan_ids.append(product_id)
+        else:
             products.append((product, qty))
+    await cart_repo.delete_lines(user.id, orphan_ids)
+
     ingredients_by_id = await _ingredients_of(
         ingredient_repo, [product for product, _ in products]
     )
+    stock_by_id = {
+        ingredient.id: ingredient.stock_qty
+        for ingredient in ingredients_by_id.values()
+    }
 
     items: list[CartItemOut] = []
     cart_lines: list[CartLine] = []
     for product, qty in products:
         price = derive_product_price(product, ingredients_by_id, settings)
         if not product.available or not price.complete or price.breakdown is None:
+            items.append(
+                _flagged_item(
+                    product.id, product.name, qty, "product_not_available"
+                )
+            )
+            continue
+        snapshot = price_order_item(
+            product,
+            ingredients_by_id,
+            settings,
+            qty=qty,
+            portions=product.servings,
+        )
+        shortage = check_stock(
+            plan_order_deductions({product.id: snapshot}), stock_by_id
+        )
+        if shortage:
+            items.append(
+                _flagged_item(product.id, product.name, qty, "out_of_stock")
+            )
             continue
         unit_price = derive_audience_price(
             price.breakdown.rounded,
@@ -106,8 +155,14 @@ async def _build_cart(
     coupon: Coupon | None = None
     if coupon_code is not None:
         coupon = await coupon_repo.get_by_code(coupon_code)
-        if coupon is None:
-            coupon = None
+        if coupon is not None:
+            error_code = validate_coupon_for_cart(
+                coupon, datetime.datetime.now(datetime.UTC)
+            )
+            if error_code is not None:
+                coupon = None
+                await cart_repo.clear_coupon(user.id)
+                await cart_repo.commit()
 
     totals = cart_totals(cart_lines, coupon, settings.round_step)
 

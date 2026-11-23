@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi import status as http_status
 
+from api.v1.coupons.dependencies import get_coupon_repository
 from api.v1.dependencies import require_admin, get_current_user
 from api.v1.ingredients.dependencies import get_ingredient_repository
 from api.v1.orders.dependencies import (
@@ -63,6 +64,8 @@ from api.v1.orders.schemas import (
     PortalOrderCreateRequest,
 )
 from data.repositories.sql_order_repository import SQLOrderRepository
+from data.repositories.sql_coupon_repository import SQLCouponRepository
+from domain.cart import compute_discount, validate_coupon_for_cart
 from domain.checkout_provider import CheckoutProvider, PaymentProviderError
 from domain.invoicing import Invoice
 from domain.models import User, UserRole
@@ -79,7 +82,12 @@ from domain.order import (
 from domain.pricing_service import resolve_audience, derive_audience_price
 from data.repositories.sql_ingredient_repository import SQLIngredientRepository
 from domain.models import BusinessSettings, Ingredient, Product
-from domain.order_pricing import price_order_item
+from domain.cart import Coupon
+from domain.order_pricing import (
+    check_stock,
+    plan_order_deductions,
+    price_order_item,
+)
 from domain.product_price import derive_product_price
 from domain.orders import (
     InsufficientOrderStockError,
@@ -90,7 +98,7 @@ from domain.orders import (
 )
 from domain.orders import Order as P6Order
 from domain.orders import OrderItem as P6OrderItem
-from domain.pricing import UnitConversionError
+from domain.pricing import UnitConversionError, round_to_step
 from domain.repositories import (
     CustomerRepository,
     IngredientRepository,
@@ -337,6 +345,7 @@ async def create_order_portal(
     product_repo: ProductRepository = Depends(get_product_repository),
     ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo=Depends(get_settings_repository),
+    coupon_repo: SQLCouponRepository = Depends(get_coupon_repository),
 ):
     body_hash = hashlib.sha256(body.model_dump_json().encode("utf-8")).hexdigest()
     saved = await repo.find_order_idempotency(user.id, idempotency_key)
@@ -384,6 +393,7 @@ async def create_order_portal(
     business = await GetSettings(settings_repo).execute()
     items: list[OrderItem] = []
     snapshots: dict[str, OrderItemSnapshot] = {}
+    all_ingredients: dict[str, Ingredient] = {}
     for item_data in body.items:
         product = await product_repo.get(item_data.product_id)
         if product is None:
@@ -425,6 +435,54 @@ async def create_order_portal(
             ),
             rounded=line_total,
         )
+        all_ingredients.update(ingredients_by_id)
+
+    stock_by_id = {
+        ingredient.id: ingredient.stock_qty
+        for ingredient in all_ingredients.values()
+    }
+    shortages = check_stock(
+        plan_order_deductions({k: v for k, v in snapshots.items()}),
+        stock_by_id,
+    )
+    if shortages:
+        raise HTTPException(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="out_of_stock",
+        )
+
+    discount_amount = Decimal("0")
+    if body.coupon_code:
+        coupon = await coupon_repo.get_by_code(body.coupon_code)
+        if coupon is None:
+            raise HTTPException(
+                status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="coupon_not_found",
+            )
+        coupon_error = validate_coupon_for_cart(
+            coupon, datetime.datetime.now(datetime.UTC)
+        )
+        if coupon_error is not None:
+            raise HTTPException(
+                status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=coupon_error,
+            )
+        if not await coupon_repo.claim_use(coupon.id):
+            raise HTTPException(
+                status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="coupon_limit_reached",
+            )
+        subtotal = sum(
+            (snapshot.rounded for snapshot in snapshots.values()),
+            Decimal("0"),
+        )
+        final_total = round_to_step(
+            subtotal - compute_discount(subtotal, coupon),
+            business.round_step,
+        )
+        discount_amount = subtotal - final_total
+        if discount_amount < 0:
+            discount_amount = Decimal("0")
 
     try:
         new_order = Order.place_portal(
@@ -444,6 +502,7 @@ async def create_order_portal(
             detail=err.code,
         ) from err
     new_order.snapshots = snapshots
+    new_order.discount_amount = discount_amount if discount_amount else None
     created = await repo.add_with_idempotency(
         new_order,
         user_id=user.id,
