@@ -23,6 +23,7 @@ def budget_pdf_payload(budget: Budget, business_name: str, footer_text: str) -> 
             {
                 "product_name": it.product_name,
                 "qty": it.qty,
+                "tags": list(it.tags),
                 "unit_selling": str(it.unit_selling),
                 "line_selling": str(it.line_selling),
             }

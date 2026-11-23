@@ -44,8 +44,13 @@ def budget_whatsapp_message(
     lines.append(share_url)
     lines.append("")
     for item in budget.items:
+        name = (
+            f"{item.product_name} ({', '.join(item.tags)})"
+            if item.tags
+            else item.product_name
+        )
         lines.append(
-            f"- {item.qty} x {item.product_name} — {format_money_peso(item.line_selling)}"
+            f"- {item.qty} x {name} — {format_money_peso(item.line_selling)}"
         )
     lines.append("")
     lines.append(f"Total: {format_money_peso(totals.total_venta)}")
