@@ -14,6 +14,7 @@ export interface ProductListItem {
   complete: boolean;
   available: boolean;
   image_url: string | null;
+  tags: string[];
 }
 
 export interface ProductListResponse {
@@ -27,8 +28,18 @@ export interface ProductListResponse {
 export interface ProductListParams {
   q?: string;
   category?: string;
+  tags?: string[];
   page?: number;
   page_size?: number;
+}
+
+export interface ProductTagCount {
+  name: string;
+  count: number;
+}
+
+export interface ProductTagsResponse {
+  tags: ProductTagCount[];
 }
 
 export interface PriceBreakdown {
@@ -66,6 +77,7 @@ export interface ProductDetail {
   missing_ingredients: string[];
   available: boolean;
   image_url: string | null;
+  tags: string[];
   price: PriceBreakdown | null;
   price_per_serving: number | null;
   recipe: RecipeItemDetail[];
@@ -84,6 +96,7 @@ export interface ProductCreateInput {
   prep_time_min?: number;
   servings?: number;
   difficulty?: ProductDifficulty;
+  tags?: string[];
   recipe: RecipeItemInput[];
 }
 

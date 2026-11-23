@@ -48,6 +48,7 @@ const ROW = {
   price: "17500",
   price_per_serving: "1458.33",
   complete: true,
+  tags: [],
 }
 
 describe("ProductsCatalog (contrato de tienda T3)", () => {
@@ -75,7 +76,7 @@ describe("ProductsCatalog (contrato de tienda T3)", () => {
     expect(screen.getByText(/1.458,33/)).toBeInTheDocument()
     expect(screen.queryByText("Unidad")).not.toBeInTheDocument()
     expect(screen.queryByText("kg")).not.toBeInTheDocument()
-    expect(store.list).toHaveBeenCalledWith("consumidor_final", undefined)
+    expect(store.list).toHaveBeenCalledWith("consumidor_final", undefined, [])
   })
 
   it("el nombre del producto enlaza al detalle de la tienda (portal)", async () => {
@@ -91,11 +92,11 @@ describe("ProductsCatalog (contrato de tienda T3)", () => {
     renderWithProviders(<ProductsCatalog />)
 
     await screen.findByText("Torta de chocolate")
-    expect(store.list).toHaveBeenCalledWith("revendedores", undefined)
+    expect(store.list).toHaveBeenCalledWith("revendedores", undefined, [])
 
     await user.click(screen.getByText("Consumidor final"))
     await screen.findAllByText("Torta de chocolate")
-    expect(store.list).toHaveBeenCalledWith("consumidor_final", undefined)
+    expect(store.list).toHaveBeenCalledWith("consumidor_final", undefined, [])
   })
 
   it("exporta CSV/PDF de la audiencia seleccionada (admin)", async () => {
@@ -163,4 +164,21 @@ describe("ProductsCatalog (contrato de tienda T3)", () => {
     }
     expect(hasMinHeight44).toBe(true)
   })
-})
+
+  it("filtra por tag y lo manda al backend (RF-P3-07)", async () => {
+    auth.role = "customer"
+    store.list.mockResolvedValue({
+      audience: "consumidor_final",
+      products: [{ ...ROW, tags: ["vegano"] }],
+      total: 1,
+      categories: ["Tortas"],
+    })
+    const user = userEvent.setup()
+    renderWithProviders(<ProductsCatalog />)
+
+    const chip = await screen.findByRole("button", { name: "vegano" })
+    await user.click(chip)
+
+    expect(store.list).toHaveBeenLastCalledWith("consumidor_final", undefined, ["vegano"])
+  })
+});

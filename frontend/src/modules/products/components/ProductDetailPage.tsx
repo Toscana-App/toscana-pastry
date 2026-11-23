@@ -175,6 +175,11 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
             {!product.complete ? (
               <Badge colorPalette="orange">sin precio</Badge>
             ) : null}
+            {product.tags.map((tag) => (
+              <Badge key={tag} variant="outline" colorPalette="gray">
+                {tag}
+              </Badge>
+            ))}
           </Flex>
         </Flex>
         {isAdmin ? (
@@ -278,6 +283,12 @@ function InfoTab({
         value={product.description || "Sin descripción"}
       />
       <Field label="Categoría" value={product.category} />
+      <Field
+        label="Tags"
+        value={
+          product.tags.length > 0 ? product.tags.join(", ") : "Sin tags"
+        }
+      />
       <Field label="Porciones" value={String(product.servings)} />
 
       <Flex direction="column" gap={2}>

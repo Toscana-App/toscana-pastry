@@ -13,6 +13,7 @@ export const PRODUCT_CREATE_DEFAULTS: ProductFormValues = {
   prep_time_min: 0,
   servings: 1,
   difficulty: "simple",
+  tags: [],
   recipe: [],
   available: false,
 };

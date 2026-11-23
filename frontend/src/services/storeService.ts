@@ -11,10 +11,12 @@ export interface StoreListResponse {
 export function fetchStoreList(
   audience: Audience,
   q?: string,
+  tags: string[] = [],
 ): Promise<StoreListResponse> {
   const params = new URLSearchParams();
   params.set("audience", audience);
   if (q) params.set("q", q);
+  for (const tag of tags) params.append("tags", tag);
   return apiFetch<StoreListResponse>(`/products?${params.toString()}`);
 }
 

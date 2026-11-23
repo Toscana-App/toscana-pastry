@@ -41,6 +41,7 @@ import {
   useProductDraft,
 } from "../hooks/useProductDraft";
 import { RecipeEditor } from "./RecipeEditor";
+import { TagsInput } from "./TagsInput";
 
 interface ProductFormPageProps {
   mode: "create" | "edit";
@@ -107,6 +108,7 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
             ? (detail.difficulty as ProductDifficulty)
             : "simple",
           available: detail.available,
+          tags: detail.tags,
           recipe: detail.recipe.map((item) => ({
             ingredient_id: item.ingredient_id,
             qty: Number(item.qty),
@@ -146,6 +148,7 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
   const prepMinutes = useWatch({ control, name: "prep_time_min" });
   const servings = useWatch({ control, name: "servings" });
   const availableValue = useWatch({ control, name: "available" });
+  const tagsValue = useWatch({ control, name: "tags" });
   const ingredientById = useMemo(
     () => new Map(ingredients.map((item) => [item.id, item])),
     [ingredients],
@@ -178,6 +181,7 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
       prep_time_min: values.prep_time_min,
       servings: values.servings,
       difficulty: values.difficulty,
+      tags: values.tags ?? [],
       recipe: values.recipe.map((item) => ({
         ingredient_id: item.ingredient_id,
         qty: item.qty,
@@ -210,7 +214,12 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
   }
 
   function onInvalid(nextErrors: FieldErrors<ProductFormValues>) {
-    if (nextErrors.name || nextErrors.category || nextErrors.description) {
+    if (
+      nextErrors.name ||
+      nextErrors.category ||
+      nextErrors.description ||
+      nextErrors.tags
+    ) {
       setTab("info");
     } else if (nextErrors.recipe) {
       setTab("recipe");
@@ -306,6 +315,21 @@ export function ProductFormPage({ mode, productId }: ProductFormPageProps) {
                   {...register("category")}
                 />
                 <Field.ErrorText>{errors.category?.message}</Field.ErrorText>
+              </Field.Root>
+
+              <Field.Root invalid={Boolean(errors.tags)}>
+                <Field.Label>Tags</Field.Label>
+                <TagsInput
+                  value={tagsValue ?? []}
+                  onChange={(next) =>
+                    setValue("tags", next, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                  invalid={Boolean(errors.tags)}
+                  errorText={errors.tags?.message}
+                />
               </Field.Root>
 
               <Field.Root invalid={Boolean(errors.description)}>

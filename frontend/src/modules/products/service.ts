@@ -8,6 +8,7 @@ import type {
   ProductImageResponse,
   ProductListParams,
   ProductListResponse,
+  ProductTagsResponse,
   ProductUpdateInput,
 } from "./types";
 
@@ -18,6 +19,7 @@ export const productsService = {
     const query = new URLSearchParams();
     if (params.q) query.set("q", params.q);
     if (params.category) query.set("category", params.category);
+    for (const tag of params.tags ?? []) query.append("tags", tag);
     if (params.page) query.set("page", String(params.page));
     if (params.page_size) query.set("page_size", String(params.page_size));
     const qs = query.toString();
@@ -26,6 +28,10 @@ export const productsService = {
 
   getDetail(id: string): Promise<ProductDetail> {
     return apiFetch<ProductDetail>(`${BASE}/${id}`);
+  },
+
+  listTags(): Promise<ProductTagsResponse> {
+    return apiFetch<ProductTagsResponse>(`${BASE}/tags`);
   },
 
   create(input: ProductCreateInput): Promise<ProductDetail> {

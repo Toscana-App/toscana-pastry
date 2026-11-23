@@ -37,6 +37,7 @@ class UpdateProduct:
         difficulty: Optional[str] = None,
         recipe: Optional[Sequence[RecipeItem]] = None,
         available: Optional[bool] = None,
+        tags: Optional[Sequence[str]] = None,
     ) -> Optional[Product]:
         existing = await self._products.get(product_id)
         if existing is None:
@@ -58,6 +59,7 @@ class UpdateProduct:
             settings=settings,
             ingredients_by_id={i.id: i for i in ingredients},
             available=available,
+            tags=tags,
         )
         if available is True:
             price = derive_product_price(product, {i.id: i for i in ingredients}, settings)

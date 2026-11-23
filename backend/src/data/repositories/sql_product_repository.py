@@ -3,8 +3,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from data.accent import build_search_pattern
@@ -22,6 +23,21 @@ def _item_to_domain(orm: RecipeItemORM) -> RecipeItem:
     )
 
 
+def _tags_from() -> Any:
+    return func.jsonb_array_elements_text(ProductORM.tags).table_valued("value")
+
+
+def _tag_match(tag: str) -> Any:
+    column = _tags_from()
+    return (
+        select(1)
+        .select_from(column)
+        .where(func.lower(column.c.value) == tag.strip().lower())
+        .correlate(ProductORM)
+        .exists()
+    )
+
+
 def _to_domain(orm: ProductORM) -> Product:
     return Product(
         name=orm.name,
@@ -33,6 +49,7 @@ def _to_domain(orm: ProductORM) -> Product:
         difficulty=orm.difficulty,
         available=orm.available,
         image_url=orm.image_url,
+        tags=tuple(orm.tags),
         id=orm.id,
         deleted_at=orm.deleted_at,
     )
@@ -53,6 +70,7 @@ class SQLProductRepository(ProductRepository):
         category: str | None,
         page: int,
         page_size: int,
+        tags: list[str] | None = None,
     ) -> tuple[list[Product], int]:
         filters: list = _not_deleted()
         if q is not None:
@@ -63,6 +81,9 @@ class SQLProductRepository(ProductRepository):
             )
         if category:
             filters.append(ProductORM.category == category)
+        if tags:
+            for tag in tags:
+                filters.append(_tag_match(tag))
         total = (
             await self.session.execute(
                 select(func.count())
@@ -102,6 +123,7 @@ class SQLProductRepository(ProductRepository):
             difficulty=product.difficulty,
             available=product.available,
             image_url=product.image_url,
+            tags=list(product.tags),
         )
         orm.recipe_items = [
             RecipeItemORM(
@@ -135,6 +157,7 @@ class SQLProductRepository(ProductRepository):
         orm.difficulty = product.difficulty
         orm.available = product.available
         orm.image_url = product.image_url
+        orm.tags = list(product.tags)
         orm.recipe_items = [
             RecipeItemORM(
                 id=item.id,
@@ -173,3 +196,14 @@ class SQLProductRepository(ProductRepository):
             .order_by(func.lower(ProductORM.category))
         )
         return [row[0] for row in result.all()]
+
+    async def tag_counts(self) -> list[tuple[str, int]]:
+        column = _tags_from()
+        result = await self.session.execute(
+            select(column.c.value, func.count())
+            .select_from(ProductORM)
+            .join(column, true())
+            .where(*_not_deleted())
+            .group_by(column.c.value)
+        )
+        return [(row[0], row[1]) for row in result.all()]

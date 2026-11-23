@@ -763,3 +763,285 @@ async def test_ingredient_delete_204_when_unused(client):
         headers=headers,
     )
     assert response.status_code == 204
+
+
+async def _create_tagged_product(client, headers, name, tags, category="Tortas",
+                                 available=False, flour_id="flour"):
+    product = await _create_product(
+        client,
+        headers,
+        name=name,
+        category=category,
+        recipe=[{"ingredient_id": flour_id, "qty": 250, "unit": "g"}],
+        tags=tags,
+    )
+    if not available:
+        return product
+    published = await client.patch(
+        f"/api/v1/products/{product['id']}", json={"available": True}, headers=headers
+    )
+    assert published.status_code == 200, published.text
+    return published.json()
+
+
+@pytest.mark.asyncio
+async def test_create_product_with_tags_persists_and_returns_them(client):
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    await _set_settings(client, headers)
+    flour = await _create_ingredient(client, headers, "Harina")
+    product = await _create_tagged_product(
+        client, headers, "Torta Sin TACC", ["sin gluten", "vegano"], flour_id=flour["id"]
+    )
+    assert product["tags"] == ["sin gluten", "vegano"]
+    detail = (
+        await client.get(f"/api/v1/products/{product['id']}", headers=headers)
+    ).json()
+    assert detail["tags"] == ["sin gluten", "vegano"]
+
+
+@pytest.mark.asyncio
+async def test_create_product_without_tags_returns_empty_list(client):
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    await _set_settings(client, headers)
+    flour = await _create_ingredient(client, headers, "Harina")
+    product = await _create_product(
+        client, headers, recipe=[{"ingredient_id": flour["id"], "qty": 250, "unit": "g"}]
+    )
+    assert product["tags"] == []
+
+
+@pytest.mark.asyncio
+async def test_create_product_rejects_more_than_ten_tags(client):
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    await _set_settings(client, headers)
+    flour = await _create_ingredient(client, headers, "Harina")
+    response = await client.post(
+        "/api/v1/products",
+        json={
+            "name": "Torta",
+            "category": "Tortas",
+            "recipe": [{"ingredient_id": flour["id"], "qty": 250, "unit": "g"}],
+            "tags": [f"tag{i}" for i in range(11)],
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_product_rejects_tag_longer_than_30(client):
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    await _set_settings(client, headers)
+    flour = await _create_ingredient(client, headers, "Harina")
+    response = await client.post(
+        "/api/v1/products",
+        json={
+            "name": "Torta",
+            "category": "Tortas",
+            "recipe": [{"ingredient_id": flour["id"], "qty": 250, "unit": "g"}],
+            "tags": ["x" * 31],
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_product_rejects_duplicate_tags(client):
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    await _set_settings(client, headers)
+    flour = await _create_ingredient(client, headers, "Harina")
+    response = await client.post(
+        "/api/v1/products",
+        json={
+            "name": "Torta",
+            "category": "Tortas",
+            "recipe": [{"ingredient_id": flour["id"], "qty": 250, "unit": "g"}],
+            "tags": ["vegano", "Vegano"],
+        },
+        headers=headers,
+    )
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_create_product_normalizes_tag_whitespace(client):
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    await _set_settings(client, headers)
+    flour = await _create_ingredient(client, headers, "Harina")
+    product = await _create_tagged_product(
+        client, headers, "Torta", ["  sin gluten  "], flour_id=flour["id"]
+    )
+    assert product["tags"] == ["sin gluten"]
+
+
+@pytest.mark.asyncio
+async def test_patch_product_replaces_tags(client):
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    await _set_settings(client, headers)
+    flour = await _create_ingredient(client, headers, "Harina")
+    product = await _create_tagged_product(
+        client, headers, "Torta", ["vegano"], flour_id=flour["id"]
+    )
+    response = await client.patch(
+        f"/api/v1/products/{product['id']}",
+        json={"tags": ["sin gluten", "sin lactosa"]},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["tags"] == ["sin gluten", "sin lactosa"]
+
+
+@pytest.mark.asyncio
+async def test_patch_product_without_tags_keeps_them(client):
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    await _set_settings(client, headers)
+    flour = await _create_ingredient(client, headers, "Harina")
+    product = await _create_tagged_product(
+        client, headers, "Torta", ["vegano"], flour_id=flour["id"]
+    )
+    response = await client.patch(
+        f"/api/v1/products/{product['id']}",
+        json={"name": "Torta Nueva"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["tags"] == ["vegano"]
+
+
+@pytest.mark.asyncio
+async def test_patch_product_clears_tags_with_empty_list(client):
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    await _set_settings(client, headers)
+    flour = await _create_ingredient(client, headers, "Harina")
+    product = await _create_tagged_product(
+        client, headers, "Torta", ["vegano"], flour_id=flour["id"]
+    )
+    response = await client.patch(
+        f"/api/v1/products/{product['id']}",
+        json={"tags": []},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["tags"] == []
+
+
+@pytest.mark.asyncio
+async def test_list_filter_by_single_tag(client):
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    await _set_settings(client, headers)
+    flour = await _create_ingredient(client, headers, "Harina")
+    await _create_tagged_product(client, headers, "Prod A", ["vegano"], flour_id=flour["id"])
+    await _create_tagged_product(client, headers, "Prod B", ["sin gluten"], flour_id=flour["id"])
+    await _create_tagged_product(client, headers, "Prod C", [], flour_id=flour["id"])
+
+    response = await client.get("/api/v1/products?tags=vegano", headers=headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 1
+    assert [item["name"] for item in body["items"]] == ["Prod A"]
+    assert body["items"][0]["tags"] == ["vegano"]
+
+
+@pytest.mark.asyncio
+async def test_list_filter_by_two_tags_uses_and_semantics(client):
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    await _set_settings(client, headers)
+    flour = await _create_ingredient(client, headers, "Harina")
+    await _create_tagged_product(
+        client, headers, "Ambas", ["vegano", "sin gluten"], flour_id=flour["id"]
+    )
+    await _create_tagged_product(client, headers, "Una", ["vegano"], flour_id=flour["id"])
+
+    response = await client.get(
+        "/api/v1/products?tags=vegano&tags=sin%20gluten", headers=headers
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 1
+    assert [item["name"] for item in body["items"]] == ["Ambas"]
+
+
+@pytest.mark.asyncio
+async def test_list_filter_by_tag_is_case_insensitive(client):
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    await _set_settings(client, headers)
+    flour = await _create_ingredient(client, headers, "Harina")
+    await _create_tagged_product(client, headers, "Prod A", ["Vegano"], flour_id=flour["id"])
+
+    response = await client.get("/api/v1/products?tags=vegano", headers=headers)
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_list_filter_rejects_invalid_tag(client):
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    response = await client.get(
+        f"/api/v1/products?tags={'x' * 31}", headers=headers
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_store_audience_filters_by_tags(client):
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    await _set_settings(client, headers)
+    flour = await _create_ingredient(client, headers, "Harina")
+    await _create_tagged_product(
+        client, headers, "Vegana", ["vegano"], available=True, flour_id=flour["id"]
+    )
+    await _create_tagged_product(
+        client, headers, "Clasica", [], available=True, flour_id=flour["id"]
+    )
+    token = await _customer_token(client)
+    response = await client.get(
+        "/api/v1/products?audience=consumidor_final&tags=vegano",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 1
+    assert [item["name"] for item in body["products"]] == ["Vegana"]
+    assert body["products"][0]["tags"] == ["vegano"]
+
+
+@pytest.mark.asyncio
+async def test_tags_endpoint_returns_counts_sorted(client):
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    await _set_settings(client, headers)
+    flour = await _create_ingredient(client, headers, "Harina")
+    await _create_tagged_product(
+        client, headers, "Prod A", ["vegano", "sin gluten"], flour_id=flour["id"]
+    )
+    await _create_tagged_product(client, headers, "Prod B", ["vegano"], flour_id=flour["id"])
+    await _create_tagged_product(client, headers, "Prod C", [], flour_id=flour["id"])
+
+    response = await client.get("/api/v1/products/tags", headers=headers)
+    assert response.status_code == 200
+    assert response.json() == {
+        "tags": [
+            {"name": "sin gluten", "count": 1},
+            {"name": "vegano", "count": 2},
+        ]
+    }
+
+
+@pytest.mark.asyncio
+async def test_tags_endpoint_requires_auth(client):
+    response = await client.get("/api/v1/products/tags")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_tags_of_deleted_product_are_not_counted(client):
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    await _set_settings(client, headers)
+    flour = await _create_ingredient(client, headers, "Harina")
+    product = await _create_tagged_product(
+        client, headers, "Prod A", ["vegano"], flour_id=flour["id"]
+    )
+    delete = await client.delete(f"/api/v1/products/{product['id']}", headers=headers)
+    assert delete.status_code == 204
+    response = await client.get("/api/v1/products/tags", headers=headers)
+    assert response.json() == {"tags": []}

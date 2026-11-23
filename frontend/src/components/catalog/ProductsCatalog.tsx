@@ -44,6 +44,9 @@ export function ProductsCatalog() {
   const [retryTick, setRetryTick] = useState(0);
   const [audience, setAudience] = useState<Audience>("revendedores");
   const [addingId, setAddingId] = useState<string | null>(null);
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagOptions, setTagOptions] = useState<string[]>([]);
+  const tagsKey = tags.join(",");
 
   const q = (searchParams.get("q") ?? "").trim().slice(0, 120);
 
@@ -95,8 +98,20 @@ export function ProductsCatalog() {
 
     async function load() {
       try {
-        const response = await fetchStoreList(audience, q || undefined);
-        if (!cancelled) setProducts(response.products ?? []);
+        const response = await fetchStoreList(audience, q || undefined, tags);
+        if (!cancelled) {
+          const visible = response.products ?? [];
+          setProducts(visible);
+          setTagOptions((previous) => {
+            const merged = new Set(previous);
+            for (const product of visible) {
+              for (const tag of product.tags ?? []) merged.add(tag);
+            }
+            return Array.from(merged).sort((a, b) =>
+              a.toLowerCase().localeCompare(b.toLowerCase()),
+            );
+          });
+        }
       } catch (error) {
         if (cancelled) return;
         setLoadError(true);
@@ -118,7 +133,8 @@ export function ProductsCatalog() {
     return () => {
       cancelled = true;
     };
-  }, [audience, allowedAudiences, q, retryTick]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audience, allowedAudiences, q, tagsKey, retryTick]);
 
   if (allowedAudiences.length === 0) {
     return (
@@ -182,7 +198,11 @@ export function ProductsCatalog() {
           <SegmentGroup.Root
             size="sm"
             value={audience}
-            onValueChange={(details) => setAudience(details.value as Audience)}
+            onValueChange={(details) => {
+              setAudience(details.value as Audience);
+              setTags([]);
+              setTagOptions([]);
+            }}
           >
             <SegmentGroup.Indicator />
             <SegmentGroup.Items
@@ -253,6 +273,39 @@ export function ProductsCatalog() {
         </Flex>
       </Flex>
 
+      {tagOptions.length > 0 ? (
+        <Flex gap={2} wrap="wrap" role="group" aria-label="Filtrar por tags">
+          {tagOptions.map((tag) => {
+            const active = tags.some(
+              (item) => item.toLowerCase() === tag.toLowerCase(),
+            );
+            return (
+              <Button
+                key={tag}
+                size="sm"
+                rounded="full"
+                variant={active ? "solid" : "subtle"}
+                colorPalette={active ? "brand" : "gray"}
+                aria-pressed={active}
+                onClick={() =>
+                  setTags((current) =>
+                    current.some(
+                      (item) => item.toLowerCase() === tag.toLowerCase(),
+                    )
+                      ? current.filter(
+                          (item) => item.toLowerCase() !== tag.toLowerCase(),
+                        )
+                      : [...current, tag],
+                  )
+                }
+              >
+                {tag}
+              </Button>
+            );
+          })}
+        </Flex>
+      ) : null}
+
       {products.length === 0 ? (
         <Box
           border="1px"
@@ -312,9 +365,16 @@ export function ProductsCatalog() {
                         >
                           {product.name}
                         </NextLink>
-                        <Text fontSize="sm" color="fg.muted">
-                          {product.category}
-                        </Text>
+                        <Flex gap={2} align="center" wrap="wrap">
+                          <Text fontSize="sm" color="fg.muted">
+                            {product.category}
+                          </Text>
+                          {(product.tags ?? []).map((tag) => (
+                            <Badge key={tag} size="xs" variant="outline" colorPalette="gray">
+                              {tag}
+                            </Badge>
+                          ))}
+                        </Flex>
                       </Flex>
                     </Flex>
                   </Table.Cell>

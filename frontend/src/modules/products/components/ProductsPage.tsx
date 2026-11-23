@@ -18,6 +18,7 @@ import { SearchIcon } from "@/components/ui/search-icon";
 import { useAuth } from "@/contexts/AuthContext";
 import { EmptyState } from "@/modules/shared/EmptyState";
 import { useProducts } from "../hooks/useProducts";
+import { useProductTags } from "../hooks/useProductTags";
 import { ImportDialogV2 } from "@/modules/imports/ImportDialogV2";
 import { downloadTemplate } from "@/modules/imports/download";
 import { ProductCard } from "./ProductCard";
@@ -33,19 +34,23 @@ export function ProductsPage() {
     page,
     query,
     category,
+    tags,
     categories,
     loading,
     error,
     setQuery,
     setCategory,
+    toggleTag,
     goToPage,
     reload,
   } = useProducts();
+  const tagCounts = useProductTags();
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [tplError, setTplError] = useState<string | null>(null);
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const hasFilters = query.trim().length > 0 || category !== null;
+  const hasFilters =
+    query.trim().length > 0 || category !== null || tags.length > 0;
 
   return (
     <Flex direction="column" gap={5}>
@@ -130,6 +135,39 @@ export function ProductsPage() {
         ))}
       </Flex>
 
+      {tagCounts.length > 0 ? (
+        <Flex
+          gap={2}
+          overflowX="auto"
+          pb={1}
+          role="group"
+          aria-label="Filtrar por tags"
+        >
+          {tagCounts.map((tag) => {
+            const active = tags.some(
+              (item) => item.toLowerCase() === tag.name.toLowerCase(),
+            );
+            return (
+              <Button
+                key={tag.name}
+                size="xs"
+                rounded="full"
+                whiteSpace="nowrap"
+                variant={active ? "solid" : "subtle"}
+                colorPalette={active ? "brand" : "gray"}
+                aria-pressed={active}
+                onClick={() => toggleTag(tag.name)}
+              >
+                {tag.name}
+                <Text as="span" color="inherit" opacity={0.75}>
+                  {tag.count}
+                </Text>
+              </Button>
+            );
+          })}
+        </Flex>
+      ) : null}
+
       {error ? (
         <Alert.Root status="error">
           <Alert.Content>
@@ -172,9 +210,11 @@ export function ProductsPage() {
           title={
             query.trim()
               ? `Sin resultados para «${query.trim()}»`
-              : `Sin productos en «${category}»`
+              : category !== null
+                ? `Sin productos en «${category}»`
+                : `Sin productos con los tags seleccionados`
           }
-          description="Probá con otro nombre o quitá el filtro de categoría."
+          description="Probá con otro nombre o quitá los filtros."
         />
       ) : (
         <>

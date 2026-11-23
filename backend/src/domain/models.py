@@ -178,6 +178,10 @@ class RecipeItem:
 MAX_RECIPE_LINES = 30
 
 
+MAX_PRODUCT_TAGS = 10
+MAX_PRODUCT_TAG_LENGTH = 30
+
+
 @dataclass(frozen=True)
 class Product:
 
@@ -190,6 +194,7 @@ class Product:
     difficulty: str = "simple"
     available: bool = False
     image_url: Optional[str] = None
+    tags: Tuple[str, ...] = ()
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     deleted_at: Optional[datetime.datetime] = None
 
@@ -221,3 +226,24 @@ class Product:
             if item.ingredient_id in seen:
                 raise ValueError(f"insumo duplicado en la receta: {item.ingredient_id}")
             seen.add(item.ingredient_id)
+        self._validate_tags()
+
+    def _validate_tags(self) -> None:
+        if len(self.tags) > MAX_PRODUCT_TAGS:
+            raise ValueError(
+                f"maximo {MAX_PRODUCT_TAGS} tags de restricion "
+                f"(recibidos {len(self.tags)})"
+            )
+        seen = set()
+        for tag in self.tags:
+            cleaned = tag.strip()
+            if not cleaned:
+                raise ValueError("tag de restricion vacio")
+            if len(cleaned) > MAX_PRODUCT_TAG_LENGTH:
+                raise ValueError(
+                    f"tag de restricion demasiado largo (max {MAX_PRODUCT_TAG_LENGTH}): {cleaned!r}"
+                )
+            key = cleaned.lower()
+            if key in seen:
+                raise ValueError(f"tag de restricion duplicado: {cleaned!r}")
+            seen.add(key)

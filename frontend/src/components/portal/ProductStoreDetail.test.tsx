@@ -36,6 +36,7 @@ const DETAIL = {
   price: "17500",
   servings: 12,
   prep_time_min: 90,
+  tags: ["sin gluten", "vegano"],
 };
 
 describe("ProductStoreDetail (portal)", () => {

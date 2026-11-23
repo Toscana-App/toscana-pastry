@@ -31,6 +31,7 @@ class CreateProduct:
         prep_time_min: Optional[int] = None,
         servings: Optional[int] = None,
         difficulty: Optional[str] = None,
+        tags: Optional[Sequence[str]] = None,
     ) -> Product:
         settings = await GetSettings(self._settings).execute()
         ingredients = await self._ingredients.get_many(
@@ -47,6 +48,7 @@ class CreateProduct:
             existing=None,
             settings=settings,
             ingredients_by_id={i.id: i for i in ingredients},
+            tags=tags,
         )
         await self._products.create(product)
         return product

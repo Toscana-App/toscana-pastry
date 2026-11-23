@@ -7,6 +7,7 @@ import { ProductsPage } from "./ProductsPage";
 const mocks = vi.hoisted(() => ({
   setQuery: vi.fn(),
   setCategory: vi.fn(),
+  toggleTag: vi.fn(),
   goToPage: vi.fn(),
   reload: vi.fn(),
   state: {
@@ -19,23 +20,31 @@ const mocks = vi.hoisted(() => ({
       complete: boolean;
       available: boolean;
       image_url: string | null;
+      tags: string[];
     }>,
     total: 0,
     page: 1,
     query: "",
     category: null as string | null,
+    tags: [] as string[],
     categories: [] as string[],
     loading: false,
     error: null as string | null,
     setQuery: vi.fn(),
     setCategory: vi.fn(),
+    toggleTag: vi.fn(),
     goToPage: vi.fn(),
     reload: vi.fn(),
   },
+  tagCounts: [] as Array<{ name: string; count: number }>,
 }));
 
 vi.mock("../hooks/useProducts", () => ({
   useProducts: () => mocks.state,
+}));
+
+vi.mock("../hooks/useProductTags", () => ({
+  useProductTags: () => mocks.tagCounts,
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -55,12 +64,16 @@ beforeEach(() => {
   mocks.state.total = 0;
   mocks.state.query = "";
   mocks.state.category = null;
+  mocks.state.tags = [];
   mocks.state.categories = [];
   mocks.state.error = null;
+  mocks.state.toggleTag = mocks.toggleTag;
+  mocks.tagCounts = [];
   mocks.state.setQuery = mocks.setQuery;
   mocks.state.setCategory = mocks.setCategory;
   mocks.setQuery.mockClear();
   mocks.setCategory.mockClear();
+  mocks.toggleTag.mockClear();
 });
 
 afterEach(() => {
@@ -139,6 +152,7 @@ describe("ProductsPage", () => {
         complete: true,
         available: true,
         image_url: null,
+        tags: [],
       },
       {
         id: "2",
@@ -149,6 +163,7 @@ describe("ProductsPage", () => {
         complete: false,
         available: false,
         image_url: null,
+        tags: [],
       },
     ];
     renderPage();
@@ -170,6 +185,7 @@ describe("ProductsPage", () => {
         complete: true,
         available: true,
         image_url: null,
+        tags: [],
       },
       {
         id: "2",
@@ -180,11 +196,20 @@ describe("ProductsPage", () => {
         complete: true,
         available: false,
         image_url: null,
+        tags: [],
       },
     ];
     renderPage();
 
     expect(screen.getByText("En tienda")).toBeInTheDocument();
     expect(screen.getByText("Oculto")).toBeInTheDocument();
+  });
+  it("al tocar un tag lo alterna (RF-P3-07)", async () => {
+    mocks.state.total = 1;
+    mocks.tagCounts = [{ name: "vegano", count: 2 }];
+    renderPage();
+
+    await userEvent.click(screen.getByRole("button", { name: /vegano/ }));
+    expect(mocks.toggleTag).toHaveBeenCalledWith("vegano");
   });
 });

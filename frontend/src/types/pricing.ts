@@ -9,6 +9,7 @@ export interface Product {
   price: string;
   price_per_serving: string | null;
   complete: boolean;
+  tags: string[];
 }
 
 export interface StoreProductDetail {
@@ -20,4 +21,5 @@ export interface StoreProductDetail {
   price: string;
   servings: number;
   prep_time_min: number;
+  tags: string[];
 }

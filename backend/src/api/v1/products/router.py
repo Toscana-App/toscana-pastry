@@ -45,6 +45,8 @@ from api.v1.products.schemas import (
     ProductDetailResponse,
     ProductListItem,
     ProductListResponse,
+    ProductTagCount,
+    ProductTagsResponse,
     ProductUpdate,
     RecipeItemInput,
     RecipeItemResponse,
@@ -83,7 +85,37 @@ logger = logging.getLogger(__name__)
 _LIST_PAGE_SIZE = 500
 _DEFAULT_PAGE_SIZE = 50
 _MAX_PAGE_SIZE = 500
+_MAX_PRODUCT_TAGS = 10
+_MAX_PRODUCT_TAG_LENGTH = 30
 _FORMULA_PREFIXES = ("=", "+", "-", "@", "	")
+
+
+def _normalize_tags(tags: Optional[List[str]]) -> Optional[List[str]]:
+    if not tags:
+        return None
+    cleaned: List[str] = []
+    seen: set = set()
+    for raw in tags:
+        value = raw.strip()
+        if not value or len(value) > _MAX_PRODUCT_TAG_LENGTH:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"tag invalido: la longitud debe estar entre 1 y "
+                    f"{_MAX_PRODUCT_TAG_LENGTH} caracteres"
+                ),
+            )
+        key = value.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(value)
+    if len(cleaned) > _MAX_PRODUCT_TAGS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"maximo {_MAX_PRODUCT_TAGS} tags por filtro",
+        )
+    return cleaned
 
 
 def _csv_safe(value: str) -> str:
@@ -121,6 +153,7 @@ async def _build_store_rows(
     settings_repo: SettingsRepository,
     resolved: str,
     q: str | None = None,
+    tags: list[str] | None = None,
     page: int | None = None,
     page_size: int | None = None,
 ) -> tuple[list[tuple], int, list[str]]:
@@ -149,6 +182,13 @@ async def _build_store_rows(
             (product, audience_price, price)
             for product, audience_price, price in priced
             if folded in accent_fold(product.name)
+        ]
+    if tags:
+        wanted = {tag.lower() for tag in tags}
+        priced = [
+            (product, audience_price, price)
+            for product, audience_price, price in priced
+            if wanted <= {tag.lower() for tag in product.tags}
         ]
     total = len(priced)
     categories = sorted({product.category for product, _, _ in priced})
@@ -224,6 +264,7 @@ def _list_item(product: Product, price: ProductPrice) -> ProductListItem:
         complete=price.complete,
         available=product.available,
         image_url=product.image_url,
+        tags=list(product.tags),
     )
 
 
@@ -244,6 +285,7 @@ def _detail_response(
         missing_ingredients=list(price.missing),
         available=product.available,
         image_url=product.image_url,
+        tags=list(product.tags),
         price=_breakdown_response(price.breakdown if price.complete else None),
         price_per_serving=price.per_serving,
         recipe=[
@@ -267,6 +309,9 @@ def _build_csv(rows: list[dict[str, str]]) -> str:
 async def list_products(
     q: Optional[str] = Query(default=None, min_length=1, max_length=120),
     category: Optional[str] = Query(default=None, min_length=1, max_length=60),
+    tags: Optional[List[str]] = Query(
+        default=None, description="Filtro por tags de restriccion (AND)"
+    ),
     page: Optional[int] = Query(default=None, ge=1, description="Pagina (opcional)"),
     page_size: Optional[int] = Query(
         default=None, ge=1, le=_MAX_PAGE_SIZE, description="Tamano de pagina (opcional)"
@@ -283,6 +328,7 @@ async def list_products(
         resolved = _resolve_or_403(current_user, audience)
         priced, total, categories = await _build_store_rows(
             repo, ingredient_repo, settings_repo, resolved, q=q,
+            tags=_normalize_tags(tags),
             page=page, page_size=page_size,
         )
         return {
@@ -294,6 +340,7 @@ async def list_products(
                     "category": product.category,
                     "description": product.description,
                     "image_url": product.image_url,
+                    "tags": list(product.tags),
                     "price": money_str(audience_price),
                     "price_per_serving": money_str(price.per_serving),
                     "complete": True,
@@ -311,7 +358,9 @@ async def list_products(
             detail="page_size must be <= 100",
         )
     settings = await GetSettings(settings_repo).execute()
-    items, total = await repo.list(q, category, page, page_size)
+    items, total = await repo.list(
+        q, category, page, page_size, tags=_normalize_tags(tags)
+    )
     categories = await repo.distinct_categories()
     ingredients_by_id = await _load_ingredients(ingredient_repo, items)
     return ProductListResponse(
@@ -323,6 +372,18 @@ async def list_products(
         page=page,
         page_size=page_size,
         categories=categories,
+    )
+
+
+@router.get("/tags", response_model=ProductTagsResponse)
+async def list_product_tags(
+    repo: ProductRepository = Depends(get_product_repository),
+    current_user: User = Depends(require_admin_or_audience),
+):
+    rows = await repo.tag_counts()
+    ordered = sorted(rows, key=lambda row: (row[0].lower(), row[0]))
+    return ProductTagsResponse(
+        tags=[ProductTagCount(name=name, count=count) for name, count in ordered]
     )
 
 
@@ -357,6 +418,7 @@ async def get_product(
             "category": product.category,
             "description": product.description,
             "image_url": product.image_url,
+            "tags": list(product.tags),
             "price": money_str(
                 derive_audience_price(
                     price.breakdown.rounded, settings.consumer_markup_pct, resolved
@@ -387,6 +449,7 @@ async def create_product(
             servings=payload.servings,
             difficulty=payload.difficulty,
             recipe=_to_recipe_items(payload.recipe),
+            tags=list(payload.tags),
         )
     except ProductValidationError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -421,6 +484,7 @@ async def update_product(
                 _to_recipe_items(payload.recipe) if "recipe" in provided else None
             ),
             available=provided.get("available"),
+            tags=provided.get("tags"),
         )
     except ProductValidationError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
