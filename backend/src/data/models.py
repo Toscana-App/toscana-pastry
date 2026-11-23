@@ -734,6 +734,25 @@ class PaymentEventORM(Base):
     )
 
 
+class OrderIdempotencyKeyORM(Base):
+    """Portal order-creation idempotency key (RF-P11-02).
+
+    id is the composite f"{user_id}:{key}" so the key scopes to the user.
+    expires_at is set at insert time (created + 24 h TTL).
+    """
+
+    __tablename__ = "order_idempotency_keys"
+
+    id = Column(String, primary_key=True)
+    user_id = Column(String, nullable=False, index=True)
+    key = Column(String, nullable=False)
+    body_hash = Column(String, nullable=False)
+    order_id = Column(
+        String, ForeignKey("orders.id"), nullable=False, index=True
+    )
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+
+
 class LeadORM(Base):
 
     __tablename__ = "leads"

@@ -2,6 +2,7 @@
 import asyncio
 import dataclasses
 import datetime
+import hashlib
 import io
 import re
 from csv import writer as csv_writer
@@ -297,15 +298,67 @@ def _retry_after_header(reopens_at: datetime.datetime | None) -> dict[str, str] 
 
 
 
+def _order_detail_schema(order: Order) -> OrderDetailSchema:
+    return OrderDetailSchema(
+        id=order.id,
+        code=order.code,
+        customer_id=order.customer_id,
+        status=order.status.value,
+        date=order.date,
+        payment_method=order.payment_method.value,
+        delivery_mode=order.delivery_mode if isinstance(order.delivery_mode, str) else order.delivery_mode.value,
+        delivery_address=order.delivery_address or None,
+        coupon_code=order.coupon_code,
+        discount_amount=order.discount_amount,
+        paid=order.paid,
+        payment_status=order.payment_status.value if order.payment_status else None,
+        total=order.total,
+        items=[
+            OrderItemSchema(
+                product_id=item.product_id,
+                product_name=item.product_name,
+                quantity=item.quantity,
+                unit_price=item.unit_price,
+                portion_note=item.portion_note,
+                total=item.total,
+            )
+            for item in order.items
+        ],
+        created_at=order.created_at,
+    )
+
+
 @router.post("/", response_model=OrderDetailSchema)
 async def create_order_portal(
     body: PortalOrderCreateRequest,
+    idempotency_key: str = Header(..., alias="Idempotency-Key"),
     user: User = Depends(get_current_user),
     repo: SQLOrderRepository = Depends(get_order_repository),
     product_repo: ProductRepository = Depends(get_product_repository),
     ingredient_repo: IngredientRepository = Depends(get_ingredient_repository),
     settings_repo=Depends(get_settings_repository),
 ):
+    body_hash = hashlib.sha256(body.model_dump_json().encode("utf-8")).hexdigest()
+    saved = await repo.find_order_idempotency(user.id, idempotency_key)
+    if saved is not None:
+        if SQLOrderRepository._idempotency_expired(
+            saved, datetime.datetime.now(datetime.UTC)
+        ):
+            # Clave vencida (TTL 24 h): se descarta y se crea de nuevo.
+            await repo.delete_order_idempotency(user.id, idempotency_key)
+        elif saved.body_hash != body_hash:
+            raise HTTPException(
+                status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="idempotency_key_mismatch",
+            )
+        else:
+            existing = await repo.get(saved.order_id)
+            if existing is not None:
+                # Reintento con la misma clave y el mismo body: mismo pedido.
+                return _order_detail_schema(existing)
+            # Clave huérfana (pedido eliminado): descartar y continuar.
+            await repo.delete_order_idempotency(user.id, idempotency_key)
+
     window = await repo.get_order_window()
     if not window.open:
         raise HTTPException(
@@ -391,42 +444,25 @@ async def create_order_portal(
             detail=err.code,
         ) from err
     new_order.snapshots = snapshots
-    await repo.add(new_order)
-
-    result = await repo.get(new_order.id)
+    created = await repo.add_with_idempotency(
+        new_order,
+        user_id=user.id,
+        key=idempotency_key,
+        body_hash=body_hash,
+    )
+    if created is None:
+        # Request concurrente con la misma clave: devolver el pedido ganador.
+        saved = await repo.find_order_idempotency(user.id, idempotency_key)
+        result = await repo.get(saved.order_id) if saved is not None else None
+    else:
+        result = await repo.get(new_order.id)
     if result is None:
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="order_creation_failed",
         )
 
-    return OrderDetailSchema(
-        id=result.id,
-        code=result.code,
-        customer_id=result.customer_id,
-        status=result.status.value,
-        date=result.date,
-        payment_method=result.payment_method.value,
-        delivery_mode=result.delivery_mode if isinstance(result.delivery_mode, str) else result.delivery_mode.value,
-        delivery_address=result.delivery_address or None,
-        coupon_code=result.coupon_code,
-        discount_amount=result.discount_amount,
-        paid=result.paid,
-        payment_status=result.payment_status.value if result.payment_status else None,
-        total=result.total,
-        items=[
-            OrderItemSchema(
-                product_id=item.product_id,
-                product_name=item.product_name,
-                quantity=item.quantity,
-                unit_price=item.unit_price,
-                portion_note=item.portion_note,
-                total=item.total,
-            )
-            for item in result.items
-        ],
-        created_at=result.created_at,
-    )
+    return _order_detail_schema(result)
 
 
 @router.get("/mine", response_model=OrderListSchema)

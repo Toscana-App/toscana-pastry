@@ -7,9 +7,9 @@ import json
 import uuid
 from collections.abc import Sequence
 from decimal import Decimal
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, cast
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -19,6 +19,7 @@ from data.models import (
     CouponORM,
     IngredientORM,
     OrderEventORM,
+    OrderIdempotencyKeyORM,
     OrderItemORM,
     OrderORM,
     OrderWindowORM,
@@ -247,6 +248,11 @@ class SQLOrderRepository:
 
     async def add(self, order: Order) -> Order:
         await self.create(order)
+        self._add_items(order)
+        await self.session.commit()
+        return order
+
+    def _add_items(self, order: Order) -> None:
         for index, item in enumerate(order.items):
             snapshot = order.snapshots.get(item.id)
             self.session.add(
@@ -264,8 +270,6 @@ class SQLOrderRepository:
                     snapshot=_snapshot_to_json(snapshot) if snapshot is not None else None,
                 )
             )
-        await self.session.commit()
-        return order
 
     async def get_by_code(self, code: str) -> Order | None:
         result = await self.session.execute(
@@ -517,6 +521,68 @@ class SQLOrderRepository:
 
     async def get_payment_event(self, event_id: str) -> bool:
         return await self.session.get(PaymentEventORM, event_id) is not None
+
+    async def find_order_idempotency(
+        self, user_id: str, key: str
+    ) -> OrderIdempotencyKeyORM | None:
+        result = await self.session.execute(
+            select(OrderIdempotencyKeyORM).where(
+                OrderIdempotencyKeyORM.id == f"{user_id}:{key}"
+            )
+        )
+        return result.scalars().first()
+
+    @staticmethod
+    def _idempotency_expired(
+        saved: OrderIdempotencyKeyORM, now: datetime.datetime
+    ) -> bool:
+        expires_at: datetime.datetime = cast(
+            "datetime.datetime", saved.expires_at
+        )
+        if expires_at.tzinfo is None:  # sqlite devuelve naive
+            expires_at = expires_at.replace(tzinfo=datetime.UTC)
+        return expires_at < now
+
+    async def delete_order_idempotency(self, user_id: str, key: str) -> None:
+        await self.session.execute(
+            delete(OrderIdempotencyKeyORM).where(
+                OrderIdempotencyKeyORM.id == f"{user_id}:{key}"
+            )
+        )
+        await self.session.commit()
+
+    async def add_with_idempotency(
+        self,
+        order: Order,
+        *,
+        user_id: str,
+        key: str,
+        body_hash: str,
+    ) -> Order | None:
+        """Crea el pedido y su clave de idempotencia en la misma transacción.
+
+        Si la clave ya existe (request concurrente), se revierte la
+        transacción completa (incluido el pedido) y retorna None.
+        """
+        await self.create(order)
+        self._add_items(order)
+        self.session.add(
+            OrderIdempotencyKeyORM(
+                id=f"{user_id}:{key}",
+                user_id=user_id,
+                key=key,
+                body_hash=body_hash,
+                order_id=order.id,
+                expires_at=datetime.datetime.now(datetime.UTC)
+                + datetime.timedelta(hours=24),
+            )
+        )
+        try:
+            await self.session.commit()
+            return order
+        except IntegrityError:
+            await self.session.rollback()
+            return None
 
 
 

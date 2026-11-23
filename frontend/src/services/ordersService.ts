@@ -28,11 +28,21 @@ export async function fetchOrderPaymentStatus(
   return apiFetch(`/orders/${orderId}/payment`);
 }
 
+function makeIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 export async function createPortalOrder(
   payload: PortalOrderPayload
 ): Promise<OrderDetail> {
-  return apiFetch<OrderDetail>("/orders", {
+  // RF-P11-02: la ruta del portal es /orders/ (con slash); el POST /orders
+  // sin slash pertenece al endpoint de admin (403 para clientes).
+  return apiFetch<OrderDetail>("/orders/", {
     method: "POST",
+    headers: { "Idempotency-Key": makeIdempotencyKey() },
     body: JSON.stringify(payload),
   });
 }
