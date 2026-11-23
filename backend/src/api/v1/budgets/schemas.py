@@ -70,6 +70,7 @@ class BudgetItemResponse(BaseModel):
     line_cost: Money
     line_selling: Money
     price_overridden: bool = False
+    tags: List[str] = []
 
 
 class BudgetSummary(BaseModel):

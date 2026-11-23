@@ -8,8 +8,8 @@ from domain.pdf import budget_content_hash, format_money_peso
 def _budget(unit_cost: Decimal = Decimal("775"), qty: int = 2) -> Budget:
     items, _totals = derive_budget_items(
         (
-            ("p1", "Torta de Limón", qty, unit_cost, None),
-            ("p2", "Brownie de Chispas", 1, Decimal("450"), None),
+            ("p1", "Torta de Limón", qty, unit_cost, None, ()),
+            ("p2", "Brownie de Chispas", 1, Decimal("450"), None, ()),
         ),
         Decimal("100"),
     )
@@ -59,7 +59,7 @@ class TestBudgetContentHash:
     def test_invariante_al_cambiar_el_costo_interno(self):
         def with_cost(c):
             items, _t = derive_budget_items(
-                (("p1", "Torta de Limón", 2, c, Decimal("1550")),),
+                (("p1", "Torta de Limón", 2, c, Decimal("1550"), ()),),
                 Decimal("100"),
             )
             return Budget(

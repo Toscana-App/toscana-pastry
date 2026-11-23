@@ -91,6 +91,7 @@ def _item_response(item) -> BudgetItemResponse:
         line_cost=item.line_cost,
         line_selling=item.line_selling,
         price_overridden=item.price_overridden,
+        tags=list(item.tags),
     )
 
 

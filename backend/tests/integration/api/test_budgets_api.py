@@ -163,20 +163,24 @@ async def _make_flour(client: AsyncClient, token: str, price: int = 280000) -> s
 
 
 async def _make_torta(
-    client: AsyncClient, token: str, flour_id: str
+    client: AsyncClient, token: str, flour_id: str,
+    tags: list[str] | None = None,
 ) -> str:
+    body: dict = {
+        "name": "Torta de Limón",
+        "category": "Tortas",
+        "description": "Torta clásica",
+        "recipe": [
+            {"ingredient_id": flour_id, "qty": "250", "unit": "g"}
+        ],
+        "prep_time_min": 30,
+        "servings": 6,
+    }
+    if tags is not None:
+        body["tags"] = tags
     response = await client.post(
         "/api/v1/products",
-        json={
-            "name": "Torta de Limón",
-            "category": "Tortas",
-            "description": "Torta clásica",
-            "recipe": [
-                {"ingredient_id": flour_id, "qty": "250", "unit": "g"}
-            ],
-            "prep_time_min": 30,
-            "servings": 6,
-        },
+        json=body,
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 201
@@ -470,6 +474,46 @@ class TestBudgetRead:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 404
+
+
+class TestBudgetItemTags:
+    async def test_post_con_tags_del_producto(self, client: AsyncClient):
+        token, flour_id, _torta_id, customer_id = await _setup(client)
+        torta_id = await _make_torta(
+            client, token, flour_id, tags=["sin gluten", "sin lácteos"]
+        )
+        body = await _create_budget(client, token, customer_id, torta_id, qty=2)
+        assert body["items"][0]["tags"] == ["sin gluten", "sin lácteos"]
+
+        detail = await client.get(
+            f"/api/v1/budgets/{body['id']}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert detail.status_code == 200
+        assert detail.json()["items"][0]["tags"] == ["sin gluten", "sin lácteos"]
+
+    async def test_patch_items_rederiva_con_tags(self, client: AsyncClient):
+        token, flour_id, _torta_id, customer_id = await _setup(client)
+        torta_id = await _make_torta(client, token, flour_id, tags=["vegano"])
+        body = await _create_budget(client, token, customer_id, torta_id, qty=1)
+        assert body["items"][0]["tags"] == ["vegano"]
+
+        response = await client.patch(
+            f"/api/v1/budgets/{body['id']}/items",
+            json={"items": [{"product_id": torta_id, "qty": 3}]},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 200
+        detail = response.json()
+        assert detail["items"][0]["qty"] == 3
+        assert detail["items"][0]["tags"] == ["vegano"]
+
+    async def test_producto_sin_tags_responde_lista_vacia(
+        self, client: AsyncClient
+    ):
+        token, _flour_id, torta_id, customer_id = await _setup(client)
+        body = await _create_budget(client, token, customer_id, torta_id, qty=2)
+        assert body["items"][0]["tags"] == []
 
 
 

@@ -79,6 +79,9 @@ class DeriveBudgetItems:
                 if entry.price_override is not None and mode == CalculationMode.MANUAL
                 else None
             )
-            raw.append((entry.product_id, product.name, entry.qty, unit_cost, override))
+            raw.append(
+                (entry.product_id, product.name, entry.qty, unit_cost, override,
+                 tuple(product.tags))
+            )
         items, _totals = derive_budget_items(tuple(raw), margin_applied)
         return list(items), margin_applied

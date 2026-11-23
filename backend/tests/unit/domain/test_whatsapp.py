@@ -13,8 +13,8 @@ from domain.whatsapp import (
 def _budget() -> Budget:
     items, _totals = derive_budget_items(
         (
-            ("p1", "Torta de Limón", 2, Decimal("775"), None),
-            ("p2", "Brownie de Chispas", 1, Decimal("450"), None),
+            ("p1", "Torta de Limón", 2, Decimal("775"), None, ()),
+            ("p2", "Brownie de Chispas", 1, Decimal("450"), None, ()),
         ),
         Decimal("100"),
     )
