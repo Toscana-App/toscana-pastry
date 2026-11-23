@@ -6,6 +6,8 @@ Baseline: `origin/main` @ `6aed6e3` (2026-11-08). Auditoría estática del códi
 
 ## Estado actual (evidencia)
 
+> Re-audit 2026-11-22: el inventario abajo es la auditoría previa al trabajo (2026-11-08, `6aed6e3`). T1–T9 están completas en main: catálogo sobre productos, `available` + imagen, guards por audiencia, carrito/pedidos sobre `product_id`.
+
 1. **El alta de producto existe y está completa**: `POST /products` (admin), form `/productos/new` (nombre, categoría, descripción, prep_time, porciones, dificultad, receta 1–30 líneas). El precio nunca se persiste: se deriva de insumos + settings (`domain/product_price.py`).
 2. **La tienda no muestra productos, muestra insumos**: `GET /products?audience=` resuelve contra `ingredient_repo` (`_build_audience_rows` en `api/v1/products/router.py`) y devuelve `{id, name, unit, price_per_unit, status}` del **insumo**. El catálogo del portal (`frontend/src/components/catalog/ProductsCatalog.tsx`) y el carrito/checkout operan sobre `ingredient_id` (`api/v1/cart/router.py`, `POST /orders` portal). Un producto cargado en admin **nunca aparece en la tienda**.
 3. **No existe switch de publicación**: `Product` no tiene flag de disponibilidad (`domain/models.py`, `data/models.py` → `ProductORM`). Todo producto activo es visible en la vitrina interna; nada controla la tienda.

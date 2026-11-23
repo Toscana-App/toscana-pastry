@@ -2,6 +2,8 @@
 
 Align every executed phase branch (open PRs #9–#16 + missing fase 8 frontend) with the refined specs committed in main `1451740` (elclubdelosaludable recon, 23/10). All phase branches diverged from `5cf9b7d` BEFORE the spec update and are **cumulative** (each contains all prior phases' work). Strategy: implement each gap on its origin branch, rebase downstream cumulative branches onto the updated origin, so every PR is self-contained.
 
+> **SUPERSEDED (re-audit 2026-11-22)**: los commits de este ODD no llegaron a main; los gaps se re-planificaron en `spec-gap-closure-2026-11.md` (2026-11-03) y se ejecutaron ahí como T1–T7. Re-audit 2026-11-22 sobre `origin/main` `644fde2`: T2/T3/T4/T7 DONE, T5/T6 parciales, T1/T9 OPEN, T8 parcial. Ver estado actual en ese archivo.
+
 ## Specs
 
 S1 — **Product tags** (task #26, docs/specs/p03+p04, api_endpoints):
