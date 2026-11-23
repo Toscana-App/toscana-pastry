@@ -14,9 +14,11 @@ import {
 } from "@chakra-ui/react";
 import { CheckoutSkeleton } from "@/components/ui/skeleton";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { trackEvent } from "@/lib/analytics";
+import { cartItems, cartValue } from "@/lib/ga4-ecommerce";
 import { toaster } from "@/lib/toaster";
 import { fetchCart } from "@/services/cartService";
 import { fetchMyAddresses } from "@/services/ordersService";
@@ -86,6 +88,21 @@ export function CheckoutFlow() {
       cancelled = true;
     };
   }, [loadKey]);
+
+  // Ref: begin_checkout debe disparar una sola vez por sesión de checkout;
+  // el efecto re-correría en dev (StrictMode) y re-dispararía el evento.
+  const checkoutTrackedRef = useRef(false);
+
+  useEffect(() => {
+    if (!cart || cart.items.length === 0) return;
+    if (checkoutTrackedRef.current) return;
+    checkoutTrackedRef.current = true;
+    trackEvent("begin_checkout", {
+      value: cartValue(cart),
+      currency: "ARS",
+      items: cartItems(cart),
+    });
+  }, [cart]);
 
   const retryLoad = useCallback(() => {
     setLoading(true);

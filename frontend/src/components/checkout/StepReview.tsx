@@ -16,6 +16,7 @@ import {
 import { useState } from "react";
 import { PaymentCard } from "@/components/checkout/PaymentCard";
 import { trackEvent } from "@/lib/analytics";
+import { cartItems } from "@/lib/ga4-ecommerce";
 import { toaster } from "@/lib/toaster";
 import { createPortalOrder } from "@/services/ordersService";
 import {
@@ -83,6 +84,13 @@ export function StepReview({
         payment_method: order.payment_method,
         delivery_mode: order.delivery_mode,
         total: order.total,
+      });
+      trackEvent("purchase", {
+        transaction_id: order.code,
+        value: Number(order.total),
+        currency: "ARS",
+        items: cartItems(cart),
+        payment_method: order.payment_method,
       });
       onConfirmed(order);
     } catch (error) {

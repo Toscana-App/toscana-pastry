@@ -7,11 +7,13 @@ import { ProductsCatalog } from "./ProductsCatalog"
 const auth = vi.hoisted(() => ({ role: "admin" }))
 const store = vi.hoisted(() => ({ list: vi.fn() }))
 const pricing = vi.hoisted(() => ({ csv: vi.fn(), pdf: vi.fn() }))
+const analytics = vi.hoisted(() => ({ trackEvent: vi.fn() }))
 
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { role: auth.role } }) }))
 vi.mock("@/services/storeService", () => ({
   fetchStoreList: store.list,
 }))
+vi.mock("@/lib/analytics", () => ({ trackEvent: analytics.trackEvent }))
 vi.mock("@/services/pricingService", () => ({
   downloadPricelistCSV: pricing.csv,
   downloadPricelistPDF: pricing.pdf,
@@ -65,6 +67,7 @@ describe("ProductsCatalog (contrato de tienda T3)", () => {
     pricing.pdf.mockReset()
     pricing.csv.mockResolvedValue(undefined)
     pricing.pdf.mockResolvedValue(undefined)
+    analytics.trackEvent.mockClear()
   })
 
   it("renderiza categoría y precio (sin unidad ni tags) para el rol portal", async () => {
@@ -77,6 +80,24 @@ describe("ProductsCatalog (contrato de tienda T3)", () => {
     expect(screen.queryByText("Unidad")).not.toBeInTheDocument()
     expect(screen.queryByText("kg")).not.toBeInTheDocument()
     expect(store.list).toHaveBeenCalledWith("consumidor_final", undefined, [])
+  })
+
+  it("dispara view_item_list con los items GA4 tras cargar la lista", async () => {
+    renderWithProviders(<ProductsCatalog />)
+
+    await screen.findByText("Torta de chocolate")
+
+    expect(analytics.trackEvent).toHaveBeenCalledWith("view_item_list", {
+      items: [
+        {
+          item_id: "p1",
+          item_name: "Torta de chocolate",
+          price: 17500,
+          quantity: 1,
+          currency: "ARS",
+        },
+      ],
+    })
   })
 
   it("el nombre del producto enlaza al detalle de la tienda (portal)", async () => {

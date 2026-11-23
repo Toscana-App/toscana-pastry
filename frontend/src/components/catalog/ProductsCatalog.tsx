@@ -23,6 +23,8 @@ import {
   roleAllowedAudiences,
   roleDefaultDisplayAudience,
 } from "@/lib/roleAudience";
+import { trackEvent } from "@/lib/analytics";
+import { catalogItems } from "@/lib/ga4-ecommerce";
 import { addCartItem } from "@/services/cartService";
 import { fetchStoreList } from "@/services/storeService";
 import { downloadPricelistCSV, downloadPricelistPDF } from "@/services/pricingService";
@@ -102,6 +104,7 @@ export function ProductsCatalog() {
         if (!cancelled) {
           const visible = response.products ?? [];
           setProducts(visible);
+          trackEvent("view_item_list", { items: catalogItems(visible) });
           setTagOptions((previous) => {
             const merged = new Set(previous);
             for (const product of visible) {
