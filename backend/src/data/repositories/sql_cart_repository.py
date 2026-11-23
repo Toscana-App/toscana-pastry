@@ -32,6 +32,12 @@ class SQLCartRepository:
             ),
         )
         if pruned.rowcount:
+            import logging
+            logging.getLogger(__name__).info(
+                "Cart TTL: pruned %d stale lines for user %s",
+                pruned.rowcount,
+                user_id,
+            )
             remaining = await self.count_items(user_id)
             if remaining == 0:
                 cart = await self.session.get(CartORM, user_id)
@@ -104,7 +110,10 @@ class SQLCartRepository:
         return True
 
     async def delete_lines(self, user_id: str, product_ids: list[str]) -> int:
-        """Elimina lineas (ej: productos eliminados). Devuelve cuantas."""
+        """Elimina lineas (ej: productos eliminados). Devuelve cuantas.
+
+        No hace commit: el caller decide cuando confirmar la transaccion.
+        """
         if not product_ids:
             return 0
         result = cast(
@@ -116,7 +125,6 @@ class SQLCartRepository:
                 )
             ),
         )
-        await self.session.commit()
         return result.rowcount or 0
 
     async def set_coupon_code(self, user_id: str, code: str) -> None:

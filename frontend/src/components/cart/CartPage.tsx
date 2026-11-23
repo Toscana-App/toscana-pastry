@@ -216,8 +216,7 @@ function CartPage() {
                       : `${unavailableCount} productos de tu carrito no están disponibles`}
                   </Alert.Title>
                   <Alert.Description>
-                    No se incluyen en el total. Quitalos para poder pagar el
-                    resto.
+                    No se incluyen en el total.
                   </Alert.Description>
                 </Alert.Content>
               </Alert.Root>
