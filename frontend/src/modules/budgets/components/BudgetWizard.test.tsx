@@ -58,8 +58,11 @@ function renderWizard() {
 beforeEach(() => {
   window.sessionStorage.clear();
   mocks.list.mockResolvedValue({
-    items: [{ id: "p1", name: "Prod 1", price_final: 1000 }],
-    total: 1,
+    items: [
+      { id: "p1", name: "Prod 1", price_final: 1000, tags: ["sin gluten", "sin lactosa", "vegetariano"] },
+      { id: "p2", name: "Prod 2", price_final: 2000, tags: [] },
+    ],
+    total: 2,
     page: 1,
     page_size: 100,
   });
@@ -177,5 +180,43 @@ describe("BudgetWizard — dirección de entrega (RF-P7-03/06/07)", () => {
     await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(1));
     expect(mocks.create.mock.calls[0][0].delivery_address).toBeUndefined();
     expect(mocks.updateAddress).not.toHaveBeenCalled();
+  });
+});
+
+describe("BudgetWizard — tags de restricción", () => {
+  it("paso 2: al elegir un producto con tags muestra los chips (máx. 2 + +n)", async () => {
+    const user = userEvent.setup();
+    seedDraft("cost_plus", [row(1)]);
+    renderWizard();
+
+    await user.selectOptions(await screen.findByLabelText("Producto de la línea 1"), "p1");
+
+    expect(await screen.findByText("sin gluten")).toBeInTheDocument();
+    expect(screen.getByText("sin lactosa")).toBeInTheDocument();
+    expect(screen.queryByText("vegetariano")).not.toBeInTheDocument();
+    expect(screen.getByText("+1")).toBeInTheDocument();
+  });
+
+  it("paso 2: un producto sin tags no muestra chips ni +n", async () => {
+    const user = userEvent.setup();
+    seedDraft("cost_plus", [row(1)]);
+    renderWizard();
+
+    await user.selectOptions(await screen.findByLabelText("Producto de la línea 1"), "p2");
+
+    expect(screen.queryByText(/sin gluten/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\+\d/)).not.toBeInTheDocument();
+  });
+
+  it("paso 3: la celda del producto muestra el nombre y los tags", async () => {
+    seedDraft("cost_plus", [row(1, "p1")], 3);
+    renderWizard();
+
+    await screen.findByText("Prod 1");
+
+    expect(screen.getByText("sin gluten")).toBeInTheDocument();
+    expect(screen.getByText("sin lactosa")).toBeInTheDocument();
+    expect(screen.queryByText("vegetariano")).not.toBeInTheDocument();
+    expect(screen.getByText("+1")).toBeInTheDocument();
   });
 });

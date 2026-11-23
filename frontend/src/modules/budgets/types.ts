@@ -78,6 +78,7 @@ export interface BudgetItem {
   line_cost: number;
   line_selling: number;
   price_overridden: boolean;
+  tags: string[];
 }
 
 export interface BudgetSummary {

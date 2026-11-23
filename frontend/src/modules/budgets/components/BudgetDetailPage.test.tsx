@@ -190,3 +190,68 @@ describe("BudgetDetailPage — link temporal (Fase 8, P9)", () => {
     expect(await screen.findByText("https://public.example/api/v1/pdf/new")).toBeInTheDocument();
   });
 });
+
+describe("BudgetDetailPage — tags de restricción", () => {
+  it("muestra los chips de tags del ítem (máx. 2 + +n) y ninguno para el ítem sin tags", async () => {
+    mocks.getDetail.mockResolvedValue(
+      detailBody({
+        items: [
+          {
+            product_id: "p1",
+            product_name: "Torta de Limón",
+            qty: 1,
+            unit_cost: 10000,
+            unit_selling: 15000,
+            line_cost: 10000,
+            line_selling: 15000,
+            price_overridden: false,
+            tags: ["sin gluten", "sin lactosa", "vegetariano"],
+          },
+          {
+            product_id: "p2",
+            product_name: "Cheesecake de Frutillas",
+            qty: 2,
+            unit_cost: 8000,
+            unit_selling: 12000,
+            line_cost: 16000,
+            line_selling: 24000,
+            price_overridden: false,
+            tags: [],
+          },
+        ],
+      }),
+    );
+    renderDetail();
+    await loadDetail();
+
+    expect(screen.getByText("sin gluten")).toBeInTheDocument();
+    expect(screen.getByText("sin lactosa")).toBeInTheDocument();
+    expect(screen.queryByText("vegetariano")).not.toBeInTheDocument();
+    expect(screen.getByText("+1")).toBeInTheDocument();
+  });
+
+  it("un ítem sin tags no muestra chips ni +n", async () => {
+    mocks.getDetail.mockResolvedValue(
+      detailBody({
+        items: [
+          {
+            product_id: "p1",
+            product_name: "Torta de Limón",
+            qty: 1,
+            unit_cost: 10000,
+            unit_selling: 15000,
+            line_cost: 10000,
+            line_selling: 15000,
+            price_overridden: false,
+            tags: [],
+          },
+        ],
+      }),
+    );
+    renderDetail();
+    await loadDetail();
+
+    expect(screen.getByText("Torta de Limón")).toBeInTheDocument();
+    expect(screen.queryByText(/\+\d/)).not.toBeInTheDocument();
+  });
+});
