@@ -3,13 +3,14 @@ import pytest
 
 from domain.budgets import Budget, derive_budget_items
 from domain.pdf import budget_content_hash, format_money_peso
+from data.pdf.client import budget_pdf_payload
 
 
 def _budget(unit_cost: Decimal = Decimal("775"), qty: int = 2) -> Budget:
     items, _totals = derive_budget_items(
         (
-            ("p1", "Torta de Limón", qty, unit_cost, None),
-            ("p2", "Brownie de Chispas", 1, Decimal("450"), None),
+            ("p1", "Torta de Limón", qty, unit_cost, None, ()),
+            ("p2", "Brownie de Chispas", 1, Decimal("450"), None, ()),
         ),
         Decimal("100"),
     )
@@ -40,6 +41,35 @@ class TestFormatMoneyPeso:
         assert format_money_peso(Decimal(raw)) == expected
 
 
+class TestBudgetPdfPayload:
+    def test_payload_incluye_tags_por_item(self):
+        items, _totals = derive_budget_items(
+            (
+                (
+                    "p1", "Torta de Limón", 2, Decimal("775"), None,
+                    ("sin gluten", "vegano"),
+                ),
+            ),
+            Decimal("100"),
+        )
+        budget = Budget(
+            customer_id="c1",
+            customer_name="María",
+            customer_phone="5491155556789",
+            items=items,
+            margin_pct=Decimal("100"),
+            seq="#00001",
+            version=1,
+            status="enviado",
+        )
+        payload = budget_pdf_payload(budget, "Toscana Pastry", "")
+        assert payload["items"][0]["tags"] == ["sin gluten", "vegano"]
+
+    def test_payload_sin_tags_da_lista_vacia(self):
+        payload = budget_pdf_payload(_budget(), "T", "")
+        assert payload["items"][0]["tags"] == []
+
+
 class TestBudgetContentHash:
     def test_estable_para_el_mismo_documento(self):
         h1 = budget_content_hash(_budget(), "T", "")
@@ -59,7 +89,7 @@ class TestBudgetContentHash:
     def test_invariante_al_cambiar_el_costo_interno(self):
         def with_cost(c):
             items, _t = derive_budget_items(
-                (("p1", "Torta de Limón", 2, c, Decimal("1550")),),
+                (("p1", "Torta de Limón", 2, c, Decimal("1550"), ()),),
                 Decimal("100"),
             )
             return Budget(

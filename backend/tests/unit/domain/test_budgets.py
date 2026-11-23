@@ -99,7 +99,7 @@ class TestUnitProductCost:
 class TestDerive:
     def test_cost_plus_dobla_el_costo_con_margen_100(self):
         items, totals = derive_budget_items(
-            (("torta", "Torta de Limón", 2, Decimal("775"), None),),
+            (("torta", "Torta de Limón", 2, Decimal("775"), None, ()),),
             Decimal("100"),
         )
         assert len(items) == 1
@@ -116,13 +116,13 @@ class TestDerive:
 
     def test_margen_cero_precio_igual_al_costo(self):
         items, _ = derive_budget_items(
-            (("torta", "Torta", 1, Decimal("775"), None),), Decimal("0")
+            (("torta", "Torta", 1, Decimal("775"), None, ()),), Decimal("0")
         )
         assert items[0].unit_selling == Decimal("775")
 
     def test_manual_con_override_ignora_el_margen(self):
         items, totals = derive_budget_items(
-            (("torta", "Torta", 1, Decimal("775"), Decimal("500")),),
+            (("torta", "Torta", 1, Decimal("775"), Decimal("500"), ()),),
             Decimal("100"),
         )
         assert items[0].unit_selling == Decimal("500")
@@ -133,7 +133,7 @@ class TestDerive:
 
     def test_manual_sin_override_usa_cost_plus(self):
         items, _ = derive_budget_items(
-            (("torta", "Torta", 1, Decimal("775"), None),), Decimal("50")
+            (("torta", "Torta", 1, Decimal("775"), None, ()),), Decimal("50")
         )
         assert items[0].unit_selling == Decimal("1162.50")
         assert items[0].price_overridden is False
@@ -141,16 +141,34 @@ class TestDerive:
     def test_margen_fuera_de_rango_da_error(self):
         with pytest.raises(ValueError):
             derive_budget_items(
-                (("torta", "Torta", 1, Decimal("775"), None),), Decimal("201")
+                (("torta", "Torta", 1, Decimal("775"), None, ()),), Decimal("201")
             )
         with pytest.raises(ValueError):
             derive_budget_items(
-                (("torta", "Torta", 1, Decimal("775"), None),), Decimal("-1")
+                (("torta", "Torta", 1, Decimal("775"), None, ()),), Decimal("-1")
             )
 
     def test_override_negativo_da_error(self):
         with pytest.raises(ValueError):
             unit_selling_price(Decimal("775"), Decimal("100"), Decimal("-1"))
+
+    def test_tags_del_input_se_congelan_en_el_item(self):
+        items, _ = derive_budget_items(
+            (
+                (
+                    "torta", "Torta de Limón", 2, Decimal("775"), None,
+                    ("sin gluten", "sin lácteos"),
+                ),
+            ),
+            Decimal("100"),
+        )
+        assert items[0].tags == ("sin gluten", "sin lácteos")
+
+    def test_solo_tags_vacios_por_defecto(self):
+        items, _ = derive_budget_items(
+            (("torta", "Torta", 1, Decimal("775"), None, ()),), Decimal("100")
+        )
+        assert items[0].tags == ()
 
     def test_qty_invalido_da_error(self):
         with pytest.raises(ValueError):

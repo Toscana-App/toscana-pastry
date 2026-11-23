@@ -143,6 +143,27 @@ class TestDeriveBudgetItems:
         )
         assert margin == Decimal("50")
 
+    async def test_snapshotea_los_tags_del_producto(self):
+        product = Product(
+            name="Torta", category="Tortas",
+            recipe=(RecipeItem(ingredient_id="flour", qty=Decimal("250"), unit="g"),),
+            prep_time_min=30, servings=6, id="torta",
+            tags=("sin gluten", "sin lácteos"),
+        )
+        use_case = DeriveBudgetItems(FakeProducts(product), FakeIngredients(_flour()))
+        items, _ = await use_case.execute(
+            _settings(), [BudgetItemDraft("torta", 2)], None,
+            CalculationMode.COST_PLUS,
+        )
+        assert items[0].tags == ("sin gluten", "sin lácteos")
+
+    async def test_producto_sin_tags_snapshotea_lista_vacia(self):
+        items, _ = await self._use_case().execute(
+            _settings(), [BudgetItemDraft("torta", 1)], None,
+            CalculationMode.COST_PLUS,
+        )
+        assert items[0].tags == ()
+
     async def test_unknown_product_raises(self):
         with pytest.raises(UnknownProductError, match="ghost"):
             await self._use_case().execute(

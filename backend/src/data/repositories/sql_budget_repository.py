@@ -40,6 +40,7 @@ def _budget_to_domain(orm: BudgetORM) -> Budget:
             unit_cost=Decimal(item.unit_cost),
             unit_selling=Decimal(item.unit_selling),
             price_overridden=item.price_overridden,
+            tags=tuple(item.tags or []),
             id=item.id,
         )
         for item in orm.items
@@ -86,6 +87,7 @@ def _snapshot_to_json(budget: Budget) -> str:
                     "unit_cost": str(item.unit_cost),
                     "unit_selling": str(item.unit_selling),
                     "price_overridden": item.price_overridden,
+                    "tags": list(item.tags),
                 }
                 for item in budget.items
             ],
@@ -213,6 +215,7 @@ class SQLBudgetRepository:
                         unit_cost=str(item.unit_cost),
                         unit_selling=str(item.unit_selling),
                         price_overridden=item.price_overridden,
+                        tags=list(item.tags),
                         position=index,
                     )
                 )
@@ -259,6 +262,7 @@ class SQLBudgetRepository:
                         unit_cost=str(item.unit_cost),
                         unit_selling=str(item.unit_selling),
                         price_overridden=item.price_overridden,
+                        tags=list(item.tags),
                         position=index,
                     )
                 )

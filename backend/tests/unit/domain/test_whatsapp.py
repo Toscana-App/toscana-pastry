@@ -13,8 +13,8 @@ from domain.whatsapp import (
 def _budget() -> Budget:
     items, _totals = derive_budget_items(
         (
-            ("p1", "Torta de Limón", 2, Decimal("775"), None),
-            ("p2", "Brownie de Chispas", 1, Decimal("450"), None),
+            ("p1", "Torta de Limón", 2, Decimal("775"), None, ()),
+            ("p2", "Brownie de Chispas", 1, Decimal("450"), None, ()),
         ),
         Decimal("100"),
     )
@@ -89,6 +89,36 @@ class TestBudgetWhatsAppMessage:
         budget = _budget()
         msg = budget_whatsapp_message(budget, "", "http://x/api/v1/pdf/t")
         assert "Toscana Pastry" in msg
+
+    def test_item_con_tags_muestra_etiquetas_detras_del_nombre(self):
+        items, _totals = derive_budget_items(
+            (
+                (
+                    "p1", "Torta de Limón", 2, Decimal("775"), None,
+                    ("sin gluten", "sin lactosa"),
+                ),
+            ),
+            Decimal("100"),
+        )
+        budget = Budget(
+            customer_id="c1",
+            customer_name="María Fernanda",
+            customer_phone="5491155556789",
+            items=items,
+            margin_pct=Decimal("100"),
+            seq="#00001",
+            version=1,
+            status="enviado",
+        )
+        msg = budget_whatsapp_message(
+            budget, "Toscana Pastry", "http://x/api/v1/pdf/t"
+        )
+        assert "2 x Torta de Limón (sin gluten, sin lactosa) — $3.100,00" in msg
+
+    def test_item_sin_tags_no_muestra_parentesis(self):
+        budget = _budget()
+        msg = budget_whatsapp_message(budget, "", "http://x/api/v1/pdf/t")
+        assert "2 x Torta de Limón — $3.100,00" in msg
 
     def test_limites(self):
         assert WHATSAPP_DAILY_LIMIT == 30

@@ -125,6 +125,29 @@ class TestBuildBudgetPdf:
         assert a != b
 
 
+class TestBudgetItemTags:
+    def test_tags_aparecen_en_el_pdf(self):
+        req = _req()
+        item = req.items[0]
+        req.items[0] = BudgetItemRequest(
+            product_name=item.product_name,
+            qty=item.qty,
+            unit_selling=item.unit_selling,
+            line_selling=item.line_selling,
+            tags=["sin gluten", "sin lácteos"],
+        )
+        pdf = build_budget_pdf(req)
+        assert pdf[:4] == b"%PDF"
+        text = _extract(pdf)
+        assert "sin gluten" in text
+        assert "sin lácteos" in text
+
+    def test_items_sin_tags_no_agregan_linea_de_tags(self):
+        text = _extract(build_budget_pdf(_req()))
+        assert "sin gluten" not in text
+        assert "sin lácteos" not in text
+
+
 class TestPdfMarkupEscaping:
     HOSTILE = [
         "Dulces & Tortas",

@@ -42,6 +42,7 @@ class BudgetItem:
     unit_cost: Decimal
     unit_selling: Decimal
     price_overridden: bool = False
+    tags: Tuple[str, ...] = ()
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
 
     def __post_init__(self):
@@ -102,13 +103,15 @@ def unit_selling_price(
 
 
 def derive_budget_items(
-    inputs: Tuple[Tuple[str, str, int, Decimal, Optional[Decimal]], ...],
+    inputs: Tuple[
+        Tuple[str, str, int, Decimal, Optional[Decimal], Tuple[str, ...]], ...
+    ],
     margin_pct: Decimal,
 ) -> Tuple[Tuple[BudgetItem, ...], BudgetTotals]:
     if not Decimal("0") <= margin_pct <= Decimal("200"):
         raise ValueError("El margen del presupuesto debe estar entre 0% y 200%")
     items: list = []
-    for product_id, product_name, qty, unit_cost, price_override in inputs:
+    for product_id, product_name, qty, unit_cost, price_override, tags in inputs:
         selling, overridden = unit_selling_price(unit_cost, margin_pct, price_override)
         items.append(
             BudgetItem(
@@ -118,6 +121,7 @@ def derive_budget_items(
                 unit_cost=unit_cost,
                 unit_selling=selling,
                 price_overridden=overridden,
+                tags=tags,
             )
         )
     return tuple(items), compute_totals(tuple(items))

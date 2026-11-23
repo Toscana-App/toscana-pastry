@@ -152,7 +152,7 @@ def build_budget_pdf(req: BudgetPdfRequest) -> bytes:
         Spacer(1, 6 * mm),
     ]
 
-    rows = [
+    rows: list = [
         [
             Paragraph("Producto", s["header_cell"]),
             Paragraph("Cant.", s["header_cell"]),
@@ -160,10 +160,19 @@ def build_budget_pdf(req: BudgetPdfRequest) -> bytes:
             Paragraph("Subtotal", s["header_cell"]),
         ]
     ]
+    tag_style = ParagraphStyle(
+        "item_tags", parent=s["cell"], fontSize=8, leading=10, textColor=_MUTED,
+    )
     for item in req.items:
+        name_cell = Paragraph(escape(item.product_name), s["cell"])
+        if item.tags:
+            name_cell = [
+                Paragraph(escape(item.product_name), s["cell"]),
+                Paragraph(escape(" · ".join(item.tags)), tag_style),
+            ]
         rows.append(
             [
-                Paragraph(escape(item.product_name), s["cell"]),
+                name_cell,
                 Paragraph(str(item.qty), s["cell"]),
                 Paragraph(format_money_peso(item.unit_selling), s["cell"]),
                 Paragraph(format_money_peso(item.line_selling), s["cell"]),

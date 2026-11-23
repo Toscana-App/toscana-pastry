@@ -97,6 +97,7 @@ class BudgetItemRequest(BaseModel):
     qty: int
     unit_selling: Decimal
     line_selling: Decimal
+    tags: list[str] = Field(default_factory=list)
 
 
 class BudgetPdfRequest(BaseModel):

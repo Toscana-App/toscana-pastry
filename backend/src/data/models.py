@@ -239,6 +239,12 @@ class BudgetItemORM(Base):
     unit_cost = Column(String, nullable=False)
     unit_selling = Column(String, nullable=False)
     price_overridden = Column(Boolean, nullable=False, default=False)
+    tags: Mapped[list] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"),
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
+    )
     position = Column(Integer, nullable=False, default=0)
 
 
