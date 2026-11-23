@@ -46,6 +46,21 @@ export const productFormSchema = z
       .min(1, "Mínimo 1 porción")
       .max(999, "Máximo 999 porciones"),
     difficulty: z.enum(PRODUCT_DIFFICULTIES, { message: "Dificultad inválida" }),
+    tags: z
+      .array(
+        z
+          .string()
+          .trim()
+          .min(1, "Tag vacío")
+          .max(30, "Máximo 30 caracteres por tag"),
+      )
+      .max(10, "Máximo 10 tags")
+      .refine(
+        (tags: string[]) =>
+          new Set(tags.map((tag: string) => tag.toLowerCase())).size ===
+          tags.length,
+        "No repitas tags",
+      ),
     recipe: z
       .array(recipeItemSchema)
       .min(1, "La receta necesita al menos un insumo"),
@@ -63,6 +78,7 @@ export const productDraftSchema = z
     prep_time_min: z.number(),
     servings: z.number(),
     difficulty: z.enum(PRODUCT_DIFFICULTIES),
+    tags: z.array(z.string()),
     recipe: z.array(
       z.object({
         ingredient_id: z.string(),

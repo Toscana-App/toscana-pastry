@@ -13,11 +13,13 @@ export interface UseProductsResult {
   page: number;
   query: string;
   category: string | null;
+  tags: string[];
   categories: string[];
   loading: boolean;
   error: string | null;
   setQuery: (q: string) => void;
   setCategory: (category: string | null) => void;
+  toggleTag: (tag: string) => void;
   goToPage: (page: number) => void;
   reload: () => void;
 }
@@ -25,6 +27,7 @@ export interface UseProductsResult {
 export function useProducts(): UseProductsResult {
   const [query, setQueryState] = useState("");
   const [category, setCategoryState] = useState<string | null>(null);
+  const [tags, setTags] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [reloadToken, setReloadToken] = useState(0);
   const [items, setItems] = useState<ProductListItem[]>([]);
@@ -34,6 +37,7 @@ export function useProducts(): UseProductsResult {
   const [error, setError] = useState<string | null>(null);
   const debouncedQuery = useDebounce(query, 250);
   const searchTerm = debouncedQuery.trim();
+  const tagKey = tags.join(",");
 
   useEffect(() => {
     let cancelled = false;
@@ -42,6 +46,7 @@ export function useProducts(): UseProductsResult {
       const params: ProductListParams = {
         q: searchTerm || undefined,
         category: category ?? undefined,
+        tags: tags.length > 0 ? tags : undefined,
         page,
         page_size: PAGE_SIZE,
       };
@@ -64,7 +69,8 @@ export function useProducts(): UseProductsResult {
     return () => {
       cancelled = true;
     };
-  }, [searchTerm, category, page, reloadToken]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, category, tagKey, page, reloadToken]);
 
   const setQuery = useCallback((q: string) => {
     setQueryState(q);
@@ -74,6 +80,18 @@ export function useProducts(): UseProductsResult {
 
   const setCategory = useCallback((next: string | null) => {
     setCategoryState(next);
+    setPage(1);
+    setLoading(true);
+  }, []);
+
+  const toggleTag = useCallback((tag: string) => {
+    setTags((current: string[]) =>
+      current.some((item: string) => item.toLowerCase() === tag.toLowerCase())
+        ? current.filter(
+            (item: string) => item.toLowerCase() !== tag.toLowerCase(),
+          )
+        : [...current, tag],
+    );
     setPage(1);
     setLoading(true);
   }, []);
@@ -94,11 +112,13 @@ export function useProducts(): UseProductsResult {
     page,
     query,
     category,
+    tags,
     categories,
     loading,
     error,
     setQuery,
     setCategory,
+    toggleTag,
     goToPage,
     reload,
   };

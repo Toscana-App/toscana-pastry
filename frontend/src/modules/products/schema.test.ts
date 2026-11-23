@@ -8,6 +8,7 @@ const VALID = {
   prep_time_min: 60,
   servings: 8,
   difficulty: "simple" as const,
+  tags: [],
   recipe: [{ ingredient_id: "harina", qty: 250, unit: "g" as const }],
 };
 

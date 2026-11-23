@@ -13,6 +13,7 @@ const BASE: ProductListItem = {
   complete: true,
   available: true,
   image_url: null,
+  tags: [],
 };
 
 function renderCard(product: ProductListItem) {

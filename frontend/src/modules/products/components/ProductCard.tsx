@@ -5,6 +5,8 @@ import NextLink from "next/link";
 import { centsToPesos } from "@/lib/format";
 import type { ProductListItem } from "../types";
 
+const MAX_VISIBLE_TAGS = 2;
+
 interface ProductCardProps {
   product: ProductListItem;
 }
@@ -62,6 +64,20 @@ export function ProductCard({ product }: ProductCardProps) {
             {product.available ? "En tienda" : "Oculto"}
           </Badge>
         </Flex>
+        {product.tags.length > 0 ? (
+          <Flex gap={1.5} wrap="wrap">
+            {product.tags.slice(0, MAX_VISIBLE_TAGS).map((tag) => (
+              <Badge key={tag} size="xs" variant="outline" colorPalette="gray">
+                {tag}
+              </Badge>
+            ))}
+            {product.tags.length > MAX_VISIBLE_TAGS ? (
+              <Text fontSize="xs" color="fg.muted">
+                +{product.tags.length - MAX_VISIBLE_TAGS}
+              </Text>
+            ) : null}
+          </Flex>
+        ) : null}
       </Flex>
     </NextLink>
   );

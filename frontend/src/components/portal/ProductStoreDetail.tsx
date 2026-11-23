@@ -118,9 +118,16 @@ export function ProductStoreDetail({ id }: { id: string }) {
 
       <Flex direction="column" gap={4} flex="1">
         <Flex direction="column" gap={2}>
-          <Badge colorPalette="brand" variant="subtle" alignSelf="flex-start">
-            {detail.category}
-          </Badge>
+          <Flex gap={2} wrap="wrap" alignSelf="flex-start">
+            <Badge colorPalette="brand" variant="subtle">
+              {detail.category}
+            </Badge>
+            {(detail.tags ?? []).map((tag) => (
+              <Badge key={tag} colorPalette="gray" variant="outline">
+                {tag}
+              </Badge>
+            ))}
+          </Flex>
           <Heading as="h1" size="2xl" textWrap="balance" overflowWrap="anywhere">
             {detail.name}
           </Heading>
