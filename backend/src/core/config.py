@@ -22,8 +22,6 @@ _GOOGLE_AUTO_CREATE_FALSE = {"0", "false", "no", "off"}
 
 
 def _parse_google_auto_create(value: "str | None") -> "bool | None":
-    """Parse GOOGLE_AUTO_CREATE: unset/empty/unknown -> None (resolves to
-    'not prod'); explicit true/false spellings -> bool."""
     if value is None:
         return None
     normalized = value.strip().lower()
@@ -52,9 +50,6 @@ class Settings:
         for origin in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
         if origin.strip()
     ]
-    # Google Sign-In (GIS ID-token). GOOGLE_CLIENT_ID is public: when empty the
-    # feature is disabled (no button, 404 from the endpoints). GOOGLE_AUTO_CREATE
-    # gates sign-up through Google: unset (None) resolves to "not prod".
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "").strip()
     GOOGLE_AUTO_CREATE: "bool | None" = _parse_google_auto_create(
         os.getenv("GOOGLE_AUTO_CREATE")
@@ -82,8 +77,6 @@ class Settings:
 
     @property
     def google_auto_create(self) -> bool:
-        """Effective auto-create flag: explicit env wins; unset resolves to
-        'not prod' (production never auto-creates accounts via Google)."""
         if self.GOOGLE_AUTO_CREATE is not None:
             return self.GOOGLE_AUTO_CREATE
         return self.ENVIRONMENT != "prod"

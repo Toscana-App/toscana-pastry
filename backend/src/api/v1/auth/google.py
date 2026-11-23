@@ -44,8 +44,6 @@ LINK_PENDING_DETAIL = "Confirmá tu cuenta para enlazar Google."
 router = APIRouter(
     prefix="/auth/google",
     tags=["auth"],
-    # Rate-limited by the same limiter instance as the rest of the auth router
-    # (decision 9: the whole auth surface shares the sliding window).
     dependencies=[Depends(auth_limiter.dependency())],
 )
 
@@ -55,7 +53,6 @@ def _unauthorized_google(detail: str) -> HTTPException:
 
 
 def _conflict(state: str, message: str) -> HTTPException:
-    # RNF-P1-07: the frontend must branch on detail.state.
     return HTTPException(
         status_code=status.HTTP_409_CONFLICT,
         detail={"message": message, "state": state},
@@ -87,7 +84,6 @@ async def google_signin(
     user_repo: UserRepository = Depends(get_user_repository),
     token_repo: RefreshTokenRepository = Depends(get_refresh_token_repository),
 ):
-    # Login-CSRF (RNF-P1-06): decided BEFORE any token verification, fail-closed.
     if not google_json_flow_csrf_trusted(
         request.headers.get("sec-fetch-site"),
         request.headers.get("origin"),
@@ -115,8 +111,6 @@ async def google_signin(
             detail=NOT_CONFIGURED_DETAIL,
         )
 
-    # One-time consume of the server-issued nonce (anti-replay). The body does
-    # not carry the nonce; the pre-auth cookie id is the only expectation.
     preauth = request.cookies.get(GOOGLE_PREAUTH_COOKIE)
     expected = await nonce_repo.consume(preauth) if preauth else None
     token_nonce = payload.get("nonce")
@@ -144,7 +138,6 @@ async def google_signin(
 
     user = outcome.user
     if user is None:
-        # Unreachable: "signed_in" always carries the resolved user.
         raise _unauthorized_google("Unexpected identity resolution state")
     tokens = await start_session(token_repo, str(user.id))
     set_session_cookies(response, tokens.access_token, tokens.refresh_token)

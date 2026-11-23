@@ -25,8 +25,6 @@ const describeApiError = (error: unknown): string => {
   return "Intenta de nuevo.";
 };
 
-// The GIS script is injected by the login page from Google's CDN (RNF-P1-08).
-// This component only waits for it to land in window.google.
 const GIS_RETRY_ATTEMPTS = 20;
 const GIS_RETRY_DELAY_MS = 150;
 
@@ -47,13 +45,6 @@ export default function LoginForm({
   const searchParams = useSearchParams();
   const { refresh } = useAuth();
 
-  const resolvePostLogin = (role: Parameters<typeof postLoginTarget>[0]) =>
-    safeRedirectTarget(
-      searchParams.get("from"),
-      postLoginTarget(role),
-    );
-
-  // 1) Probe for the GIS global (bounded retry, honest failure).
   useEffect(() => {
     if (!googleClientId) return;
     let cancelled = false;
@@ -83,7 +74,6 @@ export default function LoginForm({
     };
   }, [googleClientId]);
 
-  // 2) Ask the backend for the server-issued nonce (bound to a pre-auth cookie).
   useEffect(() => {
     if (!gsiReady || !googleClientId) return;
     let cancelled = false;
@@ -113,7 +103,12 @@ export default function LoginForm({
         );
         gooeyToast.success("¡Sesión iniciada!");
         await refresh();
-        router.replace(resolvePostLogin(data.role));
+        router.replace(
+          safeRedirectTarget(
+            searchParams.get("from"),
+            postLoginTarget(data.role),
+          ),
+        );
       } catch (error) {
         if (error instanceof ApiError && error.status === 409) {
           const detail = (
@@ -142,11 +137,9 @@ export default function LoginForm({
         setSigningIn(false);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [refresh, router, searchParams],
   );
 
-  // 3) Initialize with the fetched nonce and render the button.
   useEffect(() => {
     if (!gsiReady || !nonce || !googleClientId || !buttonRef.current) return;
     const id = window.google?.accounts?.id;

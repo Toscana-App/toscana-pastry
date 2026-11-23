@@ -1,14 +1,5 @@
-/**
- * Minimal type declarations for the Google Identity Services (GIS) client
- * script (https://accounts.google.com/gsi/client). The script is always
- * loaded from Google at runtime (RNF-P1-08) — there is no npm package, so
- * only the surface this app uses is declared here.
- */
-
 export interface GoogleGsiCredentialResponse {
-  /** The signed ID token (JWT) to send to the backend. */
   credential: string;
-  /** "auto" when the account was auto-selected, "manual" otherwise. */
   select_by?: string;
 }
 

@@ -25,8 +25,6 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // RF-P1-07 (second half): already authenticated and asking for /login
-  // -> go home instead of showing the login form.
   if (pathname === '/login' && token) {
     return NextResponse.redirect(new URL('/', request.url))
   }

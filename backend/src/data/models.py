@@ -66,10 +66,6 @@ class RefreshTokenORM(Base):
 
 
 class GoogleNonceORM(Base):
-    """Server-issued GIS nonce; one row per pre-auth cookie (migration 0014).
-
-    consumed_at set = already used by a sign-in (a replay finds nothing).
-    """
 
     __tablename__ = "google_nonces"
     id = Column(Uuid, primary_key=True, default=uuid.uuid4)

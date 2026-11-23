@@ -10,7 +10,6 @@ interface AuthContextType {
   isAuthenticated: boolean;
   loading: boolean;
   logout: () => void;
-  /** Re-fetch /auth/me; resolve with the fresh user (null when unauthenticated). */
   refresh: () => Promise<User | null>;
 }
 
@@ -61,8 +60,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setUser(null);
-    // GIS: stop auto-selecting the account for subsequent sign-ins (RNF-P1-08
-    // hygiene). Guarded: the script may not have loaded (no clientId configured).
     window.google?.accounts?.id?.disableAutoSelect?.();
     void authService.logout();
   };

@@ -26,10 +26,6 @@ class SQLGoogleNonceRepository(GoogleNonceRepository):
         return str(nonce_id)
 
     async def consume(self, nonce_id: str) -> str | None:
-        """Atomic one-time consume (same pattern as refresh-token rotation):
-        a single UPDATE ... WHERE consumed_at IS NULL AND expires_at > now()
-        ... RETURNING nonce. Unknown ids, expired rows and replays return None.
-        """
         try:
             nonce_uuid = uuid.UUID(nonce_id)
         except (ValueError, TypeError):
