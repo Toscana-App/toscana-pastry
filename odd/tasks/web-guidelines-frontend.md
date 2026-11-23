@@ -8,8 +8,8 @@ Objective: apply Vercel Web Interface Guidelines across the frontend, Client rol
 - S4: Change only markup/props/copy needed for a guideline; keep existing Spanish copy language and behavior; no new requirements.
 
 ## Tasks
-- T1 (S1-S4) Client screens: `/`, `/products`, `/tienda/[id]`, `/carrito`, `/checkout`, `/my-orders`, `/profile`, `/contact`, `/login`, `/unauthorized` + their components. Route: delegated (context backstop). Status: pending
-- T2 (S1-S4) Admin screens: `/admin/**`, `/productos/**`, `/pedidos/**`, `/presupuestos/**` + calc/admin/modules components. Route: delegated. Status: pending
+- T1 (S1-S4) Client screens: `/`, `/products`, `/tienda/[id]`, `/carrito`, `/checkout`, `/my-orders`, `/profile`, `/contact`, `/login`, `/unauthorized` + their components. Route: delegated (context backstop). Status: **PARCIAL** (verificado 2026-11-23: las 10 rutas existen y usan Chakra v3 — las del portal viven en `src/app/(portal)/`; la auditoría guideline-por-guideline pantalla por pantalla **no está hecha**).
+- T2 (S1-S4) Admin screens: `/admin/**`, `/productos/**`, `/pedidos/**`, `/presupuestos/**` + calc/admin/modules components. Route: delegated. Status: **PARCIAL** (verificado 2026-11-23: `admin/`, `productos/`, `pedidos/`, `presupuestos/` existen y usan Chakra v3; la auditoría guideline-por-guideline pantalla por pantalla **no está hecha**).
 
 ## Specs (feature 2: Chakra components)
 - S5: "1)Implementa el componente menu para las opciones de la navbar" (Chakra `Menu`)
