@@ -14,7 +14,6 @@ export interface UseProductsResult {
   query: string;
   category: string | null;
   tags: string[];
-  categories: string[];
   loading: boolean;
   error: string | null;
   setQuery: (q: string) => void;
@@ -32,7 +31,6 @@ export function useProducts(): UseProductsResult {
   const [reloadToken, setReloadToken] = useState(0);
   const [items, setItems] = useState<ProductListItem[]>([]);
   const [total, setTotal] = useState(0);
-  const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const debouncedQuery = useDebounce(query, 250);
@@ -55,7 +53,6 @@ export function useProducts(): UseProductsResult {
         if (cancelled) return;
         setItems(data.items);
         setTotal(data.total);
-        setCategories(data.categories);
         setError(null);
       } catch (e) {
         if (cancelled) return;
@@ -113,7 +110,6 @@ export function useProducts(): UseProductsResult {
     query,
     category,
     tags,
-    categories,
     loading,
     error,
     setQuery,

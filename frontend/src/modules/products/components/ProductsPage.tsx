@@ -18,6 +18,7 @@ import { SearchIcon } from "@/components/ui/search-icon";
 import { useAuth } from "@/contexts/AuthContext";
 import { EmptyState } from "@/modules/shared/EmptyState";
 import { useProducts } from "../hooks/useProducts";
+import { useProductCategories } from "../hooks/useProductCategories";
 import { useProductTags } from "../hooks/useProductTags";
 import { ImportDialogV2 } from "@/modules/imports/ImportDialogV2";
 import { downloadTemplate } from "@/modules/imports/download";
@@ -35,7 +36,6 @@ export function ProductsPage() {
     query,
     category,
     tags,
-    categories,
     loading,
     error,
     setQuery,
@@ -45,6 +45,7 @@ export function ProductsPage() {
     reload,
   } = useProducts();
   const tagCounts = useProductTags();
+  const categoryCounts = useProductCategories();
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [tplError, setTplError] = useState<string | null>(null);
 
@@ -119,18 +120,23 @@ export function ProductsPage() {
         >
           Todas
         </Button>
-        {categories.map((name) => (
+        {categoryCounts.map((entry) => (
           <Button
-            key={name}
+            key={entry.name}
             size="sm"
             rounded="full"
             whiteSpace="nowrap"
-            variant={category === name ? "solid" : "outline"}
-            colorPalette={category === name ? "brand" : "gray"}
-            aria-pressed={category === name}
-            onClick={() => setCategory(category === name ? null : name)}
+            variant={category === entry.name ? "solid" : "outline"}
+            colorPalette={category === entry.name ? "brand" : "gray"}
+            aria-pressed={category === entry.name}
+            onClick={() =>
+              setCategory(category === entry.name ? null : entry.name)
+            }
           >
-            {name}
+            {entry.name}
+            <Text as="span" color="inherit" opacity={0.75} fontSize="xs">
+              {entry.count}
+            </Text>
           </Button>
         ))}
       </Flex>

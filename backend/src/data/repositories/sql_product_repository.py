@@ -197,6 +197,15 @@ class SQLProductRepository(ProductRepository):
         )
         return [row[0] for row in result.all()]
 
+    async def category_counts(self) -> list[tuple[str, int]]:
+        result = await self.session.execute(
+            select(ProductORM.category, func.count())
+            .where(*_not_deleted())
+            .group_by(ProductORM.category)
+            .order_by(func.lower(ProductORM.category))
+        )
+        return [(row[0], row[1]) for row in result.all()]
+
     async def tag_counts(self) -> list[tuple[str, int]]:
         column = _tags_from()
         result = await self.session.execute(

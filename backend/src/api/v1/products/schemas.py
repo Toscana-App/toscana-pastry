@@ -121,3 +121,12 @@ class ProductTagCount(BaseModel):
 
 class ProductTagsResponse(BaseModel):
     tags: List[ProductTagCount]
+
+
+class ProductCategoryCount(BaseModel):
+    name: str
+    count: int
+
+
+class ProductCategoriesResponse(BaseModel):
+    categories: List[ProductCategoryCount]

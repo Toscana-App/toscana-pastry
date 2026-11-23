@@ -1045,3 +1045,54 @@ async def test_tags_of_deleted_product_are_not_counted(client):
     assert delete.status_code == 204
     response = await client.get("/api/v1/products/tags", headers=headers)
     assert response.json() == {"tags": []}
+
+@pytest.mark.asyncio
+async def test_categories_endpoint_returns_counts_sorted(client):
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    await _set_settings(client, headers)
+    flour = await _create_ingredient(client, headers, "Harina")
+    recipe = [{"ingredient_id": flour["id"], "qty": 250, "unit": "g"}]
+    await _create_product(client, headers, name="Torta Uno", category="Tortas", recipe=recipe)
+    await _create_product(client, headers, name="Torta Dos", category="Tortas", recipe=recipe)
+    await _create_product(client, headers, name="Pan Uno", category="panes", recipe=recipe)
+
+    response = await client.get("/api/v1/products/categories", headers=headers)
+    assert response.status_code == 200
+    assert response.json() == {
+        "categories": [
+            {"name": "panes", "count": 1},
+            {"name": "Tortas", "count": 2},
+        ]
+    }
+
+
+@pytest.mark.asyncio
+async def test_categories_endpoint_requires_auth(client):
+    response = await client.get("/api/v1/products/categories")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_categories_exclude_deleted_products(client):
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    await _set_settings(client, headers)
+    flour = await _create_ingredient(client, headers, "Harina")
+    recipe = [{"ingredient_id": flour["id"], "qty": 250, "unit": "g"}]
+    product = await _create_product(
+        client, headers, name="Torta Huerfana", category="Tortas", recipe=recipe
+    )
+    delete = await client.delete(f"/api/v1/products/{product['id']}", headers=headers)
+    assert delete.status_code == 204
+
+    response = await client.get("/api/v1/products/categories", headers=headers)
+    assert response.status_code == 200
+    assert response.json() == {"categories": []}
+
+
+@pytest.mark.asyncio
+async def test_categories_route_not_shadowed_by_product_id(client):
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    response = await client.get("/api/v1/products/categories", headers=headers)
+    assert response.status_code == 200
+    assert "categories" in response.json()
+

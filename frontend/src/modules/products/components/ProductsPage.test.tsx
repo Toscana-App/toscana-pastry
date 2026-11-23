@@ -27,7 +27,6 @@ const mocks = vi.hoisted(() => ({
     query: "",
     category: null as string | null,
     tags: [] as string[],
-    categories: [] as string[],
     loading: false,
     error: null as string | null,
     setQuery: vi.fn(),
@@ -37,6 +36,7 @@ const mocks = vi.hoisted(() => ({
     reload: vi.fn(),
   },
   tagCounts: [] as Array<{ name: string; count: number }>,
+  categoryCounts: [] as Array<{ name: string; count: number }>,
 }));
 
 vi.mock("../hooks/useProducts", () => ({
@@ -45,6 +45,10 @@ vi.mock("../hooks/useProducts", () => ({
 
 vi.mock("../hooks/useProductTags", () => ({
   useProductTags: () => mocks.tagCounts,
+}));
+
+vi.mock("../hooks/useProductCategories", () => ({
+  useProductCategories: () => mocks.categoryCounts,
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -65,7 +69,7 @@ beforeEach(() => {
   mocks.state.query = "";
   mocks.state.category = null;
   mocks.state.tags = [];
-  mocks.state.categories = [];
+  mocks.categoryCounts = [];
   mocks.state.error = null;
   mocks.state.toggleTag = mocks.toggleTag;
   mocks.tagCounts = [];
@@ -81,33 +85,34 @@ afterEach(() => {
 });
 
 describe("ProductsPage", () => {
-  it("muestra 'Todas' presionada y una chip por categoría derivada", () => {
-    mocks.state.categories = ["Tortas", "Cupcakes"];
+  it("muestra 'Todas' presionada y una chip por categoría con su conteo (GET /products/categories)", () => {
+    mocks.categoryCounts = [{ name: "Tortas", count: 2 }, { name: "Cupcakes", count: 1 }];
     renderPage();
 
     const all = screen.getByRole("button", { name: "Todas" });
     expect(all).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Tortas" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /^Tortas/ })).toHaveAttribute(
       "aria-pressed",
       "false",
     );
-    expect(screen.getByRole("button", { name: "Cupcakes" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Tortas/ })).toHaveTextContent(/2/);
+    expect(screen.getByRole("button", { name: /^Cupcakes/ })).toHaveTextContent(/1/);
   });
 
   it("al tocar una categoría la filtra (RF-P3-02)", async () => {
-    mocks.state.categories = ["Tortas"];
+    mocks.categoryCounts = [{ name: "Tortas", count: 2 }];
     renderPage();
 
-    await userEvent.click(screen.getByRole("button", { name: "Tortas" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Tortas/ }));
     expect(mocks.setCategory).toHaveBeenCalledWith("Tortas");
   });
 
   it("al tocar la categoría activa la quita", async () => {
-    mocks.state.categories = ["Tortas"];
+    mocks.categoryCounts = [{ name: "Tortas", count: 2 }];
     mocks.state.category = "Tortas";
     renderPage();
 
-    await userEvent.click(screen.getByRole("button", { name: "Tortas" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Tortas/ }));
     expect(mocks.setCategory).toHaveBeenCalledWith(null);
   });
 
