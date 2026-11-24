@@ -5,6 +5,7 @@ from decimal import Decimal
 import pytest
 
 from domain.order import (
+    DeliveryMode,
     Order,
     OrderItem,
     OrderStatus,
@@ -174,13 +175,36 @@ class TestPaymentReferenceInvariants:
         assert order.payment_status is None
 
 
-class TestCashPaymentStatusNull:
+class TestPortalPaymentInitialStatus:
 
-    def test_cash_order_has_null_payment_status(self):
-        order = _make_order(payment_method=PaymentMethod.CASH)
-        assert order.payment_status is None
+    def _place(self, payment_method: PaymentMethod) -> Order:
+        return Order.place_portal(
+            customer_id="cust-1",
+            date=datetime.datetime.now(datetime.UTC),
+            items=[
+                OrderItem(
+                    product_id="p1",
+                    product_name="Torta",
+                    quantity=1,
+                    unit_price=Decimal(1000),
+                )
+            ],
+            payment_method=payment_method,
+            delivery_mode=DeliveryMode.PICKUP,
+            delivery_address=None,
+        )
 
-    def test_mark_cash_payment_does_not_set_payment_status(self):
-        order = _make_order(payment_method=PaymentMethod.CASH)
-        order.mark_cash_payment()
+    def test_cash_order_starts_pending(self):
+        order = self._place(PaymentMethod.CASH)
+        assert order.payment_status == PaymentStatus.PENDING
+        assert order.paid is False
+
+    def test_transfer_order_starts_pending(self):
+        order = self._place(PaymentMethod.TRANSFER)
+        assert order.payment_status == PaymentStatus.PENDING
+        assert order.paid is False
+
+    def test_mercadopago_order_starts_with_null_status(self):
+        order = self._place(PaymentMethod.MERCADOPAGO)
         assert order.payment_status is None
+        assert order.paid is False

@@ -53,7 +53,7 @@ class TestPlacePortalTransfer:
         )
         assert order.payment_method == PaymentMethod.TRANSFER
         assert order.paid is False
-        assert order.payment_status is None
+        assert order.payment_status == PaymentStatus.PENDING
 
 
 class TestTransferPaymentGuards:

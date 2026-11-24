@@ -128,6 +128,10 @@ class Order:
         today = now.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
         if order_date < today:
             raise OrderValidationError("date_must_be_today_or_later")
+        offline_payment = payment_method in (
+            PaymentMethod.CASH,
+            PaymentMethod.TRANSFER,
+        )
         return cls(
             customer_id=customer_id,
             date=order_date,
@@ -138,6 +142,7 @@ class Order:
             delivery_mode=delivery_mode,
             delivery_address=delivery_address or "",
             coupon_code=coupon_code,
+            payment_status=PaymentStatus.PENDING if offline_payment else None,
             created_at=now,
         )
 
