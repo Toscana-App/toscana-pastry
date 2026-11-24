@@ -64,14 +64,16 @@ class TestTransferPaymentGuards:
             _order(payment_status=PaymentStatus.PENDING), late
         ) is False
 
-    def test_mark_cash_payment_rejects_transfer(self):
-        with pytest.raises(ValueError, match="only for cash orders"):
-            _order().mark_cash_payment()
-
-    def test_confirm_payment_manual_on_transfer(self):
-        order = _order()
-        order.confirm_payment(reference="manual", status=PaymentStatus.APPROVED)
+    def test_mark_manual_payment_on_transfer(self):
+        order = _order(payment_status=PaymentStatus.PENDING)
+        order.mark_manual_payment("manual")
         assert order.paid is True
         assert order.payment_reference == "manual"
         assert order.payment_status == PaymentStatus.APPROVED
         assert order.paid_at is not None
+
+    def test_confirm_payment_rejects_transfer(self):
+        with pytest.raises(ValueError, match="MercadoPago"):
+            _order().confirm_payment(
+                reference="manual", status=PaymentStatus.APPROVED
+            )

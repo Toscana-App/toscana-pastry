@@ -58,20 +58,59 @@ class TestPaidMonotonic:
 
     def test_cash_mark_payment_sets_paid_true(self):
         order = _make_order()
-        order.mark_cash_payment()
+        order.mark_manual_payment("manual")
         assert order.paid is True
         assert order.paid_at is not None
+        assert order.payment_status == PaymentStatus.APPROVED
+        assert order.payment_reference == "manual"
 
     def test_cash_cannot_double_mark(self):
         order = _make_order()
-        order.mark_cash_payment()
+        order.mark_manual_payment("manual")
         with pytest.raises(ValueError, match="already paid"):
-            order.mark_cash_payment()
+            order.mark_manual_payment("manual")
 
     def test_cash_cannot_use_confirm_payment(self):
         order = _make_order(payment_method=PaymentMethod.CASH)
-        with pytest.raises(ValueError, match="Cash orders"):
+        with pytest.raises(ValueError, match="MercadoPago"):
             order.confirm_payment(reference="ref", status=PaymentStatus.APPROVED)
+
+    def test_transfer_cannot_use_confirm_payment(self):
+        order = _make_order(payment_method=PaymentMethod.TRANSFER)
+        with pytest.raises(ValueError, match="MercadoPago"):
+            order.confirm_payment(reference="ref", status=PaymentStatus.APPROVED)
+
+    def test_mark_manual_payment_on_transfer(self):
+        order = _make_order(
+            payment_method=PaymentMethod.TRANSFER,
+            payment_status=PaymentStatus.PENDING,
+        )
+        order.mark_manual_payment("manual")
+        assert order.paid is True
+        assert order.payment_status == PaymentStatus.APPROVED
+        assert order.payment_reference == "manual"
+        assert order.paid_at is not None
+
+    def test_mark_manual_payment_on_legacy_null_status(self):
+        order = _make_order(payment_method=PaymentMethod.CASH)
+        order.mark_manual_payment("manual")
+        assert order.paid is True
+        assert order.payment_status == PaymentStatus.APPROVED
+        assert order.paid_at is not None
+
+    def test_mark_manual_payment_on_rejected_transfer(self):
+        order = _make_order(
+            payment_method=PaymentMethod.TRANSFER,
+            payment_status=PaymentStatus.REJECTED,
+        )
+        order.mark_manual_payment("manual")
+        assert order.paid is True
+        assert order.payment_status == PaymentStatus.APPROVED
+
+    def test_mercadopago_cannot_use_mark_manual_payment(self):
+        order = _make_order(payment_method=PaymentMethod.MERCADOPAGO)
+        with pytest.raises(ValueError, match="cash and transfer"):
+            order.mark_manual_payment("manual")
 
     def test_confirm_payment_sets_all_fields(self):
         order = _make_order(payment_method=PaymentMethod.MERCADOPAGO)
@@ -95,11 +134,6 @@ class TestPaidMonotonic:
                 reference="mp_456",
                 status=PaymentStatus.REJECTED,
             )
-
-    def test_mercadopago_cannot_use_mark_cash_payment(self):
-        order = _make_order(payment_method=PaymentMethod.MERCADOPAGO)
-        with pytest.raises(ValueError, match="only for cash orders"):
-            order.mark_cash_payment()
 
 
 class TestPaymentReferenceInvariants:
@@ -170,7 +204,13 @@ class TestPaymentReferenceInvariants:
 
     def test_register_payment_event_cash_order_raises(self):
         order = _make_order(payment_method=PaymentMethod.CASH)
-        with pytest.raises(ValueError, match="Cash orders"):
+        with pytest.raises(ValueError, match="no provider"):
+            order.register_payment_event(PaymentStatus.PENDING)
+        assert order.payment_status is None
+
+    def test_register_payment_event_transfer_order_raises(self):
+        order = _make_order(payment_method=PaymentMethod.TRANSFER)
+        with pytest.raises(ValueError, match="no provider"):
             order.register_payment_event(PaymentStatus.PENDING)
         assert order.payment_status is None
 

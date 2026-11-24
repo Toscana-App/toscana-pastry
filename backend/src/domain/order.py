@@ -159,8 +159,10 @@ class Order:
         """
         if self.paid:
             raise ValueError("Order is already paid; paid is monotonic")
-        if self.payment_method == PaymentMethod.CASH:
-            raise ValueError("Cash orders cannot be auto-paid")
+        if self.payment_method is not PaymentMethod.MERCADOPAGO:
+            raise ValueError(
+                "confirm_payment only applies to MercadoPago orders"
+            )
         if status is not PaymentStatus.APPROVED:
             raise ValueError("confirm_payment only applies to approved payments")
         transition(self.payment_status, status)
@@ -172,19 +174,32 @@ class Order:
         """Record a non-approved provider event: payment_status only."""
         if self.paid:
             raise ValueError("Order is already paid; paid is monotonic")
-        if self.payment_method == PaymentMethod.CASH:
-            raise ValueError("Cash orders have no provider payment status")
+        if self.payment_method in (
+            PaymentMethod.CASH,
+            PaymentMethod.TRANSFER,
+        ):
+            raise ValueError(
+                "Cash and transfer orders have no provider payment status"
+            )
         if status is PaymentStatus.APPROVED:
             raise ValueError("Use confirm_payment to register approved payments")
         transition(self.payment_status, status)
         self.payment_status = status
 
-    def mark_cash_payment(self) -> None:
+    def mark_manual_payment(self, reference: str) -> None:
         if self.paid:
             raise ValueError("Order is already paid")
-        if self.payment_method != PaymentMethod.CASH:
-            raise ValueError("mark_cash_payment is only for cash orders")
+        if self.payment_method not in (
+            PaymentMethod.CASH,
+            PaymentMethod.TRANSFER,
+        ):
+            raise ValueError(
+                "mark_manual_payment is only for cash and transfer orders"
+            )
+        transition(self.payment_status, PaymentStatus.APPROVED)
         self.paid_at = datetime.datetime.now(datetime.UTC)
+        self.payment_reference = reference
+        self.payment_status = PaymentStatus.APPROVED
 
     def init_mercadopago(self) -> None:
         if self.status != OrderStatus.NEW:
