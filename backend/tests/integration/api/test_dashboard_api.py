@@ -67,7 +67,7 @@ async def seeded(db_session):
     await _add_order(
         db_session,
         when=_utc(2026, 5, 2, 10),
-        status="nuevo",
+        status="new",
         payment_method="cash",
         items=[("torta", "Torta", 2, "1000.00"), ("alfajor", "Alfajor", 10, "200.00")],
         discount="500",
@@ -75,7 +75,7 @@ async def seeded(db_session):
     await _add_order(
         db_session,
         when=_utc(2026, 5, 2, 15),
-        status="confirmado",
+        status="confirmed",
         payment_method="mercadopago",
         items=[("torta", "Torta", 1, "1000.00")],
         paid=True,
@@ -83,7 +83,7 @@ async def seeded(db_session):
     await _add_order(
         db_session,
         when=_utc(2026, 5, 4, 9),
-        status="entregado",
+        status="delivered",
         payment_method="cash",
         items=[("alfajor", "Alfajor", 5, "200.00")],
         paid=True,
@@ -92,21 +92,21 @@ async def seeded(db_session):
     await _add_order(
         db_session,
         when=_utc(2026, 5, 5, 9),
-        status="cancelado",
+        status="cancelled",
         payment_method="cash",
         items=[("torta", "Torta", 3, "1000.00")],
     )
     await _add_order(
         db_session,
         when=_utc(2026, 5, 1, 2, 59),
-        status="nuevo",
+        status="new",
         payment_method="cash",
         items=[("torta", "Torta", 100, "1000.00")],
     )
     await _add_order(
         db_session,
         when=_utc(2026, 6, 1, 3, 0),
-        status="nuevo",
+        status="new",
         payment_method="cash",
         items=[("torta", "Torta", 100, "1000.00")],
     )
@@ -265,10 +265,12 @@ class TestOrdersByStatus:
         )
         assert response.status_code == 200
         assert response.json()["items"] == [
-            {"status": "nuevo", "orders_count": 1},
-            {"status": "confirmado", "orders_count": 1},
-            {"status": "entregado", "orders_count": 1},
-            {"status": "cancelado", "orders_count": 1},
+            {"status": "new", "orders_count": 1},
+            {"status": "confirmed", "orders_count": 1},
+            {"status": "preparing", "orders_count": 0},
+            {"status": "pending_delivery", "orders_count": 0},
+            {"status": "delivered", "orders_count": 1},
+            {"status": "cancelled", "orders_count": 1},
         ]
 
     async def test_empty_period_lists_all_statuses_with_zero(self, client, admin):
@@ -277,10 +279,12 @@ class TestOrdersByStatus:
         )
         items = response.json()["items"]
         assert [i["status"] for i in items] == [
-            "nuevo",
-            "confirmado",
-            "entregado",
-            "cancelado",
+            "new",
+            "confirmed",
+            "preparing",
+            "pending_delivery",
+            "delivered",
+            "cancelled",
         ]
         assert all(i["orders_count"] == 0 for i in items)
 
@@ -419,7 +423,7 @@ async def admin_created(db_session):
     await _add_order(
         db_session,
         when=_utc(2026, 5, 10, 12),
-        status="nuevo",
+        status="new",
         payment_method="transfer",
         items=[
             ("torta", "Torta", 2, None, _snapshot("2500.00")),
@@ -429,7 +433,7 @@ async def admin_created(db_session):
     await _add_order(
         db_session,
         when=_utc(2026, 5, 10, 18),
-        status="confirmado",
+        status="confirmed",
         payment_method="transfer",
         items=[
             ("torta", "Torta", 1, None, None),
@@ -497,7 +501,7 @@ class TestAdminCreatedOrdersWithoutUnitPrice:
         await _add_order(
             db_session,
             when=_utc(2026, 5, 11, 12),
-            status="nuevo",
+            status="new",
             payment_method="cash",
             items=[
                 ("torta", "Torta", 1, None, None),

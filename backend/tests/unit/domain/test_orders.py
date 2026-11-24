@@ -9,12 +9,15 @@ from domain.order_pricing import (
     plan_order_deductions,
     price_order_item,
 )
+from domain.order_states import (
+    InvalidStatusTransitionError,
+    OrderStatus,
+    transition,
+)
 from domain.orders import (
     Customer,
-    InvalidStatusTransitionError,
     Order,
     OrderItem,
-    transition_status,
 )
 from domain.pricing import UnitConversionError
 
@@ -56,35 +59,40 @@ def make_torta(flour_id: str = "flour") -> Product:
 
 
 class TestTransitions:
-    def test_flujo_hasta_entregar(self):
-        assert transition_status("nuevo", "confirmado") == "confirmado"
-        assert transition_status("confirmado", "entregado") == "entregado"
+    def test_flujo_completo(self):
+        assert transition("new", "confirmed") == "confirmed"
+        assert transition("confirmed", "preparing") == "preparing"
+        assert transition("preparing", "pending_delivery") == "pending_delivery"
+        assert transition("pending_delivery", "delivered") == "delivered"
 
-    def test_cancelar_solo_desde_confirmado(self):
-        assert transition_status("confirmado", "cancelado") == "cancelado"
+    def test_cancelar_desde_confirmado_y_preparando(self):
+        assert transition("confirmed", "cancelled") == "cancelled"
+        assert transition("preparing", "cancelled") == "cancelled"
+
+    def test_no_se_cancela_desde_new(self):
         with pytest.raises(InvalidStatusTransitionError):
-            transition_status("nuevo", "cancelado")
-        with pytest.raises(InvalidStatusTransitionError):
-            transition_status("entregado", "cancelado")
+            transition("new", "cancelled")
 
     def test_estados_finales_no_avanzan(self):
-        for target in ("nuevo", "confirmado", "entregado", "cancelado"):
+        for target in OrderStatus:
             with pytest.raises(InvalidStatusTransitionError):
-                transition_status("entregado", target)
+                transition("delivered", target.value)
             with pytest.raises(InvalidStatusTransitionError):
-                transition_status("cancelado", target)
+                transition("cancelled", target.value)
 
     def test_atajos_invalidos(self):
         with pytest.raises(InvalidStatusTransitionError):
-            transition_status("nuevo", "entregado")
+            transition("new", "delivered")
         with pytest.raises(InvalidStatusTransitionError):
-            transition_status("nuevo", "nuevo")
+            transition("new", "preparing")
         with pytest.raises(InvalidStatusTransitionError):
-            transition_status("entregado", "confirmado")
+            transition("confirmed", "pending_delivery")
+        with pytest.raises(InvalidStatusTransitionError):
+            transition("preparing", "delivered")
 
     def test_estado_desconocido_lanza(self):
         with pytest.raises(InvalidStatusTransitionError):
-            transition_status("perdido", "nuevo")
+            transition("perdido", "new")
 
 
 

@@ -7,33 +7,11 @@ import uuid
 
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Optional, Tuple, Dict
+from typing import Optional, Dict
 
-ORDER_STATUSES: Tuple[str, ...] = ("nuevo", "confirmado", "entregado", "cancelado")
-
-ORDER_STATUS_LABELS: Dict[str, str] = {
-    "nuevo": "Nuevo",
-    "confirmado": "Confirmado",
-    "entregado": "Entregado",
-    "cancelado": "Cancelado",
-}
-
-ORDER_TRANSITIONS: Dict[str, Tuple[str, ...]] = {
-    "nuevo": ("confirmado",),
-    "confirmado": ("entregado", "cancelado"),
-    "entregado": (),
-    "cancelado": (),
-}
+from domain.order_states import is_known_status
 
 _PHONE_DIGITS = re.compile(r"\d+")
-
-
-class InvalidStatusTransitionError(ValueError):
-
-    def __init__(self, current: str, target: str):
-        self.current = current
-        self.target = target
-        super().__init__(f"Transicion invalida: {current} -> {target}")
 
 
 class OrderNotEditableError(Exception):
@@ -57,14 +35,6 @@ class InsufficientOrderStockError(Exception):
         super().__init__(
             f"stock insuficiente en {len(shortage)} insumo(s) para el pedido"
         )
-
-
-def transition_status(current: str, target: str) -> str:
-    if current not in ORDER_TRANSITIONS:
-        raise InvalidStatusTransitionError(current, target)
-    if target not in ORDER_TRANSITIONS[current]:
-        raise InvalidStatusTransitionError(current, target)
-    return target
 
 
 def normalize_customer_name(name: str) -> str:
@@ -186,7 +156,7 @@ class Order:
     customer_name: str
     customer_phone: str
     date: datetime.date
-    status: str = "nuevo"
+    status: str = "new"
     margin_pct: Decimal | None = None
     created_at: datetime.datetime | None = None
     updated_at: datetime.datetime | None = None
@@ -199,7 +169,7 @@ class Order:
     snapshots: dict[str, OrderItemSnapshot] = field(default_factory=dict, compare=False)
 
     def __post_init__(self):
-        if self.status not in ORDER_TRANSITIONS:
+        if not is_known_status(self.status):
             raise ValueError(f"Estado de pedido desconocido: {self.status}")
         if not isinstance(self.date, datetime.date):
             raise ValueError("El pedido necesita una fecha")

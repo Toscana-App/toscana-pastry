@@ -771,7 +771,7 @@ class TestConvertToOrder:
         )
         assert detail.status_code == 200
         order = detail.json()
-        assert order["status"] == "nuevo"
+        assert order["status"] == "new"
         assert order["customer"]["name"] == "María"
         assert order["total"] == 310000
         assert order["items"][0]["qty"] == 2

@@ -159,13 +159,15 @@ class TestGetSalesTimeSeries:
 
 class TestGetOrdersByStatus:
     async def test_zero_fills_every_known_status_in_workflow_order(self, repo):
-        repo.statuses = [StatusCount("confirmado", 3)]
+        repo.statuses = [StatusCount("confirmed", 3)]
         result = await GetOrdersByStatus(repo, _clock).execute(None, None)
         assert result == [
-            StatusCount("nuevo", 0),
-            StatusCount("confirmado", 3),
-            StatusCount("entregado", 0),
-            StatusCount("cancelado", 0),
+            StatusCount("new", 0),
+            StatusCount("confirmed", 3),
+            StatusCount("preparing", 0),
+            StatusCount("pending_delivery", 0),
+            StatusCount("delivered", 0),
+            StatusCount("cancelled", 0),
         ]
 
     async def test_invalid_period_rejected(self, repo):

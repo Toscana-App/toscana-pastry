@@ -20,7 +20,8 @@ from api.v1.orders.dependencies import (
     get_product_repository,
 )
 from domain.models import User, UserRole
-from domain.orders import InvalidStatusTransitionError, OrderNotEditableError
+from domain.order_states import InvalidStatusTransitionError
+from domain.orders import OrderNotEditableError
 
 
 @pytest_asyncio.fixture
@@ -398,7 +399,7 @@ class TestOrderCreate:
         token, _, torta_id, customer_id = await _setup(client)
         order = await _create_order(client, token, customer_id, torta_id, qty=2)
 
-        assert order["status"] == "nuevo"
+        assert order["status"] == "new"
         assert order["customer"]["name"] == "María"
         assert order["customer"]["phone"] == "3575551234"
         assert order["date"] == "2026-10-20"
@@ -588,22 +589,23 @@ class TestOrderStatus:
 
         response = await client.patch(
             f"/api/v1/orders/{order_id}/status",
-            json={"status": "confirmado"},
+            json={"status": "confirmed"},
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 200
-        assert response.json()["status"] == "confirmado"
+        assert response.json()["status"] == "confirmed"
         assert await _stock_qty(client, token, flour_id) == "9500"
         reasons = [m["reason"] for m in await _movements(client, token, flour_id)]
         assert "pedido" in reasons
 
-        response = await client.patch(
-            f"/api/v1/orders/{order_id}/status",
-            json={"status": "entregado"},
-            headers={"Authorization": f"Bearer {token}"},
-        )
-        assert response.status_code == 200
-        assert response.json()["status"] == "entregado"
+        for next_status in ("preparing", "pending_delivery", "delivered"):
+            response = await client.patch(
+                f"/api/v1/orders/{order_id}/status",
+                json={"status": next_status},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            assert response.status_code == 200
+            assert response.json()["status"] == next_status
 
     async def test_stock_insuficiente_da_409_y_no_descuenta(
         self, client: AsyncClient
@@ -617,7 +619,7 @@ class TestOrderStatus:
 
         response = await client.patch(
             f"/api/v1/orders/{order_id}/status",
-            json={"status": "confirmado"},
+            json={"status": "confirmed"},
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 409
@@ -632,7 +634,7 @@ class TestOrderStatus:
             f"/api/v1/orders/{order_id}",
             headers={"Authorization": f"Bearer {token}"},
         )
-        assert detail.json()["status"] == "nuevo"
+        assert detail.json()["status"] == "new"
         assert await _stock_qty(client, token, flour_id) == "400"
 
     async def test_cancelar_desde_confirmado_repone_stock(self, client):
@@ -641,18 +643,18 @@ class TestOrderStatus:
         order_id = order["id"]
         await client.patch(
             f"/api/v1/orders/{order_id}/status",
-            json={"status": "confirmado"},
+            json={"status": "confirmed"},
             headers={"Authorization": f"Bearer {token}"},
         )
         assert await _stock_qty(client, token, flour_id) == "9500"
 
         response = await client.patch(
             f"/api/v1/orders/{order_id}/status",
-            json={"status": "cancelado"},
+            json={"status": "cancelled"},
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 200
-        assert response.json()["status"] == "cancelado"
+        assert response.json()["status"] == "cancelled"
         assert await _stock_qty(client, token, flour_id) == "10000"
         reasons = [m["reason"] for m in await _movements(client, token, flour_id)]
         assert "anulacion" in reasons
@@ -666,7 +668,7 @@ class TestOrderStatus:
         stale = await repo.get_full(order["id"])
 
         confirmed = await repo.confirm(stale)
-        assert confirmed.status == "confirmado"
+        assert confirmed.status == "confirmed"
         with pytest.raises(InvalidStatusTransitionError):
             await repo.confirm(stale)
 
@@ -715,7 +717,7 @@ class TestOrderStatus:
         order_id = order["id"]
         response = await client.patch(
             f"/api/v1/orders/{order_id}/status",
-            json={"status": "confirmado"},
+            json={"status": "confirmed"},
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 200
@@ -728,29 +730,49 @@ class TestOrderStatus:
 
         response = await client.patch(
             f"/api/v1/orders/{order_id}/status",
-            json={"status": "entregado"},
+            json={"status": "delivered"},
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 400
 
         response = await client.patch(
             f"/api/v1/orders/{order_id}/status",
-            json={"status": "cancelado"},
+            json={"status": "cancelled"},
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 400
 
-        await client.patch(
+        for next_status in ("confirmed", "preparing", "pending_delivery"):
+            response = await client.patch(
+                f"/api/v1/orders/{order_id}/status",
+                json={"status": next_status},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            assert response.status_code == 200
+
+        # pending_delivery -> cancelled: invalida (el pedido ya esta hecho)
+        response = await client.patch(
             f"/api/v1/orders/{order_id}/status",
-            json={"status": "confirmado"},
+            json={"status": "cancelled"},
             headers={"Authorization": f"Bearer {token}"},
         )
-        await client.patch(
+        assert response.status_code == 400
+
+        response = await client.patch(
             f"/api/v1/orders/{order_id}/status",
-            json={"status": "entregado"},
+            json={"status": "delivered"},
             headers={"Authorization": f"Bearer {token}"},
         )
-        for target in ("nuevo", "confirmado", "entregado", "cancelado"):
+        assert response.status_code == 200
+
+        for target in (
+            "new",
+            "confirmed",
+            "preparing",
+            "pending_delivery",
+            "delivered",
+            "cancelled",
+        ):
             response = await client.patch(
                 f"/api/v1/orders/{order_id}/status",
                 json={"status": target},
@@ -764,7 +786,7 @@ class TestOrderStatus:
         order_id = order["id"]
         await client.patch(
             f"/api/v1/orders/{order_id}/status",
-            json={"status": "confirmado"},
+            json={"status": "confirmed"},
             headers={"Authorization": f"Bearer {token}"},
         )
         response = await client.patch(
@@ -839,7 +861,7 @@ class TestOrderFilters:
         )
         await client.patch(
             f"/api/v1/orders/{o2['id']}/status",
-            json={"status": "confirmado"},
+            json={"status": "confirmed"},
             headers={"Authorization": f"Bearer {token}"},
         )
 
@@ -853,8 +875,8 @@ class TestOrderFilters:
             return response.json()
 
         assert (await _list())["total"] == 2
-        assert (await _list(status="confirmado"))["total"] == 1
-        assert (await _list(status="nuevo"))["total"] == 1
+        assert (await _list(status="confirmed"))["total"] == 1
+        assert (await _list(status="new"))["total"] == 1
         assert (await _list(customer_id=jorge))["total"] == 1
         assert (await _list(q="jorge"))["total"] == 1
         assert (await _list(q="JORG"))["total"] == 1

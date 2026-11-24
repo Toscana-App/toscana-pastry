@@ -38,7 +38,7 @@ class TestPaymentMethodImmutable:
         assert order.payment_method == PaymentMethod.MERCADOPAGO
 
     def test_cannot_switch_mercadopago_after_confirmation(self):
-        order = _make_order(status=OrderStatus.CONFIRMADO)
+        order = _make_order(status=OrderStatus.CONFIRMED)
         with pytest.raises(ValueError, match="immutable"):
             order.init_mercadopago()
 

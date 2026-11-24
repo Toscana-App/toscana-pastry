@@ -333,7 +333,7 @@ async def test_confirm_order_discounts_stock_from_snapshot(client, db_session):
     order_id = r.json()["id"]
     assert await _stock_of(db_session, ingredient_id) == Decimal("10")
 
-    r = await client.patch(f"{ORDERS}{order_id}/status", json={"status": "confirmado"})
+    r = await client.patch(f"{ORDERS}{order_id}/status", json={"status": "confirmed"})
     assert r.status_code == 200, r.text
     assert await _stock_of(db_session, ingredient_id) == Decimal("8")
 
@@ -343,9 +343,9 @@ async def test_cancel_order_replenishes_stock(client, db_session):
     product_id, ingredient_id = await _seed_product(db_session, "Pan de campo")
     r = await client.post(ORDERS, json=_order_body(product_id, quantity=2), headers=_h())
     order_id = r.json()["id"]
-    r = await client.patch(f"{ORDERS}{order_id}/status", json={"status": "confirmado"})
+    r = await client.patch(f"{ORDERS}{order_id}/status", json={"status": "confirmed"})
     assert r.status_code == 200, r.text
-    r = await client.patch(f"{ORDERS}{order_id}/status", json={"status": "cancelado"})
+    r = await client.patch(f"{ORDERS}{order_id}/status", json={"status": "cancelled"})
     assert r.status_code == 200, r.text
     assert await _stock_of(db_session, ingredient_id) == Decimal("10")
 
@@ -384,6 +384,6 @@ async def test_confirm_fails_409_when_stock_drops_after_creation(client, db_sess
     ingredient.stock_qty = "1"
     await db_session.commit()
 
-    r = await client.patch(f"{ORDERS}{order_id}/status", json={"status": "confirmado"})
+    r = await client.patch(f"{ORDERS}{order_id}/status", json={"status": "confirmed"})
     assert r.status_code == 409, r.text
     assert await _stock_of(db_session, ingredient_id) == Decimal("1")

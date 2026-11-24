@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import StrEnum
 
+from domain.order_states import OrderStatus, is_known_status
+
 
 class PaymentMethod(StrEnum):
     MERCADOPAGO = "mercadopago"
@@ -52,13 +54,6 @@ class OrderValidationError(ValueError):
         self.code = code
 
 
-class OrderStatus(StrEnum):
-    NUEVO = "nuevo"
-    CONFIRMADO = "confirmado"
-    ENTREGADO = "entregado"
-    CANCELADO = "cancelado"
-
-
 @dataclass(frozen=True)
 class OrderItem:
 
@@ -93,7 +88,7 @@ class Order:
     customer_phone: str = ""
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     code: str = field(default_factory=_generate_code)
-    status: OrderStatus = OrderStatus.NUEVO
+    status: OrderStatus = OrderStatus.NEW
     payment_method: PaymentMethod = PaymentMethod.CASH
     delivery_mode: DeliveryMode = DeliveryMode.DELIVERY
     delivery_address: str = ""
@@ -108,6 +103,8 @@ class Order:
     snapshots: dict = field(default_factory=dict, compare=False)
 
     def __post_init__(self) -> None:
+        if not is_known_status(self.status):
+            raise ValueError(f"Estado de pedido desconocido: {self.status}")
         if self.delivery_mode == DeliveryMode.PICKUP:
             object.__setattr__(self, "delivery_address", None)
 
@@ -197,7 +194,7 @@ class Order:
         self.paid_at = datetime.datetime.now(datetime.UTC)
 
     def init_mercadopago(self) -> None:
-        if self.status != OrderStatus.NUEVO:
+        if self.status != OrderStatus.NEW:
             raise ValueError("payment_method is immutable after order confirmation")
         self.payment_method = PaymentMethod.MERCADOPAGO
 
@@ -205,7 +202,7 @@ class Order:
 def is_payment_expired(order: Order, now: datetime.datetime) -> bool:
     if (
         order.payment_method != PaymentMethod.MERCADOPAGO
-        or order.status != OrderStatus.NUEVO
+        or order.status != OrderStatus.NEW
         or order.paid
         or order.payment_status != PaymentStatus.PENDING
     ):

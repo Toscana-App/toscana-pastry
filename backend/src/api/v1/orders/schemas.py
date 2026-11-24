@@ -106,7 +106,9 @@ class OrderWindowResponse(BaseModel):
 
 from api.v1.money import Money, Pct, Qty
 
-OrderStatus = Literal["nuevo", "confirmado", "entregado", "cancelado"]
+OrderStatus = Literal[
+    "new", "confirmed", "preparing", "pending_delivery", "delivered", "cancelled"
+]
 
 
 class OrderItemInput(BaseModel):
