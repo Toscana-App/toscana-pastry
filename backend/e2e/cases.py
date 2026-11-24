@@ -27,6 +27,7 @@ WEBHOOK_SECRET = "e2e-webhook-secret"
 WEBHOOK_PATH = "/api/v1/webhooks/mercadopago"
 CASH = "cash"
 MP = "mercadopago"
+TRANSFER = "transfer"
 
 
 class E2EFailure(AssertionError):
@@ -246,11 +247,11 @@ async def case_a1(ctx: Ctx) -> None:
     # GIVEN cliente autenticado, producto disponible, window abierto
     # WHEN crea pedido cash de 2 unidades
     resp = await create_order(ctx.cust_a, ctx.product_id, qty=2)
-    # THEN 200, new, sin pago, total = 2 x precio derivado
+    # THEN 200, new, payment_status=pending (offline), paid False, total = 2 x precio
     check(resp.status_code in (200, 201), f"A1: creacion {resp.status_code} {resp.text[:200]}")
     body = resp.json()
     check(body["status"] == "new", f"A1: status {body['status']!r} != 'new'")
-    check(body["payment_status"] is None, f"A1: payment_status {body['payment_status']!r}")
+    check(body["payment_status"] == "pending", f"A1: payment_status {body['payment_status']!r} != 'pending'")
     check(body["paid"] is False, "A1: paid debe ser False")
     expected = (ctx.catalog_price * 2).quantize(Decimal("0.01"))
     check(Decimal(str(body["total"])) == expected, f"A1: total {body['total']} != 2 x {ctx.catalog_price} = {expected}")
@@ -552,15 +553,16 @@ async def case_c8(ctx: Ctx) -> None:
 
 
 async def case_c9(ctx: Ctx) -> None:
-    # GIVEN pedido cash sin pago
+    # GIVEN pedido cash (payment_status pending)
     order_id = await _new_order(ctx)
-    # WHEN admin marca pago manual
+    # WHEN admin marca pago manual (se pago al retirar)
     resp = await ctx.admin.patch(f"/api/v1/orders/{order_id}/paid")
     check(resp.status_code == 200, f"C9: {resp.status_code} {resp.text[:200]}")
-    # THEN paid=True + paid_at; cash no participa de la maquina (status None)
+    # THEN paid=True, status=approved, reference=manual, paid_at en DB
     after = await get_payment(ctx.admin, order_id)
     check(after["paid"] is True, "C9: paid debe ser True")
-    check(after["status"] is None, f"C9: status {after['status']!r} (cash: la maquina no se toca)")
+    check(after["status"] == "approved", f"C9: status {after['status']!r} != approved")
+    check(after.get("payment_reference") == "manual", f"C9: payment_reference {after.get('payment_reference')!r} != manual")
     check(await order_paid_at(order_id) is not None, "C9: paid_at debe estar set en DB")
 
 
@@ -606,7 +608,7 @@ async def case_c12(ctx: Ctx) -> None:
 
 
 async def case_c13(ctx: Ctx) -> None:
-    # GIVEN pedido CASH; webhook MP valido que lo referencia (anomalia de datos)
+    # GIVEN pedido CASH (pending); webhook MP valido que lo referencia (anomalia de datos)
     order_id = await _new_order(ctx)
     total = str(await order_total_pesos(ctx.admin, order_id))
     pid = f"mp-{uuid.uuid4().hex[:8]}"
@@ -614,13 +616,76 @@ async def case_c13(ctx: Ctx) -> None:
     # WHEN webhook MP aprobado con firma valida
     resp = await send_webhook(ctx.public, payment_id=pid)
     check(resp.status_code == 200, f"C13: webhook {resp.status_code} {resp.text[:200]}")
-    # THEN auditado, sin cambio de estado, sin paid (alcance MP: contrato preexistente)
+    # THEN auditado, sin cambio de estado ni paid (el pasaje cash es manual)
     after = await get_payment(ctx.admin, order_id)
-    check(after["status"] is None, f"C13: status {after['status']!r} (debe seguir None)")
+    check(after["status"] == "pending", f"C13: status {after['status']!r} (debe seguir pending)")
     check(after["paid"] is False, "C13: paid debe seguir False")
     check(
         await payment_events_count(order_id) == 1,
         f"C13: eventos {await payment_events_count(order_id)} != 1 (debe auditar)",
+    )
+
+
+# --------------------------------------------------------------------------
+# D — pagos por metodo (cash + transfer entran a la maquina; ODD payment-methods)
+# --------------------------------------------------------------------------
+
+
+async def case_d3(ctx: Ctx) -> None:
+    # GIVEN cliente autenticado, window abierto
+    # WHEN crea pedido por transferencia
+    resp = await create_order(ctx.cust_a, ctx.product_id, payment_method=TRANSFER)
+    # THEN 200, new, payment_status=pending, paid=False
+    check(resp.status_code in (200, 201), f"D3: creacion {resp.status_code} {resp.text[:200]}")
+    body = resp.json()
+    check(body["status"] == "new", f"D3: status {body['status']!r} != 'new'")
+    check(body["payment_status"] == "pending", f"D3: payment_status {body['payment_status']!r} != 'pending'")
+    check(body["paid"] is False, "D3: paid debe ser False")
+
+
+async def case_d4(ctx: Ctx) -> None:
+    # GIVEN pedido transferencia (payment_status pending)
+    order_id = await _new_order(ctx, payment_method=TRANSFER)
+    # WHEN admin marca pago manual (recibio la transferencia)
+    resp = await ctx.admin.patch(f"/api/v1/orders/{order_id}/paid")
+    check(resp.status_code == 200, f"D4: {resp.status_code} {resp.text[:200]}")
+    # THEN paid=True, status=approved, reference=manual, paid_at en DB
+    after = await get_payment(ctx.admin, order_id)
+    check(after["paid"] is True, "D4: paid debe ser True")
+    check(after["status"] == "approved", f"D4: status {after['status']!r} != approved")
+    check(after.get("payment_reference") == "manual", f"D4: payment_reference {after.get('payment_reference')!r} != manual")
+    check(await order_paid_at(order_id) is not None, "D4: paid_at debe estar set en DB")
+
+
+async def case_d7(ctx: Ctx) -> None:
+    # GIVEN pedido MP sin eventos (payment_status None)
+    order_id = await _new_order(ctx, payment_method=MP)
+    # WHEN admin marca pago manual
+    resp = await ctx.admin.patch(f"/api/v1/orders/{order_id}/paid")
+    check(resp.status_code == 200, f"D7: {resp.status_code} {resp.text[:200]}")
+    # THEN paid=True, status=approved (None -> approved via confirm_payment)
+    after = await get_payment(ctx.admin, order_id)
+    check(after["paid"] is True, "D7: paid debe ser True")
+    check(after["status"] == "approved", f"D7: status {after['status']!r} != approved")
+    check(after.get("payment_reference") == "manual", f"D7: payment_reference {after.get('payment_reference')!r} != manual")
+
+
+async def case_d5(ctx: Ctx) -> None:
+    # GIVEN pedido transfer (pending); webhook MP valido que lo referencia
+    order_id = await _new_order(ctx, payment_method=TRANSFER)
+    total = str(await order_total_pesos(ctx.admin, order_id))
+    pid = f"mp-{uuid.uuid4().hex[:8]}"
+    await register_payment(ctx.mock_base, pid, order_id, "approved", total)
+    # WHEN webhook MP aprobado con firma valida
+    resp = await send_webhook(ctx.public, payment_id=pid)
+    check(resp.status_code == 200, f"D5: webhook {resp.status_code} {resp.text[:200]}")
+    # THEN auditado, sin cambio de estado ni paid (transfer no entra por webhook)
+    after = await get_payment(ctx.admin, order_id)
+    check(after["status"] == "pending", f"D5: status {after['status']!r} (debe seguir pending)")
+    check(after["paid"] is False, "D5: paid debe seguir False")
+    check(
+        await payment_events_count(order_id) == 1,
+        f"D5: eventos {await payment_events_count(order_id)} != 1 (debe auditar)",
     )
 
 
@@ -652,9 +717,13 @@ CASES: list[tuple[str, str, CaseFn]] = [
     ("C6", "firma invalida 401", case_c6),
     ("C7", "webhook con monto incorrecto no paga", case_c7),
     ("C8", "webhook de pedido inexistente 200", case_c8),
-    ("C9", "pago manual cash (paid flag, sin maquina)", case_c9),
+    ("C9", "pago manual cash (pending -> approved)", case_c9),
     ("C10", "pago manual duplicado 409", case_c10),
     ("C11", "pago manual sobre MP pending", case_c11),
     ("C12", "pago manual sobre MP rejected 409", case_c12),
-    ("C13", "webhook MP sobre pedido cash: audit sin estado", case_c13),
+    ("C13", "webhook MP sobre pedido cash: audit, sigue pending", case_c13),
+    ("D3", "creacion transfer nace en pending", case_d3),
+    ("D4", "pago manual transfer (pending -> approved)", case_d4),
+    ("D5", "webhook MP sobre pedido transfer: audit, sigue pending", case_d5),
+    ("D7", "pago manual MP sin eventos (None -> approved)", case_d7),
 ]

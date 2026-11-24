@@ -85,12 +85,12 @@ manual → `approved`, no `null`), C13 (webhook sobre cash: estado sigue
 
 ## Tasks
 
-- **T1** — ODD (este archivo)
-- **T2** — S1: `place_portal` con `payment_status=pending` para CASH/TRANSFER + tests de dominio
-- **T3** — S2+S3: `mark_manual_payment(reference)` (CASH/TRANSFER vía maquina) reemplaza `mark_cash_payment`; `register_payment_event` rechaza TRANSFER + tests de dominio
-- **T4** — S4: `mark_order_paid` — rama no-MP usa `mark_manual_payment` + tests de API (suite de pagos)
-- **T5** — e2e: D1–D6 + actualización de A1/C9/C13; ejecución completa verde
-- **T6** — Frontend: verificar S7 (badges/checkout/admin); solo si hay gap, fix + tests
+- **T1** — ODD (este archivo) ✅
+- **T2** — S1: `place_portal` con `payment_status=pending` para CASH/TRANSFER + tests de dominio ✅
+- **T3** — S2+S3: `mark_manual_payment(reference)` (CASH/TRANSFER vía maquina) reemplaza `mark_cash_payment`; `register_payment_event` rechaza TRANSFER + tests de dominio ✅
+- **T4** — S4: `mark_order_paid` — rama no-MP usa `mark_manual_payment` + tests de API (suite de pagos) ✅
+- **T5** — e2e: D1–D6 + actualización de A1/C9/C13; ejecución completa verde ✅
+- **T6** — Frontend: verificar S7 (badges/checkout/admin); solo si hay gap, fix + tests ✅ (audit previo: cero gaps, sin cambios)
 - **T7** — (PENDIENTE) S8: comprobante de transferencia (uploads) — ODD/fase propia
 
 ## Reglas
@@ -108,3 +108,16 @@ manual → `approved`, no `null`), C13 (webhook sobre cash: estado sigue
   `approved`; guard de provider extendido a TRANSFER; comprobante documentado
   como T7 pendiente (contradicción de uploads); entrega sin pago fuera de
   scope (S9). Frontend auditado: cero cambios esperados (S7).
+- **L2** (T2): S1 implementado en `place_portal` (offline → `pending`, MP →
+  `None`); suite de dominio verde.
+- **L3** (T3): `mark_manual_payment` (maquina, `reference`) reemplaza
+  `mark_cash_payment`; `confirm_payment` MP-only; `register_payment_event`
+  rechaza CASH+TRANSFER.
+- **L4** (T4): `mark_order_paid` — cash y transfer pasan por
+  `update_payment_status` (persiste status+reference+paid_at); la rama cash
+  anterior solo seteaba `paid_at`.
+- **L5** (T5): mapeo tabla de casos — D1/D2/D6 ya cubiertos por A1/C9/C10
+  (actualizados al contrato nuevo); casos nuevos D3 (creación transfer), D4
+  (pago manual transfer), D5 (webhook sobre transfer); D7 adicional (pago
+  manual MP desde `None`, fuera de tabla) por la rama
+  `confirm_payment` desde estado inicial.
