@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple, cast
 
-from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -34,9 +34,8 @@ from domain.order import (
     OrderItem,
     OrderStatus,
     PaymentMethod,
-    PaymentStatus,
-    overridable_payment_statuses,
 )
+from domain.payment_states import PaymentStatus
 from domain.models import Ingredient, StockMovement
 from domain.order_window import OrderWindow
 from domain.orders import Order as P6Order
@@ -438,9 +437,13 @@ class SQLOrderRepository:
         event_id: str,
         order_id: str,
         provider_payment_id: str,
+        current: PaymentStatus | None,
         status: PaymentStatus,
         paid_at: datetime.datetime,
     ) -> bool:
+        # La transicion fue validada por la maquina de estados en el use
+        # case ApplyPaymentEvent; aqui solo se persiste lo decidido con
+        # guard optimista de estado esperado.
         self.session.add(
             PaymentEventORM(
                 id=event_id,
@@ -456,15 +459,14 @@ class SQLOrderRepository:
             await self.session.rollback()
             return False
 
-        replaceable = [s.value for s in overridable_payment_statuses(status)]
         conditions = [
             OrderORM.id == order_id,
             OrderORM.payment_method == PaymentMethod.MERCADOPAGO.value,
-            or_(
-                OrderORM.payment_status.is_(None),
-                OrderORM.payment_status.in_(replaceable),
-            ),
         ]
+        if current is None:
+            conditions.append(OrderORM.payment_status.is_(None))
+        else:
+            conditions.append(OrderORM.payment_status == current.value)
         values: dict[str, object] = {"payment_status": status.value}
         if status == PaymentStatus.APPROVED:
             conditions.append(OrderORM.paid_at.is_(None))

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 from datetime import datetime, date
 from decimal import Decimal
 from domain.customer_address import CustomerAddress
@@ -354,6 +354,45 @@ class OrderTransitionStore(ABC):
     async def record_whatsapp_sent_within_limit(
         self, budget_id: str, masked_phone: str, since: datetime, limit: int
     ) -> Optional[datetime]:
+        pass
+
+
+class PaymentEventStore(ABC):
+    """Persistencia de eventos de pago.
+
+    La decision de transicion NO vive aqui: la decide el use case
+    ApplyPaymentEvent con la maquina de estados de pago. El store solo
+    persiste lo decidido (dedup por event_id + guard de estado esperado).
+    """
+
+    @abstractmethod
+    async def get_payment_event(self, event_id: str) -> bool:
+        pass
+
+    @abstractmethod
+    async def get(self, order_id: str) -> Any:
+        pass
+
+    @abstractmethod
+    async def record_payment_event(
+        self,
+        event_id: str,
+        order_id: str,
+        provider_payment_id: str,
+        status: str,
+    ) -> bool:
+        pass
+
+    @abstractmethod
+    async def apply_payment_event(
+        self,
+        event_id: str,
+        order_id: str,
+        provider_payment_id: str,
+        current: str | None,
+        status: str,
+        paid_at: datetime,
+    ) -> bool:
         pass
 
 

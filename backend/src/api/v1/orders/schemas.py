@@ -17,9 +17,12 @@ class PaymentInitResponse(BaseModel):
     checkout_url: str
 
 
+PaymentStatus = Literal["pending", "approved", "rejected", "failed"]
+
+
 class PaymentStatusResponse(BaseModel):
 
-    status: str | None
+    status: PaymentStatus | None
     paid: bool
     payment_reference: str | None = None
     updated_at: dt.datetime | None = None
@@ -66,7 +69,7 @@ class OrderDetailSchema(BaseModel):
     coupon_code: str | None = None
     discount_amount: Decimal | None = None
     paid: bool
-    payment_status: str | None = None
+    payment_status: PaymentStatus | None = None
     total: Decimal
     items: list[OrderItemSchema]
     created_at: dt.datetime
@@ -109,7 +112,6 @@ from api.v1.money import Money, Pct, Qty
 OrderStatus = Literal[
     "new", "confirmed", "preparing", "pending_delivery", "delivered", "cancelled"
 ]
-
 
 class OrderItemInput(BaseModel):
 

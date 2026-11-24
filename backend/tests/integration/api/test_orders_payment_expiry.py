@@ -119,7 +119,14 @@ async def test_repo_expire_is_noop_when_already_paid(db_session):
     await _coupon(db_session, uses=1)
     order = await _pending_order(db_session, "PROMO")
     repo = SQLOrderRepository(db_session)
-    await repo.apply_payment_event("p1:approved", order.id, "p1", PaymentStatus.APPROVED, T0)
+    await repo.apply_payment_event(
+        "p1:approved",
+        order.id,
+        "p1",
+        current=PaymentStatus.PENDING,
+        status=PaymentStatus.APPROVED,
+        paid_at=T0,
+    )
 
     assert await repo.expire_pending_payment(order.id) is False
     assert (await _row(db_session, order.id)).status == OrderStatus.NEW
