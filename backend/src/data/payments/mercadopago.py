@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import os
 import time
 from collections.abc import Callable
 from decimal import Decimal, InvalidOperation
@@ -17,7 +18,7 @@ from domain.checkout_provider import (
     PaymentStatusResult,
 )
 
-MP_API_URL = "https://api.mercadopago.com"
+MP_API_URL = os.getenv("MP_API_URL", "https://api.mercadopago.com")
 _HTTP_TIMEOUT_SECONDS = 10.0
 _ITEM_TITLE = "Toscana Pastry order"
 SIGNATURE_TOLERANCE_SECONDS = 5 * 60
