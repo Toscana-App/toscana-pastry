@@ -52,7 +52,13 @@ async def make_client(base_url: str, email: str, google_id: str) -> httpx.AsyncC
     finally:
         await raw.aclose()
     check(resp.status_code == 200, f"login {email}: {resp.status_code} {resp.text[:200]}")
-    return httpx.AsyncClient(base_url=base_url, cookies=httpx.Cookies(resp.cookies), timeout=15)
+    # La cookie auth_token se setea con secure=True (correcto en prod/TLS); la
+    # suite corre sobre http://, asi que se replaya el valor con un jar sin el
+    # flag secure (adaptacion del harness, no del producto).
+    token = resp.cookies.get("auth_token")
+    if token is None:
+        raise E2EFailure(f"login {email}: sin cookie auth_token")
+    return httpx.AsyncClient(base_url=base_url, cookies={"auth_token": token}, timeout=15)
 
 
 def _order_body(product_id: str, qty: int, payment_method: str) -> dict[str, Any]:
@@ -87,6 +93,19 @@ async def get_order(client: httpx.AsyncClient, order_id: str) -> dict[str, Any]:
     resp = await client.get(f"/api/v1/orders/{order_id}")
     check(resp.status_code == 200, f"GET /orders/{order_id}: {resp.status_code} {resp.text[:200]}")
     return cast("dict[str, Any]", resp.json())
+
+
+async def get_payment(client: httpx.AsyncClient, order_id: str) -> dict[str, Any]:
+    # Estado de pago vive en su propio endpoint (el detalle admin no lo expone).
+    resp = await client.get(f"/api/v1/orders/{order_id}/payment")
+    check(resp.status_code == 200, f"GET /orders/{order_id}/payment: {resp.status_code} {resp.text[:200]}")
+    return cast("dict[str, Any]", resp.json())
+
+
+async def order_total_pesos(client: httpx.AsyncClient, order_id: str) -> Decimal:
+    # El detalle admin expone total en centavos (Money); el webhook valida en pesos.
+    body = await get_order(client, order_id)
+    return Decimal(str(body["total"])) / 100
 
 
 def signed_webhook(
@@ -160,7 +179,7 @@ async def order_paid_at(order_id: str) -> dt.datetime | None:
 async def catalog_price(
     client: httpx.AsyncClient, product_id: str
 ) -> Decimal:
-    resp = await client.get("/api/v1/products")
+    resp = await client.get("/api/v1/products", params={"audience": "consumidor_final"})
     check(resp.status_code == 200, f"GET /products: {resp.status_code} {resp.text[:200]}")
     for item in resp.json()["products"]:
         if item["id"] == product_id:
@@ -241,7 +260,11 @@ async def case_a1(ctx: Ctx) -> None:
 
 async def case_a2(ctx: Ctx) -> None:
     # GIVEN order window cerrado
-    closed = await ctx.admin.patch("/api/v1/admin/order-window", json={"open": False, "message": "e2e"})
+    reopens_at = (dt.datetime.now(dt.UTC) + dt.timedelta(hours=1)).isoformat()
+    closed = await ctx.admin.patch(
+        "/api/v1/tenant/order-window",
+        json={"open": False, "reopens_at": reopens_at, "message": "e2e"},
+    )
     check(closed.status_code == 200, f"A2: cerrar window {closed.status_code} {closed.text[:200]}")
     try:
         # WHEN intenta crear pedido
@@ -250,7 +273,7 @@ async def case_a2(ctx: Ctx) -> None:
         check(resp.status_code == 409, f"A2: {resp.status_code} != 409 {resp.text[:200]}")
         check(resp.json().get("detail") == "order_window_closed", f"A2: detail {resp.json().get('detail')!r}")
     finally:
-        reopened = await ctx.admin.patch("/api/v1/admin/order-window", json={"open": True})
+        reopened = await ctx.admin.patch("/api/v1/tenant/order-window", json={"open": True})
         check(reopened.status_code == 200, f"A2: reabrir window {reopened.status_code}")
 
 
@@ -399,62 +422,61 @@ async def case_b7(ctx: Ctx) -> None:
 
 async def case_c1(ctx: Ctx) -> None:
     # GIVEN pedido sin payment_status; mock MP con pago aprobado (monto correcto, ARS)
-    order_id = await _new_order(ctx)
-    body = await get_order(ctx.admin, order_id)
-    total = str(body["total"])
+    order_id = await _new_order(ctx, payment_method=MP)
+    total = await order_total_pesos(ctx.admin, order_id)
     pid = f"mp-{uuid.uuid4().hex[:8]}"
-    await register_payment(ctx.mock_base, pid, order_id, "approved", total)
+    await register_payment(ctx.mock_base, pid, order_id, "approved", str(total))
     # WHEN webhook MP aprobado con firma valida
     resp = await send_webhook(ctx.public, payment_id=pid)
     check(resp.status_code == 200, f"C1: webhook {resp.status_code} {resp.text[:200]}")
     # THEN approved + paid + paid_at
-    after = await get_order(ctx.admin, order_id)
-    check(after["payment_status"] == "approved", f"C1: payment_status {after['payment_status']!r}")
+    after = await get_payment(ctx.admin, order_id)
+    check(after["status"] == "approved", f"C1: status {after['status']!r} != approved")
     check(after["paid"] is True, "C1: paid debe ser True")
     check(await order_paid_at(order_id) is not None, "C1: paid_at debe estar set en DB")
 
 
 async def case_c2(ctx: Ctx) -> None:
     # GIVEN pedido sin payment_status
-    order_id = await _new_order(ctx)
-    total = str((await get_order(ctx.admin, order_id))["total"])
+    order_id = await _new_order(ctx, payment_method=MP)
+    total = str(await order_total_pesos(ctx.admin, order_id))
     p1 = f"mp-{uuid.uuid4().hex[:8]}"
     p2 = f"mp-{uuid.uuid4().hex[:8]}"
     await register_payment(ctx.mock_base, p1, order_id, "pending", total)
     # WHEN webhook pending y luego webhook approved
     check((await send_webhook(ctx.public, payment_id=p1)).status_code == 200, "C2: webhook pending")
-    mid = await get_order(ctx.admin, order_id)
-    check(mid["payment_status"] == "pending", f"C2: intermedio {mid['payment_status']!r} != pending")
+    mid = await get_payment(ctx.admin, order_id)
+    check(mid["status"] == "pending", f"C2: intermedio {mid['status']!r} != pending")
     await register_payment(ctx.mock_base, p2, order_id, "approved", total)
     check((await send_webhook(ctx.public, payment_id=p2)).status_code == 200, "C2: webhook approved")
     # THEN final approved
-    after = await get_order(ctx.admin, order_id)
-    check(after["payment_status"] == "approved", f"C2: final {after['payment_status']!r}")
+    after = await get_payment(ctx.admin, order_id)
+    check(after["status"] == "approved", f"C2: final {after['status']!r} != approved")
     check(after["paid"] is True, "C2: paid debe ser True")
 
 
 async def case_c3(ctx: Ctx) -> None:
     # GIVEN pedido con payment_status rejected
-    order_id = await _new_order(ctx)
-    total = str((await get_order(ctx.admin, order_id))["total"])
+    order_id = await _new_order(ctx, payment_method=MP)
+    total = str(await order_total_pesos(ctx.admin, order_id))
     p1 = f"mp-{uuid.uuid4().hex[:8]}"
     p2 = f"mp-{uuid.uuid4().hex[:8]}"
     await register_payment(ctx.mock_base, p1, order_id, "rejected", total)
     check((await send_webhook(ctx.public, payment_id=p1)).status_code == 200, "C3: webhook rejected")
-    mid = await get_order(ctx.admin, order_id)
-    check(mid["payment_status"] == "rejected", f"C3: {mid['payment_status']!r} != rejected")
+    mid = await get_payment(ctx.admin, order_id)
+    check(mid["status"] == "rejected", f"C3: {mid['status']!r} != rejected")
     # WHEN webhook approved (pago tardio, desbloqueo)
     await register_payment(ctx.mock_base, p2, order_id, "approved", total)
     check((await send_webhook(ctx.public, payment_id=p2)).status_code == 200, "C3: webhook approved")
     # THEN approved
-    after = await get_order(ctx.admin, order_id)
-    check(after["payment_status"] == "approved", f"C3: final {after['payment_status']!r}")
+    after = await get_payment(ctx.admin, order_id)
+    check(after["status"] == "approved", f"C3: final {after['status']!r} != approved")
 
 
 async def case_c4(ctx: Ctx) -> None:
     # GIVEN pedido approved por webhook previo
-    order_id = await _new_order(ctx)
-    total = str((await get_order(ctx.admin, order_id))["total"])
+    order_id = await _new_order(ctx, payment_method=MP)
+    total = str(await order_total_pesos(ctx.admin, order_id))
     p1 = f"mp-{uuid.uuid4().hex[:8]}"
     p2 = f"mp-{uuid.uuid4().hex[:8]}"
     await register_payment(ctx.mock_base, p1, order_id, "approved", total)
@@ -464,15 +486,15 @@ async def case_c4(ctx: Ctx) -> None:
     resp = await send_webhook(ctx.public, payment_id=p2)
     check(resp.status_code == 200, f"C4: webhook tardio {resp.status_code} {resp.text[:200]}")
     # THEN estado sigue approved; evento auditado (2 filas)
-    after = await get_order(ctx.admin, order_id)
-    check(after["payment_status"] == "approved", f"C4: {after['payment_status']!r} != approved (approved es terminal)")
+    after = await get_payment(ctx.admin, order_id)
+    check(after["status"] == "approved", f"C4: {after['status']!r} != approved (approved es terminal)")
     check(await payment_events_count(order_id) == 2, f"C4: payment_events = {await payment_events_count(order_id)} != 2")
 
 
 async def case_c5(ctx: Ctx) -> None:
     # GIVEN webhook approved ya procesado (event E)
-    order_id = await _new_order(ctx)
-    total = str((await get_order(ctx.admin, order_id))["total"])
+    order_id = await _new_order(ctx, payment_method=MP)
+    total = str(await order_total_pesos(ctx.admin, order_id))
     pid = f"mp-{uuid.uuid4().hex[:8]}"
     await register_payment(ctx.mock_base, pid, order_id, "approved", total)
     req_id = f"req-{uuid.uuid4()}"
@@ -484,14 +506,14 @@ async def case_c5(ctx: Ctx) -> None:
     resp = await send_webhook(ctx.public, payment_id=pid, request_id=req_id, ts=ts)
     check(resp.status_code == 200, f"C5: replay {resp.status_code} {resp.text[:200]}")
     # THEN sin cambio de estado y sin fila duplicada
-    after = await get_order(ctx.admin, order_id)
-    check(after["payment_status"] == "approved" and after["paid"] is True, "C5: estado/paid cambiaron en el replay")
+    after = await get_payment(ctx.admin, order_id)
+    check(after["status"] == "approved" and after["paid"] is True, "C5: estado/paid cambiaron en el replay")
     check(await payment_events_count(order_id) == 1, f"C5: eventos {await payment_events_count(order_id)} != 1 (duplicado)")
 
 
 async def case_c6(ctx: Ctx) -> None:
     # GIVEN webhook con firma invalida
-    order_id = await _new_order(ctx)
+    order_id = await _new_order(ctx, payment_method=MP)
     pid = f"mp-{uuid.uuid4().hex[:8]}"
     await register_payment(ctx.mock_base, pid, order_id, "approved", "100")
     # WHEN POST con x-signature corrupta
@@ -499,23 +521,23 @@ async def case_c6(ctx: Ctx) -> None:
     # THEN 401 Invalid signature
     check(resp.status_code == 401, f"C6: {resp.status_code} != 401 {resp.text[:200]}")
     check(resp.json().get("detail") == "Invalid signature", f"C6: detail {resp.json().get('detail')!r}")
-    after = await get_order(ctx.admin, order_id)
-    check(after["payment_status"] is None, f"C6: payment_status {after['payment_status']!r} (debe seguir None)")
+    after = await get_payment(ctx.admin, order_id)
+    check(after["status"] is None, f"C6: status {after['status']!r} (debe seguir None)")
 
 
 async def case_c7(ctx: Ctx) -> None:
     # GIVEN pedido sin pago; webhook approved con monto incorrecto
-    order_id = await _new_order(ctx)
-    total = Decimal(str((await get_order(ctx.admin, order_id))["total"]))
+    order_id = await _new_order(ctx, payment_method=MP)
+    total = await order_total_pesos(ctx.admin, order_id)
     pid = f"mp-{uuid.uuid4().hex[:8]}"
     await register_payment(ctx.mock_base, pid, order_id, "approved", str(total + Decimal(100)))
     # WHEN webhook approved (monto != total)
     resp = await send_webhook(ctx.public, payment_id=pid)
     check(resp.status_code == 200, f"C7: webhook {resp.status_code} {resp.text[:200]}")
     # THEN 200, sin cambio de estado, sin pago, sin evento
-    after = await get_order(ctx.admin, order_id)
+    after = await get_payment(ctx.admin, order_id)
     check(after["paid"] is False, "C7: paid debe seguir False (discrepancia de monto)")
-    check(after["payment_status"] is None, f"C7: payment_status {after['payment_status']!r} (debe seguir None)")
+    check(after["status"] is None, f"C7: status {after['status']!r} (debe seguir None)")
     check(await payment_events_count(order_id) == 0, f"C7: eventos {await payment_events_count(order_id)} != 0")
 
 
@@ -535,10 +557,11 @@ async def case_c9(ctx: Ctx) -> None:
     # WHEN admin marca pago manual
     resp = await ctx.admin.patch(f"/api/v1/orders/{order_id}/paid")
     check(resp.status_code == 200, f"C9: {resp.status_code} {resp.text[:200]}")
-    # THEN paid + approved
-    after = await get_order(ctx.admin, order_id)
+    # THEN paid=True + paid_at; cash no participa de la maquina (status None)
+    after = await get_payment(ctx.admin, order_id)
     check(after["paid"] is True, "C9: paid debe ser True")
-    check(after["payment_status"] == "approved", f"C9: payment_status {after['payment_status']!r}")
+    check(after["status"] is None, f"C9: status {after['status']!r} (cash: la maquina no se toca)")
+    check(await order_paid_at(order_id) is not None, "C9: paid_at debe estar set en DB")
 
 
 async def case_c10(ctx: Ctx) -> None:
@@ -555,7 +578,7 @@ async def case_c10(ctx: Ctx) -> None:
 async def case_c11(ctx: Ctx) -> None:
     # GIVEN pedido MP con payment_status pending
     order_id = await _new_order(ctx, payment_method=MP)
-    total = str((await get_order(ctx.admin, order_id))["total"])
+    total = str(await order_total_pesos(ctx.admin, order_id))
     pid = f"mp-{uuid.uuid4().hex[:8]}"
     await register_payment(ctx.mock_base, pid, order_id, "pending", total)
     check((await send_webhook(ctx.public, payment_id=pid)).status_code == 200, "C11: webhook pending")
@@ -563,9 +586,9 @@ async def case_c11(ctx: Ctx) -> None:
     resp = await ctx.admin.patch(f"/api/v1/orders/{order_id}/paid")
     check(resp.status_code == 200, f"C11: {resp.status_code} {resp.text[:200]}")
     # THEN paid + approved
-    after = await get_order(ctx.admin, order_id)
+    after = await get_payment(ctx.admin, order_id)
     check(after["paid"] is True, "C11: paid debe ser True")
-    check(after["payment_status"] == "approved", f"C11: payment_status {after['payment_status']!r}")
+    check(after["status"] == "approved", f"C11: status {after['status']!r} != approved")
 
 
 async def case_c12(ctx: Ctx) -> None:
@@ -580,6 +603,25 @@ async def case_c12(ctx: Ctx) -> None:
     # THEN 409 payment_in_progress
     check(resp.status_code == 409, f"C12: {resp.status_code} != 409 {resp.text[:200]}")
     check(resp.json().get("detail") == "payment_in_progress", f"C12: detail {resp.json().get('detail')!r}")
+
+
+async def case_c13(ctx: Ctx) -> None:
+    # GIVEN pedido CASH; webhook MP valido que lo referencia (anomalia de datos)
+    order_id = await _new_order(ctx)
+    total = str(await order_total_pesos(ctx.admin, order_id))
+    pid = f"mp-{uuid.uuid4().hex[:8]}"
+    await register_payment(ctx.mock_base, pid, order_id, "approved", total)
+    # WHEN webhook MP aprobado con firma valida
+    resp = await send_webhook(ctx.public, payment_id=pid)
+    check(resp.status_code == 200, f"C13: webhook {resp.status_code} {resp.text[:200]}")
+    # THEN auditado, sin cambio de estado, sin paid (alcance MP: contrato preexistente)
+    after = await get_payment(ctx.admin, order_id)
+    check(after["status"] is None, f"C13: status {after['status']!r} (debe seguir None)")
+    check(after["paid"] is False, "C13: paid debe seguir False")
+    check(
+        await payment_events_count(order_id) == 1,
+        f"C13: eventos {await payment_events_count(order_id)} != 1 (debe auditar)",
+    )
 
 
 # --------------------------------------------------------------------------
@@ -610,8 +652,9 @@ CASES: list[tuple[str, str, CaseFn]] = [
     ("C6", "firma invalida 401", case_c6),
     ("C7", "webhook con monto incorrecto no paga", case_c7),
     ("C8", "webhook de pedido inexistente 200", case_c8),
-    ("C9", "pago manual cash", case_c9),
+    ("C9", "pago manual cash (paid flag, sin maquina)", case_c9),
     ("C10", "pago manual duplicado 409", case_c10),
     ("C11", "pago manual sobre MP pending", case_c11),
     ("C12", "pago manual sobre MP rejected 409", case_c12),
+    ("C13", "webhook MP sobre pedido cash: audit sin estado", case_c13),
 ]

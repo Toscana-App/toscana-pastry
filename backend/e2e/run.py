@@ -22,10 +22,10 @@ BACKEND = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND))
 sys.path.insert(0, str(BACKEND / "src"))
 
-from e2e.seed import E2E_DB
-
+# IMPORTANTE: el env debe existir ANTES de importar e2e.seed: ese import crea
+# el engine de data.db, que lee DATABASE_URL en el momento del import.
 os.environ["DATABASE_URL"] = (
-    f"postgresql+asyncpg://postgres:password@127.0.0.1:5432/{E2E_DB}"
+    "postgresql+asyncpg://postgres:password@127.0.0.1:5432/toscana_e2e_db"
 )
 
 from e2e.cases import (
@@ -36,12 +36,25 @@ from e2e.cases import (
     close_ctx,
 )
 from e2e.mp_mock import MPMock
-from e2e.seed import drop_database, ensure_database, seed_all
+from e2e.seed import E2E_DB, drop_database, ensure_database, seed_all
+
+assert E2E_DB == "toscana_e2e_db", "DATABASE_URL y E2E_DB divergieron"
 
 PORT = 8100
 BASE_URL = f"http://127.0.0.1:{PORT}"
 READY_TIMEOUT_SECONDS = 90
 SERVER_LOG = Path("/tmp/e2e_uvicorn.log")
+
+
+def _silence_sqlalchemy() -> None:
+    import logging
+
+    from data.db import engine as app_engine
+
+    # El engine de la app nace con echo=True: lo apago directamente (el logger
+    # solo a veces respeta el nivel) para no anegar el reporte de casos.
+    app_engine.echo = False
+    logging.getLogger("sqlalchemy.engine.Engine").setLevel(logging.WARNING)
 
 
 async def _wait_ready(base_url: str) -> None:
@@ -79,18 +92,20 @@ def _start_uvicorn(mock_base: str) -> subprocess.Popen[Any]:
     )
 
 
-async def amain(mock_base: str, server: subprocess.Popen[Any]) -> int:
-
+async def _prepare_db() -> None:
     print(f"[e2e] base de datos: drop+create {E2E_DB}")
     await drop_database()
     await ensure_database()
 
+
+async def amain(mock_base: str, server: subprocess.Popen[Any]) -> int:
     print(f"[e2e] uvicorn pid={server.pid} (log: {SERVER_LOG})")
 
     ctx = None
     try:
         await _wait_ready(BASE_URL)
         print("[e2e] seed...")
+        _silence_sqlalchemy()
         await seed_all()
 
         ctx = await build_ctx(BASE_URL, mock_base, "prod-e2e-1")
@@ -138,6 +153,9 @@ def main() -> None:
     mock = MPMock()
     mock_base = f"http://127.0.0.1:{mock.start()}"
     print(f"[e2e] mock MP en {mock_base}")
+    # Primero la base (async, in-proceso), despues el server: asi uvicorn
+    # arranca contra un esquema limpio y sin carrera con el drop.
+    asyncio.run(_prepare_db())
     server = _start_uvicorn(mock_base)
     try:
         code = asyncio.run(amain(mock_base, server))
