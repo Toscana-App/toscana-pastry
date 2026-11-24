@@ -83,7 +83,7 @@ export interface InvoiceComprobante {
  * La emisión además requiere que no tenga comprobante (invoice === null).
  */
 export function isFacturable(status: OrderStatus, paid: boolean): boolean {
-  return status === "entregado" || paid;
+  return status === "delivered" || paid;
 }
 
 /**

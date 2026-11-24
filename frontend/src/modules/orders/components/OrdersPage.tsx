@@ -29,11 +29,13 @@ import { ORDER_STATUS_LABELS, ORDER_STATUSES, type OrderStatus } from "../types"
 
 const PAGE_SIZE = 20;
 
-const STATUS_COLORS: Record<OrderStatus, "blue" | "green" | "gray" | "red"> = {
-  nuevo: "blue",
-  confirmado: "green",
-  entregado: "gray",
-  cancelado: "red",
+const STATUS_COLORS: Record<OrderStatus, "blue" | "green" | "gray" | "red" | "orange"> = {
+  new: "blue",
+  confirmed: "green",
+  preparing: "orange",
+  pending_delivery: "blue",
+  delivered: "gray",
+  cancelled: "red",
 };
 
 export function OrdersPage() {

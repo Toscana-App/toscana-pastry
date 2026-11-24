@@ -41,14 +41,14 @@ describe("ordersService — GET /orders", () => {
     });
 
     await ordersService.list({
-      status: "nuevo",
+      status: "new",
       q: "maria",
       date_from: "2026-10-01",
       page: 2,
       page_size: 20,
     });
     expect(lastCall(fetchMock).url).toBe(
-      `${API_BASE}/orders?status=nuevo&q=maria&date_from=2026-10-01&page=2&page_size=20`,
+      `${API_BASE}/orders?status=new&q=maria&date_from=2026-10-01&page=2&page_size=20`,
     );
 
     await ordersService.list();
@@ -64,7 +64,7 @@ describe("ordersService — GET /orders", () => {
           customer_name: "María",
           customer_phone: "11-2233-4455",
           date: "2026-10-01",
-          status: "nuevo",
+          status: "new",
           item_count: 2,
           total: 310000,
           created_at: "2026-10-01T12:00:00Z",
@@ -87,7 +87,7 @@ describe("ordersService — GET /orders/{id}", () => {
       id: "o1",
       customer: { id: "c1", name: "María", phone: "11-2233-4455" },
       date: "2026-10-01",
-      status: "confirmado",
+      status: "confirmed",
       margin_pct: "100",
       items: [
         {
@@ -144,7 +144,7 @@ describe("ordersService — GET /orders/{id}", () => {
       id: "o2",
       customer: { id: "c1", name: "María", phone: "11" },
       date: "2026-10-01",
-      status: "nuevo",
+      status: "new",
       margin_pct: null,
       items: [],
       total: 0,
@@ -164,7 +164,7 @@ describe("ordersService — POST /orders", () => {
       id: "o9",
       customer: { id: "c1", name: "María", phone: "11" },
       date: "2026-10-02",
-      status: "nuevo",
+      status: "new",
       margin_pct: null,
       items: [],
       total: 155000,
@@ -203,7 +203,7 @@ describe("ordersService — POST /orders", () => {
       id: "o9",
       customer: { id: "c1", name: "María", phone: "11" },
       date: "2026-10-02",
-      status: "nuevo",
+      status: "new",
       margin_pct: "175",
       items: [],
       total: 175000,
@@ -228,7 +228,7 @@ describe("ordersService — PATCH", () => {
       id: "o1",
       customer: { id: "c1", name: "María", phone: "11" },
       date: "2026-10-03",
-      status: "nuevo",
+      status: "new",
       margin_pct: null,
       items: [],
       total: 0,
@@ -256,7 +256,7 @@ describe("ordersService — PATCH", () => {
       id: "o1",
       customer: { id: "c1", name: "María", phone: "11" },
       date: "2026-10-03",
-      status: "nuevo",
+      status: "new",
       margin_pct: null,
       items: [],
       total: 0,
@@ -275,7 +275,7 @@ describe("ordersService — PATCH", () => {
       id: "o1",
       customer: { id: "c1", name: "María", phone: "11" },
       date: "2026-10-01",
-      status: "confirmado",
+      status: "confirmed",
       margin_pct: null,
       items: [],
       total: 0,
@@ -284,11 +284,11 @@ describe("ordersService — PATCH", () => {
       updated_at: "2026-10-01T12:30:00Z",
     });
 
-    await ordersService.changeStatus("o1", "confirmado");
+    await ordersService.changeStatus("o1", "confirmed");
     const { url, init } = lastCall(fetchMock);
     expect(url).toBe(`${API_BASE}/orders/o1/status`);
     expect(init.method).toBe("PATCH");
-    expect(JSON.parse(init.body as string)).toEqual({ status: "confirmado" });
+    expect(JSON.parse(init.body as string)).toEqual({ status: "confirmed" });
   });
 });
 
@@ -422,7 +422,7 @@ describe("insufficientStockOf", () => {
 
     let caught: unknown;
     try {
-      await ordersService.changeStatus("o1", "confirmado");
+      await ordersService.changeStatus("o1", "confirmed");
     } catch (e) {
       caught = e;
     }
@@ -442,7 +442,7 @@ describe("insufficientStockOf", () => {
 
     let caught: unknown;
     try {
-      await ordersService.changeStatus("o1", "confirmado");
+      await ordersService.changeStatus("o1", "confirmed");
     } catch (e) {
       caught = e;
     }
@@ -506,12 +506,12 @@ describe("ordersService — GET /orders/export (UC-08)", () => {
     });
 
     await ordersService.exportReport(
-      { status: "confirmado", paid: false, from: "2026-11-02", to: "2026-11-08" },
+      { status: "confirmed", paid: false, from: "2026-11-02", to: "2026-11-08" },
       "csv",
     );
 
     expect(lastCall(fetchMock).url).toBe(
-      `${API_BASE}/orders/export?status=confirmado&paid=false&from=2026-11-02&to=2026-11-08&format=csv`,
+      `${API_BASE}/orders/export?status=confirmed&paid=false&from=2026-11-02&to=2026-11-08&format=csv`,
     );
   });
 

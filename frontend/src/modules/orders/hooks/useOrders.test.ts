@@ -45,14 +45,14 @@ describe("useOrders — loading no queda colgado", () => {
   it("un filtro nuevo vuelve a cargar y termina", async () => {
     const { result } = renderHook(() => useOrders());
     await waitFor(() => expect(result.current.loading).toBe(false));
-    act(() => result.current.setStatus("nuevo" as never));
+    act(() => result.current.setStatus("new" as never));
     expect(result.current.loading).toBe(true);
     await waitFor(() => expect(result.current.loading).toBe(false));
     const listCalls = listMock.mock.calls
       .map((call) => call[0] as unknown as { page_size: number; status?: string })
       .filter((params) => params.page_size === 20);
     expect(listCalls).toHaveLength(2);
-    expect(listCalls.at(-1)?.status).toBe("nuevo");
+    expect(listCalls.at(-1)?.status).toBe("new");
   });
 
   it("reload vuelve a pedir y termina", async () => {
