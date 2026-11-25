@@ -664,7 +664,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
             <Dialog.Body>
               <Text>
                 {pendingReceipt === "reject"
-                  ? "El rechazo cancela el pedido. El cliente puede volver a cargar el comprobante o elegir otro medio de pago. Esta acción no se puede deshacer desde la interfaz."
+                  ? "El rechazo cancela el pedido y el comprobante queda irrevocable: no se puede volver a cargar en este pedido. El cliente deberá crear un nuevo pedido para retomar la compra. Esta acción no se puede deshacer desde la interfaz."
                   : "Se pierde el archivo del comprobante. El medio de pago queda registrado en el pedido."}
               </Text>
             </Dialog.Body>

@@ -926,6 +926,20 @@ async def case_r15(ctx: Ctx) -> None:
     check(body["receipt_viewed_at"] is None, "R15: receipt_viewed_at no debe cambiar (solo el admin lo setea)")
 
 
+async def case_r16(ctx: Ctx) -> None:
+    # GIVEN pedido transfer con comprobante rechazado (pedido cancelled, terminal)
+    order_id = await _new_order(ctx, payment_method=TRANSFER)
+    check((await upload_receipt(ctx.cust_a, order_id, RECEIPT_JPEG)).status_code == 201, "R16: precondition")
+    check((await ctx.admin.post(f"/api/v1/orders/{order_id}/receipt/reject")).status_code == 200, "R16: precondition")
+    # WHEN el cliente intenta reenviar el comprobante (D3: irrevocable, no reenvio ni tras rechazo)
+    resp = await upload_receipt(ctx.cust_a, order_id, RECEIPT_JPEG)
+    # THEN 409: el check de comprobante-existente precede al de estado terminal
+    # (UploadReceipt: method -> already_uploaded -> payment -> terminal); el rechazo
+    # conserva el comprobante, asi que el contrato observable es already_uploaded
+    check(resp.status_code == 409, f"R16: {resp.status_code} != 409 {resp.text[:200]}")
+    check(resp.json().get("detail") == "receipt_already_uploaded", f"R16: detail {resp.json().get('detail')!r}")
+
+
 # --------------------------------------------------------------------------
 # registro
 # --------------------------------------------------------------------------
@@ -972,10 +986,11 @@ CASES: list[tuple[str, str, CaseFn]] = [
     ("R7", "pedido ajeno: POST/GET 404 (anti-sondeo)", case_r7),
     ("R8", "confirm en new: approved + paid + preparing", case_r8),
     ("R9", "reject en new: rejected + cancelled", case_r9),
-    ("R10", "confirm sobre cancelled: 409 not_receivable", case_r10),
+    ("R10", "confirm sobre cancelled: 409 payment_not_pending", case_r10),
     ("R11", "pago manual transfer sin comprobante: 409 receipt_required", case_r11),
     ("R12", "borrado en delivered: 204 + 404 + audit", case_r12),
     ("R13", "borrado en preparing: 409 not_deletable", case_r13),
     ("R14", "download sin comprobante: 404 not_found", case_r14),
     ("R15", "download cliente: 200 integro, viewed_at no cambia", case_r15),
+    ("R16", "reenvio tras rechazo: 409 already_uploaded (D3)", case_r16),
 ]

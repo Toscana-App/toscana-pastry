@@ -7,7 +7,6 @@ from domain.models import Ingredient
 from domain.order import Order, OrderItem, PaymentMethod
 from domain.order_states import OrderStatus
 from domain.orders import (
-    InsufficientOrderStockError,
     OrderItemSnapshot,
     OrderItemSnapshotLine,
 )

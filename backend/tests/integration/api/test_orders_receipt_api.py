@@ -1,7 +1,6 @@
 import datetime
 from decimal import Decimal
 
-import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
@@ -13,7 +12,6 @@ from api.v1.orders import receipt_service
 from data.db import get_db as get_db_orig
 from data.models import (
     IngredientORM,
-    OrderItemORM,
     OrderORM,
     PaymentEventORM,
     StockMovementORM,
