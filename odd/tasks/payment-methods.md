@@ -75,7 +75,7 @@ ya vive en los labels del frontend).
 | D1 | Cliente crea pedido cash | POST `/orders/` (cash) | 200; `payment_status=pending`, `paid=false` |
 | D2 | Pedido cash `pending` | Admin PATCH `/orders/{id}/paid` | 200; `payment_status=approved`, `paid=true`, `paid_at` set |
 | D3 | Cliente crea pedido transfer | POST `/orders/` (transfer) | 200; `payment_status=pending`, `paid=false` |
-| D4 | Pedido transfer `pending` | Admin PATCH `/orders/{id}/paid` | 200; `approved`, `paid=true` (misma final que MP) |
+| D4 | Pedido transfer `pending` **con comprobante** | Admin PATCH `/orders/{id}/paid` | 200 (delega en `ConfirmReceipt`); `approved`, `paid=true`, `payment_reference=manual`. Sin comprobante: 409 `receipt_required` (gate O5/S5) |
 | D5 | Pedido transfer; webhook MP valido que lo referencia | POST `/webhooks/mercadopago` (approved) | 200; estado sigue `pending`, `paid=false`; evento auditado (S3/S8) |
 | D6 | Pedido cash `approved` (pagado) | Admin PATCH `/orders/{id}/paid` otra vez | 409 `order_already_paid` |
 
@@ -121,3 +121,6 @@ manual → `approved`, no `null`), C13 (webhook sobre cash: estado sigue
   (pago manual transfer), D5 (webhook sobre transfer); D7 adicional (pago
   manual MP desde `None`, fuera de tabla) por la rama
   `confirm_payment` desde estado inicial.
+- **L6** (T7 O5, 2026-11-25): D4 actualizado al gate O5/S5 — el pago manual de
+  transfer delega en `ConfirmReceipt` y exige comprobante cargado (sin él, 409
+  `receipt_required`); la referencia de pago queda `manual`.

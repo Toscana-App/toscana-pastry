@@ -198,7 +198,7 @@ nunca viaja por JSON).
 | T4 | S3, S4, S5 | inline | Endpoints (5) + gate de marcar pagado + tests de integración RED→GREEN contra la tabla completa de contratos (todos los códigos, owner vs admin, anti-sondeo 404, binario stream). | done | `9b659ce` |
 | T5 | S6 | inline | Portal: `CheckoutSuccess` (card warning + botón + diálogo + pantalla de espera) + `MyOrdersPage` (entry point + indicador); vitest RED→GREEN de la derivación D5 y del envío multipart. | done | `a5e5ea5` |
 | T6 | S7 | inline | Panel: badges (`OrdersPage`), banner + preview + Confirmar/Rechazar/Borrar (`OrderDetailPage`), ocultación del botón de O4; vitest RED→GREEN de badges y botones por estado. | done | `800ddf2` |
-| T7 | S8 | inline | Suite e2e R1–R15 contra uvicorn + Postgres reales (mock MP); todo verde, base throwaway eliminada. | pending | — |
+| T7 | S8 | inline | Suite e2e R1–R15 contra uvicorn + Postgres reales (mock MP); todo verde, base throwaway eliminada. | done | — |
 | T8 | S5 | delegado (verifier) | Verificador independiente contra S1–S7 + baseline de suites (pagos O4, backend completa, gate frontend, e2e) antes de reportar. | pending | — |
 | T9 | S9 | inline | `security.md`/`api_endpoints.md`/`master_plan.md`/`p06_orders.md` actualizados; ruff/mypy limpios en archivos tocados; cero comentarios nuevos. | pending | — |
 
@@ -215,7 +215,7 @@ nunca viaja por JSON).
 | R7 | Pedido de otro cliente | Cliente `POST` / `GET` receipt | 404 |
 | R8 | Pedido transfer `new` con comprobante | Admin `POST /orders/{id}/receipt/confirm` | 200; pago `approved`, `paid=true`, `paid_at` set; pedido `preparing`; stock descontado una sola vez |
 | R9 | Pedido transfer `new` con comprobante | Admin `POST /orders/{id}/receipt/reject` | 200; pago `rejected`; pedido `cancelled` |
-| R10 | Pedido con comprobante, ya `cancelled` | Admin `POST` confirm | 409 `receipt_order_not_receivable` |
+| R10 | Pedido con comprobante, ya `cancelled` | Admin `POST .../receipt/confirm` | 409 `receipt_payment_not_pending` (el check de pago precede al de estado: tras rechazo el pago es `rejected`) |
 | R11 | Pedido transfer sin comprobante | Admin `PATCH /orders/{id}/paid` | 409 `receipt_required` (D1) |
 | R12 | Pedido `delivered` con comprobante | Admin `DELETE /orders/{id}/receipt` | 204; archivo borrado del disco, campos null, `deleted_at` set, `payment_method=transfer` intacto, entrada en `payment_events` |
 | R13 | Pedido `preparing` con comprobante | Admin `DELETE /orders/{id}/receipt` | 409 `receipt_not_deletable` (D4) |
@@ -355,3 +355,18 @@ nunca viaja por JSON).
   36 passed en los 3 archivos de receipt; suite completa 2265 passed + 4 fallas
   preexistentes (2 de `test_order_window_api.py` + 2 de whatsapp stats que fallan
   igual en HEAD limpio, no relacionadas con O5). Commit `800ddf2` (25/11).
+- **L10 — 2026-11-25 (T7 done):** T7 (S8) e2e. Sección R completa: 15 casos
+  (suite total 45: A/B/C/D/R), 1:1 con la tabla S8. Fixtures por magic bytes: la
+  validación ignora extensión y Content-Type del multipart (R5 sube un GIF con
+  header `image/jpeg` → 422 `receipt_invalid_type`). Anti-sondeo cubre POST y GET
+  (R7). **Desviación documentada R10:** confirm sobre pedido `cancelled` con pago
+  `rejected` devuelve `receipt_payment_not_pending`, no
+  `receipt_order_not_receivable` — en `ConfirmReceipt` el check de pago precede al
+  de estado de pedido; la tabla S8 se corrigió a ese contrato observable (el
+  código sigue siendo alcanzable por cancelación con pago aún pending; la tabla
+  de endpoints queda válida). D4 actualizado al contrato O5 (pago manual delega
+  en `ConfirmReceipt`, exige comprobante); B5 del ODD de lifecycle actualizado
+  (T3 habilitó `new → cancelled`, sin efecto de stock). R12: auditoría
+  `payment_events` = 3 eventos (`uploaded` + `approved` + `deleted`). Suites:
+  e2e 45/45 (exit 0, base throwaway eliminada); backend pytest 2265 passed + 4
+  preexistentes; frontend intacto (614/614, tsc limpio — sin cambios de UI).

@@ -70,7 +70,7 @@ re-ejecucion completa hasta todo verde.
 | B2 | Pedido `new` | Admin intenta `new→delivered` | 400 `Transicion invalida: new -> delivered`; estado sigue `new` |
 | B3 | Pedido `confirmed` | Admin → `cancelled` | 200; estado `cancelled` |
 | B4 | Pedido `preparing` | Admin → `cancelled` | 200; estado `cancelled` |
-| B5 | Pedido `new` | Admin → `cancelled` | 400 (no existe en la matriz); estado sigue `new` |
+| B5 | Pedido `new` | Admin → `cancelled` | 200; estado `cancelled` (habilitado en T3/O5: rechazo de comprobante y cancelación temprana, sin efecto de stock) |
 | B6 | Pedido `delivered` | Admin → cualquier estado | 400 (terminal); estado sigue `delivered` |
 | B7 | Pedido `cancelled` | Admin → cualquier estado | 400 (terminal); estado sigue `cancelled` |
 
@@ -136,3 +136,7 @@ re-ejecucion completa hasta todo verde.
   Cero cambios de producto en la rama: los fixes fueron del harness (contrato de
   endpoints, unidades de monto, ruta order-window, bug de orden de imports) y de
   spec (S8 + C13).
+- **L5** (T7 O5, 2026-11-25): B5 actualizado — T3/O5 habilitó `new → cancelled`
+  (flujo de rechazo de comprobante y cancelación temprana, sin efecto de stock);
+  el caso e2e aserta 200 + `cancelled`. Suite e2e ahora 45 casos (secciones A/B/C/D
+  + R del ODD de transfer receipt verification).
