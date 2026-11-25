@@ -193,7 +193,7 @@ nunca viaja por JSON).
 | ID | Specs | Ruta | Definition of Done | Estado | Commit |
 |----|-------|------|--------------------|--------|--------|
 | T1 | S1 | inline | `receipt_service.py` + tests unitarios RED→GREEN: 3 magic bytes correctos, falsificaciones rechazadas, límite 5 MiB, write/read/delete contra tmp. | done | — |
-| T2 | S2 | inline | Migración 0021 idempotente + `OrderORM` + dominio + schemas; tests de integración: campos persisten, response detail/list incluyen los 4 campos, pedido sin comprobante devuelve `receipt_uploaded=false`. | pending | — |
+| T2 | S2 | inline | Migración 0021 idempotente + `OrderORM` + dominio + schemas; tests de integración: campos persisten, response detail/list incluyen los 4 campos, pedido sin comprobante devuelve `receipt_uploaded=false`. | done | — |
 | T3 | S4 | inline | Extensión `new → cancelled` de la máquina (matriz ampliada, mensaje exacto) + `ConfirmReceipt`/`RejectReceipt` + tests unitarios RED→GREEN (cadenas desde `new` y `confirmed`, rechazos desde 3 estados, monotonía de `paid`, audit). | pending | — |
 | T4 | S3, S4, S5 | inline | Endpoints (5) + gate de marcar pagado + tests de integración RED→GREEN contra la tabla completa de contratos (todos los códigos, owner vs admin, anti-sondeo 404, binario stream). | pending | — |
 | T5 | S6 | inline | Portal: `CheckoutSuccess` (card warning + botón + diálogo + pantalla de espera) + `MyOrdersPage` (entry point + indicador); vitest RED→GREEN de la derivación D5 y del envío multipart. | pending | — |
@@ -261,3 +261,4 @@ nunca viaja por JSON).
   el comportamiento querido: alta prioridad hasta que se mira); (3) el diálogo de
   upload en móvil (drag & drop no existe) → el input de archivo es el camino primario
   táctil; verificar en T5.
+- **L5 — 2026-11-24/25 (T1–T2 done):** T1 (S1) `receipt_service.py` (commit `d80bdfc`, 24/11 23:52). T2 (S2): migración `0021_orders_receipt.sql` con 6× `ADD COLUMN IF NOT EXISTS` (idempotente, patrón 0013/0015); `OrderORM` +6 columnas; `Order` portal (`domain/order.py`) 6 campos + validación en `__post_init__` (comprobante solo con `payment_method=transfer`); `Order` P6 (`domain/orders.py`) 4 campos expuestos + misma validación; mapeo ORM→dominio en `SQLOrderRepository`; schemas de detalle/listado (portal y admin) con `receipt_uploaded` (derivado: file no nulo y sin `deleted_at`) + 3 campos D5; `GET /mine` y `/mine/{code}` convergen en `_order_detail_schema` con `repo.get_by_code` + ownership 404. Tests: unitarios de dominio, API owner/admin (anti-sondeo 404), migración sobre base efímera (aplicación doble idempotente). Suite completa: 2198 passed, solo las 2 fallas preexistentes de `test_order_window_api.py` (documentadas 24/11, ajenas al cambio). Commit `4a3d00c` (25/11).
