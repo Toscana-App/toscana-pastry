@@ -687,6 +687,12 @@ class OrderORM(Base):
     margin_pct = Column(String, nullable=True)
     whatsapp_sent_at = Column(DateTime(timezone=True), nullable=True)
     updated_at = Column(DateTime(timezone=True), nullable=True)
+    receipt_file = Column(String, nullable=True)
+    receipt_content_type = Column(String, nullable=True)
+    receipt_size_bytes = Column(Integer, nullable=True)
+    receipt_uploaded_at = Column(DateTime(timezone=True), nullable=True)
+    receipt_viewed_at = Column(DateTime(timezone=True), nullable=True)
+    receipt_deleted_at = Column(DateTime(timezone=True), nullable=True)
     order_items = relationship("OrderItemORM", back_populates="order", cascade="all, delete-orphan")
 
     __table_args__ = (Index("ix_orders_date_status", "date", "status"),)

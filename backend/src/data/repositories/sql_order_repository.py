@@ -82,6 +82,12 @@ def _to_domain(orm: OrderORM, item_orms: Sequence[OrderItemORM] | None = None) -
             if orm.payment_status
             else None
         ),
+        receipt_file=orm.receipt_file,
+        receipt_content_type=orm.receipt_content_type,
+        receipt_size_bytes=orm.receipt_size_bytes,
+        receipt_uploaded_at=orm.receipt_uploaded_at,
+        receipt_viewed_at=orm.receipt_viewed_at,
+        receipt_deleted_at=orm.receipt_deleted_at,
         created_at=orm.created_at,
         items=items,
     )
@@ -196,6 +202,10 @@ def _order_to_domain(orm: OrderORM) -> P6Order:
         id=orm.id,
         paid=orm.paid_at is not None,
         payment_method=str(orm.payment_method or "cash"),
+        receipt_file=orm.receipt_file,
+        receipt_content_type=orm.receipt_content_type,
+        receipt_uploaded_at=orm.receipt_uploaded_at,
+        receipt_viewed_at=orm.receipt_viewed_at,
         items=items,
         snapshots=snapshots,
     )

@@ -73,6 +73,10 @@ class OrderDetailSchema(BaseModel):
     total: Decimal
     items: list[OrderItemSchema]
     created_at: dt.datetime
+    receipt_uploaded: bool = False
+    receipt_content_type: str | None = None
+    receipt_uploaded_at: dt.datetime | None = None
+    receipt_viewed_at: dt.datetime | None = None
 
 
 class OrderListSchema(BaseModel):
@@ -208,6 +212,10 @@ class OrderListItem(BaseModel):
     paid: bool = False
     payment_method: str = "cash"
     created_at: str
+    receipt_uploaded: bool = False
+    receipt_content_type: Optional[str] = None
+    receipt_uploaded_at: Optional[str] = None
+    receipt_viewed_at: Optional[str] = None
 
 
 class OrderListResponse(BaseModel):
@@ -236,6 +244,10 @@ class OrderDetailResponse(BaseModel):
     created_at: str
     updated_at: str
     invoice: OrderInvoiceSummary | None = None
+    receipt_uploaded: bool = False
+    receipt_content_type: Optional[str] = None
+    receipt_uploaded_at: Optional[str] = None
+    receipt_viewed_at: Optional[str] = None
 
 
 class OrderPreviewItemResponse(BaseModel):

@@ -324,6 +324,13 @@ def _order_detail_schema(order: Order) -> OrderDetailSchema:
             for item in order.items
         ],
         created_at=order.created_at,
+        receipt_uploaded=(
+            order.receipt_file is not None
+            and order.receipt_deleted_at is None
+        ),
+        receipt_content_type=order.receipt_content_type,
+        receipt_uploaded_at=order.receipt_uploaded_at,
+        receipt_viewed_at=order.receipt_viewed_at,
     )
 
 
@@ -526,36 +533,7 @@ async def list_my_orders(
         user.id, page=page, page_size=page_size
     )
     return OrderListSchema(
-        orders=[
-            OrderDetailSchema(
-                id=o.id,
-                code=o.code,
-                customer_id=o.customer_id,
-                status=o.status.value,
-                date=o.date,
-                payment_method=o.payment_method.value,
-                delivery_mode=o.delivery_mode if isinstance(o.delivery_mode, str) else o.delivery_mode.value,
-                delivery_address=o.delivery_address or None,
-                coupon_code=o.coupon_code,
-                discount_amount=o.discount_amount,
-                paid=o.paid,
-                payment_status=o.payment_status.value if o.payment_status else None,
-                total=o.total,
-                items=[
-                    OrderItemSchema(
-                        product_id=item.product_id,
-                        product_name=item.product_name,
-                        quantity=item.quantity,
-                        unit_price=item.unit_price,
-                        portion_note=item.portion_note,
-                        total=item.total,
-                    )
-                    for item in o.items
-                ],
-                created_at=o.created_at,
-            )
-            for o in orders
-        ],
+        orders=[_order_detail_schema(o) for o in orders],
         total=total,
         page=page,
         page_size=page_size,
@@ -575,33 +553,7 @@ async def get_my_order(
             detail="Order not found",
         )
 
-    return OrderDetailSchema(
-        id=order.id,
-        code=order.code,
-        customer_id=order.customer_id,
-        status=order.status.value,
-        date=order.date,
-        payment_method=order.payment_method.value,
-        delivery_mode=order.delivery_mode if isinstance(order.delivery_mode, str) else order.delivery_mode.value,
-        delivery_address=order.delivery_address or None,
-        coupon_code=order.coupon_code,
-        discount_amount=order.discount_amount,
-        paid=order.paid,
-        payment_status=order.payment_status.value if order.payment_status else None,
-        total=order.total,
-        items=[
-            OrderItemSchema(
-                product_id=item.product_id,
-                product_name=item.product_name,
-                quantity=item.quantity,
-                unit_price=item.unit_price,
-                portion_note=item.portion_note,
-                total=item.total,
-            )
-            for item in order.items
-        ],
-        created_at=order.created_at,
-    )
+    return _order_detail_schema(order)
 
 
 
@@ -696,6 +648,10 @@ def _detail_response(
             if invoice is not None
             else None
         ),
+        receipt_uploaded=order.receipt_file is not None,
+        receipt_content_type=order.receipt_content_type,
+        receipt_uploaded_at=_iso(order.receipt_uploaded_at),
+        receipt_viewed_at=_iso(order.receipt_viewed_at),
     )
 
 
@@ -819,6 +775,10 @@ async def list_orders(
                 paid=o.paid,
                 payment_method=o.payment_method,
                 created_at=_iso(o.created_at),
+                receipt_uploaded=o.receipt_file is not None,
+                receipt_content_type=o.receipt_content_type,
+                receipt_uploaded_at=_iso(o.receipt_uploaded_at),
+                receipt_viewed_at=_iso(o.receipt_viewed_at),
             )
             for o in orders
         ],
