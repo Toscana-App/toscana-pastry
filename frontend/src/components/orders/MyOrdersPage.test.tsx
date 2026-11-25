@@ -8,6 +8,7 @@ vi.mock("@/services/ordersService", () => ({
   fetchMyOrders: vi.fn(),
   fetchMyOrderByCode: vi.fn(),
   initOrderPayment: vi.fn(),
+  uploadOrderReceipt: vi.fn(),
 }));
 vi.mock("goey-toast", () => ({
   gooeyToast: { success: vi.fn(), error: vi.fn() },
@@ -44,6 +45,10 @@ function makeOrder(overrides: Partial<OrderDetail> = {}): OrderDetail {
       },
     ],
     created_at: "2026-11-01T12:00:00Z",
+    receipt_uploaded: false,
+    receipt_content_type: null,
+    receipt_uploaded_at: null,
+    receipt_viewed_at: null,
     ...overrides,
   };
 }
@@ -149,4 +154,50 @@ describe("MyOrdersPage", () => {
     await waitFor(() => expect(vi.mocked(gooeyToast.error)).toHaveBeenCalled());
   });
 
+  it("muestra el botón de comprobante para transfer sin comprobante", async () => {
+    vi.mocked(fetchMyOrders).mockResolvedValue({
+      orders: [makeOrder({ payment_method: "transfer" })],
+      total: 1,
+      page: 1,
+      page_size: 10,
+    });
+    render(<MyOrdersPage />);
+    expect(
+      await screen.findByRole("button", { name: "Subir comprobante" }),
+    ).toBeInTheDocument();
+  });
+
+  it("muestra el indicador de verificación para transfer con comprobante pendiente", async () => {
+    vi.mocked(fetchMyOrders).mockResolvedValue({
+      orders: [
+        makeOrder({
+          payment_method: "transfer",
+          receipt_uploaded: true,
+          receipt_content_type: "application/pdf",
+          receipt_uploaded_at: "2026-11-01T13:00:00Z",
+        }),
+      ],
+      total: 1,
+      page: 1,
+      page_size: 10,
+    });
+    render(<MyOrdersPage />);
+    expect(
+      await screen.findByText("Comprobante en verificación"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Subir comprobante" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("no muestra UI de comprobante para métodos que no son transfer", async () => {
+    render(<MyOrdersPage />);
+    await screen.findByText("PED-001");
+    expect(
+      screen.queryByRole("button", { name: "Subir comprobante" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Comprobante en verificación"),
+    ).not.toBeInTheDocument();
+  });
 });

@@ -74,6 +74,10 @@ export interface OrderDetail {
   total: string;
   items: OrderItemOut[];
   created_at: string;
+  receipt_uploaded: boolean;
+  receipt_content_type: string | null;
+  receipt_uploaded_at: string | null;
+  receipt_viewed_at: string | null;
 }
 
 export interface PortalOrderPayload {

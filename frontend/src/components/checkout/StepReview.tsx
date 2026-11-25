@@ -15,6 +15,7 @@ import {
 } from "@chakra-ui/react";
 import { useState } from "react";
 import { PaymentCard } from "@/components/checkout/PaymentCard";
+import { ReceiptUploadSection } from "@/components/orders/ReceiptUploadSection";
 import { trackEvent } from "@/lib/analytics";
 import { cartItems } from "@/lib/ga4-ecommerce";
 import { toaster } from "@/lib/toaster";
@@ -246,6 +247,8 @@ export function CheckoutSuccess({
 }: {
   order: OrderDetail;
 }) {
+  const [uploaded, setUploaded] = useState<OrderDetail | null>(null);
+  const current = uploaded?.id === order.id ? uploaded : order;
   return (
     <Stack gap={4} maxW="md" align="center" textAlign="center" py={8}>
       <Heading as="h1" srOnly textWrap="balance">
@@ -260,13 +263,18 @@ export function CheckoutSuccess({
       <Code fontSize="lg" px={3} py={1} translate="no" overflowWrap="anywhere">
         {order.code}
       </Code>
-      <Text fontSize="sm" color="fg.muted">
-        {order.payment_method === "cash"
-          ? "Recordá: pagás en efectivo en la entrega o el retiro."
-          : order.payment_method === "transfer"
-            ? "Recordá: transferí el total y mandanos el comprobante."
+      {current.payment_method !== "transfer" && (
+        <Text fontSize="sm" color="fg.muted">
+          {current.payment_method === "cash"
+            ? "Recordá: pagás en efectivo en la entrega o el retiro."
             : "El pago se procesa online; podés dar seguimiento en Mis pedidos."}
-      </Text>
+        </Text>
+      )}
+      {current.payment_method === "transfer" && (
+        <Box w="100%">
+          <ReceiptUploadSection order={current} onUpdated={setUploaded} />
+        </Box>
+      )}
       <Box w="100%">
         <PaymentCard order={order} />
       </Box>

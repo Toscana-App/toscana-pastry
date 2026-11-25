@@ -18,6 +18,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { OrderListSkeleton } from "@/components/ui/skeleton";
+import { ReceiptUploadSection } from "@/components/orders/ReceiptUploadSection";
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -216,6 +217,7 @@ function OrderCard({
           <Flex gap={2} align="center" flexWrap="wrap">
             <PaymentBadge order={order} />
           </Flex>
+          <ReceiptUploadSection order={order} onUpdated={() => onPaidChange()} />
           <Money value={order.total} fontWeight="bold" />
 
           {expanded && !detail && loadingDetail && (
