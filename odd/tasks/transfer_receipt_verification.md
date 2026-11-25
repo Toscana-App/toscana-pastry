@@ -197,7 +197,7 @@ nunca viaja por JSON).
 | T3 | S4 | inline | Extensión `new → cancelled` de la máquina (matriz ampliada, mensaje exacto) + `ConfirmReceipt`/`RejectReceipt` + tests unitarios RED→GREEN (cadenas desde `new` y `confirmed`, rechazos desde 3 estados, monotonía de `paid`, audit). | done | `539acc9` |
 | T4 | S3, S4, S5 | inline | Endpoints (5) + gate de marcar pagado + tests de integración RED→GREEN contra la tabla completa de contratos (todos los códigos, owner vs admin, anti-sondeo 404, binario stream). | done | `9b659ce` |
 | T5 | S6 | inline | Portal: `CheckoutSuccess` (card warning + botón + diálogo + pantalla de espera) + `MyOrdersPage` (entry point + indicador); vitest RED→GREEN de la derivación D5 y del envío multipart. | done | `a5e5ea5` |
-| T6 | S7 | inline | Panel: badges (`OrdersPage`), banner + preview + Confirmar/Rechazar/Borrar (`OrderDetailPage`), ocultación del botón de O4; vitest RED→GREEN de badges y botones por estado. | pending | — |
+| T6 | S7 | inline | Panel: badges (`OrdersPage`), banner + preview + Confirmar/Rechazar/Borrar (`OrderDetailPage`), ocultación del botón de O4; vitest RED→GREEN de badges y botones por estado. | done | `800ddf2` |
 | T7 | S8 | inline | Suite e2e R1–R15 contra uvicorn + Postgres reales (mock MP); todo verde, base throwaway eliminada. | pending | — |
 | T8 | S5 | delegado (verifier) | Verificador independiente contra S1–S7 + baseline de suites (pagos O4, backend completa, gate frontend, e2e) antes de reportar. | pending | — |
 | T9 | S9 | inline | `security.md`/`api_endpoints.md`/`master_plan.md`/`p06_orders.md` actualizados; ruff/mypy limpios en archivos tocados; cero comentarios nuevos. | pending | — |
@@ -330,3 +330,28 @@ nunca viaja por JSON).
   comprobante, indicador de verificación, cero UI para otros métodos). Suite
   frontend completa: 601/601 (69 archivos); `tsc --noEmit` limpio. Commit `a5e5ea5`
   (25/11).
+- **L9 — 2026-11-25 (T6 done):** T6 (S7) panel admin. Backend: `OrderDetailResponse`
+  gana `paid` y `payment_method` (faltaban; el detalle admin los devolvía siempre
+  false/cash por defecto) y `_detail_response` los mapea desde `P6Order`; test de
+  integración nuevo (`test_orders_receipt_fields_api.py`). Servicio frontend:
+  `confirmReceipt`/`rejectReceipt`/`deleteReceipt` + `receiptUrl(orderId)` (URL
+  pública mismo origen desde `API_BASE_URL.pathname`; la apertura del preview
+  marca `receipt_viewed_at` en el backend). UI: `OrdersPage` — celda "Pago" con
+  badge sólido "Comprobante nuevo" (`receipt_viewed_at == null`) o suave "Comprobante
+  pendiente", solo para transfer con comprobante, no pagado y en estados accionables
+  (new/confirmed/preparing); tokens O5 en `theme.ts` (`red.subtle/border`,
+  `warning.subtle/border`). `OrderDetailPage` — banner naranja (borde 2px)
+  "Comprobante de transferencia cargado" con preview inline para `image/*` y
+  enlace en pestaña nueva para PDF (no preview inline), badge "Sin ver" cuando
+  nadie lo vio, botón verde sólido "Confirmar comprobante" (solo new/confirmed —
+  no existe confirmación desde preparing) y outline rojo "Rechazar comprobante"
+  con `AlertDialog` de irreversibilidad (rechazo → pedido cancelado, el banner
+  desaparece al recargar); "Borrar comprobante" fantasma solo en `delivered` con
+  `AlertDialog` (borra el archivo; el historial del medio queda). Regla O4: con
+  comprobante pendiente no se muestra "Marcar pagado" (el flujo es el comprobante);
+  transfer sin comprobante lo deja deshabilitado con tooltip. Tests vitest
+  RED→GREEN: 9 fallas → verde (`OrderDetailPage.test.tsx` + `OrdersPage.test.tsx`
+  nuevo). Suite frontend: 614/614 (70 archivos); `tsc --noEmit` limpio. Backend:
+  36 passed en los 3 archivos de receipt; suite completa 2265 passed + 4 fallas
+  preexistentes (2 de `test_order_window_api.py` + 2 de whatsapp stats que fallan
+  igual en HEAD limpio, no relacionadas con O5). Commit `800ddf2` (25/11).
