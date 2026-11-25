@@ -195,7 +195,7 @@ nunca viaja por JSON).
 | T1 | S1 | inline | `receipt_service.py` + tests unitarios RED→GREEN: 3 magic bytes correctos, falsificaciones rechazadas, límite 5 MiB, write/read/delete contra tmp. | done | — |
 | T2 | S2 | inline | Migración 0021 idempotente + `OrderORM` + dominio + schemas; tests de integración: campos persisten, response detail/list incluyen los 4 campos, pedido sin comprobante devuelve `receipt_uploaded=false`. | done | — |
 | T3 | S4 | inline | Extensión `new → cancelled` de la máquina (matriz ampliada, mensaje exacto) + `ConfirmReceipt`/`RejectReceipt` + tests unitarios RED→GREEN (cadenas desde `new` y `confirmed`, rechazos desde 3 estados, monotonía de `paid`, audit). | done | `539acc9` |
-| T4 | S3, S4, S5 | inline | Endpoints (5) + gate de marcar pagado + tests de integración RED→GREEN contra la tabla completa de contratos (todos los códigos, owner vs admin, anti-sondeo 404, binario stream). | pending | — |
+| T4 | S3, S4, S5 | inline | Endpoints (5) + gate de marcar pagado + tests de integración RED→GREEN contra la tabla completa de contratos (todos los códigos, owner vs admin, anti-sondeo 404, binario stream). | done | `9b659ce` |
 | T5 | S6 | inline | Portal: `CheckoutSuccess` (card warning + botón + diálogo + pantalla de espera) + `MyOrdersPage` (entry point + indicador); vitest RED→GREEN de la derivación D5 y del envío multipart. | pending | — |
 | T6 | S7 | inline | Panel: badges (`OrdersPage`), banner + preview + Confirmar/Rechazar/Borrar (`OrderDetailPage`), ocultación del botón de O4; vitest RED→GREEN de badges y botones por estado. | pending | — |
 | T7 | S8 | inline | Suite e2e R1–R15 contra uvicorn + Postgres reales (mock MP); todo verde, base throwaway eliminada. | pending | — |
@@ -281,3 +281,29 @@ nunca viaja por JSON).
   `test_orders_api.py` se retiró el 400 de `new → cancelled` (ahora válida). Suite
   completa: 2225 passed + solo las 2 fallas preexistentes de
   `test_order_window_api.py` (documentadas). Commit `539acc9` (25/11).
+- **L7 — 2026-11-25 (T4 done):** T4 (S3, S4, S5). Use cases `UploadReceipt`
+  (validación por magic bytes + 5 MiB vía inyección; `receipt_file` guarda la
+  extensión, `_CONTENT_TYPES` mapea a MIME; auditoría `status=uploaded`; transacción
+  única: persistencia falla → se limpia el archivo escrito) y `DeleteReceipt`
+  (solo `delivered`; borrado lógico `receipt_deleted_at` + archivo físico; auditoría
+  `status=deleted`). Adapter `SQLReceiptVerificationStore` (subclase de
+  `SQLOrderRepository`): `lock_order` devuelve `Order` del portal con snapshots
+  (el `_to_domain` de P6 no los construye); `record_payment_event` sin commit — el
+  use case cierra la transacción; `save_receipt`/`clear_receipt`/`mark_receipt_viewed`
+  (commit propio, timestamp simple) agregados también al ABC y al repo base. 5
+  endpoints: `POST /{id}/receipt` (multipart, 201; 404 anti-sondeo vía
+  `_get_own_order`; 409 por código de dominio; 422 `receipt_invalid_type`/
+  `receipt_too_large` vía `ReceiptValidationError`), `GET /{id}/receipt` (binario;
+  `Content-Disposition: inline`; solo el admin dispara `receipt_viewed_at`),
+  `POST /{id}/receipt/confirm` (admin; `ConfirmReceipt`; 409 con detalle de stock
+  insuficiente reutilizando el handler de O1), `POST /{id}/receipt/reject` (admin;
+  `RejectReceipt`), `DELETE /{id}/receipt` (admin; 204). Gate S5 en
+  `PATCH /{id}/paid`: `transfer` sin comprobante → 409 `receipt_required`; con
+  comprobante → delega en `ConfirmReceipt` (el "Marcar pagado" del panel ya no hace
+  `mark_manual_payment` en transfer). Test de integración
+  `test_orders_receipt_api.py` (22 tests) cubre toda la tabla de contratos:
+  owner vs admin, anti-sondeo 404, binario, deducción de stock única, movimientos,
+  gate. Contrato O4 actualizado: `test_orders_paid_api.py` — transfer sin
+  comprobante 409 `receipt_required`, con comprobante 200 pagado. Suite completa:
+  2266 passed + solo las 2 fallas preexistentes de `test_order_window_api.py`
+  (documentadas). Commit `9b659ce` (25/11).
