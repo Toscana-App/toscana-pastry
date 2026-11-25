@@ -196,7 +196,7 @@ nunca viaja por JSON).
 | T2 | S2 | inline | Migración 0021 idempotente + `OrderORM` + dominio + schemas; tests de integración: campos persisten, response detail/list incluyen los 4 campos, pedido sin comprobante devuelve `receipt_uploaded=false`. | done | — |
 | T3 | S4 | inline | Extensión `new → cancelled` de la máquina (matriz ampliada, mensaje exacto) + `ConfirmReceipt`/`RejectReceipt` + tests unitarios RED→GREEN (cadenas desde `new` y `confirmed`, rechazos desde 3 estados, monotonía de `paid`, audit). | done | `539acc9` |
 | T4 | S3, S4, S5 | inline | Endpoints (5) + gate de marcar pagado + tests de integración RED→GREEN contra la tabla completa de contratos (todos los códigos, owner vs admin, anti-sondeo 404, binario stream). | done | `9b659ce` |
-| T5 | S6 | inline | Portal: `CheckoutSuccess` (card warning + botón + diálogo + pantalla de espera) + `MyOrdersPage` (entry point + indicador); vitest RED→GREEN de la derivación D5 y del envío multipart. | pending | — |
+| T5 | S6 | inline | Portal: `CheckoutSuccess` (card warning + botón + diálogo + pantalla de espera) + `MyOrdersPage` (entry point + indicador); vitest RED→GREEN de la derivación D5 y del envío multipart. | done | `a5e5ea5` |
 | T6 | S7 | inline | Panel: badges (`OrdersPage`), banner + preview + Confirmar/Rechazar/Borrar (`OrderDetailPage`), ocultación del botón de O4; vitest RED→GREEN de badges y botones por estado. | pending | — |
 | T7 | S8 | inline | Suite e2e R1–R15 contra uvicorn + Postgres reales (mock MP); todo verde, base throwaway eliminada. | pending | — |
 | T8 | S5 | delegado (verifier) | Verificador independiente contra S1–S7 + baseline de suites (pagos O4, backend completa, gate frontend, e2e) antes de reportar. | pending | — |
@@ -307,3 +307,26 @@ nunca viaja por JSON).
   comprobante 409 `receipt_required`, con comprobante 200 pagado. Suite completa:
   2266 passed + solo las 2 fallas preexistentes de `test_order_window_api.py`
   (documentadas). Commit `9b659ce` (25/11).
+- **L8 — 2026-11-25 (T5 done):** T5 (S6) portal. Tipos: `OrderDetail` gana los 4
+  campos receipt (`receipt_uploaded`, `receipt_content_type`, `receipt_uploaded_at`,
+  `receipt_viewed_at`). Servicio: `uploadOrderReceipt(orderId, file)` → `POST
+  /orders/{id}/receipt` multipart vía `apiFetch` (el helper ya evita `Content-Type`
+  con FormData). Derivación D5 en `src/lib/receiptStatus.ts` (pura, testeable):
+  `not_applicable` (no transfer), `none` (terminal o pagado), `uploadable`
+  (transfer, no terminal, sin comprobante), `pending_review` (comprobante + pago
+  pendiente null/""/pending). UI: `ReceiptUploadDialog` (Chakra `Dialog.Root`
+  `role="alertdialog"`, drag & drop + input file srOnly, validación client-side de
+  extensión PDF/JPG/PNG — el file dialog ya filtra por `accept` pero el drop no —,
+  toast de error) y `ReceiptUploadSection` (card warning + botón "Subir
+  comprobante" cuando `uploadable`; panel "Comprobante en verificación" con
+  "La verificación es manual y toma hasta 24 horas." cuando `pending_review`;
+  null en los demás casos). Wiring: `CheckoutSuccess` (tras 201) muestra la
+  sección para transfer y refresca el estado con el detalle 201 (`onUpdated`);
+  `MyOrdersPage` la renderiza por pedido (entry point persistente) refrescando la
+  lista al subir. Tests vitest RED→GREEN: matriz D5 completa (6 casos), diálogo
+  (card warning, sin card para otros métodos, validación de extensión con
+  `userEvent.setup({ applyAccept: false })` que simula el drop, envío multipart +
+  pantalla de espera, toast de error) y `MyOrdersPage` (botón para transfer sin
+  comprobante, indicador de verificación, cero UI para otros métodos). Suite
+  frontend completa: 601/601 (69 archivos); `tsc --noEmit` limpio. Commit `a5e5ea5`
+  (25/11).
