@@ -192,7 +192,7 @@ nunca viaja por JSON).
 
 | ID | Specs | Ruta | Definition of Done | Estado | Commit |
 |----|-------|------|--------------------|--------|--------|
-| T1 | S1 | inline | `receipt_service.py` + tests unitarios RED→GREEN: 3 magic bytes correctos, falsificaciones rechazadas, límite 5 MiB, write/read/delete contra tmp. | pending | — |
+| T1 | S1 | inline | `receipt_service.py` + tests unitarios RED→GREEN: 3 magic bytes correctos, falsificaciones rechazadas, límite 5 MiB, write/read/delete contra tmp. | done | — |
 | T2 | S2 | inline | Migración 0021 idempotente + `OrderORM` + dominio + schemas; tests de integración: campos persisten, response detail/list incluyen los 4 campos, pedido sin comprobante devuelve `receipt_uploaded=false`. | pending | — |
 | T3 | S4 | inline | Extensión `new → cancelled` de la máquina (matriz ampliada, mensaje exacto) + `ConfirmReceipt`/`RejectReceipt` + tests unitarios RED→GREEN (cadenas desde `new` y `confirmed`, rechazos desde 3 estados, monotonía de `paid`, audit). | pending | — |
 | T4 | S3, S4, S5 | inline | Endpoints (5) + gate de marcar pagado + tests de integración RED→GREEN contra la tabla completa de contratos (todos los códigos, owner vs admin, anti-sondeo 404, binario stream). | pending | — |
