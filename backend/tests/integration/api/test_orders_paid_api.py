@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import (
 from api.v1.auth.dependencies import get_user_repository
 from api.v1.dependencies import require_admin
 from data.db import get_db as get_db_orig
+from data.models import OrderORM
 from data.repositories.sql_order_repository import SQLOrderRepository
 from data.repositories.sql_user_repository import SQLUserRepository
 from domain.models import User, UserRole
@@ -142,16 +143,25 @@ class TestPatchOrderPaid:
         data = response.json()
         assert data["paid"] is True
 
-    async def test_transfer_order_marks_paid_with_manual_confirmation(
+    async def test_transfer_without_receipt_returns_409(
+        self, client, transfer_order
+    ):
+        response = await client.patch(f"/api/v1/orders/{transfer_order.id}/paid")
+        assert response.status_code == 409
+        assert response.json()["detail"] == "receipt_required"
+
+    async def test_transfer_with_receipt_confirms_and_pays(
         self, client, db_session, transfer_order
     ):
+        stored = await db_session.get(OrderORM, transfer_order.id)
+        stored.receipt_file = "pdf"
+        await db_session.commit()
         response = await client.patch(f"/api/v1/orders/{transfer_order.id}/paid")
         assert response.status_code == 200
         data = response.json()
         assert data["paid"] is True
         stored = await SQLOrderRepository(db_session).get(transfer_order.id)
         assert stored.paid is True
-        assert stored.payment_reference == "manual"
         assert stored.payment_status == PaymentStatus.APPROVED
 
     async def test_already_paid_returns_409(self, client, cash_order):

@@ -420,6 +420,22 @@ class ReceiptVerificationStore(ABC):
         pass
 
     @abstractmethod
+    async def save_receipt(
+        self,
+        order_id: str,
+        *,
+        file: str,
+        content_type: str,
+        size_bytes: int,
+        uploaded_at: datetime,
+    ) -> None:
+        pass
+
+    @abstractmethod
+    async def clear_receipt(self, order_id: str, deleted_at: datetime) -> None:
+        pass
+
+    @abstractmethod
     async def set_status(self, order_id: str, status: str) -> None:
         pass
 

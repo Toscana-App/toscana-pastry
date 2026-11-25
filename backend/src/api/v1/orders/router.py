@@ -11,7 +11,16 @@ from email.utils import format_datetime
 from typing import Dict, List, Literal, Optional, Tuple, cast
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Header,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi import status as http_status
 
@@ -63,7 +72,17 @@ from api.v1.orders.schemas import (
     PaymentStatusResponse,
     PortalOrderCreateRequest,
 )
-from data.repositories.sql_order_repository import SQLOrderRepository
+from api.v1.orders.receipt_service import (
+    ReceiptValidationError,
+    delete_receipt as delete_receipt_file,
+    read_receipt as read_receipt_file,
+    validate_receipt,
+    write_receipt as write_receipt_file,
+)
+from data.repositories.sql_order_repository import (
+    SQLReceiptVerificationStore,
+    SQLOrderRepository,
+)
 from data.repositories.sql_coupon_repository import SQLCouponRepository
 from domain.cart import compute_discount, validate_coupon_for_cart
 from domain.checkout_provider import CheckoutProvider, PaymentProviderError
@@ -105,6 +124,11 @@ from domain.repositories import (
     ProductRepository,
     SettingsRepository,
 )
+from domain.receipt import ReceiptVerificationError
+from domain.use_cases.confirm_receipt import ConfirmReceipt
+from domain.use_cases.delete_receipt import DeleteReceipt
+from domain.use_cases.reject_receipt import RejectReceipt
+from domain.use_cases.upload_receipt import UploadReceipt
 from domain.use_cases.transition_order_status import TransitionOrderStatus
 from domain.use_cases import GetSettings
 
@@ -131,6 +155,19 @@ async def mark_order_paid(
             status_code=http_status.HTTP_409_CONFLICT,
             detail="order_already_paid",
         )
+
+    if order.payment_method == PaymentMethod.TRANSFER:
+        if order.receipt_file is None or order.receipt_deleted_at is not None:
+            raise HTTPException(
+                status_code=http_status.HTTP_409_CONFLICT,
+                detail="receipt_required",
+            )
+        store = SQLReceiptVerificationStore(repo.session)
+        try:
+            await ConfirmReceipt(store).execute(order.id)
+        except ReceiptVerificationError as exc:
+            raise _receipt_http_error(exc)
+        return PaidResponse(paid=True)
 
     if order.payment_method == PaymentMethod.MERCADOPAGO:
         if order.payment_status not in (None, PaymentStatus.PENDING):
@@ -1236,37 +1273,53 @@ async def _apply_status(
     try:
         updated = await TransitionOrderStatus(order_repo).execute(order.id, target)
     except InsufficientOrderStockError as e:
-        details: List[InsufficientStockItem] = []
-        for ingredient_id, faltante in e.shortage.items():
-            row = await ingredient_repo.get(ingredient_id)
-            available = e.available.get(ingredient_id, Decimal("0"))
-            required = e.required.get(ingredient_id, available + faltante)
-            details.append(
-                InsufficientStockItem(
-                    ingredient_id=ingredient_id,
-                    ingredient_name=(
-                        row.name if row is not None else "insumo borrado"
-                    ),
-                    available=available,
-                    required=required,
-                )
-            )
-        return JSONResponse(
-            status_code=status.HTTP_409_CONFLICT,
-            content={
-                "error": "Stock insuficiente para confirmar el pedido",
-                "insufficient_stock": [
-                    {
-                        "ingredient_id": d.ingredient_id,
-                        "ingredient_name": d.ingredient_name,
-                        "available": str(d.available),
-                        "required": str(d.required),
-                    }
-                    for d in details
-                ],
-            },
-        )
+        return await _insufficient_stock_response(e, ingredient_repo)
     return _detail_response(updated, updated.whatsapp_sent_at)
+
+
+async def _insufficient_stock_response(
+    e: InsufficientOrderStockError,
+    ingredient_repo: SQLIngredientRepository,
+) -> JSONResponse:
+    details: List[InsufficientStockItem] = []
+    for ingredient_id, faltante in e.shortage.items():
+        row = await ingredient_repo.get(ingredient_id)
+        available = e.available.get(ingredient_id, Decimal("0"))
+        required = e.required.get(ingredient_id, available + faltante)
+        details.append(
+            InsufficientStockItem(
+                ingredient_id=ingredient_id,
+                ingredient_name=(
+                    row.name if row is not None else "insumo borrado"
+                ),
+                available=available,
+                required=required,
+            )
+        )
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT,
+        content={
+            "error": "Stock insuficiente para confirmar el pedido",
+            "insufficient_stock": [
+                {
+                    "ingredient_id": d.ingredient_id,
+                    "ingredient_name": d.ingredient_name,
+                    "available": str(d.available),
+                    "required": str(d.required),
+                }
+                for d in details
+            ],
+        },
+    )
+
+
+def _receipt_http_error(exc: ReceiptVerificationError) -> HTTPException:
+    status_code = (
+        http_status.HTTP_404_NOT_FOUND
+        if exc.code == "receipt_not_found"
+        else http_status.HTTP_409_CONFLICT
+    )
+    return HTTPException(status_code=status_code, detail=exc.code)
 
 
 @router.post("/{order_id}/whatsapp-link", response_model=WhatsAppLinkResponse)
@@ -1286,3 +1339,123 @@ async def whatsapp_link(
     now = datetime.datetime.now(datetime.timezone.utc)
     await repo.mark_whatsapp_sent(order, now)
     return WhatsAppLinkResponse(url=url, message=message)
+
+
+@router.post(
+    "/{id}/receipt",
+    response_model=OrderDetailSchema,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_order_receipt(
+    id: str,
+    file: UploadFile = File(...),
+    repo: SQLOrderRepository = Depends(get_order_repository),
+    user: User = Depends(get_current_user),
+):
+    order = await _get_own_order(repo, id, user)
+    data = await file.read()
+    store = SQLReceiptVerificationStore(repo.session)
+    try:
+        updated = await UploadReceipt(
+            store,
+            validate=validate_receipt,
+            write_file=write_receipt_file,
+            delete_file=delete_receipt_file,
+        ).execute(order, data)
+    except ReceiptValidationError as exc:
+        return JSONResponse(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+            content={"code": exc.code, "detail": exc.detail},
+        )
+    except ReceiptVerificationError as exc:
+        raise _receipt_http_error(exc)
+    return _order_detail_schema(updated)
+
+
+@router.get("/{id}/receipt")
+async def download_order_receipt(
+    id: str,
+    repo: SQLOrderRepository = Depends(get_order_repository),
+    user: User = Depends(get_current_user),
+):
+    order = await _get_own_order(repo, id, user)
+    if order.receipt_file is None or order.receipt_deleted_at is not None:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail="receipt_not_found",
+        )
+    try:
+        data = read_receipt_file(id, order.receipt_file)
+    except (FileNotFoundError, ValueError):
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail="receipt_not_found",
+        )
+    if user.role == UserRole.ADMIN and order.receipt_viewed_at is None:
+        await repo.mark_receipt_viewed(id, datetime.datetime.now(datetime.UTC))
+    return Response(
+        content=data,
+        media_type=order.receipt_content_type or "application/octet-stream",
+        headers={"Content-Disposition": "inline"},
+    )
+
+
+@router.post("/{order_id}/receipt/confirm", response_model=OrderDetailResponse)
+async def confirm_order_receipt(
+    order_id: str,
+    order_repo: SQLOrderRepository = Depends(get_order_repository),
+    ingredient_repo: SQLIngredientRepository = Depends(get_ingredient_repository),
+    _admin: User = Depends(require_admin),
+):
+    store = SQLReceiptVerificationStore(order_repo.session)
+    try:
+        await ConfirmReceipt(store).execute(order_id)
+    except ReceiptVerificationError as exc:
+        raise _receipt_http_error(exc)
+    except InsufficientOrderStockError as e:
+        return await _insufficient_stock_response(e, ingredient_repo)
+    order = await order_repo.get_full(order_id)
+    if order is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Pedido no encontrado"
+        )
+    return _detail_response(order, order.whatsapp_sent_at)
+
+
+@router.post("/{order_id}/receipt/reject", response_model=OrderDetailResponse)
+async def reject_order_receipt(
+    order_id: str,
+    order_repo: SQLOrderRepository = Depends(get_order_repository),
+    _admin: User = Depends(require_admin),
+):
+    store = SQLReceiptVerificationStore(order_repo.session)
+    try:
+        await RejectReceipt(store).execute(order_id)
+    except ReceiptVerificationError as exc:
+        raise _receipt_http_error(exc)
+    order = await order_repo.get_full(order_id)
+    if order is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Pedido no encontrado"
+        )
+    return _detail_response(order, order.whatsapp_sent_at)
+
+
+@router.delete("/{order_id}/receipt", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_order_receipt(
+    order_id: str,
+    repo: SQLOrderRepository = Depends(get_order_repository),
+    _admin: User = Depends(require_admin),
+):
+    order = await repo.get(order_id)
+    if order is None:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail="receipt_not_found",
+        )
+    store = SQLReceiptVerificationStore(repo.session)
+    try:
+        await DeleteReceipt(store, delete_file=delete_receipt_file).execute(order)
+    except ReceiptVerificationError as exc:
+        raise _receipt_http_error(exc)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
