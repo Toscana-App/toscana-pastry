@@ -181,7 +181,7 @@ nunca viaja por JSON).
   `new`/`confirmed`/`preparing`, monotonía de `paid`, gate D1/D6, irreversibilidad D3,
   borrado D4); integración API: cada código de la tabla de endpoints (404 ajeno, 409
   por estado, 422 por tipo/tamaño, 200 binario con `Content-Type` correcto, DELETE solo
-  `delivered`, `receipt_viewed_at` seteado por admin y no por owner). E2E: casos R1–R15
+  `delivered`, `receipt_viewed_at` seteado por admin y no por owner). E2E: casos R1–R16
   de abajo. Gate frontend: vitest para la derivación D5, el diálogo y los badges.
 - **S9 — Docs.** `security.md` #16: excepción de comprobante (como la de P12);
   `api_endpoints.md`: los 5 endpoints + esquema; `master_plan.md`: nota del flujo
@@ -199,7 +199,7 @@ nunca viaja por JSON).
 | T5 | S6 | inline | Portal: `CheckoutSuccess` (card warning + botón + diálogo + pantalla de espera) + `MyOrdersPage` (entry point + indicador); vitest RED→GREEN de la derivación D5 y del envío multipart. | done | `a5e5ea5` |
 | T6 | S7 | inline | Panel: badges (`OrdersPage`), banner + preview + Confirmar/Rechazar/Borrar (`OrderDetailPage`), ocultación del botón de O4; vitest RED→GREEN de badges y botones por estado. | done | `800ddf2` |
 | T7 | S8 | inline | Suite e2e R1–R15 contra uvicorn + Postgres reales (mock MP); todo verde, base throwaway eliminada. | done | — |
-| T8 | S5 | delegado (verifier) | Verificador independiente contra S1–S7 + baseline de suites (pagos O4, backend completa, gate frontend, e2e) antes de reportar. | pending | — |
+| T8 | S5 | delegado (verifier) | Verificador independiente contra S1–S7 + baseline de suites (pagos O4, backend completa, gate frontend, e2e) antes de reportar. | done | — |
 | T9 | S9 | inline | `security.md`/`api_endpoints.md`/`master_plan.md`/`p06_orders.md` actualizados; ruff/mypy limpios en archivos tocados; cero comentarios nuevos. | done | — |
 
 ## Casos de prueba (autoritativos, e2e)
@@ -221,6 +221,7 @@ nunca viaja por JSON).
 | R13 | Pedido `preparing` con comprobante | Admin `DELETE /orders/{id}/receipt` | 409 `receipt_not_deletable` (D4) |
 | R14 | Pedido sin comprobante | Admin `GET /orders/{id}/receipt` | 404 `receipt_not_found` |
 | R15 | Pedido con comprobante | Cliente `GET /orders/{id}/receipt` | 200 binario íntegro, `Content-Type` real; `receipt_viewed_at` **no** cambia (solo admin lo setea) |
+| R16 | Pedido con comprobante rechazado (pedido `cancelled`) | Cliente `POST /orders/{id}/receipt` (reenvío) | 409 `receipt_already_uploaded` (D3 irrevocable: el rechazo conserva el comprobante y en `UploadReceipt` el check de comprobante-existente precede al de estado terminal; `receipt_order_terminal` es alcanzable con pedido terminal **sin** comprobante, ej. `delivered` tras borrado) |
 
 ## Reglas
 
@@ -382,3 +383,26 @@ nunca viaja por JSON).
   `payment_method` gana `transfer` en RF-P6-12 con referencia a este ODD (gate de
   pago), UC-12 nueva, criterio de aceptación actualizado. Sin cambios de código
   (solo docs) → sin suites de código.
+- **L12 — 2026-11-25 (T8 done — verificador independiente):** Auditoría en
+  subagente (solo lectura + suites, HEAD `8eb3aff`). **Veredicto: PASS** — S1–S7
+  cumplen contra el ODD (evidencia por spec en el reporte; screenshots en
+  `odd/evidence/o5-receipt-admin.png` / `o5-receipt-portal.png`). Baselines: e2e
+  45/45 exit 0 (base throwaway eliminada); backend completo 2265 passed + 4 fallas
+  confirmadas preexistentes (re-ejecutadas en worktree detached sobre la base pre-O5
+  `43a49b6`: las mismas 4, luego eliminado); subset pagos O4 29/29; frontend
+  614/614 + tsc limpio. Observaciones encontradas y resueltas en este turno:
+  (F1) el label de R10 en `cases.py` decía "not_receivable" aunque la aserción era
+  correcta → corregido a "payment_not_pending"; (F2) el diálogo de rechazo del
+  panel decía que "el cliente puede volver a cargar el comprobante" — contradecía D3
+  (irrevocable, pedido terminal) → copy corregida; (F3) 3 imports inutilizados en
+  tests de O5 → retirados. **Mejora: nuevo caso e2e R16** (reenvío tras rechazo →
+  409, D3) — al correrlo se detectó una desviación de contrato: el código observable
+  es `receipt_already_uploaded`, no `receipt_order_terminal`, porque en
+  `UploadReceipt` el check de comprobante-existente (línea 33) precede al de estado
+  terminal (línea 37) y el rechazo conserva el comprobante. `receipt_order_terminal`
+  sigue alcanzable (pedido terminal sin comprobante, ej. `delivered` tras borrado).
+  Tabla S8 y `api_endpoints.md` actualizadas al contrato observable (misma regla que
+  R10). Suites finales: e2e 46/46; backend completo intacto (solo tests e2e +
+  imports tocados: 37/37 en los archivos modificados); frontend 614/614 + tsc
+  limpio. Nota del auditor: el repo no tiene gate ruff/mypy (CI solo corre pytest);
+  los imports limpios se hicieron de todos modos.

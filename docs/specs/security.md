@@ -172,7 +172,7 @@
   - PDF: solo vía `GET /budgets/{id}/pdf` **autenticado** o mediante URL firmada (expiración ≤ 1 h, single-use). Sin directorio estático de PDFs alcanzable por path.
   - Edge: `X-Content-Type-Options: nosniff` (ítem 18); sin listing de directorios; `next.config` sin `filesystem` expuesto.
 - **Dónde**: F3 (PDF) · F4 (edge).
-- **Verificación**: pytest: path directo de PDF sin sesión ni URL válida → 403/404; URL firmada expirada → 410; upload con tipo no permitido (magic bytes, content-type falsificado) → 422; upload de imagen con token de cliente → 403. E2e R1–R15 (`backend/e2e/cases.py`): comprobante con tipo falsificado (GIF + header `image/jpeg`) → 422, >5 MiB → 422, pedido ajeno → 404 (POST y GET), re-carga → 409 con original intacto, borrado solo en `delivered`.
+- **Verificación**: pytest: path directo de PDF sin sesión ni URL válida → 403/404; URL firmada expirada → 410; upload con tipo no permitido (magic bytes, content-type falsificado) → 422; upload de imagen con token de cliente → 403. E2e R1–R16 (`backend/e2e/cases.py`): comprobante con tipo falsificado (GIF + header `image/jpeg`) → 422, >5 MiB → 422, pedido ajeno → 404 (POST y GET), re-carga → 409 con original intacto, reenvío tras rechazo → 409 (R16), borrado solo en `delivered`.
 
 ## 17. Devolver datos necesarios
 - **Control**: exposición mínima; los datos internos nunca salen hacia el cliente final.
