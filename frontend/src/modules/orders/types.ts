@@ -55,6 +55,11 @@ export interface OrderListItem {
   total: number;
   paid: boolean;
   created_at: string;
+  payment_method: string;
+  receipt_uploaded: boolean;
+  receipt_content_type: string | null;
+  receipt_uploaded_at: string | null;
+  receipt_viewed_at: string | null;
 }
 
 export interface WeeklyRange {
@@ -177,6 +182,11 @@ export interface OrderDetail {
   updated_at: string;
   /** Comprobante de facturación, si el pedido ya fue facturado. */
   invoice: OrderInvoice | null;
+  payment_method: string;
+  receipt_uploaded: boolean;
+  receipt_content_type: string | null;
+  receipt_uploaded_at: string | null;
+  receipt_viewed_at: string | null;
 }
 
 export interface OrderPreviewItem {

@@ -158,6 +158,16 @@ class TestAdminReceiptFields:
         assert data["receipt_uploaded_at"] is not None
         assert data["receipt_viewed_at"] is not None
 
+    async def test_detail_includes_paid_and_payment_method(
+        self, client, transfer_order
+    ):
+        # S7 (O5): el panel necesita paid y payment_method en el detalle.
+        response = await client.get(f"/api/v1/orders/{transfer_order.id}")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["paid"] is False
+        assert data["payment_method"] == "transfer"
+
 
 class TestReceiptPersistence:
 

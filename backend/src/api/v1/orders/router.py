@@ -672,6 +672,8 @@ def _detail_response(
             for item in order.items
         ],
         total=order.total,
+        paid=order.paid,
+        payment_method=order.payment_method,
         whatsapp_sent_at=_iso(whatsapp_sent_at),
         created_at=order.created_at.isoformat(),
         updated_at=order.updated_at.isoformat(),

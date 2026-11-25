@@ -1,4 +1,4 @@
-import { apiFetch, ApiError } from "@/lib/api";
+import { API_BASE_URL, apiFetch, ApiError } from "@/lib/api";
 import { downloadEndpoint } from "@/lib/download";
 import type {
   Customer,
@@ -23,6 +23,22 @@ import type {
 
 const BASE = "/orders";
 const CUSTOMERS = "/customers";
+
+/**
+ * O5/S7 — URL pública (mismo origen) del comprobante de un pedido.
+ * Usada para preview inline (img) y apertura de PDF en pestaña nueva;
+ * la apertura marca `receipt_viewed_at` del lado del backend (solo admin).
+ */
+export function receiptUrl(orderId: string): string {
+  let base = "";
+  try {
+    base = new URL(API_BASE_URL).pathname; // p.ej. "/api/v1"
+  } catch {
+    base = "";
+  }
+  if (!base.startsWith("/")) base = `/${base}`;
+  return `${base}${BASE}/${orderId}/receipt`;
+}
 
 
 function breakdownOf(raw: Record<string, unknown>): OrderItemBreakdown {
@@ -116,6 +132,11 @@ function detailOf(raw: Record<string, unknown>): OrderDetail {
           cae_vto: rawInvoice.cae_vto as string,
           pdf_url: rawInvoice.pdf_url as string,
         },
+    payment_method: (raw.payment_method as string) ?? "cash",
+    receipt_uploaded: Boolean(raw.receipt_uploaded),
+    receipt_content_type: raw.receipt_content_type as string | null,
+    receipt_uploaded_at: raw.receipt_uploaded_at as string | null,
+    receipt_viewed_at: raw.receipt_viewed_at as string | null,
   };
 }
 
@@ -186,6 +207,25 @@ export const ordersService = {
       method: "PATCH",
       body: JSON.stringify({}),
     });
+  },
+
+  /** O5/S7 — Confirmar comprobante de transferencia (admin). Devuelve el detalle actualizado. */
+  confirmReceipt(id: string): Promise<OrderDetail> {
+    return apiFetch<Record<string, unknown>>(`${BASE}/${id}/receipt/confirm`, {
+      method: "POST",
+    }).then(detailOf);
+  },
+
+  /** O5/S7 — Rechazar comprobante: cancela el pedido (admin). Devuelve el detalle actualizado. */
+  rejectReceipt(id: string): Promise<OrderDetail> {
+    return apiFetch<Record<string, unknown>>(`${BASE}/${id}/receipt/reject`, {
+      method: "POST",
+    }).then(detailOf);
+  },
+
+  /** O5/S7 — Borrar comprobante de un pedido entregado (admin). 204 sin cuerpo. */
+  deleteReceipt(id: string): Promise<void> {
+    return apiFetch<void>(`${BASE}/${id}/receipt`, { method: "DELETE" });
   },
 
   preview(items: OrderCreatePayload["items"], marginPct: string | null): Promise<OrderPreviewResponse> {

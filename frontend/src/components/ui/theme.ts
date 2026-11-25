@@ -82,10 +82,20 @@ const customConfig = defineConfig({
           emphasized: { value: { _light: "#b3d3ae", _dark: "#21443a" } },
           focusRing: { value: { _light: "{colors.toscana.teal}", _dark: "{colors.toscana.teal}" } },
         },
-        red: { solid: { value: { _light: "{colors.red.600}", _dark: "{colors.red.600}" } } },
+        red: {
+          solid: { value: { _light: "{colors.red.600}", _dark: "{colors.red.600}" } },
+          // O5/S7 — superficies de rechazo/eliminación de comprobantes
+          subtle: { value: { _light: "#fdf1f1", _dark: "#2b1214" } },
+          border: { value: { _light: "#eec6c6", _dark: "#5c2a2a" } },
+        },
         orange: {
           solid: { value: { _light: "{colors.orange.700}", _dark: "{colors.orange.700}" } },
           contrast: { value: { _light: "{colors.white}", _dark: "{colors.white}" } },
+        },
+        // O5/S7 — warning para comprobantes de transferencia pendientes
+        warning: {
+          subtle: { value: { _light: "#fdf1e7", _dark: "#2e1f10" } },
+          border: { value: { _light: "#ecd0b0", _dark: "#6b4a1f" } },
         },
         blue: { solid: { value: { _light: "{colors.blue.600}", _dark: "{colors.blue.600}" } } },
       },

@@ -240,6 +240,8 @@ class OrderDetailResponse(BaseModel):
     margin_pct: Optional[Pct] = None
     items: List[OrderItemResponse]
     total: Money
+    paid: bool = False
+    payment_method: str = "cash"
     whatsapp_sent_at: Optional[str] = None
     created_at: str
     updated_at: str
