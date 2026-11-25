@@ -5,6 +5,7 @@ sin salidas y labels derivados de la máquina.
 
 Máquina (valores persistentes en inglés):
     new -> confirmed -> preparing -> pending_delivery -> delivered
+    new -> cancelled           (O5/S4: sin efecto de stock)
     confirmed -> cancelled
     preparing -> cancelled
 """
@@ -22,6 +23,7 @@ from domain.order_states import (
 ALL_STATUSES = list(OrderStatus)
 VALID_TRANSITIONS = {
     ("new", "confirmed"),
+    ("new", "cancelled"),
     ("confirmed", "preparing"),
     ("confirmed", "cancelled"),
     ("preparing", "pending_delivery"),
@@ -59,10 +61,10 @@ class TestMatrizCompleta:
         )
 
     def test_contador_de_transiciones(self):
-        # 6x6 = 36 pares: 6 válidos y 30 inválidos.
+        # 6x6 = 36 pares: 7 válidos (O5/S4 sumó new -> cancelled) y 29 inválidos.
         assert len(ALL_STATUSES) == 6
-        assert len(VALID_TRANSITIONS) == 6
-        assert 36 - len(VALID_TRANSITIONS) == 30
+        assert len(VALID_TRANSITIONS) == 7
+        assert 36 - len(VALID_TRANSITIONS) == 29
 
     def test_current_desconocido(self):
         with pytest.raises(InvalidStatusTransitionError) as exc:

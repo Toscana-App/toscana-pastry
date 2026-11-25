@@ -396,6 +396,63 @@ class PaymentEventStore(ABC):
         pass
 
 
+class ReceiptVerificationStore(ABC):
+    """O5/S4 — persistencia de ConfirmReceipt/RejectReceipt.
+
+    La decision (transicion de pago, cadena de estados del pedido,
+    efecto de stock y auditoria) vive en el use case; el store solo
+    persiste lo decidido en una transaccion unica.
+
+    lock_order devuelve el Order del portal (domain/order.py), que
+    lleva el estado de pago (O2) y los campos de comprobante (O5/S2).
+    """
+
+    @abstractmethod
+    async def lock_order(self, order_id: str) -> Any:
+        pass
+
+    @abstractmethod
+    async def lock_ingredients(self, ingredient_ids: List[str]) -> Dict[str, Ingredient]:
+        pass
+
+    @abstractmethod
+    async def apply_movements(self, changes: List[Tuple[Ingredient, StockMovement]]) -> None:
+        pass
+
+    @abstractmethod
+    async def set_status(self, order_id: str, status: str) -> None:
+        pass
+
+    @abstractmethod
+    async def set_payment(
+        self,
+        order_id: str,
+        *,
+        reference: Optional[str],
+        status: str,
+        paid_at: Optional[datetime],
+    ) -> None:
+        pass
+
+    @abstractmethod
+    async def record_payment_event(
+        self,
+        event_id: str,
+        order_id: str,
+        provider_payment_id: str,
+        status: str,
+    ) -> None:
+        pass
+
+    @abstractmethod
+    async def commit(self) -> None:
+        pass
+
+    @abstractmethod
+    async def rollback(self) -> None:
+        pass
+
+
 class DocumentRepository(ABC):
 
     @abstractmethod

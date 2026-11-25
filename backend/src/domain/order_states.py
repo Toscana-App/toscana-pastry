@@ -2,6 +2,7 @@
 
 Valores persistentes (API, frontend, BD), siempre en inglés:
     new -> confirmed -> preparing -> pending_delivery -> delivered
+    new -> cancelled           (O5/S4: sin efecto de stock)
     confirmed -> cancelled
     preparing -> cancelled
 
@@ -73,7 +74,10 @@ class NewState(OrderState):
 
     @property
     def transitions(self) -> dict[OrderStatus, OrderStatus]:
-        return {OrderStatus.CONFIRMED: OrderStatus.CONFIRMED}
+        return {
+            OrderStatus.CONFIRMED: OrderStatus.CONFIRMED,
+            OrderStatus.CANCELLED: OrderStatus.CANCELLED,
+        }
 
 
 class ConfirmedState(OrderState):

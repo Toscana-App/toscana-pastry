@@ -164,7 +164,6 @@ async def test_cancel_from_preparing_restores_stock():
         ("confirmed", "confirmed"),
         ("cancelled", "delivered"),
         ("new", "delivered"),
-        ("new", "cancelled"),
         ("preparing", "delivered"),
     ],
 )
@@ -174,6 +173,17 @@ async def test_invalid_transition_revalidated_under_lock(current, target):
         await TransitionOrderStatus(store).execute("o1", target)
     assert store.rolled_back and not store.committed
     assert store.movements == []
+
+
+async def test_cancel_from_new_has_no_stock_effect():
+    store = FakeStore(_order("new"), [_ing("flour", "100")])
+    result = await TransitionOrderStatus(store).execute("o1", "cancelled")
+
+    assert result.status == "cancelled"
+    assert store.ingredients["flour"].stock_qty == Decimal("100")
+    assert store.movements == []
+    assert not any(c == "apply_movements" for c in store.calls)
+    assert store.committed
 
 
 async def test_missing_order_is_invalid_transition():

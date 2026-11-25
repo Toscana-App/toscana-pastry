@@ -735,12 +735,8 @@ class TestOrderStatus:
         )
         assert response.status_code == 400
 
-        response = await client.patch(
-            f"/api/v1/orders/{order_id}/status",
-            json={"status": "cancelled"},
-            headers={"Authorization": f"Bearer {token}"},
-        )
-        assert response.status_code == 400
+        # new -> cancelled es valida desde O5/S4 (se cubre en
+        # test_transition_order_status.py); queda new -> delivered invalida.
 
         for next_status in ("confirmed", "preparing", "pending_delivery"):
             response = await client.patch(

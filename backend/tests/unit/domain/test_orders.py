@@ -69,9 +69,9 @@ class TestTransitions:
         assert transition("confirmed", "cancelled") == "cancelled"
         assert transition("preparing", "cancelled") == "cancelled"
 
-    def test_no_se_cancela_desde_new(self):
-        with pytest.raises(InvalidStatusTransitionError):
-            transition("new", "cancelled")
+    def test_cancelar_desde_new(self):
+        # O5/S4: new -> cancelled es valida (sin efecto de stock).
+        assert transition("new", "cancelled") == "cancelled"
 
     def test_estados_finales_no_avanzan(self):
         for target in OrderStatus:
