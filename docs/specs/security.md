@@ -168,10 +168,11 @@
 - **Control**: acceso controlado a archivos; sin subidas arbitrarias.
 - **Implementación**:
   - **v1: sin uploads de usuario**, con la excepción del **upload de imagen de producto** (P12): admin-only (403 a roles de portal), multipart con validación por **magic bytes** (JPEG/PNG/WebP — el `Content-Type` del cliente no basta), ≤5 MB, dimensiones mínimas, nombre de archivo `<product_id>.<ext>` (nunca el nombre enviado por el cliente), storage en disco fuera del webroot, sin ejecución, sin listing de directorio (spec `p12_product_media.md`).
+  - **Excepción de comprobante de transferencia (O5, 2026-11-25)**: `POST /orders/{id}/receipt` — multipart con validación por **magic bytes** (PDF/JPEG/PNG — el `Content-Type` del cliente no basta; un GIF con header `image/jpeg` → 422), ≤5 MiB, nombre de archivo derivado del pedido + extensión (nunca el nombre enviado), storage en disco fuera del webroot, sin ejecución, sin listing. Solo el **owner del pedido** sube (pedido ajeno → 404 anti-sondeo, igual para POST y GET); solo el pedido puede llevar 1 comprobante, inmutable (re-carga → 409, el original no se toca). Descarga binaria `Content-Disposition: inline` para owner/admin (404 anti-sondeo); `receipt_viewed_at` solo lo setea el admin. Borrado físico+lógico **admin only** y solo en `delivered` (409 antes) (ODD `odd/tasks/transfer_receipt_verification.md`, S3).
   - PDF: solo vía `GET /budgets/{id}/pdf` **autenticado** o mediante URL firmada (expiración ≤ 1 h, single-use). Sin directorio estático de PDFs alcanzable por path.
   - Edge: `X-Content-Type-Options: nosniff` (ítem 18); sin listing de directorios; `next.config` sin `filesystem` expuesto.
 - **Dónde**: F3 (PDF) · F4 (edge).
-- **Verificación**: pytest: path directo de PDF sin sesión ni URL válida → 403/404; URL firmada expirada → 410; upload con tipo no permitido (magic bytes, content-type falsificado) → 422; upload de imagen con token de cliente → 403.
+- **Verificación**: pytest: path directo de PDF sin sesión ni URL válida → 403/404; URL firmada expirada → 410; upload con tipo no permitido (magic bytes, content-type falsificado) → 422; upload de imagen con token de cliente → 403. E2e R1–R15 (`backend/e2e/cases.py`): comprobante con tipo falsificado (GIF + header `image/jpeg`) → 422, >5 MiB → 422, pedido ajeno → 404 (POST y GET), re-carga → 409 con original intacto, borrado solo en `delivered`.
 
 ## 17. Devolver datos necesarios
 - **Control**: exposición mínima; los datos internos nunca salen hacia el cliente final.

@@ -200,7 +200,7 @@ nunca viaja por JSON).
 | T6 | S7 | inline | Panel: badges (`OrdersPage`), banner + preview + Confirmar/Rechazar/Borrar (`OrderDetailPage`), ocultación del botón de O4; vitest RED→GREEN de badges y botones por estado. | done | `800ddf2` |
 | T7 | S8 | inline | Suite e2e R1–R15 contra uvicorn + Postgres reales (mock MP); todo verde, base throwaway eliminada. | done | — |
 | T8 | S5 | delegado (verifier) | Verificador independiente contra S1–S7 + baseline de suites (pagos O4, backend completa, gate frontend, e2e) antes de reportar. | pending | — |
-| T9 | S9 | inline | `security.md`/`api_endpoints.md`/`master_plan.md`/`p06_orders.md` actualizados; ruff/mypy limpios en archivos tocados; cero comentarios nuevos. | pending | — |
+| T9 | S9 | inline | `security.md`/`api_endpoints.md`/`master_plan.md`/`p06_orders.md` actualizados; ruff/mypy limpios en archivos tocados; cero comentarios nuevos. | done | — |
 
 ## Casos de prueba (autoritativos, e2e)
 
@@ -370,3 +370,15 @@ nunca viaja por JSON).
   `payment_events` = 3 eventos (`uploaded` + `approved` + `deleted`). Suites:
   e2e 45/45 (exit 0, base throwaway eliminada); backend pytest 2265 passed + 4
   preexistentes; frontend intacto (614/614, tsc limpio — sin cambios de UI).
+- **L11 — 2026-11-25 (T9 done):** T9 (S9) docs. `security.md` §16: excepción de
+  comprobante (patrón P12): magic bytes (GIF + header falsificado → 422), ≤5 MiB,
+  nombre derivado (nunca el del cliente), owner-only con anti-sondeo 404, 1
+  comprobante inmutable por pedido, borrado admin-only en `delivered`; verificación
+  agrega los e2e R1–R15. `api_endpoints.md`: subtabla "Comprobantes de transferencia
+  (O5)" con los 5 endpoints (contratos, códigos, notas) + nota del gate S5
+  (`PATCH /{id}/paid`); conteos F2 16→21, total ~94→~99. `master_plan.md`: nota del
+  flujo `transfer` en Pagos de portal + ítem 37 de traceability (numeración: no se
+  renumbraron los ítems existentes, se añadió 37 al final). `p06_orders.md`:
+  `payment_method` gana `transfer` en RF-P6-12 con referencia a este ODD (gate de
+  pago), UC-12 nueva, criterio de aceptación actualizado. Sin cambios de código
+  (solo docs) → sin suites de código.
