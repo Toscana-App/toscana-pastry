@@ -1,4 +1,9 @@
-"""Casos de prueba e2e GIVEN-WHEN-THEN (ODD e2e-order-lifecycle, autoritativos).
+"""Casos de prueba e2e GIVEN-WHEN-THEN.
+
+Secciones autoritativas:
+- A/B/C: ODD e2e-order-lifecycle (creacion, maquina de pedido, pagos).
+- D: ODD payment-methods (cash/transfer/MP en la maquina de pagos).
+- R: ODD transfer_receipt_verification S8 (comprobante de transferencia).
 
 Cada caso: GIVEN (precondicion) / WHEN (accion HTTP) / THEN (asercion exacta).
 El harness solo hace HTTP y asierta: cero logica de negocio (ODD S4). La unica
@@ -393,8 +398,14 @@ async def case_b4(ctx: Ctx) -> None:
 async def case_b5(ctx: Ctx) -> None:
     # GIVEN pedido new
     order_id = await _new_order(ctx)
-    # WHEN admin intenta new -> cancelled (no existe en la matriz)
-    await _expect_invalid(ctx, order_id, "new", "cancelled", "B5")
+    # WHEN admin cancela directamente
+    # (O5/S4 habilito new -> cancelled para el flujo de rechazo de
+    # comprobante; el ODD historico la tenia como invalida)
+    resp = await patch_status(ctx.admin, order_id, "cancelled")
+    # THEN 200 cancelled (sin efecto de stock: nunca se dedujo)
+    check(resp.status_code == 200, f"B5: {resp.status_code} {resp.text[:200]}")
+    body = await get_order(ctx.admin, order_id)
+    check(body["status"] == "cancelled", f"B5: {body['status']!r} != cancelled")
 
 
 async def case_b6(ctx: Ctx) -> None:
@@ -644,12 +655,15 @@ async def case_d3(ctx: Ctx) -> None:
 
 
 async def case_d4(ctx: Ctx) -> None:
-    # GIVEN pedido transferencia (payment_status pending)
+    # GIVEN pedido transferencia (payment_status pending) con comprobante cargado
     order_id = await _new_order(ctx, payment_method=TRANSFER)
+    check((await upload_receipt(ctx.cust_a, order_id, RECEIPT_JPEG)).status_code == 201,
+          "D4: precondition upload")
     # WHEN admin marca pago manual (recibio la transferencia)
     resp = await ctx.admin.patch(f"/api/v1/orders/{order_id}/paid")
     check(resp.status_code == 200, f"D4: {resp.status_code} {resp.text[:200]}")
     # THEN paid=True, status=approved, reference=manual, paid_at en DB
+    # (el endpoint delega en ConfirmReceipt desde O5/S5)
     after = await get_payment(ctx.admin, order_id)
     check(after["paid"] is True, "D4: paid debe ser True")
     check(after["status"] == "approved", f"D4: status {after['status']!r} != approved")
@@ -690,6 +704,229 @@ async def case_d5(ctx: Ctx) -> None:
 
 
 # --------------------------------------------------------------------------
+# R — comprobante de transferencia (ODD transfer_receipt_verification, S8)
+# --------------------------------------------------------------------------
+
+# Fixtures de archivo: la validacion del backend es por magic bytes (O5/S3),
+# no por extension ni por el Content-Type del multipart.
+RECEIPT_JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * (1_000_000 - 4)  # JPEG valido, ~1 MB
+GIF_FILE = b"GIF89a" + b"\x00" * 100  # GIF: no aceptado
+OVERSIZED_FILE = b"%PDF-1.7\n" + b"\x00" * (6 * 1024 * 1024 - 8)  # ~6 MB
+
+
+async def upload_receipt(
+    client: httpx.AsyncClient,
+    order_id: str,
+    data: bytes,
+    *,
+    filename: str = "receipt.jpg",
+    mime: str = "image/jpeg",
+) -> httpx.Response:
+    return await client.post(
+        f"/api/v1/orders/{order_id}/receipt",
+        files={"file": (filename, data, mime)},
+    )
+
+
+async def download_receipt(client: httpx.AsyncClient, order_id: str) -> httpx.Response:
+    return await client.get(f"/api/v1/orders/{order_id}/receipt")
+
+
+async def case_r1(ctx: Ctx) -> None:
+    # GIVEN cliente autenticado, window abierto
+    # WHEN crea pedido por transferencia
+    resp = await create_order(ctx.cust_a, ctx.product_id, payment_method=TRANSFER)
+    # THEN 201, payment_status=pending, sin comprobante
+    check(resp.status_code in (200, 201), f"R1: creacion {resp.status_code} {resp.text[:200]}")
+    body = resp.json()
+    check(body["payment_status"] == "pending", f"R1: payment_status {body['payment_status']!r} != 'pending'")
+    check(body["receipt_uploaded"] is False, "R1: receipt_uploaded debe ser False")
+    check(body["receipt_uploaded_at"] is None, "R1: receipt_uploaded_at debe ser None")
+
+
+async def case_r2(ctx: Ctx) -> None:
+    # GIVEN pedido transferencia sin comprobante
+    order_id = await _new_order(ctx, payment_method=TRANSFER)
+    # WHEN el cliente sube un JPEG valido (~1 MB)
+    resp = await upload_receipt(ctx.cust_a, order_id, RECEIPT_JPEG)
+    # THEN 201; comprobante persistido, uploaded_at set; el pago sigue pending
+    check(resp.status_code == 201, f"R2: {resp.status_code} {resp.text[:200]}")
+    body = resp.json()
+    check(body["receipt_uploaded"] is True, "R2: receipt_uploaded debe ser True")
+    check(body["receipt_content_type"] == "image/jpeg", f"R2: content_type {body['receipt_content_type']!r} != image/jpeg")
+    check(body["receipt_uploaded_at"] is not None, "R2: uploaded_at debe estar set")
+    check(body["payment_status"] == "pending", f"R2: pago {body['payment_status']!r} (debe seguir pending)")
+
+
+async def case_r3(ctx: Ctx) -> None:
+    # GIVEN pedido con comprobante
+    order_id = await _new_order(ctx, payment_method=TRANSFER)
+    check((await upload_receipt(ctx.cust_a, order_id, RECEIPT_JPEG)).status_code == 201, "R3: precondition")
+    # WHEN el cliente hace POST de nuevo (cualquier archivo)
+    resp = await upload_receipt(ctx.cust_a, order_id, GIF_FILE, filename="otro.jpg")
+    # THEN 409 receipt_already_uploaded; el archivo original se conserva
+    check(resp.status_code == 409, f"R3: {resp.status_code} != 409 {resp.text[:200]}")
+    check(resp.json().get("detail") == "receipt_already_uploaded", f"R3: detail {resp.json().get('detail')!r}")
+    dl = await download_receipt(ctx.cust_a, order_id)
+    check(dl.status_code == 200, f"R3: download {dl.status_code} (el original debe seguir disponible)")
+    check(dl.content == RECEIPT_JPEG, "R3: el comprobante original debe conservarse byte a byte")
+
+
+async def case_r4(ctx: Ctx) -> None:
+    # GIVEN pedido cash
+    order_id = await _new_order(ctx, payment_method=CASH)
+    # WHEN el cliente intenta subir un comprobante
+    resp = await upload_receipt(ctx.cust_a, order_id, RECEIPT_JPEG)
+    # THEN 409 receipt_method_not_transfer
+    check(resp.status_code == 409, f"R4: {resp.status_code} != 409 {resp.text[:200]}")
+    check(resp.json().get("detail") == "receipt_method_not_transfer", f"R4: detail {resp.json().get('detail')!r}")
+
+
+async def case_r5(ctx: Ctx) -> None:
+    # GIVEN pedido transfer sin comprobante
+    order_id = await _new_order(ctx, payment_method=TRANSFER)
+    # WHEN el cliente sube un GIF con Content-Type: image/jpeg (mentira)
+    resp = await upload_receipt(ctx.cust_a, order_id, GIF_FILE, filename="comprobante.jpg")
+    # THEN 422 receipt_invalid_type (la validacion es por magic bytes, no por header)
+    check(resp.status_code == 422, f"R5: {resp.status_code} != 422 {resp.text[:200]}")
+    check(resp.json().get("code") == "receipt_invalid_type", f"R5: code {resp.json().get('code')!r}")
+
+
+async def case_r6(ctx: Ctx) -> None:
+    # GIVEN pedido transfer sin comprobante
+    order_id = await _new_order(ctx, payment_method=TRANSFER)
+    # WHEN el cliente sube un archivo de ~6 MB
+    resp = await upload_receipt(ctx.cust_a, order_id, OVERSIZED_FILE, filename="gigante.pdf", mime="application/pdf")
+    # THEN 422 receipt_too_large
+    check(resp.status_code == 422, f"R6: {resp.status_code} != 422 {resp.text[:200]}")
+    check(resp.json().get("code") == "receipt_too_large", f"R6: code {resp.json().get('code')!r}")
+
+
+async def case_r7(ctx: Ctx) -> None:
+    # GIVEN pedido de otro cliente con comprobante
+    order_id = await _new_order(ctx, payment_method=TRANSFER)
+    check((await upload_receipt(ctx.cust_a, order_id, RECEIPT_JPEG)).status_code == 201, "R7: precondition")
+    # WHEN el cliente B hace POST o GET sobre el comprobante
+    post = await upload_receipt(ctx.cust_b, order_id, GIF_FILE)
+    get = await download_receipt(ctx.cust_b, order_id)
+    # THEN 404 en ambos (anti-sondeo)
+    check(post.status_code == 404, f"R7: POST {post.status_code} != 404 {post.text[:200]}")
+    check(get.status_code == 404, f"R7: GET {get.status_code} != 404 {get.text[:200]}")
+
+
+async def case_r8(ctx: Ctx) -> None:
+    # GIVEN pedido transfer `new` con comprobante
+    order_id = await _new_order(ctx, payment_method=TRANSFER)
+    check((await upload_receipt(ctx.cust_a, order_id, RECEIPT_JPEG)).status_code == 201, "R8: precondition")
+    # WHEN el admin confirma el comprobante
+    resp = await ctx.admin.post(f"/api/v1/orders/{order_id}/receipt/confirm")
+    # THEN 200; pago approved, paid=true, paid_at set; pedido preparing
+    check(resp.status_code == 200, f"R8: {resp.status_code} {resp.text[:200]}")
+    body = resp.json()
+    check(body["paid"] is True, "R8: paid debe ser True")
+    check(body["status"] == "preparing", f"R8: status {body['status']!r} != preparing")
+    check(body["payment_method"] == "transfer", f"R8: payment_method {body['payment_method']!r} != transfer")
+    pay = await get_payment(ctx.admin, order_id)
+    check(pay["status"] == "approved", f"R8: pago {pay['status']!r} != approved")
+    check(await order_paid_at(order_id) is not None, "R8: paid_at debe estar set en DB")
+
+
+async def case_r9(ctx: Ctx) -> None:
+    # GIVEN pedido transfer `new` con comprobante
+    order_id = await _new_order(ctx, payment_method=TRANSFER)
+    check((await upload_receipt(ctx.cust_a, order_id, RECEIPT_JPEG)).status_code == 201, "R9: precondition")
+    # WHEN el admin rechaza el comprobante
+    resp = await ctx.admin.post(f"/api/v1/orders/{order_id}/receipt/reject")
+    # THEN 200; pago rejected; pedido cancelled
+    check(resp.status_code == 200, f"R9: {resp.status_code} {resp.text[:200]}")
+    body = resp.json()
+    check(body["status"] == "cancelled", f"R9: status {body['status']!r} != cancelled")
+    pay = await get_payment(ctx.admin, order_id)
+    check(pay["status"] == "rejected", f"R9: pago {pay['status']!r} != rejected")
+    check(pay["paid"] is False, "R9: paid debe seguir False (el rechazo nunca paga)")
+
+
+async def case_r10(ctx: Ctx) -> None:
+    # GIVEN pedido con comprobante, ya cancelled (rechazado previamente)
+    order_id = await _new_order(ctx, payment_method=TRANSFER)
+    check((await upload_receipt(ctx.cust_a, order_id, RECEIPT_JPEG)).status_code == 201, "R10: precondition")
+    check((await ctx.admin.post(f"/api/v1/orders/{order_id}/receipt/reject")).status_code == 200, "R10: precondition")
+    # WHEN el admin intenta confirmar
+    resp = await ctx.admin.post(f"/api/v1/orders/{order_id}/receipt/confirm")
+    # THEN 409 (el check de pago precede al de estado de pedido: el pago ya
+    # fue rechazado, asi que el error observable es receipt_payment_not_pending)
+    check(resp.status_code == 409, f"R10: {resp.status_code} != 409 {resp.text[:200]}")
+    check(resp.json().get("detail") == "receipt_payment_not_pending", f"R10: detail {resp.json().get('detail')!r}")
+
+
+async def case_r11(ctx: Ctx) -> None:
+    # GIVEN pedido transfer sin comprobante
+    order_id = await _new_order(ctx, payment_method=TRANSFER)
+    # WHEN el admin marca pago manual
+    resp = await ctx.admin.patch(f"/api/v1/orders/{order_id}/paid")
+    # THEN 409 receipt_required
+    check(resp.status_code == 409, f"R11: {resp.status_code} != 409 {resp.text[:200]}")
+    check(resp.json().get("detail") == "receipt_required", f"R11: detail {resp.json().get('detail')!r}")
+
+
+async def case_r12(ctx: Ctx) -> None:
+    # GIVEN pedido `delivered` con comprobante (confirmado y entregado)
+    order_id = await _new_order(ctx, payment_method=TRANSFER)
+    check((await upload_receipt(ctx.cust_a, order_id, RECEIPT_JPEG)).status_code == 201, "R12: precondition")
+    check((await ctx.admin.post(f"/api/v1/orders/{order_id}/receipt/confirm")).status_code == 200, "R12: precondition")
+    check((await patch_status(ctx.admin, order_id, "pending_delivery")).status_code == 200, "R12: precondition")
+    check((await patch_status(ctx.admin, order_id, "delivered")).status_code == 200, "R12: precondition")
+    # WHEN el admin borra el comprobante
+    resp = await ctx.admin.delete(f"/api/v1/orders/{order_id}/receipt")
+    # THEN 204; archivo borrado (download 404), payment_method=transfer intacto,
+    # entradas en payment_events (uploaded + approved + deleted = 3 eventos)
+    check(resp.status_code == 204, f"R12: {resp.status_code} != 204 {resp.text[:200]}")
+    dl = await download_receipt(ctx.cust_a, order_id)
+    check(dl.status_code == 404, f"R12: post-borrado download {dl.status_code} != 404")
+    body = await get_order(ctx.admin, order_id)
+    check(body["receipt_uploaded"] is False, "R12: el detalle debe seguir sin comprobante")
+    check(body["payment_method"] == "transfer", f"R12: payment_method {body['payment_method']!r} (debe quedar intacto)")
+    check(await payment_events_count(order_id) == 3, f"R12: payment_events {await payment_events_count(order_id)} != 3 (uploaded + approved + deleted)")
+
+
+async def case_r13(ctx: Ctx) -> None:
+    # GIVEN pedido `preparing` con comprobante
+    order_id = await _new_order(ctx, payment_method=TRANSFER)
+    check((await upload_receipt(ctx.cust_a, order_id, RECEIPT_JPEG)).status_code == 201, "R13: precondition")
+    check((await patch_status(ctx.admin, order_id, "confirmed")).status_code == 200, "R13: precondition")
+    check((await patch_status(ctx.admin, order_id, "preparing")).status_code == 200, "R13: precondition")
+    # WHEN el admin intenta borrar el comprobante
+    resp = await ctx.admin.delete(f"/api/v1/orders/{order_id}/receipt")
+    # THEN 409 receipt_not_deletable
+    check(resp.status_code == 409, f"R13: {resp.status_code} != 409 {resp.text[:200]}")
+    check(resp.json().get("detail") == "receipt_not_deletable", f"R13: detail {resp.json().get('detail')!r}")
+
+
+async def case_r14(ctx: Ctx) -> None:
+    # GIVEN pedido sin comprobante
+    order_id = await _new_order(ctx, payment_method=TRANSFER)
+    # WHEN el admin intenta descargar el comprobante
+    resp = await download_receipt(ctx.admin, order_id)
+    # THEN 404 receipt_not_found
+    check(resp.status_code == 404, f"R14: {resp.status_code} != 404 {resp.text[:200]}")
+    check(resp.json().get("detail") == "receipt_not_found", f"R14: detail {resp.json().get('detail')!r}")
+
+
+async def case_r15(ctx: Ctx) -> None:
+    # GIVEN pedido con comprobante subido por el cliente
+    order_id = await _new_order(ctx, payment_method=TRANSFER)
+    check((await upload_receipt(ctx.cust_a, order_id, RECEIPT_JPEG)).status_code == 201, "R15: precondition")
+    # WHEN el cliente descarga su comprobante
+    resp = await download_receipt(ctx.cust_a, order_id)
+    # THEN 200 binario integro, Content-Type real; receipt_viewed_at NO cambia
+    check(resp.status_code == 200, f"R15: {resp.status_code} != 200")
+    check(resp.content == RECEIPT_JPEG, "R15: los bytes devueltos deben ser el archivo subido")
+    check(resp.headers["content-type"].startswith("image/jpeg"), f"R15: content-type {resp.headers['content-type']!r}")
+    body = await get_order(ctx.admin, order_id)
+    check(body["receipt_viewed_at"] is None, "R15: receipt_viewed_at no debe cambiar (solo el admin lo setea)")
+
+
+# --------------------------------------------------------------------------
 # registro
 # --------------------------------------------------------------------------
 
@@ -706,7 +943,7 @@ CASES: list[tuple[str, str, CaseFn]] = [
     ("B2", "salto new -> delivered rechazado", case_b2),
     ("B3", "confirmed -> cancelled", case_b3),
     ("B4", "preparing -> cancelled", case_b4),
-    ("B5", "new -> cancelled rechazado", case_b5),
+    ("B5", "new -> cancelled (O5: habilitado, sin stock)", case_b5),
     ("B6", "delivered terminal", case_b6),
     ("B7", "cancelled terminal", case_b7),
     ("C1", "webhook approved desde None", case_c1),
@@ -723,7 +960,22 @@ CASES: list[tuple[str, str, CaseFn]] = [
     ("C12", "pago manual sobre MP rejected 409", case_c12),
     ("C13", "webhook MP sobre pedido cash: audit, sigue pending", case_c13),
     ("D3", "creacion transfer nace en pending", case_d3),
-    ("D4", "pago manual transfer (pending -> approved)", case_d4),
+    ("D4", "pago manual transfer con comprobante (delega a ConfirmReceipt)", case_d4),
     ("D5", "webhook MP sobre pedido transfer: audit, sigue pending", case_d5),
     ("D7", "pago manual MP sin eventos (None -> approved)", case_d7),
+    ("R1", "creacion transfer sin comprobante", case_r1),
+    ("R2", "upload JPEG valido: 201, pago sigue pending", case_r2),
+    ("R3", "doble carga: 409, archivo original intacto", case_r3),
+    ("R4", "upload en pedido cash: 409 method_not_transfer", case_r4),
+    ("R5", "GIF con Content-Type image/jpeg: 422 invalid_type", case_r5),
+    ("R6", "archivo de ~6 MB: 422 too_large", case_r6),
+    ("R7", "pedido ajeno: POST/GET 404 (anti-sondeo)", case_r7),
+    ("R8", "confirm en new: approved + paid + preparing", case_r8),
+    ("R9", "reject en new: rejected + cancelled", case_r9),
+    ("R10", "confirm sobre cancelled: 409 not_receivable", case_r10),
+    ("R11", "pago manual transfer sin comprobante: 409 receipt_required", case_r11),
+    ("R12", "borrado en delivered: 204 + 404 + audit", case_r12),
+    ("R13", "borrado en preparing: 409 not_deletable", case_r13),
+    ("R14", "download sin comprobante: 404 not_found", case_r14),
+    ("R15", "download cliente: 200 integro, viewed_at no cambia", case_r15),
 ]
