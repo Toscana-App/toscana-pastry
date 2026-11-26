@@ -32,6 +32,7 @@ describe("DeliveryStatusView", () => {
       await screen.findByRole("heading", { name: "Su pedido ha sido entregado" }),
     ).toBeTruthy();
     expect(screen.getByText("#00042")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toContain("Entregado");
     expect(mockedFetch).toHaveBeenCalledWith(TOKEN, expect.any(AbortSignal));
   });
 
@@ -70,7 +71,7 @@ describe("DeliveryStatusView", () => {
     expect(
       await screen.findByRole("heading", { name: "Su pedido está en curso" }),
     ).toBeTruthy();
-    expect(screen.getByText("Pendiente entrega")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toContain("Pendiente entrega");
   });
 
   it("shows a generic message for unknown links", async () => {

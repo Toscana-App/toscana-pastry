@@ -167,6 +167,7 @@ pagina responde **"Su pedido ha sido entregado"**.
 - **T6** — Frontend: pagina publica `/entrega/[token]` + seccion QR en el detalle de pedido + tests. ✅
 - **T7** — Gate: suite backend (archivos auto-contenidos), `tsc`/`vitest`/`build`; PR apilado sobre `feat/transfer-receipts`. ✅ con una salvedad documentada en L7.
 - **T8** — Descripcion de productos en la vista publica (Q15–Q16): `PublicDeliveryItem` en dominio, mapeo en `ResolveDeliveryLink` (solo con repositorio de pedidos inyectado; pedido ausente → items vacio), schema `items`, lista en `delivery_status_view` + tests (unidad, integracion, vitest). ✅
+- **T9** — Preponderancia del estado (L12): banner de estado semantico en `delivery_status_view` para `active`/`delivered`/`cancelled` (`role="status"`, dot + label 16px/700), reemplazando el chip neutro; tests de vitest actualizados. ✅
 
 ## Reglas
 
@@ -241,3 +242,22 @@ pagina responde **"Su pedido ha sido entregado"**.
   `ResolveDeliveryLink` recibe el repositorio de pedidos como colaborador
   opcional (tests existentes sin repositorio → items vacio, sin cambios).
   `get_full` devuelve el modelo P6 (`qty`), asi el mapeo lee `item.qty`.
+- **L12** (T9, definicion visual con la skill `impeccable`): el estado del
+  pedido era el elemento mas debil de la pagina (chip 14px mutado, borde
+  neutro, y ausente en `delivered`/`cancelled`). Decision: banner a ancho
+  completo justo debajo del codigo de pedido en los tres estados del pedido,
+  con la misma posicion en las tres pantallas (consistencia espacial: el
+  cliente escanea "que pasa con mi pedido" siempre en el mismo lugar).
+  Semantica por estado, solo tokens semanticos existentes del sistema (Regla
+  del Token Semantico, sin hex sueltos): `active` → `warning.subtle`/
+  `warning.border`/`fg.warning` + dot `orange.solid` (mismo semantico que
+  ya usa el sistema para comprobantes pendientes); `delivered` →
+  `green.subtle`/`green.emphasized`/`green.fg` + dot `green.solid` (teal =
+  estado positivo, Regla del Unico Acento); `cancelled` → `red.subtle`/
+  `red.border`/`fg.error` + dot `red.solid`. Preponderancia: label 16px peso
+  700 (peso = estado, Regla Weight-Means-State) + dot de 10px
+  `aria-hidden`, radio `lg` (8px, direccion warm de la superficie cliente),
+  un solo rule de 1px y sin sombras (Regla del Ledger Plano). Contraste
+  verificado AA en ambos modos: light 7.1 / 6.1 / 7.6, dark 9.4 / 10.5 / 9.2
+  para `active`/`delivered`/`cancelled`. `role="status"` para lectores de
+  pantalla. El chip anterior quedo fuera; `expired` sigue sin banner.

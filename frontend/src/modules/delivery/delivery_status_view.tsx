@@ -19,10 +19,68 @@ interface DeliveryStatusViewProps {
 
 const UNAVAILABLE = "Este enlace no está disponible";
 
+type OrderState = Exclude<PublicDelivery["state"], "expired">;
+
 type View =
   | { kind: "loading" }
   | { kind: "error"; message: string }
   | { kind: "ready"; delivery: PublicDelivery };
+
+const STATUS_TONE: Record<
+  OrderState,
+  { bg: string; border: string; fg: string; dot: string }
+> = {
+  active: {
+    bg: "warning.subtle",
+    border: "warning.border",
+    fg: "fg.warning",
+    dot: "orange.solid",
+  },
+  delivered: {
+    bg: "green.subtle",
+    border: "green.emphasized",
+    fg: "green.fg",
+    dot: "green.solid",
+  },
+  cancelled: {
+    bg: "red.subtle",
+    border: "red.border",
+    fg: "fg.error",
+    dot: "red.solid",
+  },
+};
+
+function StatusBanner({ state, label }: { state: OrderState; label: string }) {
+  const tone = STATUS_TONE[state];
+  return (
+    <Box
+      as="div"
+      role="status"
+      w="full"
+      display="flex"
+      alignItems="center"
+      gap={3}
+      borderWidth="1px"
+      borderColor={tone.border}
+      bg={tone.bg}
+      rounded="lg"
+      px={4}
+      py={3}
+    >
+      <Box
+        aria-hidden
+        flexShrink="0"
+        width="10px"
+        height="10px"
+        rounded="full"
+        bg={tone.dot}
+      />
+      <Text fontSize="md" fontWeight="700" color={tone.fg}>
+        {label}
+      </Text>
+    </Box>
+  );
+}
 
 function messageFor(cause: unknown): string {
   return cause instanceof Error && cause.message ? cause.message : UNAVAILABLE;
@@ -107,6 +165,12 @@ export function DeliveryStatusView({ token }: DeliveryStatusViewProps) {
                   </Text>
                 </Text>
               ) : null}
+              {view.delivery.state !== "expired" ? (
+                <StatusBanner
+                  state={view.delivery.state}
+                  label={view.delivery.status_label}
+                />
+              ) : null}
               {view.delivery.items && view.delivery.items.length > 0 ? (
                 <Box
                   w="full"
@@ -137,19 +201,6 @@ export function DeliveryStatusView({ token }: DeliveryStatusViewProps) {
                       </Box>
                     ))}
                   </Stack>
-                </Box>
-              ) : null}
-              {view.delivery.state === "active" ? (
-                <Box
-                  borderWidth="1px"
-                  borderColor="border"
-                  rounded="md"
-                  px={3}
-                  py={1}
-                  fontSize="sm"
-                  color="fg.muted"
-                >
-                  {view.delivery.status_label}
                 </Box>
               ) : null}
               {view.delivery.state === "delivered" ? (
