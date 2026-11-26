@@ -26,3 +26,6 @@ CLAUDE.local.md
 # worktrees locales y byproducts de uv/pip install -e
 .worktrees/
 *.egg-info/
+
+# storage privado de comprobantes (O5) — fuera del webroot, nunca montado
+backend/data/

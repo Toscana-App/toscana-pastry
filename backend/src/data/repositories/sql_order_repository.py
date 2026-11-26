@@ -82,6 +82,12 @@ def _to_domain(orm: OrderORM, item_orms: Sequence[OrderItemORM] | None = None) -
             if orm.payment_status
             else None
         ),
+        receipt_file=orm.receipt_file,
+        receipt_content_type=orm.receipt_content_type,
+        receipt_size_bytes=orm.receipt_size_bytes,
+        receipt_uploaded_at=orm.receipt_uploaded_at,
+        receipt_viewed_at=orm.receipt_viewed_at,
+        receipt_deleted_at=orm.receipt_deleted_at,
         created_at=orm.created_at,
         items=items,
     )
@@ -196,6 +202,10 @@ def _order_to_domain(orm: OrderORM) -> P6Order:
         id=orm.id,
         paid=orm.paid_at is not None,
         payment_method=str(orm.payment_method or "cash"),
+        receipt_file=orm.receipt_file,
+        receipt_content_type=orm.receipt_content_type,
+        receipt_uploaded_at=orm.receipt_uploaded_at,
+        receipt_viewed_at=orm.receipt_viewed_at,
         items=items,
         snapshots=snapshots,
     )
@@ -763,6 +773,15 @@ class SQLOrderRepository:
         await self.session.rollback()
 
 
+    async def mark_receipt_viewed(
+        self, order_id: str, viewed_at: datetime.datetime
+    ) -> None:
+        orm = await self._load_orm(order_id)
+        if orm is None:
+            return
+        orm.receipt_viewed_at = viewed_at
+        await self.session.commit()
+
     async def mark_whatsapp_sent(
         self, order: P6Order, sent_at: datetime
     ) -> None:
@@ -829,3 +848,94 @@ def _ingredient_to_domain(orm: IngredientORM):
         id=orm.id,
         deleted_at=orm.deleted_at,
     )
+
+
+class SQLReceiptVerificationStore(SQLOrderRepository):
+    """O5/S4 — persistencia de los use cases de comprobante.
+
+    Reutiliza la persistencia de SQLOrderRepository (mismas tablas,
+    misma sesion) con dos ajustes de contrato ReceiptVerificationStore:
+
+      - lock_order devuelve el Order del portal (domain/order.py) con
+        los snapshots de los items: los efectos de stock planean su
+        deduccion sobre ese plan.
+      - record_payment_event NO committea: el use case cierra la
+        transaccion unica (commit/rollback viven en el use case).
+    """
+
+    async def lock_order(self, order_id: str) -> Optional[Order]:
+        orm = await self._lock_order(order_id)
+        if orm is None:
+            return None
+        order = _to_domain(orm)
+        order.snapshots = {
+            item.id: (
+                _json_to_snapshot(item.snapshot)
+                if item.snapshot
+                else OrderItemSnapshot()
+            )
+            for item in orm.order_items
+        }
+        return order
+
+    async def set_payment(
+        self,
+        order_id: str,
+        *,
+        reference: Optional[str],
+        status: str,
+        paid_at: Optional[datetime.datetime],
+    ) -> None:
+        orm = await self.session.get(OrderORM, order_id)
+        orm.payment_status = (
+            status.value if hasattr(status, "value") else status
+        )
+        if reference is not None:
+            orm.payment_reference = reference
+        if paid_at is not None:
+            orm.paid_at = paid_at
+        orm.updated_at = datetime.datetime.now(datetime.UTC)
+
+    async def save_receipt(
+        self,
+        order_id: str,
+        *,
+        file: str,
+        content_type: str,
+        size_bytes: int,
+        uploaded_at: datetime.datetime,
+    ) -> None:
+        orm = await self.session.get(OrderORM, order_id)
+        orm.receipt_file = file
+        orm.receipt_content_type = content_type
+        orm.receipt_size_bytes = size_bytes
+        orm.receipt_uploaded_at = uploaded_at
+        orm.updated_at = datetime.datetime.now(datetime.UTC)
+
+    async def clear_receipt(
+        self, order_id: str, deleted_at: datetime.datetime
+    ) -> None:
+        orm = await self.session.get(OrderORM, order_id)
+        orm.receipt_file = None
+        orm.receipt_content_type = None
+        orm.receipt_size_bytes = None
+        orm.receipt_uploaded_at = None
+        orm.receipt_deleted_at = deleted_at
+        orm.updated_at = datetime.datetime.now(datetime.UTC)
+
+    async def record_payment_event(
+        self,
+        event_id: str,
+        order_id: str,
+        provider_payment_id: str,
+        status: str,
+    ) -> None:
+        self.session.add(
+            PaymentEventORM(
+                id=event_id,
+                provider_payment_id=provider_payment_id,
+                order_id=order_id,
+                status=status.value if hasattr(status, "value") else status,
+                created_at=datetime.datetime.now(datetime.UTC),
+            )
+        )

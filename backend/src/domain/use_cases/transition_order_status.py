@@ -1,16 +1,17 @@
 import dataclasses
-from decimal import Decimal
-from typing import List, Tuple
 
-from domain.models import Ingredient, StockMovement
-from domain.order_pricing import check_stock, plan_order_deductions
-from domain.order_states import OrderStatus, InvalidStatusTransitionError, transition
+from domain.order_states import (
+    InvalidStatusTransitionError,
+    OrderStatus,
+    transition,
+)
 from domain.orders import InsufficientOrderStockError, Order
 from domain.repositories import OrderTransitionStore
-from domain.stock import apply_movement
+from domain.use_cases.order_stock_effects import deduct_order_stock, restore_order_stock
 
 
 class TransitionOrderStatus:
+    """O1 — Transicion de estado de pedido (solo revalida la maquina bajo lock)."""
 
     def __init__(self, store: OrderTransitionStore):
         self._store = store
@@ -20,72 +21,25 @@ class TransitionOrderStatus:
         try:
             order = await store.lock_order(order_id)
             if order is None:
-                await store.rollback()
                 raise InvalidStatusTransitionError("inexistente", target)
-            try:
-                transition(order.status, target)
-            except InvalidStatusTransitionError:
-                await store.rollback()
-                raise
+            transition(order.status, target)
 
             if target == OrderStatus.CONFIRMED:
-                await self._deduct_stock(order)
-            elif target == OrderStatus.CANCELLED:
-                await self._restore_stock(order)
+                await deduct_order_stock(order, store)
+            elif (
+                target == OrderStatus.CANCELLED
+                and order.status
+                in (OrderStatus.CONFIRMED, OrderStatus.PREPARING)
+            ):
+                # new -> cancelled no tuvo efecto de stock (O5/S4).
+                await restore_order_stock(order, store)
 
             await store.set_status(order.id, target)
             await store.commit()
             return dataclasses.replace(order, status=target)
         except (InsufficientOrderStockError, InvalidStatusTransitionError):
+            await store.rollback()
             raise
         except Exception:
             await store.rollback()
             raise
-
-    async def _deduct_stock(self, order: Order) -> None:
-        deductions = plan_order_deductions(order.snapshots)
-        ingredients = await self._store.lock_ingredients(list(deductions))
-
-        available = {
-            ingredient_id: (
-                ingredients[ingredient_id].stock_qty
-                if ingredient_id in ingredients
-                else Decimal("0")
-            )
-            for ingredient_id in deductions
-        }
-        shortage = check_stock(deductions, available)
-        if shortage:
-            await self._store.rollback()
-            raise InsufficientOrderStockError(
-                shortage,
-                available={i: available[i] for i in shortage},
-                required={i: deductions[i] for i in shortage},
-            )
-
-        changes: List[Tuple[Ingredient, StockMovement]] = []
-        for ingredient_id, needed in deductions.items():
-            updated, movement = apply_movement(
-                ingredients[ingredient_id], -needed, reason="pedido", ref=order.id
-            )
-            changes.append(
-                (updated, dataclasses.replace(movement, ingredient_id=ingredient_id))
-            )
-        await self._store.apply_movements(changes)
-
-    async def _restore_stock(self, order: Order) -> None:
-        deductions = plan_order_deductions(order.snapshots)
-        ingredients = await self._store.lock_ingredients(list(deductions))
-
-        changes: List[Tuple[Ingredient, StockMovement]] = []
-        for ingredient_id, needed in deductions.items():
-            ingredient = ingredients.get(ingredient_id)
-            if ingredient is None:
-                continue
-            updated, movement = apply_movement(
-                ingredient, needed, reason="anulacion", ref=order.id
-            )
-            changes.append(
-                (updated, dataclasses.replace(movement, ingredient_id=ingredient_id))
-            )
-        await self._store.apply_movements(changes)

@@ -164,6 +164,10 @@ class Order:
     id: str | None = None
     paid: bool = False
     payment_method: str = "cash"
+    receipt_file: str | None = None
+    receipt_content_type: str | None = None
+    receipt_uploaded_at: datetime.datetime | None = None
+    receipt_viewed_at: datetime.datetime | None = None
 
     items: tuple[OrderItem, ...] = field(default=(), compare=False)
     snapshots: dict[str, OrderItemSnapshot] = field(default_factory=dict, compare=False)
@@ -175,6 +179,17 @@ class Order:
             raise ValueError("El pedido necesita una fecha")
         if self.id is None:
             object.__setattr__(self, "id", str(uuid.uuid4()))
+        if self.payment_method != "transfer" and any(
+            (
+                self.receipt_file is not None,
+                self.receipt_content_type is not None,
+                self.receipt_uploaded_at is not None,
+                self.receipt_viewed_at is not None,
+            )
+        ):
+            raise ValueError(
+                "El comprobante solo existe para pedidos con pago por transferencia"
+            )
 
     @property
     def total(self) -> Decimal:

@@ -1,6 +1,8 @@
-# e2e — ciclo de vida de pedido + maquina de pagos
+# e2e — ciclo de vida de pedido + maquina de pagos + comprobante de transferencia
 
-Suite e2e de nivel API (ODD: `odd/tasks/e2e-order-lifecycle.md`). 20 casos
+Suite e2e de nivel API. ODDs autoritativas: `odd/tasks/e2e-order-lifecycle.md`
+(casos A/B/C), `odd/tasks/payment-methods.md` (D) y
+`odd/tasks/transfer_receipt_verification.md` S8 (R). 46 casos
 GIVEN-WHEN-THEN contra un backend vivo: uvicorn real + Postgres real; la unica
 frontera mockeada es la API de Mercado Pago (mock HTTP local via env
 `MP_API_URL`).
@@ -23,7 +25,8 @@ El runner:
 2. `DROP/CREATE` de la base throwaway `toscana_e2e_db` (limpia por corrida).
 3. Levanta `uvicorn main:app` en `127.0.0.1:8100` (log: `/tmp/e2e_uvicorn.log`).
 4. Siembra usuarios (1 admin, 2 clientes), 1 ingrediente y 1 producto con receta.
-5. Corre los 20 casos en orden (A: creacion/RBAC, B: maquina de pedido, C: pagos).
+5. Corre los 46 casos en orden (A: creacion/RBAC, B: maquina de pedido,
+   C: pagos MP/webhook, D: cash/transfer/MP, R: comprobante de transferencia).
 6. Teardown: baja uvicorn y el mock; drop de la base SOLO si todo fue verde
    (si algo falla, la base queda para inspeccionar).
 
@@ -32,7 +35,7 @@ Exit code `0` = todo verde; `1` = hay fallos (se listan y se conserva la base).
 ## Archivos
 
 - `run.py` — orquestador (una sola entrada).
-- `cases.py` — los 20 casos (autoritativos en el ODD) + helpers de transporte.
+- `cases.py` — los 46 casos (autoritativos en los ODDs) + helpers de transporte.
 - `seed.py` — base throwaway + seed idempotente (reusa engine/ORM de la app).
 - `mp_mock.py` — mock HTTP de la API de Mercado Pago.
 

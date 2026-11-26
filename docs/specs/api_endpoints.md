@@ -224,6 +224,17 @@ api/presentation/routers/
 | GET | `/api/v1/orders/export` | Export CSV. | `?from,to,status,paid` → `text/csv` | 200 | Columnas: id, cliente, fecha, ítems, total, estado, pago. Streaming. (RF-P6-11) |
 | GET | `/api/v1/orders/{id}/quote` | (opcional) preview/recalcula cotización. | — → `{breakdown}` | 200 | |
 
+### Comprobantes de transferencia (O5, 2026-11-25 — `odd/tasks/transfer_receipt_verification.md`)
+| Método | Ruta | Descripción | Payload → Respuesta | Códigos | Notas |
+|---|---|---|---|---|---|
+| POST | `/api/v1/orders/{id}/receipt` | Sube comprobante (multipart, campo `file`). | `file` (PDF/JPEG/PNG por **magic bytes** — el `Content-Type` no cuenta; ≤5 MiB) → `{order}` (detalle con `receipt_*`) | 201 / 404 / 409 / 422 | Solo `payment_method=transfer`. 404 anti-sondeo (pedido ajeno). 409 (orden de checks en `UploadReceipt`): `receipt_method_not_transfer` → `receipt_already_uploaded` (el rechazo **conserva** el comprobante, así que un reenvío tras rechazo cae acá, no en terminal — e2e R16) → `receipt_payment_not_pending` → `receipt_order_terminal` (pedido terminal **sin** comprobante, ej. `delivered` tras borrado). 422: `receipt_invalid_type` / `receipt_too_large`. `receipt_file` guarda la extensión derivada (nunca el nombre enviado). 1 comprobante por pedido, inmutable (re-carga → 409). Auditoría en `payment_event` (`status=uploaded`). |
+| GET | `/api/v1/orders/{id}/receipt` | Descarga el comprobante. | — → binario (`Content-Type` real + `Content-Disposition: inline`) | 200 / 404 | Owner **o** admin. 404 anti-sondeo (pedido ajeno o sin comprobante — mismo código, sin revelar existencia). El primer GET **de admin** setea `receipt_viewed_at` (owner no lo setea). |
+| POST | `/api/v1/orders/{id}/receipt/confirm` | Confirma el comprobante (paga). | — → `{order}` (detalle actualizado) | 200 / 404 / 409 | **Admin only**. Pago `pending → approved` (`payment_reference=manual`, `paid_at`) + pedido `new → confirmed → preparing` (descuento de stock una sola vez) o `confirmed → preparing`. 404 sin comprobante. 409: `receipt_payment_not_pending` (check de pago **precede** al de estado) / `receipt_order_not_receivable` (pedido no new/confirmed). |
+| POST | `/api/v1/orders/{id}/receipt/reject` | Rechaza el comprobante. | — → `{order}` (detalle actualizado) | 200 / 404 / 409 | **Admin only**. Pago `pending → rejected` + pedido → `cancelled` (re-pozo de stock si venía de `preparing`; desde `new` no hubo descuento). El comprobante se **conserva** (no se borra). 409: `receipt_payment_not_pending` / `receipt_order_not_cancellable`. |
+| DELETE | `/api/v1/orders/{id}/receipt` | Borra el comprobante (físico + lógico). | — → `204` | 204 / 404 / 409 | **Admin only**, solo `status=delivered` (409 `receipt_not_deletable` antes). `payment_method=transfer` queda intacto; `deleted_at` set; auditoría `payment_event` (`status=deleted`). |
+
+**Gate de marcar pagado (S5, modificación de contrato O4):** `PATCH /orders/{id}/paid` sobre `transfer` sin comprobante → 409 `receipt_required`; con comprobante, el marcado manual **delega en confirm** (mismo efecto que `POST .../receipt/confirm`, `payment_reference=manual`). Cash: contrato O4 sin cambios.
+
 **Criterio de salida F2**: pedido → stock descuenta, precio cuadra con la fórmula, no se permite stock negativo (concurrency: 2 confirmaciones simultáneas → 1 gana, 1 → 409).
 
 ---
@@ -362,12 +373,12 @@ api/presentation/routers/
 |---|---|---|
 | F0 Fundaciones | 12 | system, auth, auth-google, tenant |
 | F1 Motor + catálogo | 20 | tenant(settings+order-window), ingredients, products(+imagen P12) |
-| F2 Pedidos y stock | 16 | customers, orders |
+| F2 Pedidos y stock | 21 | customers, orders |
 | F3 Presupuestos + PDF + WhatsApp | 15 | budgets, pdf, webhooks |
 | F4 Endurecimiento | 0 nuevos (+1 opcional contacto) | cross-cutting |
 | F5 Portal + checkout e2e (P11) | 25 | orders(mine), cart, payments+webhook, customers(addresses), coupons, leads, whatsapp(sends) |
 | F6 Facturación ARCA (P13) | 6 | invoicing (comprobantes + settings) |
-| **Total** | **~94** | 15 routers |
+| **Total** | **~99** | 15 routers |
 
 ### Endpoints aún por confirmar con Gaspar
 1. `/tenant/settings/recalculate` (F1): ¿recálculo global síncrono o task asíncrona? (impacta UX si catálogo grande).

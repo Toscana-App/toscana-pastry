@@ -148,7 +148,7 @@ Cada módulo web es autónomo: propios componentes, hooks y tests; comparte solo
 - **P12 Tienda sobre productos** (`odd/tasks/products-storefront.md`): el catálogo/carrito/pedido del portal operan sobre **productos publicados** (`available`, default false; publicar incompleto → 409), no sobre insumos; precio por audiencia derivado de la receta (motor + `consumer_markup_pct`); **imagen por multipart** (`POST|DELETE /products/{id}/image`, magic bytes, ≤5 MB, `/media`); **RBAC por endpoint**: 23 endpoints de gestión pasan a `require_admin` (matriz en `security.md`), fuga = 403/404.
 - Portal para `negocio`/`cliente`: catálogo con precio de su audiencia (fuga de precios = 403), carrito server-side, "Mis pedidos" (solo lectura).
 - **Checkout de 5 pasos** (patrón `toscana-demo`): Contacto → Dirección → Entrega → Pago → Revisar y confirmar; sin guest checkout en v1; 409 `order_window_closed` en el paso 5 (RF-P6-09).
-- **Pagos**: `payment_method ∈ {mercadopago, cash}` (p06 RF-P6-12…14). Mercado Pago vía `CheckoutProvider` agnóstico + `MockCheckoutProvider` (safe mode de la skill `mercadopago-integration`): `POST/GET /orders/{id}/payment` + webhook firmado e idempotente → `paid` automático. Efectivo: `paid=false` + badge "Cobrar en la entrega", lo marca la dueña.
+- **Pagos**: `payment_method ∈ {mercadopago, cash, transfer}` (p06 RF-P6-12…14). Mercado Pago vía `CheckoutProvider` agnóstico + `MockCheckoutProvider` (safe mode de la skill `mercadopago-integration`): `POST/GET /orders/{id}/payment` + webhook firmado e idempotente → `paid` automático. Efectivo: `paid=false` + badge "Cobrar en la entrega", lo marca la dueña. **Transferencia: el comprobante de la clienta es el gate de pago** — sube PDF/JPEG/PNG (≤5 MiB, magic bytes), la dueña lo confirma (paga con `payment_reference=manual`) o lo rechaza (pedido `cancelled`); `PATCH /orders/{id}/paid` sin comprobante → 409 `receipt_required` (O5, `odd/tasks/transfer_receipt_verification.md`).
 - **Libro de direcciones por cliente** (máx. 5, default) usado en checkout y como sugerencia en el wizard de presupuestos (P7).
 - **Cupones**: ABM admin (percent/fixed, vigencia, `max_uses`) + aplicación en carrito con snapshot de `discount_amount` en el pedido.
 - **Leads**: formulario público `consumer`/`business` (hCaptcha + rate limit) + gestión admin.
@@ -206,6 +206,7 @@ Cada módulo web es autónomo: propios componentes, hooks y tests; comparte solo
 | 34 | **Pago Mercado Pago (contratos safe mode + mock)** y efectivo en la entrega (webhook firmado, idempotencia, `paid` automático) | p06 RF-P6-12…14, p11 RF-P11-10/11 | 5 |
 | 35 | **Leads + libro de direcciones + cupones** (captura `consumer`/`business`, máx. 5 direcciones por cliente, percent/fixed con `max_uses`) + WhatsApp Business upgrade (estados + reintentos) | p11 RF-P11-09/13/14, p10 RF-P10-07/08 | 5 |
 | 36 | **Facturación electrónica ARCA** (Factura C con CAE vía WSAA+WSFEv1, PDF con QR RG 4291/2018, admin-only, siempre homo, cero credenciales en repo) | p13, `api_endpoints.md` §FASE 6, `security.md` matriz P13 | 6 |
+| 37 | **Pago por transferencia: comprobante como gate de pago** (upload cliente, confirmación/rechazo dueña, borrado en entregado) | p06 UC-12/RF-P6-12, O5 `odd/tasks/transfer_receipt_verification.md` | 5 |
 
 ---
 

@@ -79,6 +79,12 @@ class Order:
     payment_reference: str | None = None
     paid_at: datetime.datetime | None = None
     payment_status: PaymentStatus | None = None
+    receipt_file: str | None = None
+    receipt_content_type: str | None = None
+    receipt_size_bytes: int | None = None
+    receipt_uploaded_at: datetime.datetime | None = None
+    receipt_viewed_at: datetime.datetime | None = None
+    receipt_deleted_at: datetime.datetime | None = None
     created_at: datetime.datetime = field(
         default_factory=lambda: datetime.datetime.now(datetime.UTC)
     )
@@ -93,6 +99,19 @@ class Order:
             raise ValueError(f"Estado de pago desconocido: {self.payment_status}")
         if self.delivery_mode == DeliveryMode.PICKUP:
             object.__setattr__(self, "delivery_address", None)
+        if self.payment_method is not PaymentMethod.TRANSFER and any(
+            (
+                self.receipt_file is not None,
+                self.receipt_content_type is not None,
+                self.receipt_size_bytes is not None,
+                self.receipt_uploaded_at is not None,
+                self.receipt_viewed_at is not None,
+                self.receipt_deleted_at is not None,
+            )
+        ):
+            raise ValueError(
+                "El comprobante solo existe para pedidos con pago por transferencia"
+            )
 
     @property
     def paid(self) -> bool:

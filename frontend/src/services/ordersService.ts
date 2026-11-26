@@ -63,6 +63,18 @@ export async function fetchMyOrderByCode(code: string): Promise<OrderDetail> {
   return apiFetch<OrderDetail>(`/orders/mine/${code}`);
 }
 
+export async function uploadOrderReceipt(
+  orderId: string,
+  file: File,
+): Promise<OrderDetail> {
+  const form = new FormData();
+  form.append("file", file);
+  return apiFetch<OrderDetail>(`/orders/${orderId}/receipt`, {
+    method: "POST",
+    body: form,
+  });
+}
+
 export async function fetchMyAddresses(): Promise<AddressListResponse> {
   return apiFetch<AddressListResponse>("/customers/me/addresses");
 }

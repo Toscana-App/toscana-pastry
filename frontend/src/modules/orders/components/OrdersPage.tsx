@@ -25,7 +25,7 @@ import type { OrderWindow } from "@/modules/settings/types";
 import { useOrders } from "../hooks/useOrders";
 import { ordersService } from "../service";
 import { WeeklySummaryView } from "./WeeklySummaryView";
-import { ORDER_STATUS_LABELS, ORDER_STATUSES, type OrderStatus } from "../types";
+import { ORDER_STATUS_LABELS, ORDER_STATUSES, type OrderListItem, type OrderStatus } from "../types";
 
 const PAGE_SIZE = 20;
 
@@ -37,6 +37,30 @@ const STATUS_COLORS: Record<OrderStatus, "blue" | "green" | "gray" | "red" | "or
   delivered: "gray",
   cancelled: "red",
 };
+
+/**
+ * O5/S7 — Badge de comprobante de transferencia pendiente de verificación.
+ * Solo transfer con comprobante subido, no pagado y en estado accionable
+ * (los botones de confirmar/rechazar existen solo hasta "preparando").
+ * Sólido mientras nadie lo vio (`receipt_viewed_at === null`), suave después.
+ */
+const RECEIPT_ACTIONABLE: ReadonlySet<OrderStatus> = new Set([
+  "new",
+  "confirmed",
+  "preparing",
+]);
+
+function receiptBadgeOf(order: OrderListItem): {
+  label: string;
+  solid: boolean;
+} | null {
+  if (order.payment_method !== "transfer") return null;
+  if (!order.receipt_uploaded || order.paid) return null;
+  if (!RECEIPT_ACTIONABLE.has(order.status)) return null;
+  return order.receipt_viewed_at === null
+    ? { label: "Comprobante nuevo", solid: true }
+    : { label: "Comprobante pendiente", solid: false };
+}
 
 export function OrdersPage() {
   const { user } = useAuth();
@@ -381,12 +405,32 @@ export function OrdersPage() {
                     <FormatNumber value={centsToPesos(order.total)} style="currency" currency="ARS" />
                   </td>
                   <td style={{ padding: "10px 14px" }}>
-                    <Badge
-                      colorPalette={order.paid ? "green" : "orange"}
-                      variant="subtle"
-                    >
-                      {order.paid ? "Pagado" : "Sin pagar"}
-                    </Badge>
+                    <Flex gap={1} flexWrap="wrap" align="center">
+                      <Badge
+                        colorPalette={order.paid ? "green" : "orange"}
+                        variant="subtle"
+                      >
+                        {order.paid ? "Pagado" : "Sin pagar"}
+                      </Badge>
+                      {(() => {
+                        const badge = receiptBadgeOf(order);
+                        if (!badge) return null;
+                        return badge.solid ? (
+                          <Badge colorPalette="orange" variant="solid">
+                            {badge.label}
+                          </Badge>
+                        ) : (
+                          <Badge
+                            bg="warning.subtle"
+                            color="fg.warning"
+                            borderWidth="1px"
+                            borderColor="warning.border"
+                          >
+                            {badge.label}
+                          </Badge>
+                        );
+                      })()}
+                    </Flex>
                   </td>
                   <td style={{ padding: "10px 14px" }}>
                     <Badge colorPalette={STATUS_COLORS[order.status]} variant="subtle">

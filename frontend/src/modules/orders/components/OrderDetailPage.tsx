@@ -30,7 +30,7 @@ import {
   type InvoiceCreatePayload,
   type InvoiceItemPayload,
 } from "@/modules/invoicing/types";
-import { ordersService } from "../service";
+import { ordersService, receiptUrl } from "../service";
 import {
   ALLOWED_TRANSITIONS,
   ORDER_STATUS_LABELS,
@@ -79,6 +79,8 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
   const [issuing, setIssuing] = useState(false);
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [receiptBusy, setReceiptBusy] = useState(false);
+  const [pendingReceipt, setPendingReceipt] = useState<"reject" | "delete" | null>(null);
 
   useEffect(() => {
     if (!orderId) return;
@@ -150,6 +152,45 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
       setActionLoading(false);
     }
   }, [order]);
+
+  const confirmReceipt = useCallback(async () => {
+    if (!order) return;
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      setOrder(await ordersService.confirmReceipt(order.id));
+    } catch (e) {
+      setActionError(
+        e instanceof Error
+          ? e.message
+          : "No se pudo confirmar el comprobante",
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  }, [order]);
+
+  const runReceiptAction = useCallback(
+    async (action: "reject" | "delete") => {
+      if (!order) return;
+      setReceiptBusy(true);
+      setActionError(null);
+      try {
+        if (action === "reject") {
+          setOrder(await ordersService.rejectReceipt(order.id));
+        } else {
+          await ordersService.deleteReceipt(order.id);
+          setOrder(await ordersService.getDetail(order.id));
+        }
+        setPendingReceipt(null);
+      } catch (e) {
+        setActionError(e instanceof Error ? e.message : "La operación falló");
+      } finally {
+        setReceiptBusy(false);
+      }
+    },
+    [order],
+  );
 
   const comprobante = useMemo<InvoiceComprobante | null>(() => {
     if (issued != null) {
@@ -248,6 +289,19 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
 
   const nextStatuses = isAdmin ? ALLOWED_TRANSITIONS[order.status] : [];
 
+  // O5/S7 — Comprobante de transferencia pendiente de verificación.
+  const isTransfer = order.payment_method === "transfer";
+  const receiptPending =
+    isTransfer &&
+    order.receipt_uploaded &&
+    !order.paid &&
+    (order.status === "new" || order.status === "confirmed" || order.status === "preparing");
+  const canConfirmReceipt =
+    receiptPending && (order.status === "new" || order.status === "confirmed");
+  const canDeleteReceipt =
+    isTransfer && order.receipt_uploaded && order.status === "delivered";
+  const transferSinComprobante = isTransfer && !order.receipt_uploaded;
+
   return (
     <Flex direction="column" gap={5}>
       <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
@@ -284,6 +338,65 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
           </HStack>
         </VStack>
       </Box>
+
+      {isAdmin && receiptPending ? (
+        <Box borderWidth="2px" borderColor="orange.solid" bg="warning.subtle" rounded="md" p={4}>
+          <VStack align="start" gap={3}>
+            <HStack gap={2} align="center">
+              <Text fontWeight="700">Comprobante de transferencia cargado</Text>
+              {order.receipt_viewed_at == null ? (
+                <Badge colorPalette="orange" variant="solid">
+                  Sin ver
+                </Badge>
+              ) : null}
+            </HStack>
+            {order.receipt_content_type?.startsWith("image/") ? (
+              <img
+                src={receiptUrl(order.id)}
+                alt="Comprobante de la transferencia"
+                loading="lazy"
+                style={{
+                  maxWidth: "280px",
+                  maxHeight: "280px",
+                  objectFit: "contain",
+                  borderRadius: "4px",
+                }}
+              />
+            ) : (
+              <HStack gap={3} align="center">
+                <Button size="sm" variant="outline" asChild>
+                  <a href={receiptUrl(order.id)} target="_blank" rel="noreferrer">
+                    Ver comprobante (PDF)
+                  </a>
+                </Button>
+                <Text fontSize="sm" color="fg.muted">
+                  {order.receipt_content_type ?? "archivo"}
+                </Text>
+              </HStack>
+            )}
+            <HStack gap={2} wrap="wrap">
+              {canConfirmReceipt ? (
+                <Button
+                  colorPalette="green"
+                  loading={actionLoading}
+                  onClick={() => {
+                    void confirmReceipt();
+                  }}
+                >
+                  Confirmar comprobante
+                </Button>
+              ) : null}
+              <Button
+                colorPalette="red"
+                variant="outline"
+                onClick={() => setPendingReceipt("reject")}
+              >
+                Rechazar comprobante
+              </Button>
+            </HStack>
+          </VStack>
+        </Box>
+      ) : null}
 
       {}
       <Box borderWidth="1px" borderColor="border" rounded="md" overflowX="auto">
@@ -396,11 +509,17 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
             <Text fontSize="sm" color="fg.muted" alignSelf="center">
               Pago registrado
             </Text>
-          ) : (
+          ) : receiptPending ? null : (
             <Button
               variant="outline"
               colorPalette="green"
               loading={actionLoading}
+              disabled={transferSinComprobante}
+              title={
+                transferSinComprobante
+                  ? "El cliente aún no cargó el comprobante de la transferencia"
+                  : undefined
+              }
               onClick={() => {
                 void markPaid();
               }}
@@ -431,6 +550,15 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
           {canInvoice ? (
             <Button variant="outline" onClick={() => setInvoiceOpen(true)}>
               Facturar
+            </Button>
+          ) : null}
+          {canDeleteReceipt ? (
+            <Button
+              variant="ghost"
+              colorPalette="red"
+              onClick={() => setPendingReceipt("delete")}
+            >
+              Borrar comprobante
             </Button>
           ) : null}
         </HStack>
@@ -510,6 +638,48 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
                 }}
               >
                 Confirmar
+              </Button>
+            </Dialog.Footer>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Dialog.Root>
+
+      <Dialog.Root
+        open={pendingReceipt !== null}
+        onOpenChange={(e) => {
+          if (!e.open) setPendingReceipt(null);
+        }}
+        role="alertdialog"
+      >
+        <Dialog.Backdrop />
+        <Dialog.Positioner>
+          <Dialog.Content overscrollBehavior="contain">
+            <Dialog.Header>
+              <Dialog.Title>
+                {pendingReceipt === "reject"
+                  ? "¿Rechazar el comprobante?"
+                  : "¿Borrar el comprobante?"}
+              </Dialog.Title>
+            </Dialog.Header>
+            <Dialog.Body>
+              <Text>
+                {pendingReceipt === "reject"
+                  ? "El rechazo cancela el pedido y el comprobante queda irrevocable: no se puede volver a cargar en este pedido. El cliente deberá crear un nuevo pedido para retomar la compra. Esta acción no se puede deshacer desde la interfaz."
+                  : "Se pierde el archivo del comprobante. El medio de pago queda registrado en el pedido."}
+              </Text>
+            </Dialog.Body>
+            <Dialog.Footer>
+              <Button variant="ghost" onClick={() => setPendingReceipt(null)}>
+                Cancelar
+              </Button>
+              <Button
+                colorPalette="red"
+                loading={receiptBusy}
+                onClick={() => {
+                  if (pendingReceipt) void runReceiptAction(pendingReceipt);
+                }}
+              >
+                {pendingReceipt === "reject" ? "Rechazar" : "Borrar"}
               </Button>
             </Dialog.Footer>
           </Dialog.Content>
