@@ -98,6 +98,7 @@ class PortalOrderCreateRequest(BaseModel):
 
     items: list[PortalOrderItemRequest] = Field(..., min_length=1)
     date: dt.datetime
+    phone: str = Field(..., min_length=1, max_length=30)
     delivery_mode: str = "delivery"
     delivery_address: str | None = None
     payment_method: str = "cash"
@@ -204,7 +205,7 @@ class OrderCustomerResponse(BaseModel):
 class OrderListItem(BaseModel):
     id: str
     customer_name: str
-    customer_phone: str
+    customer_phone: str | None
     date: dt.date
     status: OrderStatus
     item_count: int

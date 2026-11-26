@@ -23,7 +23,7 @@ from decimal import Decimal
 from typing import Any, cast
 
 import httpx
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from data.db import AsyncSessionLocal
 from data.models import OrderORM, PaymentEventORM
@@ -33,6 +33,7 @@ WEBHOOK_PATH = "/api/v1/webhooks/mercadopago"
 CASH = "cash"
 MP = "mercadopago"
 TRANSFER = "transfer"
+PORTAL_PHONE = "+5493575555555"
 
 
 class E2EFailure(AssertionError):
@@ -71,6 +72,7 @@ def _order_body(product_id: str, qty: int, payment_method: str) -> dict[str, Any
     return {
         "items": [{"product_id": product_id, "quantity": qty}],
         "date": (dt.date.today() + dt.timedelta(days=1)).isoformat(),
+        "phone": PORTAL_PHONE,
         "delivery_mode": "delivery",
         "delivery_address": "Calle 14 450, Rio Tercero",
         "payment_method": payment_method,
@@ -333,6 +335,20 @@ async def case_a6(ctx: Ctx) -> None:
 # --------------------------------------------------------------------------
 # B — maquina de estados del pedido (admin)
 # --------------------------------------------------------------------------
+
+
+async def case_a7(ctx: Ctx) -> None:
+    # GIVEN el contrato del portal exige telefono del cliente
+    # WHEN crea pedido sin phone
+    body = _order_body(ctx.product_id, 1, CASH)
+    body.pop("phone")
+    resp = await ctx.cust_a.post(
+        "/api/v1/orders/",
+        json=body,
+        headers={"Idempotency-Key": str(uuid.uuid4())},
+    )
+    # THEN 422 (phone requerido)
+    check(resp.status_code == 422, f"A7: {resp.status_code} != 422 {resp.text[:200]}")
 
 
 async def _new_order(ctx: Ctx, payment_method: str = CASH) -> str:
@@ -941,6 +957,47 @@ async def case_r16(ctx: Ctx) -> None:
 
 
 # --------------------------------------------------------------------------
+# L — lista de pedidos admin (regresion: phone legacy NULL no rompe GET /orders)
+# --------------------------------------------------------------------------
+
+
+async def case_l1(ctx: Ctx) -> None:
+    # GIVEN un cliente creo un pedido portal con telefono
+    created = await create_order(ctx.cust_a, ctx.product_id)
+    check(created.status_code in (200, 201), f"L1: creacion {created.status_code}")
+    order_id = created.json()["id"]
+    # Y existe un pedido legacy con phone NULL en DB (pre-fix)
+    legacy = await create_order(ctx.cust_b, ctx.product_id)
+    check(legacy.status_code in (200, 201), f"L1: creacion legacy {legacy.status_code}")
+    legacy_id = legacy.json()["id"]
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            update(OrderORM)
+            .where(OrderORM.id == legacy_id)
+            .values(customer_phone=None)
+        )
+        await session.commit()
+    # WHEN el admin lista pedidos
+    resp = await ctx.admin.get(
+        "/api/v1/orders", params={"page": 1, "page_size": 20}
+    )
+    # THEN 200 (el phone NULL no rompe la lista) y ambos aparecen
+    check(resp.status_code == 200, f"L1: lista {resp.status_code} {resp.text[:200]}")
+    items = resp.json()["items"]
+    by_id = {i["id"]: i for i in items}
+    check(order_id in by_id, "L1: pedido portal no aparece en la lista admin")
+    check(legacy_id in by_id, "L1: pedido legacy no aparece en la lista admin")
+    check(
+        by_id[order_id]["customer_phone"] == PORTAL_PHONE,
+        f"L1: phone portal {by_id[order_id]['customer_phone']!r} != {PORTAL_PHONE!r}",
+    )
+    check(
+        by_id[legacy_id]["customer_phone"] is None,
+        f"L1: phone legacy {by_id[legacy_id]['customer_phone']!r} != null",
+    )
+
+
+# --------------------------------------------------------------------------
 # registro
 # --------------------------------------------------------------------------
 
@@ -953,6 +1010,8 @@ CASES: list[tuple[str, str, CaseFn]] = [
     ("A4", "idempotency key con body distinto", case_a4),
     ("A5", "cliente no transiciona su pedido", case_a5),
     ("A6", "anti-sondeo: pedido ajeno 404", case_a6),
+    ("A7", "portal sin telefono: 422", case_a7),
+    ("L1", "lista admin: pedido portal con phone", case_l1),
     ("B1", "happy path hasta delivered", case_b1),
     ("B2", "salto new -> delivered rechazado", case_b2),
     ("B3", "confirmed -> cancelled", case_b3),

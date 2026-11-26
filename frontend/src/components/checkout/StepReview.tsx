@@ -75,6 +75,7 @@ export function StepReview({
           portion_note: "",
         })),
         date: delivery.date,
+        phone: contact.phone,
         delivery_mode: delivery.delivery_mode,
         delivery_address:
           delivery.delivery_mode === "delivery" ? (address?.line ?? "") : null,

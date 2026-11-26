@@ -48,7 +48,7 @@ export type OrderUpdatePayload = Partial<Omit<OrderCreatePayload, "date">> & {
 export interface OrderListItem {
   id: string;
   customer_name: string;
-  customer_phone: string;
+  customer_phone: string | null;
   date: string;
   status: OrderStatus;
   item_count: number;

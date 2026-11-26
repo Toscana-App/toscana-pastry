@@ -87,6 +87,7 @@ export interface PortalOrderPayload {
     portion_note: string;
   }[];
   date: string;
+  phone: string;
   delivery_mode: DeliveryMode;
   delivery_address: string | null;
   payment_method: PaymentMethod;
