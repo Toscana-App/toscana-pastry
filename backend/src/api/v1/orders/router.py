@@ -144,7 +144,11 @@ async def mark_order_paid(
 
     reference = order.payment_reference
     payment_status = order.payment_status
-    assert reference is not None and payment_status is not None
+    if reference is None or payment_status is None:
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="payment_state_inconsistent",
+        )
     result = await repo.update_payment_status(
         order_id=order.id,
         reference=reference,
