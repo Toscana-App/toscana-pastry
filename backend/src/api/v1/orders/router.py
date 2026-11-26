@@ -73,6 +73,7 @@ from api.v1.orders.schemas import (
     PortalOrderCreateRequest,
 )
 from api.v1.orders.receipt_service import (
+    MAX_RECEIPT_BYTES,
     ReceiptValidationError,
     delete_receipt as delete_receipt_file,
     read_receipt as read_receipt_file,
@@ -1355,7 +1356,19 @@ async def upload_order_receipt(
     user: User = Depends(get_current_user),
 ):
     order = await _get_own_order(repo, id, user)
-    data = await file.read()
+    # Lectura acotada: se lee por chunks de 1MB y se corta al superar el cap.
+    # Sin esto, `file.read()` descarga el archivo completo a memoria ANTES de
+    # validar el tamaño, y un cliente podria agotar memoria con un upload
+    # gigante (Starlette no limita el body por defecto).
+    data = bytearray()
+    while True:
+        chunk = await file.read(1024 * 1024)
+        if not chunk:
+            break
+        data.extend(chunk)
+        if len(data) > MAX_RECEIPT_BYTES:
+            break
+    data = bytes(data)
     store = SQLReceiptVerificationStore(repo.session)
     try:
         updated = await UploadReceipt(

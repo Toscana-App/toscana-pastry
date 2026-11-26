@@ -786,6 +786,8 @@ class SQLOrderRepository:
         self, order: P6Order, sent_at: datetime
     ) -> None:
         orm = await self._load_orm(order.id)
+        if orm is None:
+            return
         orm.whatsapp_sent_at = sent_at
         self.session.add(
             OrderEventORM(
