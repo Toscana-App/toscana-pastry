@@ -781,6 +781,36 @@ class OrderIdempotencyKeyORM(Base):
     expires_at = Column(DateTime(timezone=True), nullable=False)
 
 
+class OrderDeliveryLinkORM(Base):
+
+    __tablename__ = "order_delivery_links"
+
+    token = Column(String(36), primary_key=True)
+    order_id = Column(
+        String,
+        ForeignKey("orders.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.UTC),
+        nullable=False,
+    )
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_reason = Column(String(20), nullable=True)
+
+    __table_args__ = (
+        Index(
+            "ux_order_delivery_links_active",
+            "order_id",
+            unique=True,
+            postgresql_where=text("revoked_at IS NULL"),
+            sqlite_where=text("revoked_at IS NULL"),
+        ),
+    )
+
+
 class LeadORM(Base):
 
     __tablename__ = "leads"

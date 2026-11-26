@@ -78,9 +78,30 @@ class FakeStore:
         self.rolled_back = True
 
 
+class FakeDeliveryLinks:
+    def __init__(self):
+        self.revoked = []
+        self.created = []
+
+    async def active_for_order(self, order_id):
+        return None
+
+    async def find_by_token(self, token):
+        return None
+
+    async def create(self, order_id, token):
+        self.created.append((order_id, token))
+        return True
+
+    async def revoke_active(self, order_id, reason):
+        self.revoked.append((order_id, reason))
+        return 1
+
+
 async def test_confirm_deducts_stock_and_sets_status():
     store = FakeStore(_order(), [_ing("flour", "1000")])
-    result = await TransitionOrderStatus(store).execute("o1", "confirmed")
+    links = FakeDeliveryLinks()
+    result = await TransitionOrderStatus(store, links).execute("o1", "confirmed")
 
     assert result.status == "confirmed"
     assert store.ingredients["flour"].stock_qty == Decimal("500")
@@ -94,7 +115,7 @@ async def test_confirm_deducts_stock_and_sets_status():
 async def test_confirm_insufficient_stock_rolls_back_with_available_and_required():
     store = FakeStore(_order(), [_ing("flour", "200")])
     with pytest.raises(InsufficientOrderStockError) as exc:
-        await TransitionOrderStatus(store).execute("o1", "confirmed")
+        await TransitionOrderStatus(store, FakeDeliveryLinks()).execute("o1", "confirmed")
 
     assert exc.value.shortage == {"flour": Decimal("300")}
     assert exc.value.available == {"flour": Decimal("200")}
@@ -107,7 +128,7 @@ async def test_confirm_insufficient_stock_rolls_back_with_available_and_required
 async def test_confirm_missing_ingredient_counts_as_zero_available():
     store = FakeStore(_order(), [])
     with pytest.raises(InsufficientOrderStockError) as exc:
-        await TransitionOrderStatus(store).execute("o1", "confirmed")
+        await TransitionOrderStatus(store, FakeDeliveryLinks()).execute("o1", "confirmed")
     assert exc.value.available == {"flour": Decimal("0")}
 
 
@@ -116,7 +137,7 @@ async def test_cancel_restores_stock_and_skips_deleted_ingredient():
         _order("confirmed", lines=(("flour", "500"), ("gone", "10"))),
         [_ing("flour", "100")],
     )
-    result = await TransitionOrderStatus(store).execute("o1", "cancelled")
+    result = await TransitionOrderStatus(store, FakeDeliveryLinks()).execute("o1", "cancelled")
 
     assert result.status == "cancelled"
     assert store.ingredients["flour"].stock_qty == Decimal("600")
@@ -128,17 +149,19 @@ async def test_cancel_restores_stock_and_skips_deleted_ingredient():
 
 async def test_deliver_has_no_stock_effect():
     store = FakeStore(_order("pending_delivery"), [_ing("flour", "100")])
-    result = await TransitionOrderStatus(store).execute("o1", "delivered")
+    links = FakeDeliveryLinks()
+    result = await TransitionOrderStatus(store, links).execute("o1", "delivered")
 
     assert result.status == "delivered"
     assert store.movements == []
     assert not any(c == "apply_movements" for c in store.calls)
     assert store.committed
+    assert links.revoked == [("o1", "delivered")]
 
 
 async def test_prepare_to_pending_delivery_has_no_stock_effect():
     store = FakeStore(_order("preparing"), [_ing("flour", "100")])
-    result = await TransitionOrderStatus(store).execute("o1", "pending_delivery")
+    result = await TransitionOrderStatus(store, FakeDeliveryLinks()).execute("o1", "pending_delivery")
 
     assert result.status == "pending_delivery"
     assert store.movements == []
@@ -148,7 +171,8 @@ async def test_prepare_to_pending_delivery_has_no_stock_effect():
 
 async def test_cancel_from_preparing_restores_stock():
     store = FakeStore(_order("preparing", lines=(("flour", "500"),)), [_ing("flour", "100")])
-    result = await TransitionOrderStatus(store).execute("o1", "cancelled")
+    links = FakeDeliveryLinks()
+    result = await TransitionOrderStatus(store, links).execute("o1", "cancelled")
 
     assert result.status == "cancelled"
     assert store.ingredients["flour"].stock_qty == Decimal("600")
@@ -156,6 +180,7 @@ async def test_cancel_from_preparing_restores_stock():
         ("anulacion", "flour")
     ]
     assert store.committed
+    assert links.revoked == [("o1", "cancelled")]
 
 
 @pytest.mark.parametrize(
@@ -170,14 +195,14 @@ async def test_cancel_from_preparing_restores_stock():
 async def test_invalid_transition_revalidated_under_lock(current, target):
     store = FakeStore(_order(current), [_ing("flour", "1000")])
     with pytest.raises(InvalidStatusTransitionError):
-        await TransitionOrderStatus(store).execute("o1", target)
+        await TransitionOrderStatus(store, FakeDeliveryLinks()).execute("o1", target)
     assert store.rolled_back and not store.committed
     assert store.movements == []
 
 
 async def test_cancel_from_new_has_no_stock_effect():
     store = FakeStore(_order("new"), [_ing("flour", "100")])
-    result = await TransitionOrderStatus(store).execute("o1", "cancelled")
+    result = await TransitionOrderStatus(store, FakeDeliveryLinks()).execute("o1", "cancelled")
 
     assert result.status == "cancelled"
     assert store.ingredients["flour"].stock_qty == Decimal("100")
@@ -189,7 +214,7 @@ async def test_cancel_from_new_has_no_stock_effect():
 async def test_missing_order_is_invalid_transition():
     store = FakeStore(None, [])
     with pytest.raises(InvalidStatusTransitionError) as exc:
-        await TransitionOrderStatus(store).execute("o1", "confirmed")
+        await TransitionOrderStatus(store, FakeDeliveryLinks()).execute("o1", "confirmed")
     assert exc.value.current == "inexistente"
     assert store.rolled_back
 
@@ -202,5 +227,5 @@ async def test_unexpected_error_rolls_back_and_propagates():
 
     store.set_status = boom
     with pytest.raises(RuntimeError):
-        await TransitionOrderStatus(store).execute("o1", "confirmed")
+        await TransitionOrderStatus(store, FakeDeliveryLinks()).execute("o1", "confirmed")
     assert store.rolled_back and not store.committed

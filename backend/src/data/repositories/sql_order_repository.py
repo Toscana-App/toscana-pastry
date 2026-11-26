@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from data.accent import accent_fold
+from data.repositories.sql_delivery_link_repository import SQLDeliveryLinkRepository
 from data.models import (
     CouponORM,
     IngredientORM,
@@ -725,13 +726,19 @@ class SQLOrderRepository:
 
 
     async def confirm(self, order: P6Order) -> P6Order:
-        return await TransitionOrderStatus(self).execute(order.id, OrderStatus.CONFIRMED.value)
+        return await TransitionOrderStatus(
+            self, SQLDeliveryLinkRepository(self.session)
+        ).execute(order.id, OrderStatus.CONFIRMED.value)
 
     async def cancel(self, order: P6Order) -> P6Order:
-        return await TransitionOrderStatus(self).execute(order.id, OrderStatus.CANCELLED.value)
+        return await TransitionOrderStatus(
+            self, SQLDeliveryLinkRepository(self.session)
+        ).execute(order.id, OrderStatus.CANCELLED.value)
 
     async def mark_delivered(self, order: P6Order) -> P6Order:
-        return await TransitionOrderStatus(self).execute(order.id, OrderStatus.DELIVERED.value)
+        return await TransitionOrderStatus(
+            self, SQLDeliveryLinkRepository(self.session)
+        ).execute(order.id, OrderStatus.DELIVERED.value)
 
 
     async def lock_order(self, order_id: str) -> Optional[P6Order]:

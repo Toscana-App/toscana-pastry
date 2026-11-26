@@ -101,6 +101,7 @@ from domain.order import (
 )
 from domain.pricing_service import resolve_audience, derive_audience_price
 from data.repositories.sql_ingredient_repository import SQLIngredientRepository
+from data.repositories.sql_delivery_link_repository import SQLDeliveryLinkRepository
 from domain.models import BusinessSettings, Ingredient, Product
 from domain.cart import Coupon
 from domain.order_pricing import (
@@ -1274,7 +1275,9 @@ async def _apply_status(
     ingredient_repo: SQLIngredientRepository,
 ):
     try:
-        updated = await TransitionOrderStatus(order_repo).execute(order.id, target)
+        updated = await TransitionOrderStatus(
+            order_repo, SQLDeliveryLinkRepository(order_repo.session)
+        ).execute(order.id, target)
     except InsufficientOrderStockError as e:
         return await _insufficient_stock_response(e, ingredient_repo)
     return _detail_response(updated, updated.whatsapp_sent_at)
@@ -1445,7 +1448,9 @@ async def reject_order_receipt(
 ):
     store = SQLReceiptVerificationStore(order_repo.session)
     try:
-        await RejectReceipt(store).execute(order_id)
+        await RejectReceipt(
+            store, SQLDeliveryLinkRepository(order_repo.session)
+        ).execute(order_id)
     except ReceiptVerificationError as exc:
         raise _receipt_http_error(exc)
     order = await order_repo.get_full(order_id)

@@ -106,9 +106,28 @@ class FakeReceiptStore:
         self.rolled_back = True
 
 
+class FakeDeliveryLinks:
+    def __init__(self):
+        self.revoked = []
+
+    async def active_for_order(self, order_id):
+        return None
+
+    async def find_by_token(self, token):
+        return None
+
+    async def create(self, order_id, token):
+        return True
+
+    async def revoke_active(self, order_id, reason):
+        self.revoked.append((order_id, reason))
+        return 1
+
+
 async def test_reject_from_new_cancels_without_stock_effect():
     store = FakeReceiptStore(_order("new"), [_ing("flour", "100")])
-    result = await RejectReceipt(store).execute("o1")
+    links = FakeDeliveryLinks()
+    result = await RejectReceipt(store, links).execute("o1")
 
     assert result.status is OrderStatus.CANCELLED
     assert result.payment_status is PaymentStatus.REJECTED
@@ -116,6 +135,7 @@ async def test_reject_from_new_cancels_without_stock_effect():
     assert store.ingredients["flour"].stock_qty == Decimal("100")
     assert store.movements == []
     assert store.status_set == OrderStatus.CANCELLED
+    assert links.revoked == [(result.id, "cancelled")]
     reference, status, paid_at = store.payment_set
     assert reference is None
     assert status == PaymentStatus.REJECTED
@@ -126,7 +146,7 @@ async def test_reject_from_new_cancels_without_stock_effect():
 
 async def test_reject_from_confirmed_restores_stock():
     store = FakeReceiptStore(_order("confirmed"), [_ing("flour", "100")])
-    result = await RejectReceipt(store).execute("o1")
+    result = await RejectReceipt(store, FakeDeliveryLinks()).execute("o1")
 
     assert result.status is OrderStatus.CANCELLED
     assert store.ingredients["flour"].stock_qty == Decimal("600")
@@ -138,7 +158,7 @@ async def test_reject_from_confirmed_restores_stock():
 
 async def test_reject_from_preparing_restores_stock():
     store = FakeReceiptStore(_order("preparing"), [_ing("flour", "100")])
-    result = await RejectReceipt(store).execute("o1")
+    result = await RejectReceipt(store, FakeDeliveryLinks()).execute("o1")
 
     assert result.status is OrderStatus.CANCELLED
     assert store.ingredients["flour"].stock_qty == Decimal("600")
@@ -148,7 +168,7 @@ async def test_reject_from_preparing_restores_stock():
 async def test_reject_without_receipt_is_not_found():
     store = FakeReceiptStore(_order("new", receipt=False), [_ing("flour", "100")])
     with pytest.raises(ReceiptNotFoundError):
-        await RejectReceipt(store).execute("o1")
+        await RejectReceipt(store, FakeDeliveryLinks()).execute("o1")
     assert store.rolled_back and not store.committed
     assert store.status_set is None and store.payment_set is None
     assert store.audit_events == []
@@ -157,7 +177,7 @@ async def test_reject_without_receipt_is_not_found():
 async def test_reject_missing_order_is_not_found():
     store = FakeReceiptStore(None, [])
     with pytest.raises(ReceiptNotFoundError):
-        await RejectReceipt(store).execute("o1")
+        await RejectReceipt(store, FakeDeliveryLinks()).execute("o1")
     assert store.rolled_back and not store.committed
 
 
@@ -168,7 +188,7 @@ async def test_reject_missing_order_is_not_found():
 async def test_reject_payment_not_pending(payment_status):
     store = FakeReceiptStore(_order("new", payment_status=payment_status), [])
     with pytest.raises(ReceiptPaymentNotPendingError):
-        await RejectReceipt(store).execute("o1")
+        await RejectReceipt(store, FakeDeliveryLinks()).execute("o1")
     assert store.rolled_back and not store.committed
     assert store.payment_set is None
 
@@ -177,21 +197,21 @@ async def test_reject_payment_not_pending(payment_status):
 async def test_reject_order_not_cancellable(status):
     store = FakeReceiptStore(_order(status), [_ing("flour", "100")])
     with pytest.raises(ReceiptOrderNotCancellableError):
-        await RejectReceipt(store).execute("o1")
+        await RejectReceipt(store, FakeDeliveryLinks()).execute("o1")
     assert store.rolled_back and not store.committed
     assert store.movements == []
 
 
 async def test_reject_without_payment_status_yet_is_allowed():
     store = FakeReceiptStore(_order("new", payment_status=None), [])
-    result = await RejectReceipt(store).execute("o1")
+    result = await RejectReceipt(store, FakeDeliveryLinks()).execute("o1")
     assert result.payment_status is PaymentStatus.REJECTED
     assert store.committed
 
 
 async def test_reject_insufficient_stock_never_blocks():
     store = FakeReceiptStore(_order("confirmed"), [_ing("flour", "0")])
-    result = await RejectReceipt(store).execute("o1")
+    result = await RejectReceipt(store, FakeDeliveryLinks()).execute("o1")
     assert result.status is OrderStatus.CANCELLED
     assert [(m.reason, m.qty_delta, m.ingredient_id) for m in store.movements] == [
         ("anulacion", Decimal("500"), "flour")
@@ -200,7 +220,7 @@ async def test_reject_insufficient_stock_never_blocks():
 
 async def test_reject_missing_ingredient_skips_restoration():
     store = FakeReceiptStore(_order("confirmed"), [])
-    result = await RejectReceipt(store).execute("o1")
+    result = await RejectReceipt(store, FakeDeliveryLinks()).execute("o1")
     assert result.status is OrderStatus.CANCELLED
     assert store.movements == []
     assert store.committed
@@ -208,7 +228,7 @@ async def test_reject_missing_ingredient_skips_restoration():
 
 async def test_reject_never_pays():
     store = FakeReceiptStore(_order("preparing"), [_ing("flour", "100")])
-    result = await RejectReceipt(store).execute("o1")
+    result = await RejectReceipt(store, FakeDeliveryLinks()).execute("o1")
     assert result.paid_at is None
     assert not result.paid
     assert result.payment_reference is None
