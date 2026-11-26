@@ -107,6 +107,38 @@ export function DeliveryStatusView({ token }: DeliveryStatusViewProps) {
                   </Text>
                 </Text>
               ) : null}
+              {view.delivery.items && view.delivery.items.length > 0 ? (
+                <Box
+                  w="full"
+                  borderTopWidth="1px"
+                  borderColor="border"
+                  pt={4}
+                >
+                  <Text fontSize="sm" color="fg.muted" fontWeight="600" mb={2}>
+                    Tu pedido
+                  </Text>
+                  <Stack gap={2} w="full">
+                    {view.delivery.items.map((item, index) => (
+                      <Box
+                        key={`${item.name}-${index}`}
+                        display="flex"
+                        justifyContent="space-between"
+                        gap={4}
+                      >
+                        <Text lineClamp={2}>{item.name}</Text>
+                        <Text
+                          as="span"
+                          color="fg.muted"
+                          fontVariantNumeric="tabular-nums"
+                          whiteSpace="nowrap"
+                        >
+                          × {item.quantity}
+                        </Text>
+                      </Box>
+                    ))}
+                  </Stack>
+                </Box>
+              ) : null}
               {view.delivery.state === "active" ? (
                 <Box
                   borderWidth="1px"

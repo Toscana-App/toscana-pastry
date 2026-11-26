@@ -6,6 +6,7 @@ from domain.delivery import (
     DELIVERY_STATE_MESSAGES,
     DeliveryLink,
     DeliveryLinkState,
+    PublicDeliveryItem,
     delivery_url,
     new_delivery_token,
     normalize_token,
@@ -129,6 +130,35 @@ def test_expired_view_hides_order_code():
 
 def test_every_state_has_a_message():
     assert set(DELIVERY_STATE_MESSAGES) == set(DeliveryLinkState)
+
+
+def _items() -> tuple:
+    return (
+        PublicDeliveryItem(name="Cheesecake", quantity=2),
+        PublicDeliveryItem(name="Brownie de nuez", quantity=1),
+    )
+
+
+def test_public_view_exposes_item_descriptions_when_visible():
+    view = public_view(_link(order_status="pending_delivery"), items=_items())
+
+    assert view.items == _items()
+
+
+def test_public_view_keeps_items_for_delivered_and_cancelled():
+    for status in ("delivered", "cancelled"):
+        view = public_view(_link(order_status=status), items=_items())
+
+        assert view.items == _items()
+
+
+def test_public_view_hides_item_descriptions_when_expired():
+    link = _link(revoked_at="2026-11-26T10:00:00Z", revoked_reason="delivered")
+
+    view = public_view(link, items=_items())
+
+    assert view.state is DeliveryLinkState.EXPIRED
+    assert view.items == ()
 
 
 def test_delivery_url_normalizes_trailing_slash():

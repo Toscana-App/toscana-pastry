@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import (
 
 from api.v1.dependencies import get_current_user
 from data.db import get_db as get_db_orig
-from data.models import Base, OrderDeliveryLinkORM, OrderORM
+from data.models import Base, OrderDeliveryLinkORM, OrderItemORM, OrderORM
 from domain.delivery import DeliveryLinkState, delivery_url
 from domain.models import User, UserRole
 from main import app
@@ -70,7 +70,9 @@ async def client(db_session):
         app.dependency_overrides.clear()
 
 
-async def _add_order(db_session, status="confirmed", order_id=None) -> OrderORM:
+async def _add_order(
+    db_session, status="confirmed", order_id=None, items=None
+) -> OrderORM:
     _SEQ["n"] += 1
     order = OrderORM(
         id=order_id or str(uuid.uuid4()),
@@ -86,6 +88,19 @@ async def _add_order(db_session, status="confirmed", order_id=None) -> OrderORM:
         created_at=datetime.datetime.now(datetime.UTC),
     )
     db_session.add(order)
+    for position, (name, quantity) in enumerate(items or ()):
+        db_session.add(
+            OrderItemORM(
+                id=str(uuid.uuid4()),
+                order_id=order.id,
+                product_id=f"p{position}",
+                product_name=name,
+                quantity=quantity,
+                unit_price="1.00",
+                portions=1,
+                position=position,
+            )
+        )
     await db_session.commit()
     return order
 
@@ -252,8 +267,48 @@ async def test_q13_unknown_order_is_404(client):
     assert response.json()["detail"] == "Pedido no encontrado"
 
 
+async def test_q14_public_view_includes_item_descriptions(client, db_session):
+    order = await _add_order(
+        db_session,
+        status="pending_delivery",
+        items=[("Cheesecake", 2), ("Brownie de nuez", 1)],
+    )
+    token = (await _issue(client, order.id)).json()["token"]
+
+    body = (await client.get(f"/api/v1/public/orders/{token}")).json()
+
+    assert body["items"] == [
+        {"name": "Cheesecake", "quantity": 2},
+        {"name": "Brownie de nuez", "quantity": 1},
+    ]
+
+
+async def test_q15_expired_link_hides_item_descriptions(client, db_session):
+    order = await _add_order(
+        db_session, status="confirmed", items=[("Cheesecake", 2)]
+    )
+    token = str(uuid.uuid4())
+    db_session.add(
+        OrderDeliveryLinkORM(
+            token=token,
+            order_id=order.id,
+            created_at=datetime.datetime.now(datetime.UTC),
+            revoked_at=datetime.datetime.now(datetime.UTC),
+            revoked_reason="delivered",
+        )
+    )
+    await db_session.commit()
+
+    body = (await client.get(f"/api/v1/public/orders/{token}")).json()
+
+    assert body["state"] == "expired"
+    assert body["items"] == []
+
+
 async def test_public_payload_has_no_pii_and_is_not_cacheable(client, db_session):
-    order = await _add_order(db_session)
+    order = await _add_order(
+        db_session, items=[("Cheesecake", 2)]
+    )
     token = (await _issue(client, order.id)).json()["token"]
 
     response = await client.get(f"/api/v1/public/orders/{token}")
@@ -264,7 +319,9 @@ async def test_public_payload_has_no_pii_and_is_not_cacheable(client, db_session
         "status",
         "status_label",
         "message",
+        "items",
     }
+    assert "Ana" not in response.text
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["referrer-policy"] == "no-referrer"
     assert response.headers["x-robots-tag"] == "noindex"

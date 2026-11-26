@@ -34,10 +34,12 @@ pagina responde **"Su pedido ha sido entregado"**.
   `border=4` (zona de silencio ISO), `scale=8`, `dark` = tinta del design system,
   `light` blanco.
 - **S4 — Resolucion publica.** `GET /public/orders/{token}` (sin auth) devuelve
-  `{state, order_code, status, status_label, message}`. **El estado se deriva del
+  `{state, order_code, status, status_label, message, items}`. `items` es la
+  descripcion de los productos del pedido: por item solo `name` y `quantity`
+  (lo que el cliente recibe; sin precio ni PII). **El estado se deriva del
   estado del pedido**, no de la fila del link: un pedido terminal nunca expone
-  datos aunque la revocacion no se haya materializado. Token inexistente o con
-  forma invalida → **404** con mensaje generico.
+  datos aunque la revocacion no se haya materializado. `EXPIRED` no expone
+  items. Token inexistente o con forma invalida → **404** con mensaje generico.
 - **S5 — Muerte del link.** Toda transicion a `delivered` o `cancelled` revoca el
   link activo dentro de la misma transaccion (`revoked_reason` = `delivered` |
   `cancelled`, `revoked_at` seteado). Cubre los dos caminos que llegan a un
@@ -69,7 +71,8 @@ pagina responde **"Su pedido ha sido entregado"**.
   montos, y muere al entregar. Contramedidas compensatorias: indice unico,
   revocacion transaccional, rate limit, respuesta sin cache.
 - **R3 — Sin PII.** La respuesta publica no incluye nombre, telefono, direccion,
-  email, items ni importes. Solo codigo, estado y etiqueta.
+  email ni importes. De los items solo `name` y `quantity` (descripcion del
+  contenido para verificar la entrega), nunca precio, snapshot ni nota.
 - **R4 — Anti-enumeracion.** Token con forma invalida o inexistente → 404 con el
   mismo mensaje (`Link inválido o expirado`). No se distingue "nunca existio" de
   "fue revocado".
@@ -151,6 +154,8 @@ pagina responde **"Su pedido ha sido entregado"**.
 | Q12 | Cliente (no admin) | GET `/orders/{id}/delivery-link` | 403 |
 | Q13 | Pedido de otro tenant/inexistente | GET `/orders/{id}/delivery-link` | 404 |
 | Q14 | Dos emisiones concurrentes | GET simultaneo | un solo link activo; mismo token |
+| Q15 | Pedido con link activo e items | GET `/public/orders/{token}` | 200; `items` con `name`+`quantity` por item; sin precio/PII |
+| Q16 | Link `EXPIRED` (revocado, pedido no terminal) | GET `/public/orders/{token}` | 200; `state=expired`; `items` vacio, sin codigo |
 
 ## Tasks
 
@@ -161,6 +166,7 @@ pagina responde **"Su pedido ha sido entregado"**.
 - **T5** — API: router de entrega (link, svg, publico), rate limit, headers de seguridad, `segno` en dependencias + tests de integracion Q1-Q14. ✅ (`tests/integration/api/test_order_delivery_qr.py`, 15)
 - **T6** — Frontend: pagina publica `/entrega/[token]` + seccion QR en el detalle de pedido + tests. ✅
 - **T7** — Gate: suite backend (archivos auto-contenidos), `tsc`/`vitest`/`build`; PR apilado sobre `feat/transfer-receipts`. ✅ con una salvedad documentada en L7.
+- **T8** — Descripcion de productos en la vista publica (Q15–Q16): `PublicDeliveryItem` en dominio, mapeo en `ResolveDeliveryLink` (solo con repositorio de pedidos inyectado; pedido ausente → items vacio), schema `items`, lista en `delivery_status_view` + tests (unidad, integracion, vitest). ✅
 
 ## Reglas
 
@@ -228,3 +234,10 @@ pagina responde **"Su pedido ha sido entregado"**.
   los fixtures caen fuera de la ventana y `stats()["total"]` da 0. No lo causaba
   esta feature ni el chain (main paso el 23/11 y no volvio a correr). Se cambia el
   ancla a relativa en los dos archivos; sin eso el PR no puede ponerse verde.
+- **L11** (T8, correccion de Gaspar): la pagina publica incorporo la descripcion
+  de los productos del pedido (`items`: `name` + `quantity`). Decisiones: sin
+  precio (la exposicion publica se mantiene minima; el QR es material de
+  mostrador, no ticket); la vista derivada sigue ocultando items en `EXPIRED`;
+  `ResolveDeliveryLink` recibe el repositorio de pedidos como colaborador
+  opcional (tests existentes sin repositorio → items vacio, sin cambios).
+  `get_full` devuelve el modelo P6 (`qty`), asi el mapeo lee `item.qty`.

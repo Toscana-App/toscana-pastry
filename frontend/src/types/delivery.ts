@@ -7,10 +7,16 @@ export interface DeliveryLink {
   created_at: string | null;
 }
 
+export interface PublicDeliveryItem {
+  name: string;
+  quantity: number;
+}
+
 export interface PublicDelivery {
   state: DeliveryLinkState;
   order_code: string;
   status: string;
   status_label: string;
   message: string;
+  items?: PublicDeliveryItem[];
 }

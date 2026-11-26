@@ -14,6 +14,12 @@ class DeliveryLinkResponse(BaseModel):
     created_at: datetime.datetime | None = None
 
 
+class PublicDeliveryItemResponse(BaseModel):
+
+    name: str
+    quantity: int
+
+
 class PublicDeliveryResponse(BaseModel):
 
     state: Literal["active", "delivered", "cancelled", "expired"]
@@ -21,3 +27,4 @@ class PublicDeliveryResponse(BaseModel):
     status: str
     status_label: str
     message: str
+    items: list[PublicDeliveryItemResponse] = []

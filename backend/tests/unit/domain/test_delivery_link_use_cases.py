@@ -13,10 +13,17 @@ from domain.use_cases.issue_delivery_link import IssueDeliveryLink
 from domain.use_cases.resolve_delivery_link import ResolveDeliveryLink
 
 
+class _Item:
+    def __init__(self, name: str, qty: int):
+        self.product_name = name
+        self.qty = qty
+
+
 class _Order:
-    def __init__(self, status="confirmed", order_id="o1"):
+    def __init__(self, status="confirmed", order_id="o1", items=()):
         self.status = status
         self.id = order_id
+        self.items = list(items)
 
 
 class FakeOrders:
@@ -168,3 +175,45 @@ async def test_resolve_uppercase_token_is_normalized():
     view = await ResolveDeliveryLink(links).execute(token.upper())
 
     assert view.state is DeliveryLinkState.ACTIVE
+
+
+async def test_resolve_exposes_order_item_descriptions():
+    links = FakeLinks(order_status="pending_delivery")
+    orders = FakeOrders(
+        [
+            _Order(
+                items=[_Item("Cheesecake", 2), _Item("Brownie de nuez", 1)]
+            )
+        ]
+    )
+    token = str(uuid.uuid4())
+    await links.create("o1", token)
+
+    view = await ResolveDeliveryLink(links, orders).execute(token)
+
+    assert [(i.name, i.quantity) for i in view.items] == [
+        ("Cheesecake", 2),
+        ("Brownie de nuez", 1),
+    ]
+
+
+async def test_resolve_delivered_link_still_exposes_item_descriptions():
+    links = FakeLinks(order_status="delivered")
+    orders = FakeOrders([_Order(status="delivered", items=[_Item("Cheesecake", 2)])])
+    token = str(uuid.uuid4())
+    await links.create("o1", token)
+
+    view = await ResolveDeliveryLink(links, orders).execute(token)
+
+    assert view.state is DeliveryLinkState.DELIVERED
+    assert [i.name for i in view.items] == ["Cheesecake"]
+
+
+async def test_resolve_exposes_no_items_without_an_order_repository():
+    links = FakeLinks()
+    token = str(uuid.uuid4())
+    await links.create("o1", token)
+
+    view = await ResolveDeliveryLink(links).execute(token)
+
+    assert view.items == ()

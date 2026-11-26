@@ -55,12 +55,19 @@ class DeliveryLink:
 
 
 @dataclass(frozen=True)
+class PublicDeliveryItem:
+    name: str
+    quantity: int
+
+
+@dataclass(frozen=True)
 class PublicDeliveryView:
     state: DeliveryLinkState
     order_code: str
     status: str
     status_label: str
     message: str
+    items: tuple[PublicDeliveryItem, ...] = ()
 
 
 def new_delivery_token() -> str:
@@ -98,7 +105,10 @@ def state_for_link(link: DeliveryLink) -> DeliveryLinkState:
     return DeliveryLinkState.ACTIVE
 
 
-def public_view(link: DeliveryLink) -> PublicDeliveryView:
+def public_view(
+    link: DeliveryLink,
+    items: tuple[PublicDeliveryItem, ...] = (),
+) -> PublicDeliveryView:
     state = state_for_link(link)
     visible = state is not DeliveryLinkState.EXPIRED
     return PublicDeliveryView(
@@ -107,6 +117,7 @@ def public_view(link: DeliveryLink) -> PublicDeliveryView:
         status=link.order_status if visible else "",
         status_label=ORDER_STATUS_LABELS.get(link.order_status, "") if visible else "",
         message=DELIVERY_STATE_MESSAGES[state],
+        items=tuple(items) if visible else (),
     )
 
 

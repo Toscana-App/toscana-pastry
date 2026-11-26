@@ -84,6 +84,30 @@ describe("DeliveryStatusView", () => {
     await waitFor(() => expect(screen.getByText("Link inválido o expirado")).toBeTruthy());
   });
 
+  it("lists the order items with their quantities", async () => {
+    mockedFetch.mockResolvedValue({
+      state: "active",
+      order_code: "#00044",
+      status: "pending_delivery",
+      status_label: "Pendiente entrega",
+      message: "Su pedido está en curso",
+      items: [
+        { name: "Cheesecake", quantity: 2 },
+        { name: "Brownie de nuez", quantity: 1 },
+      ],
+    });
+
+    render(<DeliveryStatusView token={TOKEN} />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Su pedido está en curso" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Cheesecake")).toBeTruthy();
+    expect(screen.getByText("Brownie de nuez")).toBeTruthy();
+    expect(screen.getByText("× 2")).toBeTruthy();
+    expect(screen.getByText("× 1")).toBeTruthy();
+  });
+
   it("never renders an order code when the link expired", async () => {
     mockedFetch.mockResolvedValue({
       state: "expired",

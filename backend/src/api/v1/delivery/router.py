@@ -4,7 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from api.v1.delivery.dependencies import get_delivery_link_repository
 from api.v1.delivery.qr import QR_MEDIA_TYPE, QrUnavailableError, delivery_qr_svg
-from api.v1.delivery.schemas import DeliveryLinkResponse, PublicDeliveryResponse
+from api.v1.delivery.schemas import (
+    DeliveryLinkResponse,
+    PublicDeliveryItemResponse,
+    PublicDeliveryResponse,
+)
 from api.v1.dependencies import require_admin
 from api.v1.orders.dependencies import get_order_repository
 from api.v1.rate_limit import SlidingWindowRateLimiter
@@ -113,9 +117,10 @@ async def resolve_public_delivery(
     token: str,
     response: Response,
     links: SQLDeliveryLinkRepository = Depends(get_delivery_link_repository),
+    orders: SQLOrderRepository = Depends(get_order_repository),
 ):
     try:
-        view = await ResolveDeliveryLink(links).execute(token)
+        view = await ResolveDeliveryLink(links, orders).execute(token)
     except DeliveryLinkError as exc:
         raise _http_error(exc, _NOT_FOUND_LINK)
     response.headers.update(_PUBLIC_HEADERS)
@@ -125,4 +130,8 @@ async def resolve_public_delivery(
         status=view.status,
         status_label=view.status_label,
         message=view.message,
+        items=[
+            PublicDeliveryItemResponse(name=item.name, quantity=item.quantity)
+            for item in view.items
+        ],
     )
