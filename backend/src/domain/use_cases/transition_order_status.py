@@ -23,19 +23,19 @@ class TransitionOrderStatus:
                 await store.rollback()
                 raise InvalidStatusTransitionError("inexistente", target)
             try:
-                transition(order.status, target)
+                resolved = transition(order.status, target)
             except InvalidStatusTransitionError:
                 await store.rollback()
                 raise
 
-            if target == OrderStatus.CONFIRMED:
+            if resolved == OrderStatus.CONFIRMED:
                 await self._deduct_stock(order)
-            elif target == OrderStatus.CANCELLED:
+            elif resolved == OrderStatus.CANCELLED:
                 await self._restore_stock(order)
 
-            await store.set_status(order.id, target)
+            await store.set_status(order.id, resolved)
             await store.commit()
-            return dataclasses.replace(order, status=target)
+            return dataclasses.replace(order, status=resolved)
         except (InsufficientOrderStockError, InvalidStatusTransitionError):
             raise
         except Exception:
