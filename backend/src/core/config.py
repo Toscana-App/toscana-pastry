@@ -60,6 +60,7 @@ class Settings:
     MP_NOTIFICATION_URL: str = os.getenv("MP_NOTIFICATION_URL", "")
     MP_BACK_URL: str = os.getenv("MP_BACK_URL", "")
     PUBLIC_BASE_URL: str = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000")
+    PUBLIC_APP_URL: str = os.getenv("PUBLIC_APP_URL", "http://localhost:3000")
     PDFGEN_URL: str = os.getenv("PDFGEN_URL", "http://localhost:8100")
     MEDIA_ROOT: str = os.getenv(
         "MEDIA_ROOT",

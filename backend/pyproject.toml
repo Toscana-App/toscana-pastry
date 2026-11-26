@@ -14,6 +14,7 @@ dependencies = [
     "zeep>=4.3",
     "cryptography>=43",
     "google-auth>=2.31",
+    "segno>=1.6",
 ]
 
 [dependency-groups]
