@@ -184,6 +184,7 @@ def _order_body(product_id: str, quantity: int = 2, **overrides) -> dict:
         "date": "2030-01-02T12:00:00",
         "delivery_mode": "pickup",
         "payment_method": "cash",
+        "phone": "+5493541000001",
     }
     body.update(overrides)
     return body

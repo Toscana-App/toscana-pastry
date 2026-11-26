@@ -125,6 +125,7 @@ def _body(product_id: str, **overrides) -> dict:
         "date": (datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=2)).isoformat(),
         "delivery_mode": "pickup",
         "payment_method": "cash",
+        "phone": "+5493541000001",
     }
     body.update(overrides)
     return body

@@ -398,7 +398,7 @@ export function OrdersPage() {
                     {order.customer_name}
                   </td>
                   <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
-                    {order.customer_phone}
+                    {order.customer_phone || "—"}
                   </td>
                   <td style={{ padding: "10px 14px", fontVariantNumeric: "tabular-nums" }}>{order.item_count}</td>
                   <td style={{ padding: "10px 14px", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>

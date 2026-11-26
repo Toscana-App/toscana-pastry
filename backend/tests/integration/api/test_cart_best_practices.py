@@ -163,6 +163,7 @@ def _order_body(quantity=1, coupon_code=None):
         "payment_method": "cash",
         "delivery_mode": "delivery",
         "delivery_address": "Av. Belgrano 100",
+        "phone": "+5493541000001",
     }
     if coupon_code:
         body["coupon_code"] = coupon_code

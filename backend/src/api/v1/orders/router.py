@@ -525,7 +525,7 @@ async def create_order_portal(
         new_order = Order.place_portal(
             customer_id=user.id,
             customer_name=user.email,
-            customer_phone="",
+            customer_phone=body.phone,
             date=body.date,
             items=items,
             payment_method=payment_method,
@@ -1340,7 +1340,12 @@ async def whatsapp_link(
             status_code=status.HTTP_404_NOT_FOUND, detail="Pedido no encontrado"
         )
     message = _whatsapp_message(order)
-    digits = "".join(ch for ch in order.customer_phone if ch.isdigit())
+    digits = "".join(ch for ch in (order.customer_phone or "") if ch.isdigit())
+    if not digits:
+        raise HTTPException(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="phone_required",
+        )
     url = f"https://wa.me/{digits}?text={quote(message)}"
     now = datetime.datetime.now(datetime.timezone.utc)
     await repo.mark_whatsapp_sent(order, now)
