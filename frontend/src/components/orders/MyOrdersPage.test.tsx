@@ -23,7 +23,7 @@ function makeOrder(overrides: Partial<OrderDetail> = {}): OrderDetail {
     id: "o1",
     code: "PED-001",
     customer_id: "c1",
-    status: "confirmado",
+    status: "confirmed",
     date: "2026-11-01T12:00:00Z",
     payment_method: "cash",
     delivery_mode: "pickup",
@@ -54,7 +54,7 @@ const normalize = (text: string | null) =>
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(fetchMyOrders).mockResolvedValue({
-    orders: [makeOrder(), makeOrder({ id: "o2", code: "PED-002", status: "entregado" })],
+    orders: [makeOrder(), makeOrder({ id: "o2", code: "PED-002", status: "delivered" })],
     total: 2,
     page: 1,
     page_size: 10,

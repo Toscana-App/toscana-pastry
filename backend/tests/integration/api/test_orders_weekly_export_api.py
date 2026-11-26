@@ -214,15 +214,15 @@ async def test_weekly_forbidden_for_customer(client, db_session):
 async def test_weekly_default_week_aggregates(client, db_session):
     monday, _ = _this_week()
     await _seed_order(db_session, "ord-1", "c1", "Juan Pérez", "+54 9 11 5555-0001",
-                      monday, "confirmado", 1234567, paid=True, method="cash")
+                      monday, "confirmed", 1234567, paid=True, method="cash")
     await _seed_order(db_session, "ord-2", "c2", "María Gómez", "+54 9 11 5555-0002",
-                      monday + datetime.timedelta(days=1), "entregado", 80000,
+                      monday + datetime.timedelta(days=1), "delivered", 80000,
                       paid=False, method="mp")
     await _seed_order(db_session, "ord-3", "c3", "Fuera de Semana",
                       "+54 9 11 5555-0003", monday - datetime.timedelta(days=8),
-                      "confirmado", 500000)
+                      "confirmed", 500000)
     await _seed_order(db_session, "ord-4", "c4", "Pendiente Confirmar",
-                      "+54 9 11 5555-0004", monday, "nuevo", 70000)
+                      "+54 9 11 5555-0004", monday, "new", 70000)
 
     token = await _admin_token(client)
     response = await client.get(
@@ -250,7 +250,7 @@ async def test_weekly_iso_week_param(client, db_session):
     anchor = datetime.date(2026, 11, 2)
     iso = f"{anchor.isocalendar().year}-W{anchor.isocalendar().week:02d}"
     await _seed_order(db_session, "ord-1", "c1", "Juan Pérez", "+54 9 11 5555-0001",
-                      anchor, "confirmado", 100000, paid=True)
+                      anchor, "confirmed", 100000, paid=True)
 
     token = await _admin_token(client)
     response = await client.get(
@@ -281,7 +281,7 @@ async def test_weekly_bad_week_422(client, db_session):
 async def test_orders_export_csv_default(client, db_session):
     monday, _ = _this_week()
     await _seed_order(db_session, "ord-1", "c1", "Juan Pérez", "+54 9 11 5555-0001",
-                      monday, "confirmado", 1234567, paid=True)
+                      monday, "confirmed", 1234567, paid=True)
 
     token = await _admin_token(client)
     response = await client.get(
@@ -293,7 +293,7 @@ async def test_orders_export_csv_default(client, db_session):
     body = response.text
     assert "id,cliente,fecha,items,total,estado,pago,metodo" in body
     assert "Juan Pérez" in body
-    assert "confirmado" in body
+    assert "confirmed" in body
     assert "$12.345,67" in body
 
 
@@ -301,13 +301,13 @@ async def test_orders_export_csv_default(client, db_session):
 async def test_orders_export_filters(client, db_session):
     monday, _ = _this_week()
     await _seed_order(db_session, "ord-1", "c1", "Con Filtro", "+54 9 11 5555-0011",
-                      monday, "confirmado", 100000, paid=True)
+                      monday, "confirmed", 100000, paid=True)
     await _seed_order(db_session, "ord-2", "c2", "Sin Filtro", "+54 9 11 5555-0012",
-                      monday, "nuevo", 200000, paid=False)
+                      monday, "new", 200000, paid=False)
 
     token = await _admin_token(client)
     response = await client.get(
-        "/api/v1/orders/export?status=confirmado",
+        "/api/v1/orders/export?status=confirmed",
         headers={"Authorization": f"Bearer {token}"},
     )
     body = response.text
@@ -327,7 +327,7 @@ async def test_orders_export_filters(client, db_session):
 async def test_orders_export_pdf(client, db_session):
     monday, _ = _this_week()
     await _seed_order(db_session, "ord-1", "c1", "Juan Pérez", "+54 9 11 5555-0001",
-                      monday, "confirmado", 1234567, paid=True)
+                      monday, "confirmed", 1234567, paid=True)
 
     token = await _admin_token(client)
     response = await client.get(

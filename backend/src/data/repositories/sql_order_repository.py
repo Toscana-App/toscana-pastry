@@ -411,12 +411,12 @@ class SQLOrderRepository:
             update(OrderORM)
             .where(
                 OrderORM.id == order_id,
-                OrderORM.status == OrderStatus.NUEVO.value,
+                OrderORM.status == OrderStatus.NEW.value,
                 OrderORM.paid_at.is_(None),
                 OrderORM.payment_status == PaymentStatus.PENDING.value,
             )
             .values(
-                status=OrderStatus.CANCELADO.value,
+                status=OrderStatus.CANCELLED.value,
                 payment_status=PaymentStatus.FAILED.value,
             )
         )
@@ -680,7 +680,7 @@ class SQLOrderRepository:
         orm = await self._lock_order(order.id)
         if orm is None:
             return None
-        if orm.status != "nuevo":
+        if orm.status != OrderStatus.NEW.value:
             current = orm.status
             await self.session.rollback()
             raise OrderNotEditableError(current)
@@ -713,13 +713,13 @@ class SQLOrderRepository:
 
 
     async def confirm(self, order: P6Order) -> P6Order:
-        return await TransitionOrderStatus(self).execute(order.id, "confirmado")
+        return await TransitionOrderStatus(self).execute(order.id, OrderStatus.CONFIRMED.value)
 
     async def cancel(self, order: P6Order) -> P6Order:
-        return await TransitionOrderStatus(self).execute(order.id, "cancelado")
+        return await TransitionOrderStatus(self).execute(order.id, OrderStatus.CANCELLED.value)
 
     async def mark_delivered(self, order: P6Order) -> P6Order:
-        return await TransitionOrderStatus(self).execute(order.id, "entregado")
+        return await TransitionOrderStatus(self).execute(order.id, OrderStatus.DELIVERED.value)
 
 
     async def lock_order(self, order_id: str) -> Optional[P6Order]:

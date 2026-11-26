@@ -40,7 +40,7 @@ const ORDER: OrderDetail = {
   id: "ord1",
   code: "#00001",
   customer_id: "c1",
-  status: "nuevo",
+  status: "new",
   date: "2026-11-25",
   payment_method: "cash",
   delivery_mode: "pickup",

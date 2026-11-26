@@ -21,7 +21,7 @@ from domain.repositories import DashboardRepository
 
 _MONEY = Numeric(14, 2)
 _ZERO = Decimal("0")
-_CANCELLED = OrderStatus.CANCELADO.value
+_CANCELLED = OrderStatus.CANCELLED.value
 _GROUP_ROW_LIMIT = 50
 _TRUNC_UNITS = {
     Granularity.DAY: "'day'",

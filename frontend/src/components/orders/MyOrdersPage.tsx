@@ -52,12 +52,14 @@ function canPayNow(order: OrderDetail): boolean {
 
 const STATUS_BADGES: Record<
   string,
-  { label: string; palette: "gray" | "brand" | "green" | "red" }
+  { label: string; palette: "gray" | "brand" | "green" | "red" | "orange" }
 > = {
-  nuevo: { label: "Nuevo", palette: "gray" },
-  confirmado: { label: "Confirmado", palette: "brand" },
-  entregado: { label: "Entregado", palette: "green" },
-  cancelado: { label: "Cancelado", palette: "red" },
+  new: { label: "Nuevo", palette: "gray" },
+  confirmed: { label: "Confirmado", palette: "brand" },
+  preparing: { label: "Pendiente preparación", palette: "orange" },
+  pending_delivery: { label: "Pendiente entrega", palette: "brand" },
+  delivered: { label: "Entregado", palette: "green" },
+  cancelled: { label: "Cancelado", palette: "red" },
 };
 
 function PaymentBadge({ order }: { order: OrderDetail }) {
@@ -192,7 +194,7 @@ function OrderCard({
     }
   }, [expanded, detail, order.code]);
 
-  const statusBadge = STATUS_BADGES[order.status] ?? STATUS_BADGES.nuevo;
+  const statusBadge = STATUS_BADGES[order.status] ?? STATUS_BADGES.new;
 
   return (
     <Card.Root h="full">

@@ -103,7 +103,7 @@ async def _seed(admin: asyncpg.Connection) -> dict:
         await admin.execute(
             "INSERT INTO orders (id, customer_id, code, status, date, payment_method,"
             " delivery_mode, delivery_address, created_at)"
-            " VALUES ($1, $2, $3, 'nuevo', $4, 'cash', 'delivery', '', $4)",
+            " VALUES ($1, $2, $3, 'new', $4, 'cash', 'delivery', '', $4)",
             order_id,
             customer_id,
             code,
@@ -265,7 +265,7 @@ class TestRlsRolePolicies:
                 await conn.execute(
                     "INSERT INTO orders (id, customer_id, code, status, date,"
                     " payment_method, delivery_mode, delivery_address, created_at)"
-                    " VALUES ('intruder', $1, '#INTR', 'nuevo', now(), 'cash',"
+                    " VALUES ('intruder', $1, '#INTR', 'new', now(), 'cash',"
                     " 'delivery', '', now())",
                     rls_seed["user_b"],
                 )
@@ -277,7 +277,7 @@ class TestRlsRolePolicies:
         try:
             await _set_ctx(conn, role="customer", user_id=rls_seed["user_a"])
             status = await conn.execute(
-                "UPDATE orders SET status = 'confirmado' WHERE id = $1",
+                "UPDATE orders SET status = 'confirmed' WHERE id = $1",
                 rls_seed["order_b"],
             )
             assert status == "UPDATE 0"

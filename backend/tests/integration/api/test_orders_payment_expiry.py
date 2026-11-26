@@ -109,7 +109,7 @@ async def test_repo_expire_cancels_order_and_releases_coupon_use(db_session):
     assert await SQLOrderRepository(db_session).expire_pending_payment(order.id) is True
 
     row = await _row(db_session, order.id)
-    assert row.status == OrderStatus.CANCELADO
+    assert row.status == OrderStatus.CANCELLED
     assert row.payment_status == PaymentStatus.FAILED
     coupon = await _coupon_row(db_session)
     assert coupon.uses == 1
@@ -122,7 +122,7 @@ async def test_repo_expire_is_noop_when_already_paid(db_session):
     await repo.apply_payment_event("p1:approved", order.id, "p1", PaymentStatus.APPROVED, T0)
 
     assert await repo.expire_pending_payment(order.id) is False
-    assert (await _row(db_session, order.id)).status == OrderStatus.NUEVO
+    assert (await _row(db_session, order.id)).status == OrderStatus.NEW
     assert (await _coupon_row(db_session)).uses == 1
 
 
@@ -133,7 +133,7 @@ async def test_get_payment_before_24h_keeps_order(client, db_session):
     resp = await client.get(f"/api/v1/orders/{order.id}/payment")
 
     assert resp.json()["status"] == "pending"
-    assert (await _row(db_session, order.id)).status == OrderStatus.NUEVO
+    assert (await _row(db_session, order.id)).status == OrderStatus.NEW
 
 
 async def test_get_payment_after_24h_cancels_order_and_releases_coupon(client, db_session):
@@ -146,7 +146,7 @@ async def test_get_payment_after_24h_cancels_order_and_releases_coupon(client, d
     assert resp.status_code == 200
     assert resp.json()["status"] == "failed"
     assert resp.json()["paid"] is False
-    assert (await _row(db_session, order.id)).status == OrderStatus.CANCELADO
+    assert (await _row(db_session, order.id)).status == OrderStatus.CANCELLED
     assert (await _coupon_row(db_session)).uses == 0
 
 
@@ -160,4 +160,4 @@ async def test_initiating_payment_on_expired_order_cancels_it(client, db_session
 
     assert resp.status_code == 409
     assert resp.json()["detail"] == "order_not_payable"
-    assert (await _row(db_session, order.id)).status == OrderStatus.CANCELADO
+    assert (await _row(db_session, order.id)).status == OrderStatus.CANCELLED

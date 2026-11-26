@@ -39,11 +39,13 @@ import {
   type WhatsAppLink,
 } from "../types";
 
-const STATUS_COLORS: Record<OrderStatus, "blue" | "green" | "gray" | "red"> = {
-  nuevo: "blue",
-  confirmado: "green",
-  entregado: "gray",
-  cancelado: "red",
+const STATUS_COLORS: Record<OrderStatus, "blue" | "green" | "gray" | "red" | "orange"> = {
+  new: "blue",
+  confirmed: "green",
+  preparing: "orange",
+  pending_delivery: "blue",
+  delivered: "gray",
+  cancelled: "red",
 };
 
 /** Mensajes amigables para los errores de emisión de factura (sin stack traces). */
@@ -385,7 +387,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
       {}
       {isAdmin ? (
         <HStack gap={3} wrap="wrap">
-          {order.status === "nuevo" ? (
+          {order.status === "new" ? (
             <Button variant="outline" asChild>
               <NextLink href={`/pedidos/${order.id}/editar`}>Editar</NextLink>
             </Button>
@@ -409,8 +411,8 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
           {nextStatuses.map((s) => (
             <Button
               key={s}
-              colorPalette={s === "cancelado" ? "red" : "brand"}
-              variant={s === "cancelado" ? "outline" : "solid"}
+              colorPalette={s === "cancelled" ? "red" : "brand"}
+              variant={s === "cancelled" ? "outline" : "solid"}
               loading={actionLoading && pendingTransition === s}
               onClick={() => setPendingTransition(s)}
             >
@@ -489,10 +491,10 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
             </Dialog.Header>
             <Dialog.Body>
               <Text>
-                {pendingTransition === "confirmado"
+                {pendingTransition === "confirmed"
                   ? "Al confirmar se descuenta stock de los insumos. Si no alcanza, el pedido queda sin cambios."
-                  : pendingTransition === "cancelado"
-                    ? "Al cancelar desde confirmado se devuelve el stock que se había descontado."
+                  : pendingTransition === "cancelled"
+                    ? "Al cancelar se devuelve el stock que se había descontado."
                     : "Esta acción no se puede deshacer desde la interfaz."}
               </Text>
             </Dialog.Body>
@@ -501,7 +503,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
                 Cancelar
               </Button>
               <Button
-                colorPalette={pendingTransition === "cancelado" ? "red" : "brand"}
+                colorPalette={pendingTransition === "cancelled" ? "red" : "brand"}
                 loading={actionLoading}
                 onClick={() => {
                   if (pendingTransition) void runTransition(pendingTransition);

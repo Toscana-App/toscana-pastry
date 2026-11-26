@@ -5,9 +5,9 @@ from decimal import Decimal
 import pytest
 
 from domain.models import Ingredient
+from domain.order_states import InvalidStatusTransitionError
 from domain.orders import (
     InsufficientOrderStockError,
-    InvalidStatusTransitionError,
     Order,
     OrderItemSnapshot,
     OrderItemSnapshotLine,
@@ -26,7 +26,7 @@ def _snapshot(*lines) -> OrderItemSnapshot:
     )
 
 
-def _order(status="nuevo", lines=(("flour", "500"),)) -> Order:
+def _order(status="new", lines=(("flour", "500"),)) -> Order:
     return Order(
         customer_id="c1",
         customer_name="Ana",
@@ -80,9 +80,9 @@ class FakeStore:
 
 async def test_confirm_deducts_stock_and_sets_status():
     store = FakeStore(_order(), [_ing("flour", "1000")])
-    result = await TransitionOrderStatus(store).execute("o1", "confirmado")
+    result = await TransitionOrderStatus(store).execute("o1", "confirmed")
 
-    assert result.status == "confirmado"
+    assert result.status == "confirmed"
     assert store.ingredients["flour"].stock_qty == Decimal("500")
     assert [(m.reason, m.qty_delta, m.ref, m.ingredient_id) for m in store.movements] == [
         ("pedido", Decimal("-500"), "o1", "flour")
@@ -94,7 +94,7 @@ async def test_confirm_deducts_stock_and_sets_status():
 async def test_confirm_insufficient_stock_rolls_back_with_available_and_required():
     store = FakeStore(_order(), [_ing("flour", "200")])
     with pytest.raises(InsufficientOrderStockError) as exc:
-        await TransitionOrderStatus(store).execute("o1", "confirmado")
+        await TransitionOrderStatus(store).execute("o1", "confirmed")
 
     assert exc.value.shortage == {"flour": Decimal("300")}
     assert exc.value.available == {"flour": Decimal("200")}
@@ -107,18 +107,18 @@ async def test_confirm_insufficient_stock_rolls_back_with_available_and_required
 async def test_confirm_missing_ingredient_counts_as_zero_available():
     store = FakeStore(_order(), [])
     with pytest.raises(InsufficientOrderStockError) as exc:
-        await TransitionOrderStatus(store).execute("o1", "confirmado")
+        await TransitionOrderStatus(store).execute("o1", "confirmed")
     assert exc.value.available == {"flour": Decimal("0")}
 
 
 async def test_cancel_restores_stock_and_skips_deleted_ingredient():
     store = FakeStore(
-        _order("confirmado", lines=(("flour", "500"), ("gone", "10"))),
+        _order("confirmed", lines=(("flour", "500"), ("gone", "10"))),
         [_ing("flour", "100")],
     )
-    result = await TransitionOrderStatus(store).execute("o1", "cancelado")
+    result = await TransitionOrderStatus(store).execute("o1", "cancelled")
 
-    assert result.status == "cancelado"
+    assert result.status == "cancelled"
     assert store.ingredients["flour"].stock_qty == Decimal("600")
     assert [(m.reason, m.ingredient_id) for m in store.movements] == [
         ("anulacion", "flour")
@@ -127,18 +127,46 @@ async def test_cancel_restores_stock_and_skips_deleted_ingredient():
 
 
 async def test_deliver_has_no_stock_effect():
-    store = FakeStore(_order("confirmado"), [_ing("flour", "100")])
-    result = await TransitionOrderStatus(store).execute("o1", "entregado")
+    store = FakeStore(_order("pending_delivery"), [_ing("flour", "100")])
+    result = await TransitionOrderStatus(store).execute("o1", "delivered")
 
-    assert result.status == "entregado"
+    assert result.status == "delivered"
     assert store.movements == []
     assert not any(c == "apply_movements" for c in store.calls)
     assert store.committed
 
 
+async def test_prepare_to_pending_delivery_has_no_stock_effect():
+    store = FakeStore(_order("preparing"), [_ing("flour", "100")])
+    result = await TransitionOrderStatus(store).execute("o1", "pending_delivery")
+
+    assert result.status == "pending_delivery"
+    assert store.movements == []
+    assert not any(c == "apply_movements" for c in store.calls)
+    assert store.committed
+
+
+async def test_cancel_from_preparing_restores_stock():
+    store = FakeStore(_order("preparing", lines=(("flour", "500"),)), [_ing("flour", "100")])
+    result = await TransitionOrderStatus(store).execute("o1", "cancelled")
+
+    assert result.status == "cancelled"
+    assert store.ingredients["flour"].stock_qty == Decimal("600")
+    assert [(m.reason, m.ingredient_id) for m in store.movements] == [
+        ("anulacion", "flour")
+    ]
+    assert store.committed
+
+
 @pytest.mark.parametrize(
-    "current,target",
-    [("confirmado", "confirmado"), ("cancelado", "entregado"), ("nuevo", "entregado")],
+    ("current", "target"),
+    [
+        ("confirmed", "confirmed"),
+        ("cancelled", "delivered"),
+        ("new", "delivered"),
+        ("new", "cancelled"),
+        ("preparing", "delivered"),
+    ],
 )
 async def test_invalid_transition_revalidated_under_lock(current, target):
     store = FakeStore(_order(current), [_ing("flour", "1000")])
@@ -151,7 +179,7 @@ async def test_invalid_transition_revalidated_under_lock(current, target):
 async def test_missing_order_is_invalid_transition():
     store = FakeStore(None, [])
     with pytest.raises(InvalidStatusTransitionError) as exc:
-        await TransitionOrderStatus(store).execute("o1", "confirmado")
+        await TransitionOrderStatus(store).execute("o1", "confirmed")
     assert exc.value.current == "inexistente"
     assert store.rolled_back
 
@@ -164,5 +192,5 @@ async def test_unexpected_error_rolls_back_and_propagates():
 
     store.set_status = boom
     with pytest.raises(RuntimeError):
-        await TransitionOrderStatus(store).execute("o1", "confirmado")
+        await TransitionOrderStatus(store).execute("o1", "confirmed")
     assert store.rolled_back and not store.committed

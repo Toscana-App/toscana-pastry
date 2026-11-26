@@ -89,12 +89,11 @@ from domain.order_pricing import (
     price_order_item,
 )
 from domain.product_price import derive_product_price
+from domain.order_states import InvalidStatusTransitionError, transition
 from domain.orders import (
     InsufficientOrderStockError,
-    InvalidStatusTransitionError,
     OrderItemSnapshot,
     OrderNotEditableError,
-    transition_status,
 )
 from domain.orders import Order as P6Order
 from domain.orders import OrderItem as P6OrderItem
@@ -227,7 +226,7 @@ async def initiate_payment(
             detail="payment_method_not_mercadopago",
         )
 
-    if order.status != OrderStatus.NUEVO:
+    if order.status != OrderStatus.NEW:
         raise HTTPException(
             status_code=http_status.HTTP_409_CONFLICT,
             detail="order_not_payable",
@@ -793,7 +792,7 @@ def _whatsapp_message(order: P6Order) -> str:
 @router.get("", response_model=OrderListResponse)
 async def list_orders(
     status_: Optional[str] = Query(
-        default=None, alias="status", pattern="^(nuevo|confirmado|entregado|cancelado)$"
+        default=None, alias="status", pattern="^(new|confirmed|preparing|pending_delivery|delivered|cancelled)$"
     ),
     customer_id: Optional[str] = Query(default=None, min_length=1, max_length=36),
     q: Optional[str] = Query(default=None, min_length=1, max_length=120),
@@ -1023,7 +1022,7 @@ async def weekly_summary(
 ):
     monday, sunday = _parse_week(week)
     orders: List[P6Order] = []
-    for st in ("confirmado", "entregado"):
+    for st in ("confirmed", "delivered"):
         orders.extend(
             await _fetch_all_orders(repo, st, monday, sunday, None)
         )
@@ -1062,7 +1061,7 @@ async def weekly_summary_pdf(
 ):
     monday, sunday = _parse_week(week)
     orders: List[P6Order] = []
-    for st in ("confirmado", "entregado"):
+    for st in ("confirmed", "delivered"):
         orders.extend(await _fetch_all_orders(repo, st, monday, sunday, None))
     orders.sort(key=lambda o: (o.date, o.customer_name))
 
@@ -1103,7 +1102,7 @@ async def export_orders(
     from_: Optional[datetime.date] = Query(default=None, alias="from"),
     to_: Optional[datetime.date] = Query(default=None, alias="to"),
     status_: Optional[str] = Query(
-        default=None, alias="status", pattern="^(nuevo|confirmado|entregado|cancelado)$"
+        default=None, alias="status", pattern="^(new|confirmed|preparing|pending_delivery|delivered|cancelled)$"
     ),
     paid: Optional[bool] = Query(default=None),
     fmt: Literal["csv", "pdf"] = Query(default="csv", alias="format"),
@@ -1179,7 +1178,7 @@ async def update_order(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Pedido no encontrado"
         )
-    if existing.status != "nuevo":
+    if existing.status != OrderStatus.NEW:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Solo se puede editar un pedido en estado nuevo",
@@ -1266,7 +1265,7 @@ async def patch_order_status(
             status_code=status.HTTP_404_NOT_FOUND, detail="Pedido no encontrado"
         )
     try:
-        transition_status(order.status, payload.status)
+        transition(order.status, payload.status)
     except InvalidStatusTransitionError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

@@ -136,7 +136,7 @@ async def _seed_order(db_session, suffix: str = "1") -> str:
             id=order_id,
             customer_id="cust-1",
             code=f"TPMATRIX{suffix}",
-            status="entregado",
+            status="delivered",
             date=datetime.datetime(2026, 11, 11, 12, 0, tzinfo=datetime.UTC),
             payment_method="cash",
             delivery_mode="pickup",

@@ -1,19 +1,30 @@
 
-export const ORDER_STATUSES = ["nuevo", "confirmado", "entregado", "cancelado"] as const;
+export const ORDER_STATUSES = [
+  "new",
+  "confirmed",
+  "preparing",
+  "pending_delivery",
+  "delivered",
+  "cancelled",
+] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  nuevo: "Nuevo",
-  confirmado: "Confirmado",
-  entregado: "Entregado",
-  cancelado: "Cancelado",
+  new: "Nuevo",
+  confirmed: "Confirmado",
+  preparing: "Pendiente preparación",
+  pending_delivery: "Pendiente entrega",
+  delivered: "Entregado",
+  cancelled: "Cancelado",
 };
 
 export const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  nuevo: ["confirmado"],
-  confirmado: ["entregado", "cancelado"],
-  entregado: [],
-  cancelado: [],
+  new: ["confirmed"],
+  confirmed: ["preparing", "cancelled"],
+  preparing: ["pending_delivery", "cancelled"],
+  pending_delivery: ["delivered"],
+  delivered: [],
+  cancelled: [],
 };
 
 export interface OrderItemInput {

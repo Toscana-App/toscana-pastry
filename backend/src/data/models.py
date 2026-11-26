@@ -667,7 +667,7 @@ class OrderORM(Base):
     id = Column(String, primary_key=True)
     customer_id = Column(String, nullable=False, index=True)
     code = Column(String, nullable=False, unique=True, index=True)
-    status = Column(_OrderStatusColumn(), default="nuevo", nullable=False)
+    status = Column(_OrderStatusColumn(), default="new", nullable=False)
     date = Column(DateTime(timezone=True), nullable=False)
     payment_method = Column(_PaymentMethodColumn(), default="cash", nullable=False)
     delivery_mode = Column(String, default="delivery", nullable=False)

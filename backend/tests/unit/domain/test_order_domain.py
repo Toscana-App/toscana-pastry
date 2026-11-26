@@ -28,7 +28,7 @@ class TestOrderCreation:
 
     def test_default_status_is_nuevo(self):
         order = _make_order()
-        assert order.status == OrderStatus.NUEVO
+        assert order.status == OrderStatus.NEW
 
     def test_default_payment_method_is_cash(self):
         from domain.order import PaymentMethod

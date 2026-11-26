@@ -46,7 +46,7 @@ def test_only_pending_unpaid_mercadopago_nuevo_orders_expire():
     assert not is_payment_expired(_order(payment_status=None), late)
     assert not is_payment_expired(_order(payment_status=PaymentStatus.APPROVED), late)
     assert not is_payment_expired(_order(paid_at=T0), late)
-    assert not is_payment_expired(_order(status=OrderStatus.CONFIRMADO), late)
+    assert not is_payment_expired(_order(status=OrderStatus.CONFIRMED), late)
     assert not is_payment_expired(
         _order(payment_method=PaymentMethod.CASH, payment_status=None), late
     )

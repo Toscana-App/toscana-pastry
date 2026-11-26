@@ -4,12 +4,8 @@ from typing import List, Tuple
 
 from domain.models import Ingredient, StockMovement
 from domain.order_pricing import check_stock, plan_order_deductions
-from domain.orders import (
-    InsufficientOrderStockError,
-    InvalidStatusTransitionError,
-    Order,
-    transition_status,
-)
+from domain.order_states import OrderStatus, InvalidStatusTransitionError, transition
+from domain.orders import InsufficientOrderStockError, Order
 from domain.repositories import OrderTransitionStore
 from domain.stock import apply_movement
 
@@ -27,19 +23,19 @@ class TransitionOrderStatus:
                 await store.rollback()
                 raise InvalidStatusTransitionError("inexistente", target)
             try:
-                transition_status(order.status, target)
+                resolved = transition(order.status, target)
             except InvalidStatusTransitionError:
                 await store.rollback()
                 raise
 
-            if target == "confirmado":
+            if resolved == OrderStatus.CONFIRMED:
                 await self._deduct_stock(order)
-            elif target == "cancelado":
+            elif resolved == OrderStatus.CANCELLED:
                 await self._restore_stock(order)
 
-            await store.set_status(order.id, target)
+            await store.set_status(order.id, resolved)
             await store.commit()
-            return dataclasses.replace(order, status=target)
+            return dataclasses.replace(order, status=resolved)
         except (InsufficientOrderStockError, InvalidStatusTransitionError):
             raise
         except Exception:
