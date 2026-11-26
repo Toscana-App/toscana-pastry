@@ -4,7 +4,9 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import os
 import time
+from urllib import parse
 from collections.abc import Callable
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -17,7 +19,31 @@ from domain.checkout_provider import (
     PaymentStatusResult,
 )
 
-MP_API_URL = "https://api.mercadopago.com"
+_DEFAULT_MP_API_URL = "https://api.mercadopago.com"
+_LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
+
+
+def _resolve_mp_api_url() -> str:
+    """Endpoint MP a usar.
+
+    El override por env ``MP_API_URL`` solo se honra si apunta a loopback
+    (mock de e2e). Cualquier otro host se descarta a favor del endpoint
+    real: asi una configuracion erronea en prod no puede redirigir los
+    pagos a un host equivocado.
+    """
+    override = os.getenv("MP_API_URL")
+    if not override:
+        return _DEFAULT_MP_API_URL
+    try:
+        host = parse.urlparse(override).hostname or ""
+    except ValueError:
+        return _DEFAULT_MP_API_URL
+    if host in _LOOPBACK_HOSTS:
+        return override
+    return _DEFAULT_MP_API_URL
+
+
+MP_API_URL = _resolve_mp_api_url()
 _HTTP_TIMEOUT_SECONDS = 10.0
 _ITEM_TITLE = "Toscana Pastry order"
 SIGNATURE_TOLERANCE_SECONDS = 5 * 60
