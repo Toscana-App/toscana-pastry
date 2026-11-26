@@ -22,6 +22,7 @@ import { formatPct, centsToPesos } from "@/lib/format";
 import { ApiError } from "@/lib/api";
 import { invoicesService } from "@/modules/invoicing/service";
 import { InvoiceDialog } from "@/modules/invoicing/components/InvoiceDialog";
+import { DeliveryQrSection } from "./delivery_qr_section";
 import { InvoiceResult } from "@/modules/invoicing/components/InvoiceResult";
 import {
   isFacturable,
@@ -599,6 +600,10 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
             <Alert.Description>{actionError}</Alert.Description>
           </Alert.Content>
         </Alert.Root>
+      ) : null}
+
+      {isAdmin ? (
+        <DeliveryQrSection orderId={order.id} orderStatus={order.status} />
       ) : null}
 
       {}

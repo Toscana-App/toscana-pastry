@@ -27,7 +27,9 @@ from domain.whatsapp_provider import MockBusinessApiProvider
 from domain.whatsapp_send import WhatsAppSend
 from main import app
 
-NOW = datetime.datetime(2026, 10, 26, 12, 0, 0, tzinfo=datetime.UTC)
+# Ancla relativa, no fija: las stats ventanean contra el reloj real (ver
+# tests/integration/data/test_whatsapp_send_repository.py).
+NOW = datetime.datetime.now(datetime.UTC)
 
 
 

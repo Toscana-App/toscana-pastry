@@ -15,6 +15,8 @@ from api.v1.cart.router import router as cart_router
 from api.v1.coupons.router import router as coupons_router
 from api.v1.customers.router import router as customers_router
 from api.v1.dashboard.router import router as dashboard_router
+from api.v1.delivery.router import public_router as delivery_public_router
+from api.v1.delivery.router import router as delivery_router
 from api.v1.ingredients.router import router as ingredients_router
 from api.v1.imports.router import router as imports_router
 from api.v1.invoicing.router import router as invoicing_router
@@ -75,6 +77,8 @@ app.include_router(pdf_router, prefix="/api/v1")
 
 app.include_router(calc_router, prefix="/api/v1")
 app.include_router(dashboard_router, prefix="/api/v1")
+app.include_router(delivery_router, prefix="/api/v1")
+app.include_router(delivery_public_router, prefix="/api/v1")
 
 _media_dir = Path(app_settings.MEDIA_ROOT)
 _media_dir.mkdir(parents=True, exist_ok=True)

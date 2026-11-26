@@ -16,6 +16,7 @@ from domain.dashboard import (
     TopProduct,
 )
 from domain.imports import ImportRow, ImportSession
+from domain.delivery import DeliveryLink
 
 class UserRepository(ABC):
     @abstractmethod
@@ -354,6 +355,25 @@ class OrderTransitionStore(ABC):
     async def record_whatsapp_sent_within_limit(
         self, budget_id: str, masked_phone: str, since: datetime, limit: int
     ) -> Optional[datetime]:
+        pass
+
+
+class DeliveryLinkRepository(ABC):
+
+    @abstractmethod
+    async def active_for_order(self, order_id: str) -> Optional["DeliveryLink"]:
+        pass
+
+    @abstractmethod
+    async def find_by_token(self, token: str) -> Optional["DeliveryLink"]:
+        pass
+
+    @abstractmethod
+    async def create(self, order_id: str, token: str) -> bool:
+        pass
+
+    @abstractmethod
+    async def revoke_active(self, order_id: str, reason: str) -> int:
         pass
 
 
