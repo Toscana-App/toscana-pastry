@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders as render } from "@/test-utils";
 import { DeliveryStatusView } from "./delivery_status_view";
@@ -32,7 +32,28 @@ describe("DeliveryStatusView", () => {
       await screen.findByRole("heading", { name: "Su pedido ha sido entregado" }),
     ).toBeTruthy();
     expect(screen.getByText("#00042")).toBeTruthy();
-    expect(mockedFetch).toHaveBeenCalledWith(TOKEN);
+    expect(mockedFetch).toHaveBeenCalledWith(TOKEN, expect.any(AbortSignal));
+  });
+
+  it("lets the visitor retry after a failed load", async () => {
+    mockedFetch.mockRejectedValueOnce(new Error("Sin conexión"));
+
+    render(<DeliveryStatusView token={TOKEN} />);
+
+    const retry = await screen.findByRole("button", { name: "Reintentar" });
+    mockedFetch.mockResolvedValueOnce({
+      state: "active",
+      order_code: "#00044",
+      status: "pending_delivery",
+      status_label: "Pendiente entrega",
+      message: "Su pedido está en curso",
+    });
+    fireEvent.click(retry);
+
+    expect(
+      await screen.findByRole("heading", { name: "Su pedido está en curso" }),
+    ).toBeTruthy();
+    expect(mockedFetch).toHaveBeenCalledTimes(2);
   });
 
   it("shows the current status while the order is in progress", async () => {

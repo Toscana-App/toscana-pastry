@@ -214,3 +214,17 @@ pagina responde **"Su pedido ha sido entregado"**.
   porque ese camino exige archivo de comprobante en disco; el caso e2e equivalente
   queda para el harness `backend/e2e/` (necesita Postgres, no disponible en el
   LXC por decision de Gaspar).
+- **L9** (T6, correccion por CI): el primer intento levantaba el fetch desde un
+  `useCallback` que hacia `setLoading(true)` en la primera linea, y ESLint lo
+  marco como `react-hooks/set-state-in-effect` (setState sincronico dentro del
+  efecto = renders en cascada). Se reescribio como IIFE async: el primer setState
+  ocurre despues del `await`, y el desmontaje aborta la request via
+  `AbortController` (antes una respuesta tardia podia pintar sobre otro token).
+  El reintento ahora es un contador de intentos en las deps del efecto, no una
+  llamada directa.
+- **L10** (T7, hallazgo ajeno que bloqueaba el CI): dos tests de stats de WhatsApp
+  fallaban en `main` desde el 2026-11-25 por un fixture con ancla fija
+  (`NOW = 2026-10-26`) contra una ventana relativa de 30 dias: al vencer el ancla,
+  los fixtures caen fuera de la ventana y `stats()["total"]` da 0. No lo causaba
+  esta feature ni el chain (main paso el 23/11 y no volvio a correr). Se cambia el
+  ancla a relativa en los dos archivos; sin eso el PR no puede ponerse verde.

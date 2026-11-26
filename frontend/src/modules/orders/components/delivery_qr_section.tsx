@@ -112,6 +112,9 @@ export function DeliveryQrSection({
             <Dialog.Body>
               <Stack gap={4} align="flex-start">
                 {qrUrl ? (
+                  // El QR llega como blob SVG del backend: next/image no puede
+                  // optimizar blob: y el archivo ya viene dimensionado.
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={qrUrl}
                     alt="Código QR de entrega del pedido"

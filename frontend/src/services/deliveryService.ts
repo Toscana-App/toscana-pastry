@@ -20,10 +20,13 @@ export async function fetchDeliveryQrObjectUrl(orderId: string): Promise<string>
   return URL.createObjectURL(await response.blob());
 }
 
-export async function fetchPublicDelivery(token: string): Promise<PublicDelivery> {
+export async function fetchPublicDelivery(
+  token: string,
+  signal?: AbortSignal,
+): Promise<PublicDelivery> {
   const response = await fetch(
     `${API_BASE_URL}/public/orders/${encodeURIComponent(token)}`,
-    { credentials: "omit", cache: "no-store" },
+    { credentials: "omit", cache: "no-store", signal },
   );
   if (!response.ok) {
     const body: unknown = await response.json().catch(() => null);

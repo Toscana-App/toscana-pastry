@@ -17,35 +17,45 @@ interface DeliveryStatusViewProps {
   token: string;
 }
 
-export function DeliveryStatusView({ token }: DeliveryStatusViewProps) {
-  const [delivery, setDelivery] = useState<PublicDelivery | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+const UNAVAILABLE = "Este enlace no está disponible";
 
-  const load = useCallback(async () => {
-    if (!token) {
-      setError("Este enlace no está disponible");
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      setDelivery(await fetchPublicDelivery(token));
-    } catch (cause) {
-      setError(
-        cause instanceof Error && cause.message
-          ? cause.message
-          : "Este enlace no está disponible",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
+type View =
+  | { kind: "loading" }
+  | { kind: "error"; message: string }
+  | { kind: "ready"; delivery: PublicDelivery };
+
+function messageFor(cause: unknown): string {
+  return cause instanceof Error && cause.message ? cause.message : UNAVAILABLE;
+}
+
+export function DeliveryStatusView({ token }: DeliveryStatusViewProps) {
+  const [attempt, setAttempt] = useState(0);
+  const [view, setView] = useState<View>(() =>
+    token ? { kind: "loading" } : { kind: "error", message: UNAVAILABLE },
+  );
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (!token) return;
+    const controller = new AbortController();
+    // El primer setState ocurre después del await: el efecto no encadena
+    // renders (react-hooks/set-state-in-effect). Desmontar o cambiar de token
+    // aborta la request y descarta la respuesta tardía.
+    void (async () => {
+      try {
+        const delivery = await fetchPublicDelivery(token, controller.signal);
+        if (!controller.signal.aborted) setView({ kind: "ready", delivery });
+      } catch (cause) {
+        if (controller.signal.aborted) return;
+        setView({ kind: "error", message: messageFor(cause) });
+      }
+    })();
+    return () => controller.abort();
+  }, [token, attempt]);
+
+  const retry = useCallback(() => {
+    setView({ kind: "loading" });
+    setAttempt((current) => current + 1);
+  }, []);
 
   return (
     <Box as="main" minH="100dvh" bg="bg.subtle" py={{ base: 10, md: 20 }}>
@@ -59,13 +69,13 @@ export function DeliveryStatusView({ token }: DeliveryStatusViewProps) {
           py={{ base: 8, md: 12 }}
           aria-live="polite"
         >
-          {loading ? (
+          {view.kind === "loading" ? (
             <Stack gap={4}>
               <Skeleton height="8" width="70%" />
               <Skeleton height="4" width="40%" />
               <Skeleton height="4" width="55%" />
             </Stack>
-          ) : error ? (
+          ) : view.kind === "error" ? (
             <Stack gap={5} align="flex-start">
               <Heading
                 as="h1"
@@ -74,12 +84,12 @@ export function DeliveryStatusView({ token }: DeliveryStatusViewProps) {
               >
                 No pudimos abrir este enlace
               </Heading>
-              <Text color="fg.muted">{error}</Text>
-              <Button variant="outline" onClick={() => void load()}>
+              <Text color="fg.muted">{view.message}</Text>
+              <Button variant="outline" onClick={retry}>
                 Reintentar
               </Button>
             </Stack>
-          ) : delivery ? (
+          ) : (
             <Stack gap={5} align="flex-start">
               <Heading
                 as="h1"
@@ -87,17 +97,17 @@ export function DeliveryStatusView({ token }: DeliveryStatusViewProps) {
                 lineHeight="1.15"
                 css={{ textWrap: "balance" }}
               >
-                {delivery.message}
+                {view.delivery.message}
               </Heading>
-              {delivery.order_code ? (
+              {view.delivery.order_code ? (
                 <Text fontSize="lg" fontWeight="medium">
                   Pedido{" "}
                   <Text as="span" fontFamily="mono" color="fg.muted">
-                    {delivery.order_code}
+                    {view.delivery.order_code}
                   </Text>
                 </Text>
               ) : null}
-              {delivery.state === "active" ? (
+              {view.delivery.state === "active" ? (
                 <Box
                   borderWidth="1px"
                   borderColor="border"
@@ -107,16 +117,16 @@ export function DeliveryStatusView({ token }: DeliveryStatusViewProps) {
                   fontSize="sm"
                   color="fg.muted"
                 >
-                  {delivery.status_label}
+                  {view.delivery.status_label}
                 </Box>
               ) : null}
-              {delivery.state === "delivered" ? (
+              {view.delivery.state === "delivered" ? (
                 <Text color="fg.muted">
                   Gracias por elegir Toscana. Podés cerrar esta página.
                 </Text>
               ) : null}
             </Stack>
-          ) : null}
+          )}
         </Box>
       </Container>
     </Box>
