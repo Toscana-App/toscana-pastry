@@ -14,7 +14,10 @@ from data.repositories.sql_whatsapp_send_repository import (
 )
 from domain.whatsapp_send import WhatsAppSend
 
-NOW = datetime.datetime(2026, 10, 26, 12, 0, 0, tzinfo=datetime.UTC)
+# Ancla relativa, no fija: `stats()` ventanea contra el reloj real, así que una
+# fecha hardcodeada deja los fixtures fuera de la ventana al vencer (pasó el
+# 2026-11-25 con el ancla 2026-10-26 + ventana de 30 días).
+NOW = datetime.datetime.now(datetime.UTC)
 
 
 @pytest_asyncio.fixture
