@@ -183,3 +183,25 @@ def test_verify_webhook_rejects_bad_signature_or_body() -> None:
     assert provider.verify_webhook(good, None, "req-1") is None
     assert provider.verify_webhook(b"not json", _signed("987", "req-1"), "req-1") is None
     assert provider.verify_webhook(b"{}", _signed("987", "req-1"), "req-1") is None
+
+
+def test_resolve_mp_api_url_only_honors_loopback_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    from data.payments.mercadopago import _DEFAULT_MP_API_URL, _resolve_mp_api_url
+
+    # Sin override -> endpoint real.
+    monkeypatch.delenv("MP_API_URL", raising=False)
+    assert _resolve_mp_api_url() == _DEFAULT_MP_API_URL
+
+    # Loopback (mock de e2e) -> se honra.
+    monkeypatch.setenv("MP_API_URL", "http://127.0.0.1:9000")
+    assert _resolve_mp_api_url() == "http://127.0.0.1:9000"
+    monkeypatch.setenv("MP_API_URL", "http://localhost:9000")
+    assert _resolve_mp_api_url() == "http://localhost:9000"
+
+    # Host no-loopback (misconfig en prod) -> se descarta a favor del real.
+    monkeypatch.setenv("MP_API_URL", "http://evil.example.com")
+    assert _resolve_mp_api_url() == _DEFAULT_MP_API_URL
+
+    # URL sin host valido -> default.
+    monkeypatch.setenv("MP_API_URL", "not a url")
+    assert _resolve_mp_api_url() == _DEFAULT_MP_API_URL
