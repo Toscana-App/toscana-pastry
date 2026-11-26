@@ -58,7 +58,7 @@ export function DeliveryStatusView({ token }: DeliveryStatusViewProps) {
   }, []);
 
   return (
-    <Box as="main" minH="100dvh" bg="bg.subtle" py={{ base: 10, md: 20 }}>
+    <Box minH="100dvh" bg="bg.subtle" py={{ base: 10, md: 20 }}>
       <Container maxW="lg" px={4}>
         <Box
           bg="bg.panel"
