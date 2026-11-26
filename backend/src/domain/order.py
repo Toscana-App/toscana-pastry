@@ -8,6 +8,11 @@ from decimal import Decimal
 from enum import StrEnum
 
 from domain.order_states import OrderStatus, is_known_status
+from domain.payment_states import (
+    PaymentStatus,
+    is_known_payment_status,
+    transition,
+)
 
 
 class PaymentMethod(StrEnum):
@@ -19,29 +24,6 @@ class PaymentMethod(StrEnum):
 class DeliveryMode(StrEnum):
     DELIVERY = "delivery"
     PICKUP = "pickup"
-
-
-class PaymentStatus(StrEnum):
-    PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-    FAILED = "failed"
-
-
-_PAYMENT_STATUS_RANK: dict[PaymentStatus, int] = {
-    PaymentStatus.PENDING: 0,
-    PaymentStatus.REJECTED: 1,
-    PaymentStatus.FAILED: 1,
-    PaymentStatus.APPROVED: 2,
-}
-
-
-def overridable_payment_statuses(new: PaymentStatus) -> frozenset[PaymentStatus]:
-    return frozenset(
-        current
-        for current, rank in _PAYMENT_STATUS_RANK.items()
-        if rank < _PAYMENT_STATUS_RANK[new]
-    )
 
 
 PAYMENT_EXPIRY = datetime.timedelta(hours=24)
@@ -105,6 +87,10 @@ class Order:
     def __post_init__(self) -> None:
         if not is_known_status(self.status):
             raise ValueError(f"Estado de pedido desconocido: {self.status}")
+        if self.payment_status is not None and not is_known_payment_status(
+            self.payment_status
+        ):
+            raise ValueError(f"Estado de pago desconocido: {self.payment_status}")
         if self.delivery_mode == DeliveryMode.PICKUP:
             object.__setattr__(self, "delivery_address", None)
 
@@ -172,6 +158,7 @@ class Order:
             raise ValueError("Cash orders cannot be auto-paid")
         if status is not PaymentStatus.APPROVED:
             raise ValueError("confirm_payment only applies to approved payments")
+        transition(self.payment_status, status)
         self.paid_at = datetime.datetime.now(datetime.UTC)
         self.payment_reference = reference
         self.payment_status = status
@@ -184,6 +171,7 @@ class Order:
             raise ValueError("Cash orders have no provider payment status")
         if status is PaymentStatus.APPROVED:
             raise ValueError("Use confirm_payment to register approved payments")
+        transition(self.payment_status, status)
         self.payment_status = status
 
     def mark_cash_payment(self) -> None:

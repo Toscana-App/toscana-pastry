@@ -17,7 +17,8 @@ from api.v1.orders.schemas import WebhookNotification, WebhookResponse
 from data.db import get_db
 from data.repositories.sql_order_repository import SQLOrderRepository
 from domain.checkout_provider import CheckoutProvider, PaymentProviderError
-from domain.order import PaymentStatus
+from domain.payment_states import PaymentStatus
+from domain.use_cases.apply_payment_event import ApplyPaymentEvent
 from sqlalchemy.ext.asyncio import AsyncSession
 
 _PAYMENT_CURRENCY = "ARS"
@@ -101,9 +102,9 @@ async def mercadopago_webhook(
             )
             return WebhookResponse()
 
-    await repo.apply_payment_event(
+    await ApplyPaymentEvent(repo).execute(
+        order=order,
         event_id=event_id,
-        order_id=order.id,
         provider_payment_id=payment_id,
         status=payment_status,
         paid_at=datetime.datetime.now(datetime.UTC),

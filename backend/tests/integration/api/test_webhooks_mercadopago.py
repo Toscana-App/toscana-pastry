@@ -359,6 +359,7 @@ class TestWebhookPriorityAndAtomicity:
             event_id="1001:approved",
             order_id=mercadopago_order.id,
             provider_payment_id="1001",
+            current=None,
             status=PaymentStatus.APPROVED,
             paid_at=now,
         )
