@@ -132,33 +132,29 @@ async def mark_order_paid(
             detail="order_already_paid",
         )
 
-    if (
-        order.payment_method == PaymentMethod.MERCADOPAGO
-        and order.payment_status is not None
-        and order.payment_status != PaymentStatus.PENDING
-    ):
-        raise HTTPException(
-            status_code=http_status.HTTP_409_CONFLICT,
-            detail="payment_in_progress",
-        )
-
-    if order.payment_method == PaymentMethod.CASH:
-        order.mark_cash_payment()
-        marked = await repo.mark_paid_at(order.id, order.paid_at)
-        if not marked:
+    if order.payment_method == PaymentMethod.MERCADOPAGO:
+        if order.payment_status not in (None, PaymentStatus.PENDING):
             raise HTTPException(
                 status_code=http_status.HTTP_409_CONFLICT,
-                detail="order_already_paid",
+                detail="payment_in_progress",
             )
-        return PaidResponse(paid=True)
-    else:
         order.confirm_payment(reference="manual", status=PaymentStatus.APPROVED)
-        result = await repo.update_payment_status(
-            order_id=order.id,
-            reference=order.payment_reference,
-            status=order.payment_status,
-            paid_at=order.paid_at,
+    else:
+        order.mark_manual_payment(reference="manual")
+
+    reference = order.payment_reference
+    payment_status = order.payment_status
+    if reference is None or payment_status is None:
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="payment_state_inconsistent",
         )
+    result = await repo.update_payment_status(
+        order_id=order.id,
+        reference=reference,
+        status=payment_status,
+        paid_at=order.paid_at,
+    )
 
     if result is None:
         raise HTTPException(

@@ -1,7 +1,7 @@
 """Orquestador e2e (ODD e2e-order-lifecycle, S7).
 
 Levanta: mock MP (proceso en hilo) + base e2e throwaway + uvicorn (proceso
-separado), corre los 20 casos y hace teardown. Exit 0 = todo verde.
+separado), corre los 30 casos y hace teardown. Exit 0 = todo verde.
 
 Uso:  python backend/e2e/run.py
       (con el venv del backend activo; requiere Postgres local en
